@@ -23,7 +23,8 @@ is on Android.
     - Decay speed.
 
 - **Settings**
-  - Three‑dot button in the top‑right opens the **Settings** screen directly.
+  - Three‑dot button in the top‑right toggles the **slide-in Settings Panel**.
+  - The panel overlays the right side of the screen with a frosted glass effect, allowing live preview of changes.
   - Settings are persisted locally and pushed down to native Kotlin code.
 
 ### Architecture Overview

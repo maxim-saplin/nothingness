@@ -31,14 +31,14 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   bool _hasAudioPermission = false;
 
   SpectrumSettings _settings = const SpectrumSettings();
+  bool _isSettingsOpen = false;
 
   final _settingsService = SettingsService();
 
   Color get _accentColor => _settings.colorScheme.colors.first;
-  Color get _accentColorSoft =>
-      _settings.colorScheme.colors.length > 1
-          ? _settings.colorScheme.colors[1]
-          : _settings.colorScheme.colors.first;
+  Color get _accentColorSoft => _settings.colorScheme.colors.length > 1
+      ? _settings.colorScheme.colors[1]
+      : _settings.colorScheme.colors.first;
 
   @override
   void initState() {
@@ -46,7 +46,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     WidgetsBinding.instance.addObserver(this);
 
     _loadSettings();
-    
+
     if (PlatformChannels.isAndroid) {
       _checkPermissions();
       _startSongInfoPolling();
@@ -80,7 +80,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   Future<void> _saveSettings(SpectrumSettings settings) async {
     await _settingsService.saveSettings(settings);
-    
+
     setState(() {
       _settings = settings;
     });
@@ -90,7 +90,8 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   Future<void> _checkPermissions() async {
-    final notificationAccess = await _platformChannels.isNotificationAccessGranted();
+    final notificationAccess = await _platformChannels
+        .isNotificationAccessGranted();
     final audioPermission = await _platformChannels.hasAudioPermission();
 
     setState(() {
@@ -118,70 +119,89 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   void _startSpectrumListening() {
-    _spectrumSubscription = _platformChannels.spectrumStream.listen(
-      (data) {
-        setState(() {
-          _spectrumData = data;
-        });
-      },
-    );
+    _spectrumSubscription = _platformChannels.spectrumStream.listen((data) {
+      setState(() {
+        _spectrumData = data;
+      });
+    });
   }
 
-  void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SettingsScreen(
-          settings: _settings,
-          onSettingsChanged: _saveSettings,
-        ),
-      ),
-    );
+  void _toggleSettings() {
+    setState(() {
+      _isSettingsOpen = !_isSettingsOpen;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.more_vert, color: _accentColor),
-            onPressed: _openSettings,
-          )
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            // Song info section
-            SongInfoDisplay(
-              songInfo: _songInfo,
-              hasNotificationAccess: _hasNotificationAccess,
-              isAndroid: PlatformChannels.isAndroid,
-            ),
-            const SizedBox(height: 40),
-            // Spectrum visualizer
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: SpectrumVisualizer(
-                  data: _spectrumData,
-                  settings: _settings,
-                ),
+    // Determine panel width logic
+    final screenWidth = MediaQuery.of(context).size.width;
+    final panelWidth = screenWidth > 900
+        ? screenWidth / 3
+        : (screenWidth / 2).clamp(300.0, 400.0);
+
+    return Stack(
+      children: [
+        // Main Content
+        Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: Icon(Icons.more_vert, color: _accentColor),
+                onPressed: _toggleSettings,
               ),
+            ],
+          ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                // Song info section
+                SongInfoDisplay(
+                  songInfo: _songInfo,
+                  hasNotificationAccess: _hasNotificationAccess,
+                  isAndroid: PlatformChannels.isAndroid,
+                ),
+                const SizedBox(height: 40),
+                // Spectrum visualizer
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: SpectrumVisualizer(
+                      data: _spectrumData,
+                      settings: _settings,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+                // Media controls
+                _buildMediaControls(),
+                const SizedBox(height: 20),
+                // Permission buttons (if needed)
+                if (PlatformChannels.isAndroid) _buildPermissionButtons(),
+                const SizedBox(height: 40),
+              ],
             ),
-            const SizedBox(height: 40),
-            // Media controls
-            _buildMediaControls(),
-            const SizedBox(height: 20),
-            // Permission buttons (if needed)
-            if (PlatformChannels.isAndroid) _buildPermissionButtons(),
-            const SizedBox(height: 40),
-          ],
+          ),
         ),
-      ),
+
+        // Settings Panel
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+          top: 0,
+          bottom: 0,
+          right: _isSettingsOpen ? 0 : -panelWidth,
+          width: panelWidth,
+          child: SettingsScreen(
+            settings: _settings,
+            onSettingsChanged: _saveSettings,
+            onClose: _toggleSettings,
+          ),
+        ),
+      ],
     );
   }
 
@@ -196,8 +216,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
           icon: Icons.skip_previous_rounded,
           size: 48,
           accentColor: _accentColorSoft,
-          inactiveBackgroundColor:
-              Colors.white.withAlpha(10),
+          inactiveBackgroundColor: Colors.white.withAlpha(10),
           inactiveIconColor: Colors.white70,
           onTap: _platformChannels.previous,
         ),
@@ -216,8 +235,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
           icon: Icons.skip_next_rounded,
           size: 48,
           accentColor: _accentColorSoft,
-          inactiveBackgroundColor:
-              Colors.white.withAlpha(10),
+          inactiveBackgroundColor: Colors.white.withAlpha(10),
           inactiveIconColor: Colors.white70,
           onTap: _platformChannels.next,
         ),
@@ -263,4 +281,3 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     );
   }
 }
-
