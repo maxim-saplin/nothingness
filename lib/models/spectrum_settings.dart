@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../services/settings_service.dart';
+
 enum BarCount {
   bars8(8, '8 bars'),
   bars12(12, '12 bars'),
@@ -50,11 +52,11 @@ class SpectrumSettings {
   final DecaySpeed decaySpeed;
 
   const SpectrumSettings({
-    this.noiseGateDb = -35.0,
-    this.barCount = BarCount.bars12,
-    this.colorScheme = SpectrumColorScheme.classic,
-    this.barStyle = BarStyle.segmented,
-    this.decaySpeed = DecaySpeed.medium,
+    this.noiseGateDb = SettingsService.defaultNoiseGateDb,
+    this.barCount = SettingsService.defaultBarCount,
+    this.colorScheme = SettingsService.defaultColorScheme,
+    this.barStyle = SettingsService.defaultBarStyle,
+    this.decaySpeed = SettingsService.defaultDecaySpeed,
   });
 
   SpectrumSettings copyWith({
@@ -87,22 +89,24 @@ class SpectrumSettings {
 
   factory SpectrumSettings.fromJson(Map<String, dynamic> json) {
     return SpectrumSettings(
-      noiseGateDb: (json['noiseGateDb'] as num?)?.toDouble() ?? -35.0,
+      noiseGateDb:
+          (json['noiseGateDb'] as num?)?.toDouble() ??
+          SettingsService.defaultNoiseGateDb,
       barCount: BarCount.values.firstWhere(
         (b) => b.count == json['barCount'],
-        orElse: () => BarCount.bars12,
+        orElse: () => SettingsService.defaultBarCount,
       ),
       colorScheme: SpectrumColorScheme.values.firstWhere(
         (c) => c.name == json['colorScheme'],
-        orElse: () => SpectrumColorScheme.classic,
+        orElse: () => SettingsService.defaultColorScheme,
       ),
       barStyle: BarStyle.values.firstWhere(
         (s) => s.name == json['barStyle'],
-        orElse: () => BarStyle.segmented,
+        orElse: () => SettingsService.defaultBarStyle,
       ),
       decaySpeed: DecaySpeed.values.firstWhere(
         (d) => d.value == json['decaySpeed'],
-        orElse: () => DecaySpeed.medium,
+        orElse: () => SettingsService.defaultDecaySpeed,
       ),
     );
   }
@@ -115,4 +119,3 @@ class SpectrumSettings {
     }
   }
 }
-

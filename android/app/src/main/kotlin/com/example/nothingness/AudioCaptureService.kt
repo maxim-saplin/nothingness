@@ -32,6 +32,11 @@ class AudioCaptureService(private val context: Context) {
         private const val MIN_MAGNITUDE = 5.0
         // Smoothing factor for rise
         private const val RISE_SMOOTHING = 0.5  // How fast bars rise
+        
+        // Gain boost in dB to apply before gating.
+        // Lifts quiet mic signals up so typical slider ranges (-60 to -20) work better.
+        // +24 dB corresponds to approx 15.8x amplitude boost.
+        private const val GAIN_BOOST_DB = 24.0
     }
     
     private var audioRecord: AudioRecord? = null
@@ -206,8 +211,9 @@ class AudioCaptureService(private val context: Context) {
             }
             
             // Convert to dB scale (reference 32768.0 for 16-bit signed audio)
+            // Apply GAIN_BOOST_DB here to shift signals into a more usable range
             val db = if (peakMagnitude > 0.0) {
-                20 * log10(peakMagnitude / 32768.0)
+                20 * log10(peakMagnitude / 32768.0) + GAIN_BOOST_DB
             } else {
                 -96.0
             }

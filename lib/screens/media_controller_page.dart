@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import '../services/platform_channels.dart';
+import '../services/settings_service.dart';
 import '../widgets/media_button.dart';
 import '../widgets/song_info_display.dart';
 import '../widgets/spectrum_visualizer.dart';
@@ -32,7 +32,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   SpectrumSettings _settings = const SpectrumSettings();
 
-  static const _settingsKey = 'spectrum_settings';
+  final _settingsService = SettingsService();
 
   Color get _accentColor => _settings.colorScheme.colors.first;
   Color get _accentColorSoft =>
@@ -70,20 +70,16 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_settingsKey);
-    if (jsonString != null) {
-      setState(() {
-        _settings = SpectrumSettings.fromJsonString(jsonString);
-      });
-      // Update native side with loaded settings
-      _platformChannels.updateSpectrumSettings(_settings);
-    }
+    final settings = await _settingsService.loadSettings();
+    setState(() {
+      _settings = settings;
+    });
+    // Update native side with loaded settings
+    _platformChannels.updateSpectrumSettings(settings);
   }
 
   Future<void> _saveSettings(SpectrumSettings settings) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_settingsKey, settings.toJsonString());
+    await _settingsService.saveSettings(settings);
     
     setState(() {
       _settings = settings;

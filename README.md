@@ -32,6 +32,7 @@ is on Android.
   - UI, navigation, settings, persistence, visualization.
   - Custom painter for the spectrum and labels.
   - `MethodChannel` + `EventChannel` wrappers in `lib/services/platform_channels.dart`.
+  - `SettingsService` in `lib/services/settings_service.dart` acts as the single source of truth for defaults and persistence.
 
 - **Android (Kotlin)**
   - `MediaSessionService` (NotificationListenerService) reads active sessions and
