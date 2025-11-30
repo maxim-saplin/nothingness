@@ -1,0 +1,62 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" fill="#000000" />
+
+    <!-- Define common styles -->
+    <defs>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+            <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+
+    <!-- Bar 1: Low-Mid (Cyan) -->
+    <!-- 6 segments active -->
+    <g fill="#4FC3F7" filter="url(#glow)">
+        <rect x="51" y="430" width="80" height="20" />
+        <rect x="51" y="400" width="80" height="20" />
+        <rect x="51" y="370" width="80" height="20" />
+        <rect x="51" y="340" width="80" height="20" />
+        <rect x="51" y="310" width="80" height="20" />
+        <rect x="51" y="280" width="80" height="20" />
+    </g>
+    <!-- Peak hold (Red) -->
+    <rect x="51" y="220" width="80" height="20" fill="#FF5252" filter="url(#glow)" />
+
+    <!-- Bar 2: High (White/Cyan) -->
+    <!-- 10 segments active -->
+    <g fill="#E1F5FE" filter="url(#glow)">
+        <rect x="161" y="430" width="80" height="20" />
+        <rect x="161" y="400" width="80" height="20" />
+        <rect x="161" y="370" width="80" height="20" />
+        <rect x="161" y="340" width="80" height="20" />
+        <rect x="161" y="310" width="80" height="20" />
+        <rect x="161" y="280" width="80" height="20" />
+        <rect x="161" y="250" width="80" height="20" />
+        <rect x="161" y="220" width="80" height="20" />
+        <rect x="161" y="190" width="80" height="20" />
+        <rect x="161" y="160" width="80" height="20" />
+    </g>
+
+    <!-- Bar 3: Mid (Cyan) -->
+    <!-- 5 segments active -->
+    <g fill="#4FC3F7" filter="url(#glow)">
+        <rect x="271" y="430" width="80" height="20" />
+        <rect x="271" y="400" width="80" height="20" />
+        <rect x="271" y="370" width="80" height="20" />
+        <rect x="271" y="340" width="80" height="20" />
+        <rect x="271" y="310" width="80" height="20" />
+    </g>
+    <!-- Peak hold (Red) -->
+    <rect x="271" y="250" width="80" height="20" fill="#FF5252" filter="url(#glow)" />
+
+    <!-- Bar 4: Low (Darker Cyan) -->
+    <!-- 3 segments active -->
+    <g fill="#039BE5" filter="url(#glow)">
+        <rect x="381" y="430" width="80" height="20" />
+        <rect x="381" y="400" width="80" height="20" />
+        <rect x="381" y="370" width="80" height="20" />
+    </g>
+</svg>

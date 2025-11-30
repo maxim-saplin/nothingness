@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nothingness/models/spectrum_settings.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/widgets/scaled_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -88,4 +87,3 @@ void main() {
     });
   });
 }
-
