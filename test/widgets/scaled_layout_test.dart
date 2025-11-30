@@ -17,9 +17,7 @@ void main() {
     testWidgets('renders child without scaling when uiScale is 1.0', (
       WidgetTester tester,
     ) async {
-      SettingsService().settingsNotifier.value = const SpectrumSettings(
-        uiScale: 1.0,
-      );
+      SettingsService().uiScaleNotifier.value = 1.0;
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -45,9 +43,7 @@ void main() {
       WidgetTester tester,
     ) async {
       const double scale = 2.0;
-      SettingsService().settingsNotifier.value = const SpectrumSettings(
-        uiScale: scale,
-      );
+      SettingsService().uiScaleNotifier.value = scale;
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -74,9 +70,7 @@ void main() {
     testWidgets('handles invalid scale by falling back to 1.0', (
       WidgetTester tester,
     ) async {
-      SettingsService().settingsNotifier.value = const SpectrumSettings(
-        uiScale: 0.0, // Invalid
-      );
+      SettingsService().uiScaleNotifier.value = 0.0; // Invalid
 
       await tester.pumpWidget(
         const MaterialApp(home: ScaledLayout(child: Text('Fallback'))),
@@ -94,3 +88,4 @@ void main() {
     });
   });
 }
+

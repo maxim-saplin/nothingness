@@ -2,8 +2,11 @@
 
 Nothingness is a Flutter app that shows the **currently playing track on Android**
 and renders a retro, 80s‑style **pixelated spectrum analyzer** driven by the
-microphone. It is designed to be developed on macOS but its full functionality
-is on Android.
+microphone.
+
+Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - I releized I want a simple screen instead of youtube or map just to feel the ever eluding "nothingness" -> see https://www.youtube.com/watch?v=orQKfIXMiA8
+
+Oh, btw, it auto adjusts to Zeekrs notorious DPI (that's when stabdard Android apps show very small text and buttons).
 
 ### Features
 
@@ -14,7 +17,6 @@ is on Android.
 - **Spectrum Visualizer**
   - Microphone‑based FFT analyzer with 8 / 12 / 24 bars.
   - Pixelated, segmented bars reminiscent of old audio decks.
-  - Centered spectrum with labeled frequency axis (e.g. 60, 200, 800, 3k, 8k…).
   - Tunable:
     - Noise gate sensitivity (how quiet is considered “silence”).
     - Bar count.
