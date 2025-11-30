@@ -1,0 +1,44 @@
+---
+description: Guidelines for polling GitHub Actions workflow runs via MCP tools.
+globs: ".github/workflows/**/*.yml", ".github/workflows/**/*.yaml"
+alwaysApply: false
+---
+
+# GitHub Actions Polling & Feedback Loop
+
+When using GitHub MCP tools to monitor workflow runs (CI/CD feedback loop), avoid tight, wasteful polling.
+
+## Polling Strategy
+
+- **Use coarse polling**:
+  - After pushing a commit or triggering a workflow, wait **at least 15–20 seconds** before the first status check.
+  - Between subsequent checks, **sleep 10–20 seconds** instead of calling `list_workflow_runs` or `get_workflow_run` in a tight loop.
+- **Limit total wait time**:
+  - Cap automated waiting for a single commit/workflow run at **5–10 minutes**.
+  - If the run is still `queued` or `in_progress` after that, surface the current status to the user and stop polling.
+
+## Tool Usage
+
+- Use `mcp_GitHub_list_workflows` to discover workflow IDs once, then reuse them.
+- Use `mcp_GitHub_list_workflow_runs` filtered by:
+  - `workflow_id` (numeric ID),
+  - `branch` (e.g. `main`),
+  - and inspect the most recent run whose `head_sha` matches the target commit.
+- Use `mcp_GitHub_get_workflow_run` or `mcp_GitHub_get_job_logs` only **after** a run reaches `status: completed` to inspect failures.
+
+## Behavior in CI/CD Tasks
+
+- For each CI/CD change the agent makes:
+  1. Push changes (or instruct the user to push).
+  2. Start a **bounded polling loop** following the timing rules above.
+  3. On **success**: clearly report the passing run and link to it.
+  4. On **failure**: fetch logs once, summarize root cause, and propose fixes instead of repeatedly downloading logs.
+
+## Handling Tool Unavailability or Errors
+
+- If any GitHub MCP tool needed for polling (e.g. `mcp_GitHub_list_workflow_runs`, `mcp_GitHub_get_workflow_run`, `mcp_GitHub_get_job_logs`) is:
+  - unavailable,
+  - returns persistent permission errors (403/401),
+  - or repeatedly fails for non-transient reasons,
+  then the agent **must stop automated polling**, clearly state that status cannot be checked programmatically, and **ask the user for assistance** (e.g. to confirm run status or provide logs/screenshots from the Actions UI).
+
