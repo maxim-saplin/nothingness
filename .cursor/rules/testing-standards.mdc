@@ -1,9 +1,7 @@
 ---
 description: Standards and instructions for testing in the Nothingness project.
-globs: test/**/*, lib/**/*
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Testing Standards
 
 ## Organization

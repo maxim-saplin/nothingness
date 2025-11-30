@@ -16,14 +16,54 @@ class SpectrumVisualizer extends StatelessWidget {
 
   // Frequency labels for display (logarithmic distribution)
   static const List<String> _frequencyLabels8 = [
-    '60', '150', '400', '1k', '2.5k', '6k', '10k', '16k'
+    '60',
+    '150',
+    '400',
+    '1k',
+    '2.5k',
+    '6k',
+    '10k',
+    '16k',
   ];
   static const List<String> _frequencyLabels12 = [
-    '60', '100', '200', '400', '800', '1.5k', '3k', '5k', '8k', '11k', '14k', '16k'
+    '60',
+    '100',
+    '200',
+    '400',
+    '800',
+    '1.5k',
+    '3k',
+    '5k',
+    '8k',
+    '11k',
+    '14k',
+    '16k',
   ];
   static const List<String> _frequencyLabels24 = [
-    '31', '50', '70', '100', '140', '200', '280', '400', '560', '800', '1.1k', '1.6k',
-    '2.2k', '3k', '4k', '5.5k', '7k', '9k', '11k', '13k', '14k', '15k', '16k', '18k'
+    '31',
+    '50',
+    '70',
+    '100',
+    '140',
+    '200',
+    '280',
+    '400',
+    '560',
+    '800',
+    '1.1k',
+    '1.6k',
+    '2.2k',
+    '3k',
+    '4k',
+    '5.5k',
+    '7k',
+    '9k',
+    '11k',
+    '13k',
+    '14k',
+    '15k',
+    '16k',
+    '18k',
   ];
 
   List<String> get _labels {
@@ -137,10 +177,7 @@ class _SpectrumPainter extends CustomPainter {
   final List<double> data;
   final SpectrumSettings settings;
 
-  _SpectrumPainter({
-    required this.data,
-    required this.settings,
-  });
+  _SpectrumPainter({required this.data, required this.settings});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -163,23 +200,42 @@ class _SpectrumPainter extends CustomPainter {
       final x = i * (barWidth + gap) + gap / 2;
 
       // Calculate how many segments to light up
-      final litSegments = (barHeight / segmentHeight).ceil().clamp(0, segmentCount);
+      final litSegments = (barHeight / segmentHeight).ceil().clamp(
+        0,
+        segmentCount,
+      );
 
       switch (settings.barStyle) {
         case BarStyle.segmented:
           _drawSegmentedBar(
-            canvas, x, size.height, barWidth, 
-            litSegments, segmentCount, actualSegmentHeight, segmentHeight,
+            canvas,
+            x,
+            size.height,
+            barWidth,
+            litSegments,
+            segmentCount,
+            actualSegmentHeight,
+            segmentHeight,
           );
           break;
         case BarStyle.solid:
           _drawSolidBar(
-            canvas, x, size.height, barWidth, barHeight, maxBarHeight,
+            canvas,
+            x,
+            size.height,
+            barWidth,
+            barHeight,
+            maxBarHeight,
           );
           break;
         case BarStyle.glow:
           _drawGlowBar(
-            canvas, x, size.height, barWidth, barHeight, maxBarHeight,
+            canvas,
+            x,
+            size.height,
+            barWidth,
+            barHeight,
+            maxBarHeight,
           );
           break;
       }
@@ -187,13 +243,22 @@ class _SpectrumPainter extends CustomPainter {
   }
 
   void _drawSegmentedBar(
-    Canvas canvas, double x, double bottom, double barWidth,
-    int litSegments, int segmentCount, double segmentHeight, double totalSegmentHeight,
+    Canvas canvas,
+    double x,
+    double bottom,
+    double barWidth,
+    int litSegments,
+    int segmentCount,
+    double segmentHeight,
+    double totalSegmentHeight,
   ) {
     final colors = settings.colorScheme.colors;
 
     for (int seg = 0; seg < segmentCount; seg++) {
-      final y = bottom - (seg + 1) * totalSegmentHeight + (totalSegmentHeight - segmentHeight);
+      final y =
+          bottom -
+          (seg + 1) * totalSegmentHeight +
+          (totalSegmentHeight - segmentHeight);
       final isLit = seg < litSegments;
 
       // Color based on segment position (bottom=green, top=red)
@@ -218,19 +283,28 @@ class _SpectrumPainter extends CustomPainter {
         final highlightPaint = Paint()
           ..color = Colors.white.withAlpha(40)
           ..style = PaintingStyle.fill;
-        final highlightRect = Rect.fromLTWH(x, y, barWidth, segmentHeight * 0.3);
+        final highlightRect = Rect.fromLTWH(
+          x,
+          y,
+          barWidth,
+          segmentHeight * 0.3,
+        );
         canvas.drawRect(highlightRect, highlightPaint);
       }
     }
   }
 
   void _drawSolidBar(
-    Canvas canvas, double x, double bottom, double barWidth,
-    double barHeight, double maxBarHeight,
+    Canvas canvas,
+    double x,
+    double bottom,
+    double barWidth,
+    double barHeight,
+    double maxBarHeight,
   ) {
     final colors = settings.colorScheme.colors;
     final normalizedHeight = (barHeight / maxBarHeight).clamp(0.0, 1.0);
-    
+
     Color color;
     if (normalizedHeight < 0.5) {
       color = Color.lerp(colors[0], colors[1], normalizedHeight * 2)!;
@@ -247,12 +321,16 @@ class _SpectrumPainter extends CustomPainter {
   }
 
   void _drawGlowBar(
-    Canvas canvas, double x, double bottom, double barWidth,
-    double barHeight, double maxBarHeight,
+    Canvas canvas,
+    double x,
+    double bottom,
+    double barWidth,
+    double barHeight,
+    double maxBarHeight,
   ) {
     final colors = settings.colorScheme.colors;
     final normalizedHeight = (barHeight / maxBarHeight).clamp(0.0, 1.0);
-    
+
     Color color;
     if (normalizedHeight < 0.5) {
       color = Color.lerp(colors[0], colors[1], normalizedHeight * 2)!;
@@ -302,4 +380,3 @@ class _SpectrumPainter extends CustomPainter {
     return true; // Always repaint for smooth animation
   }
 }
-

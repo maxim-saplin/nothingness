@@ -19,6 +19,7 @@ void main() {
       expect(settings.noiseGateDb, SettingsService.defaultNoiseGateDb);
       expect(settings.barCount, SettingsService.defaultBarCount);
       expect(settings.colorScheme, SettingsService.defaultColorScheme);
+      expect(settings.uiScale, SettingsService.defaultUiScale);
     });
 
     test('saveSettings persists data correctly', () async {
@@ -26,6 +27,7 @@ void main() {
         noiseGateDb: -50.0,
         barCount: BarCount.bars24,
         colorScheme: SpectrumColorScheme.purple,
+        uiScale: 2.0,
       );
 
       await service.saveSettings(newSettings);
@@ -34,11 +36,12 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString('spectrum_settings');
       expect(jsonString, isNotNull);
-      
+
       final json = jsonDecode(jsonString!);
       expect(json['noiseGateDb'], -50.0);
       expect(json['barCount'], 24);
       expect(json['colorScheme'], 'purple');
+      expect(json['uiScale'], 2.0);
     });
 
     test('loadSettings retrieves saved data', () async {
@@ -48,6 +51,7 @@ void main() {
         'colorScheme': 'cyan',
         'barStyle': 'glow',
         'decaySpeed': 0.05, // Slow
+        'uiScale': 1.5,
       };
 
       SharedPreferences.setMockInitialValues({
@@ -61,6 +65,21 @@ void main() {
       expect(settings.colorScheme, SpectrumColorScheme.cyan);
       expect(settings.barStyle, BarStyle.glow);
       expect(settings.decaySpeed, DecaySpeed.slow);
+      expect(settings.uiScale, 1.5);
+    });
+
+    test('calculateSmartScaleForWidth returns correct scale factors', () {
+      // Width 300 (phone) -> should be clamped to 1.0
+      expect(service.calculateSmartScaleForWidth(300), 1.0);
+
+      // Width 600 (standard target) -> should be 1.0
+      expect(service.calculateSmartScaleForWidth(600), 1.0);
+
+      // Width 1200 (wide screen) -> should be 2.0
+      expect(service.calculateSmartScaleForWidth(1200), 2.0);
+
+      // Width 2400 (very wide) -> should be clamped to 3.0
+      expect(service.calculateSmartScaleForWidth(2400), 3.0);
     });
 
     test('loadSettings handles corrupted data by returning defaults', () async {
@@ -74,4 +93,3 @@ void main() {
     });
   });
 }
-

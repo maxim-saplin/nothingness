@@ -23,10 +23,8 @@ class MediaButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primaryColor = accentColor ?? const Color(0xFF00FF88);
-    final secondaryBg =
-        inactiveBackgroundColor ?? Colors.white.withAlpha(13);
-    final secondaryIcon =
-        inactiveIconColor ?? Colors.white70;
+    final secondaryBg = inactiveBackgroundColor ?? Colors.white.withAlpha(13);
+    final secondaryIcon = inactiveIconColor ?? Colors.white70;
 
     return GestureDetector(
       onTap: onTap,
@@ -35,9 +33,7 @@ class MediaButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isPrimary
-              ? primaryColor
-              : secondaryBg,
+          color: isPrimary ? primaryColor : secondaryBg,
           boxShadow: isPrimary
               ? [
                   BoxShadow(
@@ -57,4 +53,3 @@ class MediaButton extends StatelessWidget {
     );
   }
 }
-

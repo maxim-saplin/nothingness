@@ -1,9 +1,7 @@
 ---
 description: Guidelines for creating and managing Cursor rules in this project.
-globs: .cursor/rules/*.mdc
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Creating and Managing Rules
 
 This project uses Cursor Project Rules stored in `.cursor/rules/`.

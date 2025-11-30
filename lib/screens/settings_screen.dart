@@ -7,12 +7,16 @@ import '../models/spectrum_settings.dart';
 class SettingsScreen extends StatefulWidget {
   final SpectrumSettings settings;
   final ValueChanged<SpectrumSettings> onSettingsChanged;
+  final double uiScale;
+  final ValueChanged<double> onUiScaleChanged;
   final VoidCallback onClose;
 
   const SettingsScreen({
     super.key,
     required this.settings,
     required this.onSettingsChanged,
+    required this.uiScale,
+    required this.onUiScaleChanged,
     required this.onClose,
   });
 
@@ -22,11 +26,24 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late SpectrumSettings _settings;
+  late double _uiScale;
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
+    _uiScale = widget.uiScale;
+  }
+
+  @override
+  void didUpdateWidget(SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings != widget.settings) {
+      _settings = widget.settings;
+    }
+    if (oldWidget.uiScale != widget.uiScale) {
+      _uiScale = widget.uiScale;
+    }
   }
 
   void _updateSettings(SpectrumSettings newSettings) {
@@ -34,6 +51,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _settings = newSettings;
     });
     widget.onSettingsChanged(newSettings);
+  }
+
+  void _updateUiScale(double newScale) {
+    setState(() {
+      _uiScale = newScale;
+    });
+    widget.onUiScaleChanged(newScale);
   }
 
   @override
@@ -96,6 +120,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: 'Bar Style',
                         subtitle: _settings.barStyle.label,
                         child: _buildBarStyleSelector(),
+                      ),
+                      const SizedBox(height: 16),
+
+                      _buildSectionHeader('DISPLAY'),
+                      const SizedBox(height: 16),
+
+                      // UI Scale
+                      _buildOptionTile(
+                        title: 'UI Scale',
+                        subtitle: _uiScale < 0
+                            ? 'Auto'
+                            : '${_uiScale.toStringAsFixed(2)}x',
+                        child: _buildUiScaleControl(),
                       ),
                       const SizedBox(height: 16),
 
@@ -304,6 +341,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildUiScaleControl() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: SliderTheme(
+                data: SliderThemeData(
+                  activeTrackColor: const Color(0xFF00FF88),
+                  inactiveTrackColor: Colors.white12,
+                  thumbColor: const Color(0xFF00FF88),
+                  overlayColor: const Color(0xFF00FF88).withAlpha(40),
+                  trackHeight: 4,
+                ),
+                child: Slider(
+                  // If auto (-1.0), show 1.0 safely (it will be updated shortly by main.dart)
+                  // Also guard against any legacy or out-of-range values by clamping.
+                  value: _uiScale < 0 ? 1.0 : _uiScale.clamp(0.75, 3.0),
+                  min: 0.75,
+                  max: 3.0,
+                  divisions: 9,
+                  onChanged: (value) {
+                    _updateUiScale(value);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () {
+                _updateUiScale(-1.0);
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.white10,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'AUTO',
+                style: TextStyle(color: Colors.white, fontSize: 10),
+              ),
+            ),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Small',
+              style: TextStyle(
+                color: Colors.white.withAlpha(100),
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              'Default',
+              style: TextStyle(
+                color: Colors.white.withAlpha(100),
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              'Huge',
+              style: TextStyle(
+                color: Colors.white.withAlpha(100),
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

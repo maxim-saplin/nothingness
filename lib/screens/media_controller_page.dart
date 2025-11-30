@@ -7,6 +7,7 @@ import '../models/spectrum_settings.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
 import '../widgets/media_button.dart';
+import '../widgets/scaled_layout.dart';
 import '../widgets/song_info_display.dart';
 import '../widgets/spectrum_visualizer.dart';
 import 'settings_screen.dart';
@@ -40,12 +41,17 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       ? _settings.colorScheme.colors[1]
       : _settings.colorScheme.colors.first;
 
+  // Get effective UI scale (default to 1.0 if auto/-1)
+  double _uiScale = 1.0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
     _loadSettings();
+    _settingsService.uiScaleNotifier.addListener(_handleUiScaleChanged);
+    _handleUiScaleChanged();
 
     if (PlatformChannels.isAndroid) {
       _checkPermissions();
@@ -56,9 +62,17 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _settingsService.uiScaleNotifier.removeListener(_handleUiScaleChanged);
     _spectrumSubscription?.cancel();
     _songInfoTimer?.cancel();
     super.dispose();
+  }
+
+  void _handleUiScaleChanged() {
+    final rawScale = _settingsService.uiScaleNotifier.value;
+    setState(() {
+      _uiScale = rawScale > 0 ? rawScale : 1.0;
+    });
   }
 
   @override
@@ -87,6 +101,10 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
     // Update native side
     _platformChannels.updateSpectrumSettings(settings);
+  }
+
+  Future<void> _saveUiScale(double scale) async {
+    await _settingsService.saveUiScale(scale);
   }
 
   Future<void> _checkPermissions() async {
@@ -136,72 +154,79 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   Widget build(BuildContext context) {
     // Determine panel width logic
     final screenWidth = MediaQuery.of(context).size.width;
-    final panelWidth = screenWidth > 900
-        ? screenWidth / 3
-        : (screenWidth / 2).clamp(300.0, 400.0);
 
-    return Stack(
-      children: [
-        // Main Content
-        Scaffold(
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            actions: [
-              IconButton(
-                icon: Icon(Icons.more_vert, color: _accentColor),
-                onPressed: _toggleSettings,
-              ),
-            ],
-          ),
-          body: SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                // Song info section
-                SongInfoDisplay(
-                  songInfo: _songInfo,
-                  hasNotificationAccess: _hasNotificationAccess,
-                  isAndroid: PlatformChannels.isAndroid,
+    // Calculate panel width based on the logical scaled width
+    final logicalScreenWidth = screenWidth / _uiScale;
+    final panelWidth = logicalScreenWidth > 900
+        ? logicalScreenWidth / 3
+        : (logicalScreenWidth / 2).clamp(300.0, 400.0);
+
+    return ScaledLayout(
+      child: Stack(
+        children: [
+          // Main Content
+          Scaffold(
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.more_vert, color: _accentColor),
+                  onPressed: _toggleSettings,
                 ),
-                const SizedBox(height: 40),
-                // Spectrum visualizer
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: SpectrumVisualizer(
-                      data: _spectrumData,
-                      settings: _settings,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Media controls
-                _buildMediaControls(),
-                const SizedBox(height: 20),
-                // Permission buttons (if needed)
-                if (PlatformChannels.isAndroid) _buildPermissionButtons(),
-                const SizedBox(height: 40),
               ],
             ),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  // Song info section
+                  SongInfoDisplay(
+                    songInfo: _songInfo,
+                    hasNotificationAccess: _hasNotificationAccess,
+                    isAndroid: PlatformChannels.isAndroid,
+                  ),
+                  const SizedBox(height: 40),
+                  // Spectrum visualizer
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: SpectrumVisualizer(
+                        data: _spectrumData,
+                        settings: _settings,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  // Media controls
+                  _buildMediaControls(),
+                  const SizedBox(height: 20),
+                  // Permission buttons (if needed)
+                  if (PlatformChannels.isAndroid) _buildPermissionButtons(),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
           ),
-        ),
 
-        // Settings Panel
-        AnimatedPositioned(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOutCubic,
-          top: 0,
-          bottom: 0,
-          right: _isSettingsOpen ? 0 : -panelWidth,
-          width: panelWidth,
-          child: SettingsScreen(
-            settings: _settings,
-            onSettingsChanged: _saveSettings,
-            onClose: _toggleSettings,
+          // Settings Panel
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+            top: 0,
+            bottom: 0,
+            right: _isSettingsOpen ? 0 : -panelWidth,
+            width: panelWidth,
+            child: SettingsScreen(
+              settings: _settings,
+              onSettingsChanged: _saveSettings,
+              uiScale: _settingsService.uiScaleNotifier.value,
+              onUiScaleChanged: _saveUiScale,
+              onClose: _toggleSettings,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
