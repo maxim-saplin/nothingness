@@ -1,5 +1,7 @@
 ## Nothingness – Media Controller with 80s Spectrum Visualizer
 
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/maxim-saplin/nothingness)
+
 Nothingness is a Flutter app that shows the **currently playing track on Android**
 and renders a retro, 80s‑style **pixelated spectrum analyzer** driven by the
 microphone.
