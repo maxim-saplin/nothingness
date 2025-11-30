@@ -86,3 +86,7 @@ Oh, btw, it auto adjusts to Zeekrs notorious DPI (that's when stabdard Android a
 If you change the visual style (bar count, colors, etc.) in **Settings**, the
 media control buttons and other accents automatically sync to that scheme.
 
+## Built With
+
+Cursor Agents + Gemini 3 Pro/GPT 5.1 High/ Opus 4.5 High + Flutter - over one evening and morning.
+
