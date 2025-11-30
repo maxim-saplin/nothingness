@@ -28,23 +28,26 @@ jobs:
           cache: true
 
       - name: Decode Keystore
-        if: ${{ secrets.STOREFILE != '' }}
         env:
           ENCODED_STRING: ${{ secrets.STOREFILE }}
         run: |
-          echo "$ENCODED_STRING" | base64 -d > android/app/keystore.jks
+          if [ -n "$ENCODED_STRING" ]; then
+            echo "$ENCODED_STRING" | base64 -d > android/app/keystore.jks
+          fi
 
       - name: Create key.properties
-        if: ${{ secrets.STOREFILE != '' }}
         env:
+          ENCODED_STRING: ${{ secrets.STOREFILE }}
           STORE_PASSWORD: ${{ secrets.STOREPASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEYPASSWORD }}
           KEY_ALIAS: ${{ secrets.KEYALIAS }}
         run: |
-          echo "storePassword=$STORE_PASSWORD" > android/key.properties
-          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-          echo "storeFile=keystore.jks" >> android/key.properties
+          if [ -n "$ENCODED_STRING" ]; then
+            echo "storePassword=$STORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+            echo "storeFile=keystore.jks" >> android/key.properties
+          fi
 
       - name: Get Dependencies
         run: flutter pub get
