@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Test and Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Decode Keystore
+        if: ${{ secrets.STOREFILE != '' }}
+        env:
+          ENCODED_STRING: ${{ secrets.STOREFILE }}
+        run: |
+          echo $ENCODED_STRING | base64 -d > android/app/keystore.jks
+
+      - name: Create key.properties
+        if: ${{ secrets.STOREFILE != '' }}
+        env:
+          STORE_PASSWORD: ${{ secrets.STOREPASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEYPASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEYALIAS }}
+        run: |
+          echo "storePassword=$STORE_PASSWORD" > android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 1
+
