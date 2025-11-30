@@ -8,6 +8,8 @@ Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - 
 
 Oh, btw, it auto adjusts to Zeekrs notorious DPI (that's when stabdard Android apps show very small text and buttons).
 
+<img width="1378" height="815" alt="image" src="https://github.com/user-attachments/assets/f7519a5b-0a8e-48bf-9fac-fce18bcfffad" />
+
 ### Features
 
 - **Now Playing**
