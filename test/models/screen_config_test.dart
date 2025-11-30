@@ -3,24 +3,120 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/screen_config.dart';
 
+import 'package:nothingness/models/spectrum_settings.dart';
+
 void main() {
   group('ScreenConfig', () {
     group('SpectrumScreenConfig', () {
       test('toJson serializes correctly', () {
-        const config = SpectrumScreenConfig();
+        const config = SpectrumScreenConfig(
+          showMediaControls: false,
+          textScale: 1.5,
+          spectrumWidthFactor: 0.8,
+          spectrumHeightFactor: 0.9,
+          mediaControlScale: 1.2,
+          mediaControlColorScheme: SpectrumColorScheme.cyan,
+          textColorScheme: SpectrumColorScheme.purple,
+        );
         final json = config.toJson();
 
         expect(json['type'], 'spectrum');
         expect(json['name'], 'Spectrum');
+        expect(json['showMediaControls'], false);
+        expect(json['textScale'], 1.5);
+        expect(json['spectrumWidthFactor'], 0.8);
+        expect(json['spectrumHeightFactor'], 0.9);
+        expect(json['mediaControlScale'], 1.2);
+        expect(json['mediaControlColorScheme'], 'cyan');
+        expect(json['textColorScheme'], 'purple');
       });
 
       test('fromJson deserializes correctly', () {
-        final json = {'type': 'spectrum', 'name': 'Spectrum'};
-        final config = ScreenConfig.fromJson(json);
+        final json = {
+          'type': 'spectrum',
+          'name': 'Spectrum',
+          'showMediaControls': false,
+          'textScale': 1.2,
+          'spectrumWidthFactor': 0.7,
+          'spectrumHeightFactor': 0.6,
+          'mediaControlScale': 0.5,
+          'mediaControlColorScheme': 'cyan',
+          'textColorScheme': 'purple',
+        };
+        final config = ScreenConfig.fromJson(json) as SpectrumScreenConfig;
 
-        expect(config, isA<SpectrumScreenConfig>());
         expect(config.type, ScreenType.spectrum);
-        expect(config.name, 'Spectrum');
+        expect(config.showMediaControls, false);
+        expect(config.textScale, 1.2);
+        expect(config.spectrumWidthFactor, 0.7);
+        expect(config.spectrumHeightFactor, 0.6);
+        expect(config.mediaControlScale, 0.5);
+        expect(config.mediaControlColorScheme, SpectrumColorScheme.cyan);
+        expect(config.textColorScheme, SpectrumColorScheme.purple);
+      });
+
+      test('fromJson uses defaults when fields are missing', () {
+        final json = {'type': 'spectrum'};
+        final config = ScreenConfig.fromJson(json) as SpectrumScreenConfig;
+
+        expect(config.showMediaControls, true);
+        expect(config.textScale, 1.0);
+        expect(config.spectrumWidthFactor, 1.0);
+        expect(config.spectrumHeightFactor, 1.0);
+        expect(config.mediaControlScale, 1.0);
+        expect(config.mediaControlColorScheme, SpectrumColorScheme.classic);
+        expect(config.textColorScheme, SpectrumColorScheme.classic);
+      });
+    });
+
+    group('DotScreenConfig', () {
+      test('toJson serializes correctly', () {
+        const config = DotScreenConfig(
+          minDotSize: 30.0,
+          maxDotSize: 150.0,
+          dotOpacity: 0.8,
+          textOpacity: 0.5,
+          sensitivity: 3.0,
+        );
+        final json = config.toJson();
+
+        expect(json['type'], 'dot');
+        expect(json['name'], 'Dot');
+        expect(json['minDotSize'], 30.0);
+        expect(json['maxDotSize'], 150.0);
+        expect(json['dotOpacity'], 0.8);
+        expect(json['textOpacity'], 0.5);
+        expect(json['sensitivity'], 3.0);
+      });
+
+      test('fromJson deserializes correctly', () {
+        final json = {
+          'type': 'dot',
+          'minDotSize': 25.0,
+          'maxDotSize': 100.0,
+          'dotOpacity': 0.9,
+          'textOpacity': 0.7,
+          'sensitivity': 1.5,
+        };
+        final config = ScreenConfig.fromJson(json) as DotScreenConfig;
+
+        expect(config.type, ScreenType.dot);
+        expect(config.minDotSize, 25.0);
+        expect(config.maxDotSize, 100.0);
+        expect(config.dotOpacity, 0.9);
+        expect(config.textOpacity, 0.7);
+        expect(config.sensitivity, 1.5);
+      });
+
+      test('fromJson uses defaults when fields are missing', () {
+        final json = {'type': 'dot'};
+        final config = ScreenConfig.fromJson(json) as DotScreenConfig;
+
+        expect(config.minDotSize, 20.0);
+        expect(config.maxDotSize, 120.0);
+        expect(config.dotOpacity, 1.0);
+        expect(config.textOpacity, 1.0);
+        expect(config.sensitivity, 2.0);
       });
     });
 

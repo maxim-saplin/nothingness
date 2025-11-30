@@ -21,8 +21,11 @@ graph TD
 ## Key Components
 
 ### 1. Flutter UI Layer
--   **`MediaControllerPage`**: The main entry point and orchestrator. It manages the layout, including the main visualizer area and the slide-out settings panel.
--   **`ScaledLayout`**: A wrapper widget that ensures the entire UI is scaled consistently across different screen DPIs (see [UI Scaling](ui-scaling.md)).
+-   **`MediaControllerPage`**: The main entry point and orchestrator. It manages the layout, including the main visualizer area and the slide-out settings panel. It switches between different screens:
+    -   **`SpectrumScreen`**: Standard bar visualizer.
+    -   **`PoloScreen`**: Retro LCD-style display.
+    -   **`DotScreen`**: Minimalist fluctuating dot interface.
+-   **`ScaledLayout`**: A wrapper widget that ensures the entire UI is scaled consistently across different screen DPIs. It now wraps the entire `MediaControllerPage` content (including the Settings overlay) to ensure consistent scaling for all elements (see [UI Scaling](ui-scaling.md)).
 
 ### 2. Service Layer
 -   **`SettingsService`**: A singleton service responsible for managing application state.

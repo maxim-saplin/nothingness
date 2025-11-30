@@ -107,10 +107,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScreenConfig newConfig;
     if (type == ScreenType.spectrum) {
       newConfig = const SpectrumScreenConfig();
+    } else if (type == ScreenType.dot) {
+      newConfig = const DotScreenConfig();
     } else {
       newConfig = const PoloScreenConfig(); // Loads default Polo config
     }
     await _settingsService.saveScreenConfig(newConfig);
+  }
+
+  Future<void> _updateDotConfig(DotScreenConfig config) async {
+    await _settingsService.saveScreenConfig(config);
+  }
+
+  Future<void> _updateSpectrumConfig(SpectrumScreenConfig config) async {
+    await _settingsService.saveScreenConfig(config);
   }
 
   void _toggleDebugLayout() {
@@ -192,10 +202,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         // Color Scheme
                         _buildOptionTile(
-                          title: 'Color Scheme',
+                          title: 'Visualizer Color',
                           subtitle: _settings.colorScheme.label,
                           child: _buildColorSchemeSelector(),
                         ),
+                        const SizedBox(height: 16),
+
+                        // Media Controls Color
+                        _buildOptionTile(
+                          title: 'Media Controls Color',
+                          subtitle: (_screenConfig as SpectrumScreenConfig)
+                              .mediaControlColorScheme
+                              .label,
+                          child: _buildConfigColorSchemeSelector(
+                            currentValue:
+                                (_screenConfig as SpectrumScreenConfig)
+                                    .mediaControlColorScheme,
+                            onChanged: (scheme) {
+                              _updateSpectrumConfig(
+                                (_screenConfig as SpectrumScreenConfig)
+                                    .copyWith(mediaControlColorScheme: scheme),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Text Color
+                        _buildOptionTile(
+                          title: 'Text Color',
+                          subtitle: (_screenConfig as SpectrumScreenConfig)
+                              .textColorScheme
+                              .label,
+                          child: _buildConfigColorSchemeSelector(
+                            currentValue:
+                                (_screenConfig as SpectrumScreenConfig)
+                                    .textColorScheme,
+                            onChanged: (scheme) {
+                              _updateSpectrumConfig(
+                                (_screenConfig as SpectrumScreenConfig)
+                                    .copyWith(textColorScheme: scheme),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        _buildSectionHeader('LAYOUT'),
+                        const SizedBox(height: 16),
+                        _buildSpectrumLayoutSettings(),
                         const SizedBox(height: 16),
 
                         _buildSectionHeader('SPECTRUM'),
@@ -263,6 +318,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                       ],
 
+                      // 3. DOT SCREEN SETTINGS
+                      if (_screenConfig.type == ScreenType.dot) ...[
+                        _buildSectionHeader('DOT SETTINGS'),
+                        const SizedBox(height: 16),
+                        _buildDotSettings(),
+                      ],
+
                       const SizedBox(height: 32),
                     ],
                   ),
@@ -272,6 +334,237 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDotSettings() {
+    final config = _screenConfig as DotScreenConfig;
+    return Column(
+      children: [
+        // Sensitivity
+        _buildOptionTile(
+          title: 'Sensitivity',
+          subtitle: '${config.sensitivity.toStringAsFixed(1)}x',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.sensitivity,
+              min: 0.5,
+              max: 5.0,
+              divisions: 45,
+              onChanged: (value) {
+                _updateDotConfig(config.copyWith(sensitivity: value));
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Max Dot Size
+        _buildOptionTile(
+          title: 'Max Size',
+          subtitle: '${config.maxDotSize.toStringAsFixed(0)} px',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.maxDotSize,
+              min: 50.0,
+              max: 300.0,
+              divisions: 50,
+              onChanged: (value) {
+                _updateDotConfig(config.copyWith(maxDotSize: value));
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Dot Opacity
+        _buildOptionTile(
+          title: 'Dot Opacity',
+          subtitle: '${(config.dotOpacity * 100).toStringAsFixed(0)}%',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.dotOpacity,
+              min: 0.0,
+              max: 1.0,
+              divisions: 20,
+              onChanged: (value) {
+                _updateDotConfig(config.copyWith(dotOpacity: value));
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Text Opacity
+        _buildOptionTile(
+          title: 'Text Opacity',
+          subtitle: '${(config.textOpacity * 100).toStringAsFixed(0)}%',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.textOpacity,
+              min: 0.0,
+              max: 1.0,
+              divisions: 20,
+              onChanged: (value) {
+                _updateDotConfig(config.copyWith(textOpacity: value));
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpectrumLayoutSettings() {
+    final config = _screenConfig as SpectrumScreenConfig;
+    return Column(
+      children: [
+        // Media Controls Toggle
+        _buildOptionTile(
+          title: 'Media Controls',
+          subtitle: config.showMediaControls ? 'On' : 'Off',
+          child: SwitchListTile(
+            title: const Text(
+              'Show Controls',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            value: config.showMediaControls,
+            onChanged: (val) =>
+                _updateSpectrumConfig(config.copyWith(showMediaControls: val)),
+            activeTrackColor: const Color(0xFF00FF88),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Media Controls Size
+        if (config.showMediaControls) ...[
+          _buildOptionTile(
+            title: 'Controls Size',
+            subtitle: '${(config.mediaControlScale * 100).round()}%',
+            child: SliderTheme(
+              data: SliderThemeData(
+                activeTrackColor: const Color(0xFF00FF88),
+                inactiveTrackColor: Colors.white12,
+                thumbColor: const Color(0xFF00FF88),
+                overlayColor: const Color(0xFF00FF88).withAlpha(40),
+                trackHeight: 4,
+              ),
+              child: Slider(
+                value: config.mediaControlScale,
+                min: 0.5,
+                max: 1.5,
+                divisions: 10,
+                onChanged: (val) => _updateSpectrumConfig(
+                  config.copyWith(mediaControlScale: val),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Text Size Slider
+        _buildOptionTile(
+          title: 'Text Size',
+          subtitle: '${(config.textScale * 100).round()}%',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.textScale,
+              min: 0.5,
+              max: 1.5,
+              divisions: 10,
+              onChanged: (val) =>
+                  _updateSpectrumConfig(config.copyWith(textScale: val)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Spectrum Width
+        _buildOptionTile(
+          title: 'Visualizer Width',
+          subtitle: '${(config.spectrumWidthFactor * 100).round()}%',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.spectrumWidthFactor,
+              min: 0.2,
+              max: 1.0,
+              divisions: 16,
+              onChanged: (val) => _updateSpectrumConfig(
+                config.copyWith(spectrumWidthFactor: val),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Spectrum Height
+        _buildOptionTile(
+          title: 'Visualizer Height',
+          subtitle: '${(config.spectrumHeightFactor * 100).round()}%',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.spectrumHeightFactor,
+              min: 0.2,
+              max: 1.0,
+              divisions: 16,
+              onChanged: (val) => _updateSpectrumConfig(
+                config.copyWith(spectrumHeightFactor: val),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -341,6 +634,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             break;
           case ScreenType.polo:
             label = 'Polo';
+            break;
+          case ScreenType.dot:
+            label = 'Dot';
             break;
         }
         return Expanded(
@@ -476,9 +772,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 11,
-                  color: scheme == SpectrumColorScheme.monochrome
-                      ? Colors.white
-                      : Colors.white,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildConfigColorSchemeSelector({
+    required SpectrumColorScheme currentValue,
+    required ValueChanged<SpectrumColorScheme> onChanged,
+  }) {
+    return Row(
+      children: SpectrumColorScheme.values.map((scheme) {
+        final isSelected = currentValue == scheme;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => onChanged(scheme),
+            child: Container(
+              margin: EdgeInsets.only(
+                right: scheme != SpectrumColorScheme.values.last ? 8 : 0,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: scheme.colors),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected ? Colors.white : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Text(
+                scheme.label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white,
                   fontWeight: FontWeight.w700,
                   shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
                 ),

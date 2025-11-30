@@ -6,12 +6,14 @@ class SongInfoDisplay extends StatelessWidget {
   final SongInfo? songInfo;
   final bool hasNotificationAccess;
   final bool isAndroid;
+  final Color? textColor;
 
   const SongInfoDisplay({
     super.key,
     required this.songInfo,
     required this.hasNotificationAccess,
     required this.isAndroid,
+    this.textColor,
   });
 
   @override
@@ -112,6 +114,10 @@ class SongInfoDisplay extends StatelessWidget {
   }
 
   Widget _buildSongInfo(SongInfo song) {
+    final titleColor = textColor ?? Colors.white;
+    final artistColor = textColor?.withValues(alpha: 0.6) ?? Colors.white60;
+    final albumColor = textColor?.withValues(alpha: 0.3) ?? Colors.white30;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -120,10 +126,10 @@ class SongInfoDisplay extends StatelessWidget {
           // Song title
           Text(
             song.title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: titleColor,
               letterSpacing: 0.5,
             ),
             textAlign: TextAlign.center,
@@ -134,7 +140,7 @@ class SongInfoDisplay extends StatelessWidget {
           // Artist
           Text(
             song.artist,
-            style: const TextStyle(fontSize: 18, color: Colors.white60),
+            style: TextStyle(fontSize: 18, color: artistColor),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -143,7 +149,7 @@ class SongInfoDisplay extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               song.album,
-              style: const TextStyle(fontSize: 14, color: Colors.white30),
+              style: TextStyle(fontSize: 14, color: albumColor),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

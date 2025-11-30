@@ -7,8 +7,11 @@ import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
+import '../widgets/scaled_layout.dart';
 import 'polo_screen.dart';
+import 'settings_screen.dart';
 import 'spectrum_screen.dart';
+import 'dot_screen.dart';
 
 class MediaControllerPage extends StatefulWidget {
   const MediaControllerPage({super.key});
@@ -170,6 +173,47 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   @override
   Widget build(BuildContext context) {
+    // Calculate panel width based on logic similar to child screens
+    final screenWidth = MediaQuery.of(context).size.width;
+    // We need to know the effective scale to calculate panel width correctly.
+    // However, ScaledLayout handles scaling internally.
+    // Let's get the raw scale value for calculation purposes.
+    final rawScale = _settingsService.uiScaleNotifier.value;
+    final uiScale = rawScale > 0 ? rawScale : 1.0;
+
+    final logicalScreenWidth = screenWidth / uiScale;
+    final panelWidth = logicalScreenWidth > 900
+        ? logicalScreenWidth / 3
+        : (logicalScreenWidth / 2).clamp(300.0, 400.0);
+
+    return ScaledLayout(
+      child: Stack(
+        children: [
+          // Current Screen
+          _buildCurrentScreen(),
+
+          // Settings Panel Overlay
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+            top: 0,
+            bottom: 0,
+            right: _isSettingsOpen ? 0 : -panelWidth,
+            width: panelWidth,
+            child: SettingsScreen(
+              settings: _settings,
+              onSettingsChanged: _saveSettings,
+              uiScale: _settingsService.uiScaleNotifier.value,
+              onUiScaleChanged: (scale) => _settingsService.saveUiScale(scale),
+              onClose: _toggleSettings,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurrentScreen() {
     switch (_screenConfig.type) {
       case ScreenType.spectrum:
         return SpectrumScreen(
@@ -178,10 +222,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
           hasNotificationAccess: _hasNotificationAccess,
           hasAudioPermission: _hasAudioPermission,
           settings: _settings,
+          config: _screenConfig as SpectrumScreenConfig,
           platformChannels: _platformChannels,
           onToggleSettings: _toggleSettings,
-          isSettingsOpen: _isSettingsOpen,
-          onSettingsChanged: _saveSettings,
         );
       case ScreenType.polo:
         return PoloScreen(
@@ -189,10 +232,16 @@ class _MediaControllerPageState extends State<MediaControllerPage>
           config: _screenConfig as PoloScreenConfig,
           platformChannels: _platformChannels,
           onToggleSettings: _toggleSettings,
-          isSettingsOpen: _isSettingsOpen,
           settings: _settings,
-          onSettingsChanged: _saveSettings,
           debugLayout: _debugLayout,
+        );
+      case ScreenType.dot:
+        return DotScreen(
+          songInfo: _songInfo,
+          spectrumData: _spectrumData,
+          settings: _settings,
+          config: _screenConfig as DotScreenConfig,
+          onToggleSettings: _toggleSettings,
         );
     }
   }

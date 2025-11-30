@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-enum ScreenType { spectrum, polo }
+import 'spectrum_settings.dart';
+
+enum ScreenType { spectrum, polo, dot }
 
 abstract class ScreenConfig {
   final ScreenType type;
@@ -19,19 +21,140 @@ abstract class ScreenConfig {
 
     switch (type) {
       case ScreenType.spectrum:
-        return const SpectrumScreenConfig();
+        return SpectrumScreenConfig.fromJson(json);
       case ScreenType.polo:
         return PoloScreenConfig.fromJson(json);
+      case ScreenType.dot:
+        return DotScreenConfig.fromJson(json);
     }
   }
 }
 
 class SpectrumScreenConfig extends ScreenConfig {
-  const SpectrumScreenConfig()
-    : super(type: ScreenType.spectrum, name: 'Spectrum');
+  final bool showMediaControls;
+  final double textScale;
+  final double spectrumWidthFactor;
+  final double spectrumHeightFactor;
+  final double mediaControlScale;
+  final SpectrumColorScheme mediaControlColorScheme;
+  final SpectrumColorScheme textColorScheme;
+
+  const SpectrumScreenConfig({
+    this.showMediaControls = true,
+    this.textScale = 1.0,
+    this.spectrumWidthFactor = 1.0,
+    this.spectrumHeightFactor = 1.0,
+    this.mediaControlScale = 1.0,
+    this.mediaControlColorScheme = SpectrumColorScheme.classic,
+    this.textColorScheme = SpectrumColorScheme.classic,
+  }) : super(type: ScreenType.spectrum, name: 'Spectrum');
 
   @override
-  Map<String, dynamic> toJson() => {'type': type.name, 'name': name};
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'name': name,
+    'showMediaControls': showMediaControls,
+    'textScale': textScale,
+    'spectrumWidthFactor': spectrumWidthFactor,
+    'spectrumHeightFactor': spectrumHeightFactor,
+    'mediaControlScale': mediaControlScale,
+    'mediaControlColorScheme': mediaControlColorScheme.name,
+    'textColorScheme': textColorScheme.name,
+  };
+
+  factory SpectrumScreenConfig.fromJson(Map<String, dynamic> json) {
+    return SpectrumScreenConfig(
+      showMediaControls: json['showMediaControls'] as bool? ?? true,
+      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+      spectrumWidthFactor:
+          (json['spectrumWidthFactor'] as num?)?.toDouble() ?? 1.0,
+      spectrumHeightFactor:
+          (json['spectrumHeightFactor'] as num?)?.toDouble() ?? 1.0,
+      mediaControlScale: (json['mediaControlScale'] as num?)?.toDouble() ?? 1.0,
+      mediaControlColorScheme: SpectrumColorScheme.values.firstWhere(
+        (c) => c.name == (json['mediaControlColorScheme'] as String?),
+        orElse: () => SpectrumColorScheme.classic,
+      ),
+      textColorScheme: SpectrumColorScheme.values.firstWhere(
+        (c) => c.name == (json['textColorScheme'] as String?),
+        orElse: () => SpectrumColorScheme.classic,
+      ),
+    );
+  }
+
+  SpectrumScreenConfig copyWith({
+    bool? showMediaControls,
+    double? textScale,
+    double? spectrumWidthFactor,
+    double? spectrumHeightFactor,
+    double? mediaControlScale,
+    SpectrumColorScheme? mediaControlColorScheme,
+    SpectrumColorScheme? textColorScheme,
+  }) {
+    return SpectrumScreenConfig(
+      showMediaControls: showMediaControls ?? this.showMediaControls,
+      textScale: textScale ?? this.textScale,
+      spectrumWidthFactor: spectrumWidthFactor ?? this.spectrumWidthFactor,
+      spectrumHeightFactor: spectrumHeightFactor ?? this.spectrumHeightFactor,
+      mediaControlScale: mediaControlScale ?? this.mediaControlScale,
+      mediaControlColorScheme:
+          mediaControlColorScheme ?? this.mediaControlColorScheme,
+      textColorScheme: textColorScheme ?? this.textColorScheme,
+    );
+  }
+}
+
+class DotScreenConfig extends ScreenConfig {
+  final double minDotSize;
+  final double maxDotSize;
+  final double dotOpacity;
+  final double textOpacity;
+  final double sensitivity;
+
+  const DotScreenConfig({
+    this.minDotSize = 20.0,
+    this.maxDotSize = 120.0,
+    this.dotOpacity = 1.0,
+    this.textOpacity = 1.0,
+    this.sensitivity = 2.0,
+  }) : super(type: ScreenType.dot, name: 'Dot');
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'name': name,
+    'minDotSize': minDotSize,
+    'maxDotSize': maxDotSize,
+    'dotOpacity': dotOpacity,
+    'textOpacity': textOpacity,
+    'sensitivity': sensitivity,
+  };
+
+  factory DotScreenConfig.fromJson(Map<String, dynamic> json) {
+    return DotScreenConfig(
+      minDotSize: (json['minDotSize'] as num?)?.toDouble() ?? 20.0,
+      maxDotSize: (json['maxDotSize'] as num?)?.toDouble() ?? 120.0,
+      dotOpacity: (json['dotOpacity'] as num?)?.toDouble() ?? 1.0,
+      textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
+      sensitivity: (json['sensitivity'] as num?)?.toDouble() ?? 2.0,
+    );
+  }
+
+  DotScreenConfig copyWith({
+    double? minDotSize,
+    double? maxDotSize,
+    double? dotOpacity,
+    double? textOpacity,
+    double? sensitivity,
+  }) {
+    return DotScreenConfig(
+      minDotSize: minDotSize ?? this.minDotSize,
+      maxDotSize: maxDotSize ?? this.maxDotSize,
+      dotOpacity: dotOpacity ?? this.dotOpacity,
+      textOpacity: textOpacity ?? this.textOpacity,
+      sensitivity: sensitivity ?? this.sensitivity,
+    );
+  }
 }
 
 class PoloScreenConfig extends ScreenConfig {

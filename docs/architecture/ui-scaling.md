@@ -45,14 +45,25 @@ Located in `lib/services/settings_service.dart`.
     -   Formula: `scale = physicalWidth / targetWidth` (clamped 1.0 - 3.0).
 
 ### Usage
-The `ScaledLayout` is applied at the highest level of the specific screen (e.g., inside `MediaControllerPage`'s `Stack`) rather than at `MaterialApp.builder` to ensure overlays and positioned elements (like the Settings Panel) are scaled correctly together.
+The `ScaledLayout` is applied within `MediaControllerPage` wrapping the main `Stack`. This ensures that both the active screen (Spectrum/Polo/Dot) and the Settings Panel overlay share the same scaling context.
 
 ```dart
-// Example Usage
-ScaledLayout(
-  child: Scaffold(
-    // body...
-  ),
-);
+// lib/screens/media_controller_page.dart
+@override
+Widget build(BuildContext context) {
+  return ScaledLayout(
+    child: Stack(
+      children: [
+        // Active Screen (Spectrum, Polo, Dot)
+        _buildCurrentScreen(),
+        
+        // Settings Overlay
+        AnimatedPositioned(
+          // ... settings panel ...
+        ),
+      ],
+    ),
+  );
+}
 ```
 
