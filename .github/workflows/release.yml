@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name (e.g. v1.0.0). If empty, uses version from pubspec.yaml'
+        description: "Tag name (e.g. v1.0.0). If empty, uses version from pubspec.yaml"
         required: false
 
 jobs:
@@ -35,20 +35,24 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: "zulu"
+          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Decode Keystore
         env:
           ENCODED_STRING: ${{ secrets.STOREFILE }}
         run: |
-          echo "$ENCODED_STRING" | tr -d '\n\r ' | base64 -d > android/app/keystore.jks
+          if [ -z "$ENCODED_STRING" ]; then
+            echo "::error::STOREFILE secret is missing."
+            exit 1
+          fi
+          echo "$ENCODED_STRING" | base64 -d > android/app/keystore.jks
 
       - name: Create key.properties
         env:
@@ -78,4 +82,3 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           files: build/app/outputs/flutter-apk/nothingness-android-${{ steps.extract_version.outputs.VERSION }}.apk
           generate_release_notes: true
-
