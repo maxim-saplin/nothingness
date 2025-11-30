@@ -2,10 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: "Tag name (e.g. v1.0.0). If empty, uses version from pubspec.yaml"
-        required: false
 
 jobs:
   release:
@@ -22,14 +18,15 @@ jobs:
         run: |
           VERSION=$(sed -n 's/^version: *//p' pubspec.yaml)
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=v$VERSION" >> $GITHUB_ENV
 
-      - name: Determine Tag
-        id: tag
+      - name: Check if Release Exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -n "${{ inputs.tag_name }}" ]; then
-            echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_ENV
-          else
-            echo "TAG_NAME=v${{ steps.extract_version.outputs.VERSION }}" >> $GITHUB_ENV
+          if gh release view "$TAG_NAME" > /dev/null 2>&1; then
+            echo "::error::Release $TAG_NAME already exists. Please update version in pubspec.yaml."
+            exit 1
           fi
 
       - name: Set up Java
