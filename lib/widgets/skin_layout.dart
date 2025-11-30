@@ -2,12 +2,29 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
+enum SkinControlShape { rectangle, circle }
+
+class SkinControlArea {
+  final Rect rect;
+  final SkinControlShape shape;
+  final VoidCallback onTap;
+  final String debugLabel;
+
+  const SkinControlArea({
+    required this.rect,
+    this.shape = SkinControlShape.rectangle,
+    required this.onTap,
+    this.debugLabel = '',
+  });
+}
+
 class SkinLayout extends StatefulWidget {
   final String backgroundImagePath;
   final Rect lcdRect;
   final Widget lcdContent;
   final bool debugLayout;
   final Widget? mediaControls;
+  final List<SkinControlArea>? controlAreas;
 
   const SkinLayout({
     super.key,
@@ -16,6 +33,7 @@ class SkinLayout extends StatefulWidget {
     required this.lcdContent,
     this.debugLayout = false,
     this.mediaControls,
+    this.controlAreas,
   });
 
   @override
@@ -127,6 +145,71 @@ class _SkinLayoutState extends State<SkinLayout> {
               rect: absoluteLcdRect,
               child: widget.lcdContent,
             ),
+
+            // Interactive Control Areas
+            if (widget.controlAreas != null)
+              ...widget.controlAreas!.map((area) {
+                final absoluteRect = Rect.fromLTWH(
+                  renderedImageRect.left +
+                      (area.rect.left * renderedImageRect.width),
+                  renderedImageRect.top +
+                      (area.rect.top * renderedImageRect.height),
+                  area.rect.width * renderedImageRect.width,
+                  area.rect.height * renderedImageRect.height,
+                );
+
+                return Positioned.fromRect(
+                  rect: absoluteRect,
+                  child: Stack(
+                    children: [
+                      // Touch Interaction & Ripple
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: area.onTap,
+                          customBorder: area.shape == SkinControlShape.circle
+                              ? const CircleBorder()
+                              : RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                          splashColor: Colors.white.withValues(alpha: 0.3),
+                          highlightColor: Colors.white.withValues(alpha: 0.1),
+                          child: Container(),
+                        ),
+                      ),
+                      // Debug Visualization
+                      if (widget.debugLayout)
+                        IgnorePointer(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.3),
+                              border: Border.all(color: Colors.blue, width: 2),
+                              shape: area.shape == SkinControlShape.circle
+                                  ? BoxShape.circle
+                                  : BoxShape.rectangle,
+                              borderRadius:
+                                  area.shape == SkinControlShape.rectangle
+                                  ? BorderRadius.circular(10)
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                area.debugLabel,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  backgroundColor: Colors.black54,
+                                  fontSize: 8,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }),
 
             // Debug Overlay
             if (widget.debugLayout)

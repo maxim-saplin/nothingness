@@ -70,6 +70,29 @@ class _PoloScreenState extends State<PoloScreen> {
               fontFamily: widget.config.fontFamily,
               textColor: widget.config.textColor,
             ),
+            controlAreas: [
+              // Previous Button
+              SkinControlArea(
+                rect: widget.config.prevRect,
+                shape: SkinControlShape.rectangle,
+                onTap: widget.platformChannels.previous,
+                debugLabel: 'Prev',
+              ),
+              // Play/Pause Button
+              SkinControlArea(
+                rect: widget.config.playPauseRect,
+                shape: SkinControlShape.circle,
+                onTap: widget.platformChannels.playPause,
+                debugLabel: 'Play/Pause',
+              ),
+              // Next Button
+              SkinControlArea(
+                rect: widget.config.nextRect,
+                shape: SkinControlShape.rectangle,
+                onTap: widget.platformChannels.next,
+                debugLabel: 'Next',
+              ),
+            ],
             mediaControls: null, // No overlay controls for Polo skin
           ),
         ),

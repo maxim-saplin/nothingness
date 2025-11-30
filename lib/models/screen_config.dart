@@ -38,13 +38,24 @@ class PoloScreenConfig extends ScreenConfig {
   final String backgroundImagePath;
   final String fontFamily;
   final Rect lcdRect;
+  final Rect playPauseRect;
+  final Rect prevRect;
+  final Rect nextRect;
   final Color textColor;
-  // Add more fields as needed for extensibility (e.g., control buttons layout)
 
   const PoloScreenConfig({
     this.backgroundImagePath = 'assets/images/polo.png',
     this.fontFamily = 'Press Start 2P',
     this.lcdRect = const Rect.fromLTWH(0.31, 0.38, 0.37, 0.14),
+    // Initial guesses for controls - adjust in debug mode
+    this.playPauseRect = const Rect.fromLTWH(
+      0.15,
+      0.68,
+      0.10,
+      0.10,
+    ), // Center button
+    this.prevRect = const Rect.fromLTWH(0.5, 0.66, 0.11, 0.07), // Left button
+    this.nextRect = const Rect.fromLTWH(0.61, 0.66, 0.11, 0.07), // Right button
     this.textColor = const Color(
       0xFF000000,
     ), // Usually LCDs are dark text on light bg or vice versa. Polo image LCD looks bright.
@@ -75,11 +86,20 @@ class PoloScreenConfig extends ScreenConfig {
     );
   }
 
-  PoloScreenConfig copyWith({Rect? lcdRect, Color? textColor}) {
+  PoloScreenConfig copyWith({
+    Rect? lcdRect,
+    Rect? playPauseRect,
+    Rect? prevRect,
+    Rect? nextRect,
+    Color? textColor,
+  }) {
     return PoloScreenConfig(
       backgroundImagePath: backgroundImagePath,
       fontFamily: fontFamily,
       lcdRect: lcdRect ?? this.lcdRect,
+      playPauseRect: playPauseRect ?? this.playPauseRect,
+      prevRect: prevRect ?? this.prevRect,
+      nextRect: nextRect ?? this.nextRect,
       textColor: textColor ?? this.textColor,
     );
   }

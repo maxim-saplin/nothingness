@@ -41,7 +41,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     WidgetsBinding.instance.addObserver(this);
 
     _loadSettings();
-    _settingsService.screenConfigNotifier.addListener(_handleScreenConfigChanged);
+    _settingsService.screenConfigNotifier.addListener(
+      _handleScreenConfigChanged,
+    );
     _settingsService.debugLayoutNotifier.addListener(_handleDebugLayoutChanged);
 
     if (PlatformChannels.isAndroid) {
@@ -53,8 +55,12 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _settingsService.screenConfigNotifier.removeListener(_handleScreenConfigChanged);
-    _settingsService.debugLayoutNotifier.removeListener(_handleDebugLayoutChanged);
+    _settingsService.screenConfigNotifier.removeListener(
+      _handleScreenConfigChanged,
+    );
+    _settingsService.debugLayoutNotifier.removeListener(
+      _handleDebugLayoutChanged,
+    );
     _spectrumSubscription?.cancel();
     _songInfoTimer?.cancel();
     super.dispose();
@@ -65,6 +71,24 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     if (state == AppLifecycleState.resumed && PlatformChannels.isAndroid) {
       _checkPermissions();
       _platformChannels.refreshSessions();
+    }
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Developer Optimization:
+    // When editing PoloScreenConfig constructor defaults (coordinates),
+    // we want Hot Reload to immediately apply them.
+    // We force a fresh instance creation to pick up the new default values.
+    if (_screenConfig.type == ScreenType.polo) {
+      // Use the constructor to get new default values from source code
+      final newConfig = const PoloScreenConfig();
+      // Update the service, which notifies this widget to rebuild
+      _settingsService.screenConfigNotifier.value = newConfig;
+      debugPrint(
+        '[Hot Reload] PoloScreenConfig refreshed from source defaults',
+      );
     }
   }
 
@@ -102,8 +126,8 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   Future<void> _checkPermissions() async {
-    final notificationAccess =
-        await _platformChannels.isNotificationAccessGranted();
+    final notificationAccess = await _platformChannels
+        .isNotificationAccessGranted();
     final audioPermission = await _platformChannels.hasAudioPermission();
 
     setState(() {
