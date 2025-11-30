@@ -26,6 +26,13 @@ Oh, btw, it auto adjusts to Zeekrэs notorious DPI (that's when standard Android
     - Bar style (Segmented 80s / Solid / Glow).
     - Decay speed.
 
+### CI/CD
+Automated pipelines for testing and releasing are configured via GitHub Actions.
+See [docs/cicd.md](docs/cicd.md) for setup instructions and signing secrets.
+
+- **CI**: Runs tests and builds APK on every push.
+- **Release**: Manual workflow to build, sign, and publish GitHub Releases.
+
 - **Settings**
   - Three‑dot button in the top‑right toggles the **slide-in Settings Panel**.
   - The panel overlays the right side of the screen with a frosted glass effect, allowing live preview of changes.
