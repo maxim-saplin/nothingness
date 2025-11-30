@@ -2,15 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/screen_config.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
-import '../widgets/media_button.dart';
-import '../widgets/scaled_layout.dart';
-import '../widgets/song_info_display.dart';
-import '../widgets/spectrum_visualizer.dart';
-import 'settings_screen.dart';
+import 'polo_screen.dart';
+import 'spectrum_screen.dart';
 
 class MediaControllerPage extends StatefulWidget {
   const MediaControllerPage({super.key});
@@ -22,6 +20,7 @@ class MediaControllerPage extends StatefulWidget {
 class _MediaControllerPageState extends State<MediaControllerPage>
     with WidgetsBindingObserver {
   final _platformChannels = PlatformChannels();
+  final _settingsService = SettingsService();
 
   SongInfo? _songInfo;
   List<double> _spectrumData = List.filled(32, 0.0);
@@ -33,16 +32,8 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   SpectrumSettings _settings = const SpectrumSettings();
   bool _isSettingsOpen = false;
-
-  final _settingsService = SettingsService();
-
-  Color get _accentColor => _settings.colorScheme.colors.first;
-  Color get _accentColorSoft => _settings.colorScheme.colors.length > 1
-      ? _settings.colorScheme.colors[1]
-      : _settings.colorScheme.colors.first;
-
-  // Get effective UI scale (default to 1.0 if auto/-1)
-  double _uiScale = 1.0;
+  ScreenConfig _screenConfig = const SpectrumScreenConfig();
+  bool _debugLayout = false;
 
   @override
   void initState() {
@@ -50,8 +41,8 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     WidgetsBinding.instance.addObserver(this);
 
     _loadSettings();
-    _settingsService.uiScaleNotifier.addListener(_handleUiScaleChanged);
-    _handleUiScaleChanged();
+    _settingsService.screenConfigNotifier.addListener(_handleScreenConfigChanged);
+    _settingsService.debugLayoutNotifier.addListener(_handleDebugLayoutChanged);
 
     if (PlatformChannels.isAndroid) {
       _checkPermissions();
@@ -62,17 +53,11 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _settingsService.uiScaleNotifier.removeListener(_handleUiScaleChanged);
+    _settingsService.screenConfigNotifier.removeListener(_handleScreenConfigChanged);
+    _settingsService.debugLayoutNotifier.removeListener(_handleDebugLayoutChanged);
     _spectrumSubscription?.cancel();
     _songInfoTimer?.cancel();
     super.dispose();
-  }
-
-  void _handleUiScaleChanged() {
-    final rawScale = _settingsService.uiScaleNotifier.value;
-    setState(() {
-      _uiScale = rawScale > 0 ? rawScale : 1.0;
-    });
   }
 
   @override
@@ -83,10 +68,23 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     }
   }
 
+  void _handleScreenConfigChanged() {
+    setState(() {
+      _screenConfig = _settingsService.screenConfigNotifier.value;
+    });
+  }
+
+  void _handleDebugLayoutChanged() {
+    setState(() {
+      _debugLayout = _settingsService.debugLayoutNotifier.value;
+    });
+  }
+
   Future<void> _loadSettings() async {
     final settings = await _settingsService.loadSettings();
     setState(() {
       _settings = settings;
+      _screenConfig = _settingsService.screenConfigNotifier.value;
     });
     // Update native side with loaded settings
     _platformChannels.updateSpectrumSettings(settings);
@@ -103,13 +101,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     _platformChannels.updateSpectrumSettings(settings);
   }
 
-  Future<void> _saveUiScale(double scale) async {
-    await _settingsService.saveUiScale(scale);
-  }
-
   Future<void> _checkPermissions() async {
-    final notificationAccess = await _platformChannels
-        .isNotificationAccessGranted();
+    final notificationAccess =
+        await _platformChannels.isNotificationAccessGranted();
     final audioPermission = await _platformChannels.hasAudioPermission();
 
     setState(() {
@@ -152,157 +146,30 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   @override
   Widget build(BuildContext context) {
-    // Determine panel width logic
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Calculate panel width based on the logical scaled width
-    final logicalScreenWidth = screenWidth / _uiScale;
-    final panelWidth = logicalScreenWidth > 900
-        ? logicalScreenWidth / 3
-        : (logicalScreenWidth / 2).clamp(300.0, 400.0);
-
-    return ScaledLayout(
-      child: Stack(
-        children: [
-          // Main Content
-          Scaffold(
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.more_vert, color: _accentColor),
-                  onPressed: _toggleSettings,
-                ),
-              ],
-            ),
-            body: SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  // Song info section
-                  SongInfoDisplay(
-                    songInfo: _songInfo,
-                    hasNotificationAccess: _hasNotificationAccess,
-                    isAndroid: PlatformChannels.isAndroid,
-                  ),
-                  const SizedBox(height: 40),
-                  // Spectrum visualizer
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: SpectrumVisualizer(
-                        data: _spectrumData,
-                        settings: _settings,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  // Media controls
-                  _buildMediaControls(),
-                  const SizedBox(height: 20),
-                  // Permission buttons (if needed)
-                  if (PlatformChannels.isAndroid) _buildPermissionButtons(),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
-          ),
-
-          // Settings Panel
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOutCubic,
-            top: 0,
-            bottom: 0,
-            right: _isSettingsOpen ? 0 : -panelWidth,
-            width: panelWidth,
-            child: SettingsScreen(
-              settings: _settings,
-              onSettingsChanged: _saveSettings,
-              uiScale: _settingsService.uiScaleNotifier.value,
-              onUiScaleChanged: _saveUiScale,
-              onClose: _toggleSettings,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMediaControls() {
-    final isPlaying = _songInfo?.isPlaying ?? false;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Previous button
-        MediaButton(
-          icon: Icons.skip_previous_rounded,
-          size: 48,
-          accentColor: _accentColorSoft,
-          inactiveBackgroundColor: Colors.white.withAlpha(10),
-          inactiveIconColor: Colors.white70,
-          onTap: _platformChannels.previous,
-        ),
-        const SizedBox(width: 32),
-        // Play/Pause button
-        MediaButton(
-          icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          size: 72,
-          isPrimary: true,
-          accentColor: _accentColor,
-          onTap: _platformChannels.playPause,
-        ),
-        const SizedBox(width: 32),
-        // Next button
-        MediaButton(
-          icon: Icons.skip_next_rounded,
-          size: 48,
-          accentColor: _accentColorSoft,
-          inactiveBackgroundColor: Colors.white.withAlpha(10),
-          inactiveIconColor: Colors.white70,
-          onTap: _platformChannels.next,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPermissionButtons() {
-    final buttons = <Widget>[];
-
-    if (!_hasNotificationAccess) {
-      buttons.add(
-        TextButton.icon(
-          onPressed: _platformChannels.openNotificationSettings,
-          icon: const Icon(Icons.settings, size: 18),
-          label: const Text('Enable Notification Access'),
-          style: TextButton.styleFrom(foregroundColor: _accentColor),
-        ),
-      );
+    switch (_screenConfig.type) {
+      case ScreenType.spectrum:
+        return SpectrumScreen(
+          songInfo: _songInfo,
+          spectrumData: _spectrumData,
+          hasNotificationAccess: _hasNotificationAccess,
+          hasAudioPermission: _hasAudioPermission,
+          settings: _settings,
+          platformChannels: _platformChannels,
+          onToggleSettings: _toggleSettings,
+          isSettingsOpen: _isSettingsOpen,
+          onSettingsChanged: _saveSettings,
+        );
+      case ScreenType.polo:
+        return PoloScreen(
+          songInfo: _songInfo,
+          config: _screenConfig as PoloScreenConfig,
+          platformChannels: _platformChannels,
+          onToggleSettings: _toggleSettings,
+          isSettingsOpen: _isSettingsOpen,
+          settings: _settings,
+          onSettingsChanged: _saveSettings,
+          debugLayout: _debugLayout,
+        );
     }
-
-    if (!_hasAudioPermission) {
-      buttons.add(
-        TextButton.icon(
-          onPressed: _platformChannels.requestAudioPermission,
-          icon: const Icon(Icons.mic, size: 18),
-          label: const Text('Enable Microphone'),
-          style: TextButton.styleFrom(foregroundColor: _accentColorSoft),
-        ),
-      );
-    }
-
-    if (buttons.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 8,
-        alignment: WrapAlignment.center,
-        children: buttons,
-      ),
-    );
   }
 }

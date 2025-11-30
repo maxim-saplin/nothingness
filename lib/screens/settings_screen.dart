@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
+import '../services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final SpectrumSettings settings;
@@ -27,12 +31,51 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late SpectrumSettings _settings;
   late double _uiScale;
+  late ScreenConfig _screenConfig;
+  bool _debugLayout = false;
+  final _settingsService = SettingsService();
 
   @override
   void initState() {
     super.initState();
     _settings = widget.settings;
     _uiScale = widget.uiScale;
+    _screenConfig = _settingsService.screenConfigNotifier.value;
+    _debugLayout = _settingsService.debugLayoutNotifier.value;
+
+    _settingsService.screenConfigNotifier.addListener(
+      _onServiceScreenConfigChanged,
+    );
+    _settingsService.debugLayoutNotifier.addListener(
+      _onServiceDebugLayoutChanged,
+    );
+  }
+
+  @override
+  void dispose() {
+    _settingsService.screenConfigNotifier.removeListener(
+      _onServiceScreenConfigChanged,
+    );
+    _settingsService.debugLayoutNotifier.removeListener(
+      _onServiceDebugLayoutChanged,
+    );
+    super.dispose();
+  }
+
+  void _onServiceScreenConfigChanged() {
+    if (mounted) {
+      setState(() {
+        _screenConfig = _settingsService.screenConfigNotifier.value;
+      });
+    }
+  }
+
+  void _onServiceDebugLayoutChanged() {
+    if (mounted) {
+      setState(() {
+        _debugLayout = _settingsService.debugLayoutNotifier.value;
+      });
+    }
   }
 
   @override
@@ -58,6 +101,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _uiScale = newScale;
     });
     widget.onUiScaleChanged(newScale);
+  }
+
+  Future<void> _updateScreenType(ScreenType type) async {
+    ScreenConfig newConfig;
+    if (type == ScreenType.spectrum) {
+      newConfig = const SpectrumScreenConfig();
+    } else {
+      newConfig = const PoloScreenConfig(); // Loads default Polo config
+    }
+    await _settingsService.saveScreenConfig(newConfig);
+  }
+
+  void _toggleDebugLayout() {
+    _settingsService.toggleDebugLayout();
   }
 
   @override
@@ -104,29 +161,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
-                      _buildSectionHeader('SPECTRUM'),
+                      // --- GLOBAL SETTINGS ---
+                      _buildSectionHeader('GLOBAL'),
                       const SizedBox(height: 16),
 
-                      // Bar Count
+                      // Screen Style Selector
                       _buildOptionTile(
-                        title: 'Number of Bars',
-                        subtitle: _settings.barCount.label,
-                        child: _buildBarCountSelector(),
+                        title: 'Screen Style',
+                        subtitle: _screenConfig.name,
+                        child: _buildScreenTypeSelector(),
                       ),
                       const SizedBox(height: 16),
 
-                      // Bar Style
-                      _buildOptionTile(
-                        title: 'Bar Style',
-                        subtitle: _settings.barStyle.label,
-                        child: _buildBarStyleSelector(),
-                      ),
-                      const SizedBox(height: 16),
-
-                      _buildSectionHeader('DISPLAY'),
-                      const SizedBox(height: 16),
-
-                      // UI Scale
+                      // UI Scale (Global setting)
                       _buildOptionTile(
                         title: 'UI Scale',
                         subtitle: _uiScale < 0
@@ -134,34 +181,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             : '${_uiScale.toStringAsFixed(2)}x',
                         child: _buildUiScaleControl(),
                       ),
-                      const SizedBox(height: 16),
-
-                      // Color Scheme
-                      _buildOptionTile(
-                        title: 'Color Scheme',
-                        subtitle: _settings.colorScheme.label,
-                        child: _buildColorSchemeSelector(),
-                      ),
                       const SizedBox(height: 24),
 
-                      _buildSectionHeader('AUDIO'),
-                      const SizedBox(height: 16),
+                      // --- SCREEN SPECIFIC SETTINGS ---
 
-                      // Noise Gate
-                      _buildOptionTile(
-                        title: 'Noise Gate',
-                        subtitle:
-                            '${_settings.noiseGateDb.toStringAsFixed(0)} dB',
-                        child: _buildNoiseGateSlider(),
-                      ),
-                      const SizedBox(height: 16),
+                      // 1. SPECTRUM SCREEN SETTINGS
+                      if (_screenConfig.type == ScreenType.spectrum) ...[
+                        _buildSectionHeader('APPEARANCE'),
+                        const SizedBox(height: 16),
 
-                      // Decay Speed
-                      _buildOptionTile(
-                        title: 'Decay Speed',
-                        subtitle: _settings.decaySpeed.label,
-                        child: _buildDecaySpeedSelector(),
-                      ),
+                        // Color Scheme
+                        _buildOptionTile(
+                          title: 'Color Scheme',
+                          subtitle: _settings.colorScheme.label,
+                          child: _buildColorSchemeSelector(),
+                        ),
+                        const SizedBox(height: 16),
+
+                        _buildSectionHeader('SPECTRUM'),
+                        const SizedBox(height: 16),
+
+                        // Bar Count
+                        _buildOptionTile(
+                          title: 'Number of Bars',
+                          subtitle: _settings.barCount.label,
+                          child: _buildBarCountSelector(),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Bar Style
+                        _buildOptionTile(
+                          title: 'Bar Style',
+                          subtitle: _settings.barStyle.label,
+                          child: _buildBarStyleSelector(),
+                        ),
+                        const SizedBox(height: 24),
+
+                        _buildSectionHeader('AUDIO'),
+                        const SizedBox(height: 16),
+
+                        // Noise Gate
+                        _buildOptionTile(
+                          title: 'Noise Gate',
+                          subtitle:
+                              '${_settings.noiseGateDb.toStringAsFixed(0)} dB',
+                          child: _buildNoiseGateSlider(),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Decay Speed
+                        _buildOptionTile(
+                          title: 'Decay Speed',
+                          subtitle: _settings.decaySpeed.label,
+                          child: _buildDecaySpeedSelector(),
+                        ),
+                      ],
+
+                      // 2. POLO SCREEN SETTINGS
+                      if (_screenConfig.type == ScreenType.polo) ...[
+                        _buildSectionHeader('POLO SETTINGS'),
+                        const SizedBox(height: 16),
+
+                        // Debug Layout Toggle (macOS only)
+                        if (kDebugMode || (!kIsWeb && Platform.isMacOS))
+                          _buildOptionTile(
+                            title: 'Debug Layout',
+                            subtitle: _debugLayout ? 'On' : 'Off',
+                            child: SwitchListTile(
+                              title: const Text(
+                                'Show LCD Area',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              value: _debugLayout,
+                              onChanged: (_) => _toggleDebugLayout(),
+                              activeTrackColor: const Color(0xFF00FF88),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                      ],
+
                       const SizedBox(height: 32),
                     ],
                   ),
@@ -226,6 +327,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child,
         ],
       ),
+    );
+  }
+
+  Widget _buildScreenTypeSelector() {
+    return Row(
+      children: ScreenType.values.map((type) {
+        final isSelected = _screenConfig.type == type;
+        String label;
+        switch (type) {
+          case ScreenType.spectrum:
+            label = 'Spectrum';
+            break;
+          case ScreenType.polo:
+            label = 'Polo';
+            break;
+        }
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => _updateScreenType(type),
+            child: Container(
+              margin: EdgeInsets.only(
+                right: type != ScreenType.values.last ? 8 : 0,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF00FF88)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFF00FF88) : Colors.white24,
+                ),
+              ),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? const Color(0xFF0A0A0F) : Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

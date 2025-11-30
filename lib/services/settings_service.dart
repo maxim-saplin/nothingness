@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
 
 class SettingsService {
@@ -13,6 +14,7 @@ class SettingsService {
 
   static const String _settingsKey = 'spectrum_settings';
   static const String _uiScaleKey = 'ui_scale';
+  static const String _screenConfigKey = 'screen_config';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -22,12 +24,15 @@ class SettingsService {
   static const BarStyle defaultBarStyle = BarStyle.segmented;
   static const DecaySpeed defaultDecaySpeed = DecaySpeed.medium;
   static const double defaultUiScale = -1.0; // -1.0 indicates "auto" / not set
+  static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
 
   final ValueNotifier<SpectrumSettings> settingsNotifier = ValueNotifier(
     const SpectrumSettings(),
   );
 
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
+  final ValueNotifier<ScreenConfig> screenConfigNotifier = ValueNotifier(defaultScreenConfig);
+  final ValueNotifier<bool> debugLayoutNotifier = ValueNotifier(false);
 
   /// Calculates a smart UI scale based on logical width and device pixel ratio.
   ///
@@ -121,6 +126,20 @@ class SettingsService {
       }
     }
 
+    // 3. Load Screen Config
+    final screenJsonString = prefs.getString(_screenConfigKey);
+    if (screenJsonString != null) {
+      try {
+        final json = jsonDecode(screenJsonString);
+        screenConfigNotifier.value = ScreenConfig.fromJson(json);
+      } catch (e) {
+        debugPrint('Error loading screen config: $e');
+        screenConfigNotifier.value = defaultScreenConfig;
+      }
+    } else {
+      screenConfigNotifier.value = defaultScreenConfig;
+    }
+
     return settings;
   }
 
@@ -136,5 +155,16 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_uiScaleKey, scale);
     uiScaleNotifier.value = scale;
+  }
+
+  /// Saves the screen configuration to persistence.
+  Future<void> saveScreenConfig(ScreenConfig config) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_screenConfigKey, jsonEncode(config.toJson()));
+    screenConfigNotifier.value = config;
+  }
+
+  void toggleDebugLayout() {
+    debugLayoutNotifier.value = !debugLayoutNotifier.value;
   }
 }

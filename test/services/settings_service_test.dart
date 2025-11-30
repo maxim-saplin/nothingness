@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -48,6 +49,19 @@ void main() {
       expect(uiScale, 2.0);
     });
 
+    test('saveScreenConfig persists screen selection', () async {
+      final config = PoloScreenConfig();
+      await service.saveScreenConfig(config);
+
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString('screen_config');
+
+      expect(jsonString, isNotNull);
+      final json = jsonDecode(jsonString!);
+      expect(json['type'], 'polo');
+      expect(json['name'], 'Polo');
+    });
+
     test('loadSettings retrieves saved data', () async {
       final savedData = {
         'noiseGateDb': -10.0,
@@ -57,9 +71,16 @@ void main() {
         'decaySpeed': 0.05, // Slow
       };
 
+      final savedScreenConfig = {
+        'type': 'polo',
+        'name': 'Polo',
+        'fontFamily': 'TestFont',
+      };
+
       SharedPreferences.setMockInitialValues({
         'spectrum_settings': jsonEncode(savedData),
         'ui_scale': 1.5,
+        'screen_config': jsonEncode(savedScreenConfig),
       });
 
       final settings = await service.loadSettings();
@@ -69,7 +90,12 @@ void main() {
       expect(settings.colorScheme, SpectrumColorScheme.cyan);
       expect(settings.barStyle, BarStyle.glow);
       expect(settings.decaySpeed, DecaySpeed.slow);
+
       expect(service.uiScaleNotifier.value, 1.5);
+
+      final loadedConfig = service.screenConfigNotifier.value;
+      expect(loadedConfig, isA<PoloScreenConfig>());
+      expect((loadedConfig as PoloScreenConfig).fontFamily, 'TestFont');
     });
 
     test('loadSettings migrates legacy uiScale', () async {

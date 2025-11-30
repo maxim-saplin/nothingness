@@ -28,6 +28,7 @@ graph TD
 -   **`SettingsService`**: A singleton service responsible for managing application state.
     -   **Spectrum Settings**: Visualizer configuration (colors, bar count, decay speed).
     -   **UI Scale**: System-wide scaling factor.
+    -   **Screen Configuration**: Manages active screen/skin selection (see [Skins & Screens](skins.md)).
     -   **Persistence**: Saves/loads state to disk using `SharedPreferences`.
 -   **`PlatformChannels`**: Handles communication with the host Android system.
     -   **Methods**: Controlling media playback (play, pause, next, prev).
