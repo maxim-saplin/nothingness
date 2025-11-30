@@ -10,9 +10,14 @@ Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - 
 
 Oh, btw, it auto adjusts to Zeekrэs notorious DPI (that's when standard Android apps show very small text and buttons).
 
-<img width="1378" height="815" alt="image" src="https://github.com/user-attachments/assets/f7519a5b-0a8e-48bf-9fac-fce18bcfffad" />
+<img width="1125" height="617" alt="image" src="https://github.com/user-attachments/assets/21ae7465-e6da-4a0e-99af-a41119da2644" />
 
 ### Features
+
+- 3 skins:
+  - Spectrum
+  - (VW) Polo
+  - Dot
 
 - **Now Playing**
   - Reads metadata (title/artist/album) from active media sessions on Android.
@@ -27,6 +32,20 @@ Oh, btw, it auto adjusts to Zeekrэs notorious DPI (that's when standard Android
     - Color scheme (Classic / Cyan / Purple / Mono).
     - Bar style (Segmented 80s / Solid / Glow).
     - Decay speed.
+
+### Skins
+
+#### Spectrum
+
+<img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/4d2c5d21-d509-492c-ad1f-dfe3ba59c980" />
+
+#### Polo
+
+<img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/af75f2ed-4e70-487b-9f53-1f313363bc6e" />
+
+#### Dot
+
+<img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/acc57317-2d98-4503-bf69-6ed783f49f8b" />
 
 ### CI/CD
 Automated pipelines for testing and releasing are configured via GitHub Actions.
