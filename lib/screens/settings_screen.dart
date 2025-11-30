@@ -200,6 +200,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _buildSectionHeader('APPEARANCE'),
                         const SizedBox(height: 16),
 
+                        // Text Color
+                        _buildOptionTile(
+                          title: 'Text Color',
+                          subtitle: (_screenConfig as SpectrumScreenConfig)
+                              .textColorScheme
+                              .label,
+                          child: _buildConfigColorSchemeSelector(
+                            currentValue:
+                                (_screenConfig as SpectrumScreenConfig)
+                                    .textColorScheme,
+                            onChanged: (scheme) {
+                              _updateSpectrumConfig(
+                                (_screenConfig as SpectrumScreenConfig)
+                                    .copyWith(textColorScheme: scheme),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
                         // Color Scheme
                         _buildOptionTile(
                           title: 'Visualizer Color',
@@ -222,26 +242,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _updateSpectrumConfig(
                                 (_screenConfig as SpectrumScreenConfig)
                                     .copyWith(mediaControlColorScheme: scheme),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Text Color
-                        _buildOptionTile(
-                          title: 'Text Color',
-                          subtitle: (_screenConfig as SpectrumScreenConfig)
-                              .textColorScheme
-                              .label,
-                          child: _buildConfigColorSchemeSelector(
-                            currentValue:
-                                (_screenConfig as SpectrumScreenConfig)
-                                    .textColorScheme,
-                            onChanged: (scheme) {
-                              _updateSpectrumConfig(
-                                (_screenConfig as SpectrumScreenConfig)
-                                    .copyWith(textColorScheme: scheme),
                               );
                             },
                           ),
@@ -447,6 +447,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final config = _screenConfig as SpectrumScreenConfig;
     return Column(
       children: [
+        // Text Size Slider
+        _buildOptionTile(
+          title: 'Text Size',
+          subtitle: '${(config.textScale * 100).round()}%',
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: const Color(0xFF00FF88),
+              inactiveTrackColor: Colors.white12,
+              thumbColor: const Color(0xFF00FF88),
+              overlayColor: const Color(0xFF00FF88).withAlpha(40),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: config.textScale,
+              min: 0.5,
+              max: 1.5,
+              divisions: 10,
+              onChanged: (val) =>
+                  _updateSpectrumConfig(config.copyWith(textScale: val)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
         // Media Controls Toggle
         _buildOptionTile(
           title: 'Media Controls',
@@ -491,30 +515,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
         ],
-
-        // Text Size Slider
-        _buildOptionTile(
-          title: 'Text Size',
-          subtitle: '${(config.textScale * 100).round()}%',
-          child: SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: const Color(0xFF00FF88),
-              inactiveTrackColor: Colors.white12,
-              thumbColor: const Color(0xFF00FF88),
-              overlayColor: const Color(0xFF00FF88).withAlpha(40),
-              trackHeight: 4,
-            ),
-            child: Slider(
-              value: config.textScale,
-              min: 0.5,
-              max: 1.5,
-              divisions: 10,
-              onChanged: (val) =>
-                  _updateSpectrumConfig(config.copyWith(textScale: val)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
 
         // Spectrum Width
         _buildOptionTile(

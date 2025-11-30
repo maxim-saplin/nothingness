@@ -41,12 +41,12 @@ class SpectrumScreenConfig extends ScreenConfig {
 
   const SpectrumScreenConfig({
     this.showMediaControls = true,
-    this.textScale = 1.0,
+    this.textScale = 0.6,
     this.spectrumWidthFactor = 1.0,
-    this.spectrumHeightFactor = 1.0,
-    this.mediaControlScale = 1.0,
-    this.mediaControlColorScheme = SpectrumColorScheme.classic,
-    this.textColorScheme = SpectrumColorScheme.classic,
+    this.spectrumHeightFactor = 0.5,
+    this.mediaControlScale = 0.6,
+    this.mediaControlColorScheme = SpectrumColorScheme.cyan,
+    this.textColorScheme = SpectrumColorScheme.cyan,
   }) : super(type: ScreenType.spectrum, name: 'Spectrum');
 
   @override

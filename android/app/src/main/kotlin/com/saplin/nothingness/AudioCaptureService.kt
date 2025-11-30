@@ -83,6 +83,11 @@ class AudioCaptureService(private val context: Context) {
         
         spectrumCallback = callback
         
+        // Reset bar values to ensure clean state on each capture start
+        for (i in barValues.indices) {
+            barValues[i] = 0.0
+        }
+        
         val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
         val bufferSize = maxOf(minBufferSize, FFT_SIZE * 2)
         
@@ -135,10 +140,30 @@ class AudioCaptureService(private val context: Context) {
     }
     
     private fun captureLoop() {
+        var framesToSkip = 10 // Skip first few frames to let hardware stabilize (removes initial pop)
+        
         while (isCapturing && !Thread.interrupted()) {
             val readResult = audioRecord?.read(audioBuffer, 0, FFT_SIZE) ?: -1
             
             if (readResult > 0) {
+                if (framesToSkip > 0) {
+                    framesToSkip--
+                    try {
+                        Thread.sleep(10)
+                    } catch (e: InterruptedException) {
+                        break
+                    }
+                    continue
+                }
+
+                // Zero-pad unread portion of buffer to prevent garbage data from affecting FFT
+                // This can happen on first reads when audio system is initializing
+                if (readResult < FFT_SIZE) {
+                    for (i in readResult until FFT_SIZE) {
+                        audioBuffer[i] = 0
+                    }
+                }
+                
                 // Convert to double and apply Hamming window
                 for (i in 0 until FFT_SIZE) {
                     val window = 0.54 - 0.46 * kotlin.math.cos(2.0 * Math.PI * i / (FFT_SIZE - 1))
@@ -161,6 +186,13 @@ class AudioCaptureService(private val context: Context) {
                 calculateBars()
                 
                 // Send only the configured number of bars to callback
+                spectrumCallback?.invoke(barValues.take(numBars))
+            } else {
+                // Read failed or returned 0, clear bars to prevent stuck visualization
+                // This handles cases where audio focus is lost or hardware is misbehaving
+                for (i in barValues.indices) {
+                    barValues[i] = 0.0
+                }
                 spectrumCallback?.invoke(barValues.take(numBars))
             }
             

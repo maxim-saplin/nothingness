@@ -18,7 +18,7 @@ class SettingsService {
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
-  static const BarCount defaultBarCount = BarCount.bars12;
+  static const BarCount defaultBarCount = BarCount.bars24;
   static const SpectrumColorScheme defaultColorScheme =
       SpectrumColorScheme.classic;
   static const BarStyle defaultBarStyle = BarStyle.segmented;
