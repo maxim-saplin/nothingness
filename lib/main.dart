@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'models/spectrum_settings.dart';
@@ -45,13 +46,26 @@ class _NothingAppState extends State<NothingApp> {
             // Auto-calculate uiScale on first launch if not set
             // Check using the direct notifier
             if (SettingsService().uiScaleNotifier.value < 0) {
-              final size = MediaQuery.sizeOf(context);
+              final mediaQuery = MediaQuery.of(context);
+              final size = mediaQuery.size;
               if (size.width > 0) {
+                final dpr = mediaQuery.devicePixelRatio;
                 final calculatedScale = SettingsService()
-                    .calculateSmartScaleForWidth(size.width);
+                    .calculateSmartScaleForWidth(
+                      size.width,
+                      devicePixelRatio: dpr,
+                    );
+
+                // Debug logging
+                debugPrint(
+                  '[UI Scale] Auto-calculating: '
+                  'width=${size.width}, dpr=$dpr -> scale=$calculatedScale',
+                );
+
                 // Persist calculated scale
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (SettingsService().uiScaleNotifier.value < 0) {
+                    debugPrint('[UI Scale] Persisting: $calculatedScale');
                     SettingsService().saveUiScale(calculatedScale);
                   }
                 });

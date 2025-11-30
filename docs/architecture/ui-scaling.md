@@ -34,10 +34,15 @@ Located in `lib/widgets/scaled_layout.dart`. This is the core widget responsible
 #### 2. `SettingsService` & Auto-Calculation
 Located in `lib/services/settings_service.dart`.
 -   **Separation**: `uiScale` is stored separately from `SpectrumSettings` to avoid coupling visualizer config with system config.
--   **Auto-Detection**: On first launch (`uiScale == -1`), the app calculates a "Smart Scale" based on the screen width (`calculateSmartScaleForWidth`).
-    -   Target logical width: ~600dp.
-    -   Formula: `scale = physicalWidth / 600.0`.
-    -   Result is clamped between 1.0 and 3.0.
+-   **Auto-Detection**: On first launch (`uiScale == -1`), the app calculates a "Smart Scale" based on the screen width and pixel density (`calculateSmartScaleForWidth`).
+    -   **Logic**:
+        -   **Automotive (Low DPI + width 1600-2100)**: Target logical width ~850dp.
+            -   Detects typical car infotainment screens (e.g. Zeekr 1920px).
+            -   Example: 1920px / 850 = ~2.25x.
+        -   **Tablets (High DPI OR outside automotive range)**: Target logical width ~960dp.
+            -   Handles both high-DPI tablets and large low-DPI tablet emulators.
+            -   Example: 2560px (low DPI) / 960 = ~2.67x.
+    -   Formula: `scale = physicalWidth / targetWidth` (clamped 1.0 - 3.0).
 
 ### Usage
 The `ScaledLayout` is applied at the highest level of the specific screen (e.g., inside `MediaControllerPage`'s `Stack`) rather than at `MaterialApp.builder` to ensure overlays and positioned elements (like the Settings Panel) are scaled correctly together.

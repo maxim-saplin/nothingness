@@ -29,23 +29,43 @@ class SettingsService {
 
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
 
-  /// Calculates a smart UI scale based purely on logical width.
-  /// Target logical width is ~600dp for automotive/tablet interfaces.
-  double calculateSmartScaleForWidth(double logicalWidth) {
+  /// Calculates a smart UI scale based on logical width and device pixel ratio.
+  ///
+  /// - [logicalWidth]: The width of the screen in logical pixels.
+  /// - [devicePixelRatio]: The density of the screen (default 1.0).
+  ///
+  /// Logic:
+  /// - Automotive (Low DPI + width in typical car range): Target ~850dp.
+  /// - Tablets (High DPI OR very wide low-DPI): Target ~960dp.
+  double calculateSmartScaleForWidth(
+    double logicalWidth, {
+    double devicePixelRatio = 1.0,
+  }) {
     // Guard against invalid width; fall back to no scaling.
     if (logicalWidth <= 0) {
       return 1.0;
     }
 
-    // Base target width for a \"standard\" readable interface
-    const double targetWidth = 600.0;
+    // Determine target width based on screen characteristics.
+    //
+    // Heuristic:
+    // - Low DPI (< 2.0) AND width in automotive range (1600-2100 logical) = Automotive
+    //   Use 850 target for large touch targets (e.g. Zeekr 1920 -> 2.25x)
+    // - Otherwise = Tablet/Normal display
+    //   Use 960 target for balanced information density
+    //
+    // Automotive displays are typically 1920x720 or 1920x1080 at ~160dpi (DPR ~1.0).
+    // Very wide low-DPI screens (> 2100) are likely large tablets, not cars.
+    final bool isAutomotive =
+        devicePixelRatio < 2.0 && logicalWidth >= 1600 && logicalWidth <= 2100;
+    final double targetWidth = isAutomotive ? 850.0 : 960.0;
 
     // Calculate scale
     final double scale = logicalWidth / targetWidth;
 
     // Clamp values:
-    // - Min 1.0: Don't shrink UI on phones (width < 600)
-    // - Max 3.0: Don't let it get absurdly huge on 4K screens
+    // - Min 1.0: Don't shrink UI on phones (width < target)
+    // - Max 3.0: Don't let it get absurdly huge
     return scale.clamp(1.0, 3.0);
   }
 
@@ -69,7 +89,9 @@ class SettingsService {
 
     // 2. Load UI Scale (with migration)
     if (prefs.containsKey(_uiScaleKey)) {
-      uiScaleNotifier.value = prefs.getDouble(_uiScaleKey) ?? defaultUiScale;
+      final loadedScale = prefs.getDouble(_uiScaleKey) ?? defaultUiScale;
+      debugPrint('[UI Scale] Loaded from prefs: $loadedScale');
+      uiScaleNotifier.value = loadedScale;
     } else {
       // Migration: Check if it was in the old JSON
       if (jsonString != null) {
@@ -80,16 +102,21 @@ class SettingsService {
               (json['textScale'] as num?)?.toDouble();
 
           if (oldScale != null) {
+            debugPrint('[UI Scale] Migrated from JSON: $oldScale');
             uiScaleNotifier.value = oldScale;
             // Persist to new key immediately
             await prefs.setDouble(_uiScaleKey, oldScale);
           } else {
+            debugPrint(
+              '[UI Scale] No saved value, using default: $defaultUiScale',
+            );
             uiScaleNotifier.value = defaultUiScale;
           }
         } catch (_) {
           uiScaleNotifier.value = defaultUiScale;
         }
       } else {
+        debugPrint('[UI Scale] Fresh install, using default: $defaultUiScale');
         uiScaleNotifier.value = defaultUiScale;
       }
     }
