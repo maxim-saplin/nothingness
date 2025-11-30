@@ -48,88 +48,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: Colors.black.withAlpha(180), // Semi-transparent black
             child: Column(
               children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 48, 16, 16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.white.withAlpha(25)),
+                // Header
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 48, 16, 16),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.white.withAlpha(25)),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Settings',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                        onPressed: widget.onClose,
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Settings',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
+
+                // Settings List
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      _buildSectionHeader('SPECTRUM'),
+                      const SizedBox(height: 16),
+
+                      // Bar Count
+                      _buildOptionTile(
+                        title: 'Number of Bars',
+                        subtitle: _settings.barCount.label,
+                        child: _buildBarCountSelector(),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white70),
-                      onPressed: widget.onClose,
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+
+                      // Bar Style
+                      _buildOptionTile(
+                        title: 'Bar Style',
+                        subtitle: _settings.barStyle.label,
+                        child: _buildBarStyleSelector(),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Color Scheme
+                      _buildOptionTile(
+                        title: 'Color Scheme',
+                        subtitle: _settings.colorScheme.label,
+                        child: _buildColorSchemeSelector(),
+                      ),
+                      const SizedBox(height: 24),
+
+                      _buildSectionHeader('AUDIO'),
+                      const SizedBox(height: 16),
+
+                      // Noise Gate
+                      _buildOptionTile(
+                        title: 'Noise Gate',
+                        subtitle:
+                            '${_settings.noiseGateDb.toStringAsFixed(0)} dB',
+                        child: _buildNoiseGateSlider(),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Decay Speed
+                      _buildOptionTile(
+                        title: 'Decay Speed',
+                        subtitle: _settings.decaySpeed.label,
+                        child: _buildDecaySpeedSelector(),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
-              ),
-
-              // Settings List
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    _buildSectionHeader('SPECTRUM'),
-                    const SizedBox(height: 16),
-
-                    // Bar Count
-                    _buildOptionTile(
-                      title: 'Number of Bars',
-                      subtitle: _settings.barCount.label,
-                      child: _buildBarCountSelector(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Bar Style
-                    _buildOptionTile(
-                      title: 'Bar Style',
-                      subtitle: _settings.barStyle.label,
-                      child: _buildBarStyleSelector(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Color Scheme
-                    _buildOptionTile(
-                      title: 'Color Scheme',
-                      subtitle: _settings.colorScheme.label,
-                      child: _buildColorSchemeSelector(),
-                    ),
-                    const SizedBox(height: 24),
-
-                    _buildSectionHeader('AUDIO'),
-                    const SizedBox(height: 16),
-
-                    // Noise Gate
-                    _buildOptionTile(
-                      title: 'Noise Gate',
-                      subtitle:
-                          '${_settings.noiseGateDb.toStringAsFixed(0)} dB',
-                      child: _buildNoiseGateSlider(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Decay Speed
-                    _buildOptionTile(
-                      title: 'Decay Speed',
-                      subtitle: _settings.decaySpeed.label,
-                      child: _buildDecaySpeedSelector(),
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-                ),
-              ),
-            ],
+              ],
             ),
           ),
         ),
@@ -167,14 +167,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 subtitle,
                 style: const TextStyle(color: Colors.white38, fontSize: 14),

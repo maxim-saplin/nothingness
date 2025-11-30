@@ -1,0 +1,30 @@
+---
+description: Standards and instructions for testing in the Nothingness project.
+globs: test/**/*, lib/**/*
+alwaysApply: true
+---
+
+# Testing Standards
+
+## Organization
+We mirror the `lib/` directory structure within `test/` to ensure tests are easy to locate.
+
+- `test/models/` -> Unit tests for data models.
+- `test/services/` -> Unit tests for services (mock dependencies).
+- `test/widgets/` -> Widget tests for reusable components.
+- `test/screens/` -> Widget tests for full pages.
+
+## Requirement
+- All new logic (models, services) must have unit tests.
+- All new UI components (widgets, screens) must have widget tests.
+
+## How to Add Tests
+1. **Create File**: Create a test file in the corresponding `test/` subdirectory (e.g., `lib/models/foo.dart` -> `test/models/foo_test.dart`).
+2. **Mocking**: Use `mockito` for external dependencies.
+   - Add `@GenerateMocks([DependencyClass])` to your test entry point if needed.
+   - Run `dart run build_runner build` to generate mocks.
+3. **Widget Tests**: Use `testWidgets` and `pumpWidget`. Ensure you wrap widgets in `MaterialApp` if they depend on theme/navigation.
+
+## How to Run Tests
+- **All Tests**: `flutter test`
+- **Specific File**: `flutter test test/path/to/file_test.dart`
