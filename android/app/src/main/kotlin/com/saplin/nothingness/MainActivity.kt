@@ -1,4 +1,4 @@
-package com.example.nothingness
+package com.saplin.nothingness
 
 import android.Manifest
 import android.content.Intent
@@ -19,8 +19,8 @@ class MainActivity : FlutterActivity() {
     
     companion object {
         private const val TAG = "MainActivity"
-        private const val MEDIA_CHANNEL = "com.example.nothingness/media"
-        private const val SPECTRUM_CHANNEL = "com.example.nothingness/spectrum"
+        private const val MEDIA_CHANNEL = "com.saplin.nothingness/media"
+        private const val SPECTRUM_CHANNEL = "com.saplin.nothingness/spectrum"
         private const val PERMISSION_REQUEST_CODE = 1001
     }
     

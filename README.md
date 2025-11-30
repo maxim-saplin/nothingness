@@ -91,4 +91,3 @@ media control buttons and other accents automatically sync to that scheme.
 ## Built With
 
 Cursor Agents (actively used Plan Mode) + Gemini 3 Pro/GPT 5.1 High/ Opus 4.5 High (it's facinating how one model acan get into loop trying to fix smth and then another models chimes in, can't say that one model is definetly better than the other, it's speed of responses that mattered AND whichever model stick in the model picker after the recent bug loop and model switching) + Flutter - over one evening and morning on Nov 29 and 30, 2025.
-

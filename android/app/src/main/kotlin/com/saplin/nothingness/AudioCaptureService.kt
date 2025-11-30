@@ -1,4 +1,4 @@
-package com.example.nothingness
+package com.saplin.nothingness
 
 import android.Manifest
 import android.content.Context

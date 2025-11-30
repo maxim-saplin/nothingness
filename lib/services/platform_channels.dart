@@ -8,8 +8,8 @@ import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 
 class PlatformChannels {
-  static const _mediaChannel = MethodChannel('com.example.nothingness/media');
-  static const _spectrumChannel = EventChannel('com.example.nothingness/spectrum');
+  static const _mediaChannel = MethodChannel('com.saplin.nothingness/media');
+  static const _spectrumChannel = EventChannel('com.saplin.nothingness/spectrum');
 
   static final bool isAndroid = Platform.isAndroid;
 
