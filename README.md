@@ -6,7 +6,9 @@ microphone.
 
 Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - I releized I want a simple screen instead of youtube or map just to feel the ever eluding "nothingness" -> see https://www.youtube.com/watch?v=orQKfIXMiA8
 
-Oh, btw, it auto adjusts to Zeekrs notorious DPI (that's when stabdard Android apps show very small text and buttons).
+Oh, btw, it auto adjusts to Zeekrэs notorious DPI (that's when standard Android apps show very small text and buttons).
+
+<img width="1378" height="815" alt="image" src="https://github.com/user-attachments/assets/f7519a5b-0a8e-48bf-9fac-fce18bcfffad" />
 
 ### Features
 
@@ -85,4 +87,8 @@ Oh, btw, it auto adjusts to Zeekrs notorious DPI (that's when stabdard Android a
 
 If you change the visual style (bar count, colors, etc.) in **Settings**, the
 media control buttons and other accents automatically sync to that scheme.
+
+## Built With
+
+Cursor Agents (actively used Plan Mode) + Gemini 3 Pro/GPT 5.1 High/ Opus 4.5 High (it's facinating how one model acan get into loop trying to fix smth and then another models chimes in, can't say that one model is definetly better than the other, it's speed of responses that mattered AND whichever model stick in the model picker after the recent bug loop and model switching) + Flutter - over one evening and morning on Nov 29 and 30, 2025.
 
