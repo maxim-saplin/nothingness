@@ -48,7 +48,7 @@ jobs:
         env:
           ENCODED_STRING: ${{ secrets.STOREFILE }}
         run: |
-          echo "$ENCODED_STRING" | base64 -d --ignore-garbage > android/app/keystore.jks
+          echo "$ENCODED_STRING" | tr -d '\n\r ' | base64 -d > android/app/keystore.jks
 
       - name: Create key.properties
         env:
