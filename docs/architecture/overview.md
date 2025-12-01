@@ -15,7 +15,7 @@ graph TD
     
     PC <--> |MethodChannel| Native[Android Native Layer]
     Native --> |Audio Data| PC
-    Vis <-- |Audio Data Stream| PC
+    Vis <--> |Audio Data Stream| PC
 ```
 
 ## Key Components
