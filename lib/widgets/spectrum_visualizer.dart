@@ -83,37 +83,43 @@ class SpectrumVisualizer extends StatelessWidget {
     final targetCount = settings.barCount.count;
     final resampledData = _resampleData(data, targetCount);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Spectrum bars (centered, not stretched)
-        Expanded(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: _calculateVisualizerWidth(targetCount),
-              ),
-              child: CustomPaint(
-                painter: _SpectrumPainter(
-                  data: resampledData,
-                  settings: settings,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final idealWidth = _calculateVisualizerWidth(targetCount);
+        // Ensure we don't overflow available width
+        final actualWidth = constraints.maxWidth < idealWidth
+            ? constraints.maxWidth
+            : idealWidth;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Spectrum bars (centered, not stretched)
+            Expanded(
+              child: Center(
+                child: SizedBox(
+                  width: actualWidth,
+                  child: CustomPaint(
+                    painter: _SpectrumPainter(
+                      data: resampledData,
+                      settings: settings,
+                    ),
+                    size: Size.infinite,
+                  ),
                 ),
-                size: Size.infinite,
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // Frequency labels
-        Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: _calculateVisualizerWidth(targetCount),
+            const SizedBox(height: 8),
+            // Frequency labels
+            Center(
+              child: SizedBox(
+                width: actualWidth,
+                child: _buildFrequencyLabels(targetCount),
+              ),
             ),
-            child: _buildFrequencyLabels(targetCount),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -133,8 +139,7 @@ class SpectrumVisualizer extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: List.generate(barCount, (i) {
         final showLabel = i % showEvery == 0 || i == barCount - 1;
-        return SizedBox(
-          width: _calculateVisualizerWidth(barCount) / barCount,
+        return Expanded(
           child: Text(
             showLabel ? labels[i] : '',
             textAlign: TextAlign.center,
