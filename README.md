@@ -6,9 +6,9 @@ Nothingness is a Flutter app that shows the **currently playing track on Android
 and renders a retro, 80s‑style **pixelated spectrum analyzer** driven by the
 microphone.
 
-Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - I releized I want a simple screen instead of youtube or map just to feel the ever eluding "nothingness" -> see https://www.youtube.com/watch?v=orQKfIXMiA8
+Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - I releized I want a simple screen instead of YouTube or Nav just to feel the ever eluding "nothingness" -> see https://www.youtube.com/watch?v=orQKfIXMiA8
 
-Oh, btw, it auto adjusts to Zeekrэs notorious DPI (that's when standard Android apps show very small text and buttons).
+Oh, btw, it auto adjusts to Zeekr's notorious DPI (that's when standard Android apps show very small text and buttons).
 
 <img width="1125" height="617" alt="image" src="https://github.com/user-attachments/assets/21ae7465-e6da-4a0e-99af-a41119da2644" />
 
