@@ -37,6 +37,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   bool _isSettingsOpen = false;
   ScreenConfig _screenConfig = const SpectrumScreenConfig();
   bool _debugLayout = false;
+  bool _isFullScreen = false;
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _handleScreenConfigChanged,
     );
     _settingsService.debugLayoutNotifier.addListener(_handleDebugLayoutChanged);
+    _settingsService.fullScreenNotifier.addListener(_handleFullScreenChanged);
 
     if (PlatformChannels.isAndroid) {
       _checkPermissions();
@@ -63,6 +65,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     );
     _settingsService.debugLayoutNotifier.removeListener(
       _handleDebugLayoutChanged,
+    );
+    _settingsService.fullScreenNotifier.removeListener(
+      _handleFullScreenChanged,
     );
     _spectrumSubscription?.cancel();
     _songInfoTimer?.cancel();
@@ -107,11 +112,18 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     });
   }
 
+  void _handleFullScreenChanged() {
+    setState(() {
+      _isFullScreen = _settingsService.fullScreenNotifier.value;
+    });
+  }
+
   Future<void> _loadSettings() async {
     final settings = await _settingsService.loadSettings();
     setState(() {
       _settings = settings;
       _screenConfig = _settingsService.screenConfigNotifier.value;
+      _isFullScreen = _settingsService.fullScreenNotifier.value;
     });
     // Update native side with loaded settings
     _platformChannels.updateSpectrumSettings(settings);
@@ -205,6 +217,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
               onSettingsChanged: _saveSettings,
               uiScale: _settingsService.uiScaleNotifier.value,
               onUiScaleChanged: (scale) => _settingsService.saveUiScale(scale),
+              fullScreen: _isFullScreen,
+              onFullScreenChanged: (val) =>
+                  _settingsService.setFullScreen(val, save: true),
               onClose: _toggleSettings,
             ),
           ),

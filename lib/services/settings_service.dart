@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/screen_config.dart';
@@ -15,6 +16,7 @@ class SettingsService {
   static const String _settingsKey = 'spectrum_settings';
   static const String _uiScaleKey = 'ui_scale';
   static const String _screenConfigKey = 'screen_config';
+  static const String _fullScreenKey = 'full_screen';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -24,6 +26,7 @@ class SettingsService {
   static const BarStyle defaultBarStyle = BarStyle.segmented;
   static const DecaySpeed defaultDecaySpeed = DecaySpeed.medium;
   static const double defaultUiScale = -1.0; // -1.0 indicates "auto" / not set
+  static const bool defaultFullScreen = false;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
 
   final ValueNotifier<SpectrumSettings> settingsNotifier = ValueNotifier(
@@ -31,7 +34,12 @@ class SettingsService {
   );
 
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
-  final ValueNotifier<ScreenConfig> screenConfigNotifier = ValueNotifier(defaultScreenConfig);
+  final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(
+    defaultFullScreen,
+  );
+  final ValueNotifier<ScreenConfig> screenConfigNotifier = ValueNotifier(
+    defaultScreenConfig,
+  );
   final ValueNotifier<bool> debugLayoutNotifier = ValueNotifier(false);
 
   /// Calculates a smart UI scale based on logical width and device pixel ratio.
@@ -140,6 +148,12 @@ class SettingsService {
       screenConfigNotifier.value = defaultScreenConfig;
     }
 
+    // 4. Load Full Screen
+    final isFullScreen = prefs.getBool(_fullScreenKey) ?? defaultFullScreen;
+    fullScreenNotifier.value = isFullScreen;
+    // Apply system UI mode (without saving again)
+    setFullScreen(isFullScreen, save: false);
+
     return settings;
   }
 
@@ -162,6 +176,24 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_screenConfigKey, jsonEncode(config.toJson()));
     screenConfigNotifier.value = config;
+  }
+
+  /// Toggles or sets full screen mode.
+  ///
+  /// - [enable]: Whether to enable immersive full screen.
+  /// - [save]: Whether to persist the setting (default true).
+  Future<void> setFullScreen(bool enable, {bool save = true}) async {
+    if (save) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_fullScreenKey, enable);
+      fullScreenNotifier.value = enable;
+    }
+
+    if (enable) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
   }
 
   void toggleDebugLayout() {

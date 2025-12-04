@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
@@ -6,6 +7,15 @@ import 'package:nothingness/services/settings_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Mock the SystemChrome method channel to avoid platform errors in tests
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall methodCall) async => null,
+      );
+
   group('SettingsService', () {
     late SettingsService service;
 

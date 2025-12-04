@@ -13,6 +13,8 @@ class SettingsScreen extends StatefulWidget {
   final ValueChanged<SpectrumSettings> onSettingsChanged;
   final double uiScale;
   final ValueChanged<double> onUiScaleChanged;
+  final bool fullScreen;
+  final ValueChanged<bool> onFullScreenChanged;
   final VoidCallback onClose;
 
   const SettingsScreen({
@@ -21,6 +23,8 @@ class SettingsScreen extends StatefulWidget {
     required this.onSettingsChanged,
     required this.uiScale,
     required this.onUiScaleChanged,
+    required this.fullScreen,
+    required this.onFullScreenChanged,
     required this.onClose,
   });
 
@@ -31,6 +35,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late SpectrumSettings _settings;
   late double _uiScale;
+  late bool _fullScreen;
   late ScreenConfig _screenConfig;
   bool _debugLayout = false;
   final _settingsService = SettingsService();
@@ -40,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _settings = widget.settings;
     _uiScale = widget.uiScale;
+    _fullScreen = widget.fullScreen;
     _screenConfig = _settingsService.screenConfigNotifier.value;
     _debugLayout = _settingsService.debugLayoutNotifier.value;
 
@@ -87,6 +93,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (oldWidget.uiScale != widget.uiScale) {
       _uiScale = widget.uiScale;
     }
+    if (oldWidget.fullScreen != widget.fullScreen) {
+      _fullScreen = widget.fullScreen;
+    }
   }
 
   void _updateSettings(SpectrumSettings newSettings) {
@@ -101,6 +110,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _uiScale = newScale;
     });
     widget.onUiScaleChanged(newScale);
+  }
+
+  void _updateFullScreen(bool enable) {
+    setState(() {
+      _fullScreen = enable;
+    });
+    widget.onFullScreenChanged(enable);
   }
 
   Future<void> _updateScreenType(ScreenType type) async {
@@ -180,6 +196,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: 'Screen Style',
                         subtitle: _screenConfig.name,
                         child: _buildScreenTypeSelector(),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Full Screen Toggle
+                      _buildOptionTile(
+                        title: 'Full Screen',
+                        subtitle: _fullScreen ? 'On' : 'Off',
+                        child: SwitchListTile(
+                          title: const Text(
+                            'Immersive Mode',
+                            style: TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          value: _fullScreen,
+                          onChanged: _updateFullScreen,
+                          activeTrackColor: const Color(0xFF00FF88),
+                          contentPadding: EdgeInsets.zero,
+                        ),
                       ),
                       const SizedBox(height: 16),
 
