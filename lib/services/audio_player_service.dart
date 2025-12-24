@@ -262,9 +262,28 @@ class AudioPlayerService {
       runZonedGuarded(
         () async {
           try {
-            _currentSource = await _soloud.loadFile(track.path);
-            final handle = await _soloud.play(_currentSource!, paused: false);
-            _currentHandle = handle;
+            if (p.extension(track.path).toLowerCase() == '.opus') {
+              final file = File(track.path);
+              final bytes = await file.readAsBytes();
+
+              _currentSource = _soloud.setBufferStream(
+                bufferingType: BufferingType.preserved,
+                format: BufferType.auto,
+                channels: Channels.stereo,
+                sampleRate: 44100,
+              );
+
+              final handle = await _soloud.play(_currentSource!, paused: false);
+              _currentHandle = handle;
+
+              _soloud.addAudioDataStream(_currentSource!, bytes);
+              _soloud.setDataIsEnded(_currentSource!);
+            } else {
+              _currentSource = await _soloud.loadFile(track.path);
+              final handle = await _soloud.play(_currentSource!, paused: false);
+              _currentHandle = handle;
+            }
+
             try {
               await _startSpectrum();
             } catch (e) {
