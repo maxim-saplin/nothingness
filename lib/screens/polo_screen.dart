@@ -14,6 +14,9 @@ class PoloScreen extends StatefulWidget {
   final VoidCallback onToggleSettings;
   final SpectrumSettings settings;
   final bool debugLayout;
+  final VoidCallback onPlayPause;
+  final VoidCallback onNext;
+  final VoidCallback onPrevious;
 
   const PoloScreen({
     super.key,
@@ -22,6 +25,9 @@ class PoloScreen extends StatefulWidget {
     required this.platformChannels,
     required this.onToggleSettings,
     required this.settings,
+    required this.onPlayPause,
+    required this.onNext,
+    required this.onPrevious,
     this.debugLayout = false,
   });
 
@@ -63,21 +69,21 @@ class _PoloScreenState extends State<PoloScreen> {
           SkinControlArea(
             rect: widget.config.prevRect,
             shape: SkinControlShape.rectangle,
-            onTap: widget.platformChannels.previous,
+            onTap: widget.onPrevious,
             debugLabel: 'Prev',
           ),
           // Play/Pause Button
           SkinControlArea(
             rect: widget.config.playPauseRect,
             shape: SkinControlShape.circle,
-            onTap: widget.platformChannels.playPause,
+            onTap: widget.onPlayPause,
             debugLabel: 'Play/Pause',
           ),
           // Next Button
           SkinControlArea(
             rect: widget.config.nextRect,
             shape: SkinControlShape.rectangle,
-            onTap: widget.platformChannels.next,
+            onTap: widget.onNext,
             debugLabel: 'Next',
           ),
         ],

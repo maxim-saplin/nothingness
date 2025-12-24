@@ -6,7 +6,9 @@ Welcome to the documentation for the Nothingness project.
 
 - **Architecture**
   - [System Overview](architecture/overview.md) - High-level system design and components.
+  - [Audio Playback & Spectrum](architecture/audio-playback-spectrum.md) - In-depth audio pipeline and visualization flows.
   - [UI Scaling](architecture/ui-scaling.md) - Implementation details of the global UI scaling solution.
+  - [Skins](architecture/skins.md) - Visual skins and layouts.
 
 - **Standards & Rules**
   - [Testing Standards](../.cursor/rules/testing-standards.mdc) - Requirements and guidelines for testing.
@@ -38,4 +40,5 @@ When adding new features or modifying the architecture, please remember to:
 1.  Update the relevant documentation.
 2.  Add a new section if appropriate.
 3.  Keep diagrams up to date.
+4.  Note whether the built-in audio player (default) or microphone input is the spectrum source for the feature you are touching.
 

@@ -5,13 +5,15 @@ import 'package:flutter/material.dart';
 import '../models/screen_config.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
+import '../services/audio_player_service.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
+import '../widgets/library_panel.dart';
 import '../widgets/scaled_layout.dart';
+import 'dot_screen.dart';
 import 'polo_screen.dart';
 import 'settings_screen.dart';
 import 'spectrum_screen.dart';
-import 'dot_screen.dart';
 
 class MediaControllerPage extends StatefulWidget {
   const MediaControllerPage({super.key});
@@ -24,10 +26,13 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     with WidgetsBindingObserver {
   final _platformChannels = PlatformChannels();
   final _settingsService = SettingsService();
+  final _audioPlayerService = AudioPlayerService();
 
   SongInfo? _songInfo;
   List<double> _spectrumData = List.filled(32, 0.0);
   StreamSubscription<List<double>>? _spectrumSubscription;
+  StreamSubscription<List<double>>? _playerSpectrumSubscription;
+  VoidCallback? _songInfoListener;
   Timer? _songInfoTimer;
 
   bool _hasNotificationAccess = false;
@@ -38,13 +43,14 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   ScreenConfig _screenConfig = const SpectrumScreenConfig();
   bool _debugLayout = false;
   bool _isFullScreen = false;
+  bool _isLibraryOpen = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _loadSettings();
+    _bootstrap();
     _settingsService.screenConfigNotifier.addListener(
       _handleScreenConfigChanged,
     );
@@ -53,8 +59,12 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
     if (PlatformChannels.isAndroid) {
       _checkPermissions();
-      _startSongInfoPolling();
     }
+  }
+
+  Future<void> _bootstrap() async {
+    await _initPlayer();
+    await _loadSettings();
   }
 
   @override
@@ -70,7 +80,12 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _handleFullScreenChanged,
     );
     _spectrumSubscription?.cancel();
+    _playerSpectrumSubscription?.cancel();
     _songInfoTimer?.cancel();
+    if (_songInfoListener != null) {
+      _audioPlayerService.songInfoNotifier.removeListener(_songInfoListener!);
+    }
+    _audioPlayerService.dispose();
     super.dispose();
   }
 
@@ -118,6 +133,63 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     });
   }
 
+  void _syncSongInfoSource(SpectrumSettings settings) {
+    _songInfoTimer?.cancel();
+    if (settings.audioSource == AudioSourceMode.microphone &&
+        PlatformChannels.isAndroid) {
+      _songInfoTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
+        _fetchSongInfo();
+      });
+      _fetchSongInfo();
+    } else {
+      setState(() {
+        _songInfo = _audioPlayerService.songInfoNotifier.value;
+      });
+    }
+  }
+
+  void _attachSpectrumSource(SpectrumSettings settings) {
+    _spectrumSubscription?.cancel();
+    _playerSpectrumSubscription?.cancel();
+
+    if (settings.audioSource == AudioSourceMode.player) {
+      _audioPlayerService.updateSpectrumSettings(settings);
+      _audioPlayerService.setCaptureEnabled(true);
+      _playerSpectrumSubscription =
+          _audioPlayerService.spectrumStream.listen((data) {
+        setState(() {
+          _spectrumData = data;
+        });
+      });
+    } else {
+      _audioPlayerService.setCaptureEnabled(false);
+      if (_hasAudioPermission) {
+        _spectrumSubscription =
+            _platformChannels.spectrumStream.listen((data) {
+          setState(() {
+            _spectrumData = data;
+          });
+        });
+      } else {
+        setState(() {
+          _spectrumData = List.filled(32, 0.0);
+        });
+      }
+    }
+  }
+
+  Future<void> _initPlayer() async {
+    await _audioPlayerService.init();
+    _songInfo = _audioPlayerService.songInfoNotifier.value;
+    _songInfoListener = () {
+      if (!mounted) return;
+      setState(() {
+        _songInfo = _audioPlayerService.songInfoNotifier.value;
+      });
+    };
+    _audioPlayerService.songInfoNotifier.addListener(_songInfoListener!);
+  }
+
   Future<void> _loadSettings() async {
     final settings = await _settingsService.loadSettings();
     setState(() {
@@ -125,6 +197,8 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _screenConfig = _settingsService.screenConfigNotifier.value;
       _isFullScreen = _settingsService.fullScreenNotifier.value;
     });
+    _syncSongInfoSource(settings);
+    _attachSpectrumSource(settings);
     // Update native side with loaded settings
     _platformChannels.updateSpectrumSettings(settings);
   }
@@ -136,8 +210,12 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _settings = settings;
     });
 
+    _syncSongInfoSource(settings);
+    _attachSpectrumSource(settings);
+
     // Update native side
     _platformChannels.updateSpectrumSettings(settings);
+    _audioPlayerService.updateSpectrumSettings(settings);
   }
 
   Future<void> _checkPermissions() async {
@@ -150,16 +228,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _hasAudioPermission = audioPermission;
     });
 
-    if (_hasAudioPermission && _spectrumSubscription == null) {
-      _startSpectrumListening();
-    }
-  }
-
-  void _startSongInfoPolling() {
-    _songInfoTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      _fetchSongInfo();
-    });
-    _fetchSongInfo();
+    _attachSpectrumSource(_settings);
   }
 
   Future<void> _fetchSongInfo() async {
@@ -169,18 +238,69 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     });
   }
 
-  void _startSpectrumListening() {
-    _spectrumSubscription = _platformChannels.spectrumStream.listen((data) {
-      setState(() {
-        _spectrumData = data;
-      });
-    });
-  }
-
   void _toggleSettings() {
     setState(() {
       _isSettingsOpen = !_isSettingsOpen;
     });
+  }
+
+  Future<void> _requestAudioPermission() async {
+    await _platformChannels.requestAudioPermission();
+    await _checkPermissions();
+  }
+
+  Future<void> _openNotificationSettings() async {
+    await _platformChannels.openNotificationSettings();
+    await Future.delayed(const Duration(milliseconds: 500));
+    await _checkPermissions();
+  }
+
+  void _openLibrary() {
+    setState(() {
+      _isLibraryOpen = true;
+    });
+  }
+
+  void _closeLibrary() {
+    setState(() {
+      _isLibraryOpen = false;
+    });
+  }
+
+  Widget _buildLibraryHandle() {
+    return Positioned(
+      bottom: 12,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: _isLibraryOpen ? _closeLibrary : _openLibrary,
+          child: Icon(
+            _isLibraryOpen
+                ? Icons.keyboard_arrow_down_rounded
+                : Icons.keyboard_arrow_up_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLibraryPanel(BuildContext context) {
+    final height = MediaQuery.of(context).size.height * 0.65;
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      left: 0,
+      right: 0,
+      bottom: _isLibraryOpen ? 0 : -height,
+      height: height,
+      child: LibraryPanel(
+        audioPlayerService: _audioPlayerService,
+        onClose: _closeLibrary,
+      ),
+    );
   }
 
   @override
@@ -199,31 +319,49 @@ class _MediaControllerPageState extends State<MediaControllerPage>
         : (logicalScreenWidth / 2).clamp(300.0, 400.0);
 
     return ScaledLayout(
-      child: Stack(
-        children: [
-          // Current Screen
-          _buildCurrentScreen(),
+      child: GestureDetector(
+        onVerticalDragUpdate: (details) {
+          final delta = details.primaryDelta ?? 0;
+          if (delta < -8) {
+            _openLibrary();
+          } else if (delta > 8) {
+            _closeLibrary();
+          }
+        },
+        child: Stack(
+          children: [
+            // Current Screen
+            _buildCurrentScreen(),
 
-          // Settings Panel Overlay
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOutCubic,
-            top: 0,
-            bottom: 0,
-            right: _isSettingsOpen ? 0 : -panelWidth,
-            width: panelWidth,
-            child: SettingsScreen(
-              settings: _settings,
-              onSettingsChanged: _saveSettings,
-              uiScale: _settingsService.uiScaleNotifier.value,
-              onUiScaleChanged: (scale) => _settingsService.saveUiScale(scale),
-              fullScreen: _isFullScreen,
-              onFullScreenChanged: (val) =>
-                  _settingsService.setFullScreen(val, save: true),
-              onClose: _toggleSettings,
+            // Library panel
+            _buildLibraryPanel(context),
+            _buildLibraryHandle(),
+
+            // Settings Panel Overlay
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOutCubic,
+              top: 0,
+              bottom: 0,
+              right: _isSettingsOpen ? 0 : -panelWidth,
+              width: panelWidth,
+              child: SettingsScreen(
+                settings: _settings,
+                onSettingsChanged: _saveSettings,
+                uiScale: _settingsService.uiScaleNotifier.value,
+                onUiScaleChanged: (scale) => _settingsService.saveUiScale(scale),
+                fullScreen: _isFullScreen,
+                onFullScreenChanged: (val) =>
+                    _settingsService.setFullScreen(val, save: true),
+                onClose: _toggleSettings,
+                hasNotificationAccess: _hasNotificationAccess,
+                hasAudioPermission: _hasAudioPermission,
+                onRequestNotificationAccess: _openNotificationSettings,
+                onRequestAudioPermission: _requestAudioPermission,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -234,12 +372,13 @@ class _MediaControllerPageState extends State<MediaControllerPage>
         return SpectrumScreen(
           songInfo: _songInfo,
           spectrumData: _spectrumData,
-          hasNotificationAccess: _hasNotificationAccess,
-          hasAudioPermission: _hasAudioPermission,
           settings: _settings,
           config: _screenConfig as SpectrumScreenConfig,
           platformChannels: _platformChannels,
           onToggleSettings: _toggleSettings,
+          onPlayPause: _audioPlayerService.playPause,
+          onNext: _audioPlayerService.next,
+          onPrevious: _audioPlayerService.previous,
         );
       case ScreenType.polo:
         return PoloScreen(
@@ -249,6 +388,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
           onToggleSettings: _toggleSettings,
           settings: _settings,
           debugLayout: _debugLayout,
+          onPlayPause: _audioPlayerService.playPause,
+          onNext: _audioPlayerService.next,
+          onPrevious: _audioPlayerService.previous,
         );
       case ScreenType.dot:
         return DotScreen(

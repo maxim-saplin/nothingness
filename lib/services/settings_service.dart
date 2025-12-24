@@ -25,6 +25,7 @@ class SettingsService {
       SpectrumColorScheme.classic;
   static const BarStyle defaultBarStyle = BarStyle.segmented;
   static const DecaySpeed defaultDecaySpeed = DecaySpeed.medium;
+  static const AudioSourceMode defaultAudioSource = AudioSourceMode.player;
   static const double defaultUiScale = -1.0; // -1.0 indicates "auto" / not set
   static const bool defaultFullScreen = false;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();

@@ -16,6 +16,10 @@ class SettingsScreen extends StatefulWidget {
   final bool fullScreen;
   final ValueChanged<bool> onFullScreenChanged;
   final VoidCallback onClose;
+  final bool hasNotificationAccess;
+  final bool hasAudioPermission;
+  final VoidCallback onRequestNotificationAccess;
+  final VoidCallback onRequestAudioPermission;
 
   const SettingsScreen({
     super.key,
@@ -26,6 +30,10 @@ class SettingsScreen extends StatefulWidget {
     required this.fullScreen,
     required this.onFullScreenChanged,
     required this.onClose,
+    required this.hasNotificationAccess,
+    required this.hasAudioPermission,
+    required this.onRequestNotificationAccess,
+    required this.onRequestAudioPermission,
   });
 
   @override
@@ -226,6 +234,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      // Audio Source Selector
+                      _buildSectionHeader('AUDIO INPUT'),
+                      const SizedBox(height: 16),
+                      _buildOptionTile(
+                        title: 'Spectrum Source',
+                        subtitle: _settings.audioSource.label,
+                        child: _buildAudioSourceSelector(),
+                      ),
+                      const SizedBox(height: 16),
+                      if (Platform.isAndroid)
+                        _buildOptionTile(
+                          title: 'Permissions',
+                          subtitle: 'Android only',
+                          child: _buildPermissionButtons(),
+                        ),
+                      const SizedBox(height: 24),
+
                       // --- SCREEN SPECIFIC SETTINGS ---
 
                       // 1. SPECTRUM SCREEN SETTINGS
@@ -305,17 +330,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        _buildSectionHeader('AUDIO'),
-                        const SizedBox(height: 16),
+                        if (_settings.audioSource == AudioSourceMode.microphone) ...[
+                          _buildSectionHeader('AUDIO'),
+                          const SizedBox(height: 16),
 
-                        // Noise Gate
-                        _buildOptionTile(
-                          title: 'Noise Gate',
-                          subtitle:
-                              '${_settings.noiseGateDb.toStringAsFixed(0)} dB',
-                          child: _buildNoiseGateSlider(),
-                        ),
-                        const SizedBox(height: 16),
+                          // Noise Gate
+                          _buildOptionTile(
+                            title: 'Noise Gate',
+                            subtitle:
+                                '${_settings.noiseGateDb.toStringAsFixed(0)} dB',
+                            child: _buildNoiseGateSlider(),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
                         // Decay Speed
                         _buildOptionTile(
@@ -610,6 +637,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
         fontWeight: FontWeight.w700,
         letterSpacing: 2,
       ),
+    );
+  }
+
+  Widget _buildAudioSourceSelector() {
+    return Row(
+      children: AudioSourceMode.values.map((mode) {
+        final isSelected = _settings.audioSource == mode;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => _updateSettings(
+              _settings.copyWith(audioSource: mode),
+            ),
+            child: Container(
+              margin: EdgeInsets.only(
+                right: mode != AudioSourceMode.values.last ? 8 : 0,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF00FF88)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFF00FF88) : Colors.white24,
+                ),
+              ),
+              child: Text(
+                mode.label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? const Color(0xFF0A0A0F) : Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPermissionButtons() {
+    if (!Platform.isAndroid) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            ElevatedButton.icon(
+              onPressed: widget.onRequestAudioPermission,
+              icon: const Icon(Icons.mic),
+              label: Text(
+                widget.hasAudioPermission ? 'Microphone Granted' : 'Enable Mic',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.hasAudioPermission
+                    ? Colors.greenAccent.withAlpha(120)
+                    : const Color(0xFF00FF88),
+                foregroundColor: Colors.black,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: widget.onRequestNotificationAccess,
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: Text(
+                widget.hasNotificationAccess
+                    ? 'Notifications Granted'
+                    : 'Enable Notifications',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.hasNotificationAccess
+                    ? Colors.greenAccent.withAlpha(120)
+                    : const Color(0xFF00FF88),
+                foregroundColor: Colors.black,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Permissions are only required on Android.',
+          style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 12),
+        ),
+      ],
     );
   }
 

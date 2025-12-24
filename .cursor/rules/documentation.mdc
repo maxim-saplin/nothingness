@@ -20,6 +20,12 @@ alwaysApply: false
 -   **Mermaid**: Use Mermaid diagrams for all visual flows (graphs, sequences, class diagrams).
 -   **Links**: Use relative links to other docs (e.g., `[Overview](architecture/overview.md)`).
 
+## Style
+Keep docs straightforward—no marketing fluff or filler:
+- State what the component does and how to run it.
+- Avoid buzzwords ("reporting surface", "purpose-built", etc.).
+- Prefer short, direct sentences; skip padding and restatements.
+
 ## Agent Behavior
 -   **Do not pollute context**: Do not read all docs into context unless specifically asked.
 -   **Update Index**: Always update `docs/README.md` when adding a new file.
