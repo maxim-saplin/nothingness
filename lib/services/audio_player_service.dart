@@ -133,15 +133,24 @@ class AudioPlayerService {
   }
 
   Future<void> playPause() async {
+    // If we have a queue but nothing is loaded yet, start playback from the
+    // current (or first) track instead of silently doing nothing.
+    if (_currentHandle == null) {
+      final orderIndex = currentIndexNotifier.value ?? 0;
+      if (_playlist.length > 0) {
+        await _playOrderIndex(orderIndex);
+      }
+      return;
+    }
+
     // If we're in the middle of skipping through bad files, cancel that loop
-    if (_cancelPlayback == false && isPlayingNotifier.value && _currentHandle == null) {
+    if (_cancelPlayback == false && isPlayingNotifier.value) {
       _cancelPlayback = true;
       isPlayingNotifier.value = false;
       _emitSongInfo();
       return;
     }
 
-    if (_currentHandle == null) return;
     final paused = _soloud.getPause(_currentHandle!);
     _soloud.setPause(_currentHandle!, !paused);
     isPlayingNotifier.value = paused; // Will be playing if was paused

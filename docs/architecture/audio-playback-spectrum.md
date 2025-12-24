@@ -50,6 +50,11 @@ flowchart LR
 - `SpectrumSettings.barCount`, `decaySpeed`, `noiseGateDb`: applied in providers; decay also maps to SoLoud FFT smoothing.
 - Settings load after player init to avoid SoLoud init errors and are pushed to providers and native mic side.
 
+## Playlist Management
+- Queue state (tracks, play order, current index, shuffle flag) is persisted with Hive via `PlaylistStore`, sized to handle thousands of tracks efficiently.
+- The "Now Playing" tab renders the active play order; tapping shuffle reshuffles and keeps the current track first, and reset order restores sequential playback.
+- Auto-advance uses the persisted play order; when the queue ends playback stops cleanly while keeping the queue available on next launch.
+
 ## Error Handling & Guardrails
 - SoLoud init is awaited before visualization calls; UI bootstrap was sequenced to remove `SoLoudNotInitializedException` risk.
 - Playback load/play is wrapped in `runZonedGuarded`; failures skip to the next track until a playable file is found.

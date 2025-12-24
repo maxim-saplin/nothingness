@@ -101,6 +101,58 @@ class _LibraryPanelState extends State<LibraryPanel>
             builder: (context, player, _) {
               final queue = player.queue;
               final current = player.currentIndex;
+              return Row(
+                children: [
+                  FilledButton.icon(
+                    onPressed: queue.isEmpty
+                        ? null
+                        : () => player.shuffleQueue(),
+                    icon: const Icon(Icons.shuffle_rounded),
+                    label:
+                        Text(player.shuffle ? 'Shuffle (on)' : 'Shuffle'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: player.shuffle
+                          ? const Color(0xFF00FF88)
+                          : Colors.white12,
+                      foregroundColor:
+                          player.shuffle ? Colors.black : Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: queue.isEmpty
+                        ? null
+                        : () => player.disableShuffle(),
+                    icon: const Icon(
+                      Icons.format_list_numbered_rtl,
+                      color: Color(0xFF00FF88),
+                    ),
+                    label: const Text(
+                      'Reset order',
+                      style: TextStyle(color: Color(0xFF00FF88)),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${(current ?? -1) + 1} / ${queue.length}',
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Consumer<AudioPlayerProvider>(
+            builder: (context, player, _) {
+              final queue = player.queue;
+              final current = player.currentIndex;
               if (queue.isEmpty) {
                 return _emptyState('Queue is empty',
                     'Pick a folder and tap Play All');
@@ -240,7 +292,11 @@ class _LibraryPanelState extends State<LibraryPanel>
       ),
       onTap: () async {
         final player = context.read<AudioPlayerProvider>();
-        await player.setQueue(_files, startIndex: index);
+        await player.setQueue(
+          _files,
+          startIndex: index,
+          shuffle: player.shuffle,
+        );
         widget.onClose();
       },
     );
@@ -292,7 +348,7 @@ class _LibraryPanelState extends State<LibraryPanel>
         throw Exception('Folder does not exist');
       }
 
-      final supported = <String>{'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg'};
+      final supported = AudioPlayerProvider.supportedExtensions;
       await for (final entity in directory.list()) {
         if (entity is Directory) {
           dirs.add(entity);
@@ -343,7 +399,11 @@ class _LibraryPanelState extends State<LibraryPanel>
       final player = context.read<AudioPlayerProvider>();
       final tracks = await player.scanFolder(_currentPath!);
       if (tracks.isNotEmpty) {
-        await player.setQueue(tracks, startIndex: 0);
+        await player.setQueue(
+          tracks,
+          startIndex: 0,
+          shuffle: player.shuffle,
+        );
         widget.onClose();
       }
     } finally {
