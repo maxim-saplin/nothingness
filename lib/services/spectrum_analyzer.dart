@@ -20,7 +20,7 @@ class SpectrumAnalyzer {
     required int barCount,
     required double noiseGateDb,
     List<double>? previousValues,
-    double smoothing = 0.5,
+    double smoothing = 0.3,
   }) {
     if (fft.isEmpty) return List.filled(barCount, 0.0);
 

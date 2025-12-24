@@ -37,7 +37,7 @@ class SoLoudSpectrumProvider implements SpectrumProvider {
     if (!_soloud.getVisualizationEnabled()) {
       _soloud.setVisualizationEnabled(true);
     }
-    _timer ??= Timer.periodic(const Duration(milliseconds: 50), (_) async {
+    _timer ??= Timer.periodic(const Duration(milliseconds: 16), (_) async {
       await _poll();
     });
   }

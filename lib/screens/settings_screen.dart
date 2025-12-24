@@ -992,6 +992,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   max: 3.0,
                   divisions: 9,
                   onChanged: (value) {
+                    _uiScale = value;
+                  },
+                  onChangeEnd: (value) {
                     _updateUiScale(value);
                   },
                 ),
@@ -1019,29 +1022,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Small',
-              style: TextStyle(
-                color: Colors.white.withAlpha(100),
-                fontSize: 11,
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Small',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(100),
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'Default',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(100),
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'Huge',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(100),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
             ),
-            Text(
-              'Default',
-              style: TextStyle(
-                color: Colors.white.withAlpha(100),
-                fontSize: 11,
-              ),
-            ),
-            Text(
-              'Huge',
-              style: TextStyle(
-                color: Colors.white.withAlpha(100),
-                fontSize: 11,
-              ),
-            ),
+            const SizedBox(width: 8),
+            const SizedBox(width: 60), // Match AUTO button width
           ],
         ),
       ],
