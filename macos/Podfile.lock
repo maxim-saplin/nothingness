@@ -6,6 +6,8 @@ PODS:
   - flutter_soloud (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - macos_secure_bookmarks (0.0.3):
+    - FlutterMacOS
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -18,6 +20,7 @@ DEPENDENCIES:
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
   - flutter_soloud (from `Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - macos_secure_bookmarks (from `Flutter/ephemeral/.symlinks/plugins/macos_secure_bookmarks/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
 
@@ -30,6 +33,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  macos_secure_bookmarks:
+    :path: Flutter/ephemeral/.symlinks/plugins/macos_secure_bookmarks/macos
   path_provider_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   shared_preferences_foundation:
@@ -40,6 +45,7 @@ SPEC CHECKSUMS:
   file_picker: 7584aae6fa07a041af2b36a2655122d42f578c1a
   flutter_soloud: 93c20641a100d25bfbc84a8b86e867f350ef29ac
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  macos_secure_bookmarks: e096d8ec49de2d25ea47e1061b85e5f2f1520fef
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
 

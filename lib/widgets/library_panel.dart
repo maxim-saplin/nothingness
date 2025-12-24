@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../models/audio_track.dart';
 import '../providers/audio_player_provider.dart';
+import '../services/library_service.dart';
 
 class LibraryPanel extends StatefulWidget {
   final VoidCallback onClose;
@@ -66,7 +67,12 @@ class _LibraryPanelState extends State<LibraryPanel>
                 child: TabBarView(
                   children: [
                     _buildNowPlaying(),
-                    _buildFolders(),
+                    ValueListenableBuilder<Map<String, String>>(
+                      valueListenable: LibraryService().rootsNotifier,
+                      builder: (context, roots, _) {
+                        return _buildFolders(roots);
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -198,7 +204,7 @@ class _LibraryPanelState extends State<LibraryPanel>
     );
   }
 
-  Widget _buildFolders() {
+  Widget _buildFolders(Map<String, String> roots) {
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -208,8 +214,8 @@ class _LibraryPanelState extends State<LibraryPanel>
             children: [
               ElevatedButton.icon(
                 onPressed: _pickFolder,
-                icon: const Icon(Icons.folder_open_rounded),
-                label: const Text('Pick Folder'),
+                icon: const Icon(Icons.create_new_folder_outlined),
+                label: const Text('Add Folder'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00FF88),
                   foregroundColor: Colors.black,
@@ -253,7 +259,14 @@ class _LibraryPanelState extends State<LibraryPanel>
           else if (_error != null)
             _emptyState('Cannot open folder', _error!)
           else if (_currentPath == null)
-            _emptyState('No folder selected', 'Pick a folder to browse audio')
+            roots.isEmpty
+                ? _emptyState(
+                    'No library folders', 'Add a folder to start browsing')
+                : Expanded(
+                    child: ListView(
+                      children: roots.keys.map(_buildRootTile).toList(),
+                    ),
+                  )
           else if (_dirs.isEmpty && _files.isEmpty)
             _emptyState('Empty folder', 'No audio files found here')
           else
@@ -267,6 +280,26 @@ class _LibraryPanelState extends State<LibraryPanel>
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRootTile(String path) {
+    return ListTile(
+      leading: const Icon(Icons.folder_special, color: Color(0xFF00FF88)),
+      title: Text(
+        p.basename(path),
+        style: const TextStyle(color: Colors.white),
+      ),
+      subtitle: Text(
+        path,
+        style: const TextStyle(color: Colors.white38, fontSize: 10),
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.close, color: Colors.white38),
+        onPressed: () => LibraryService().removeRoot(path),
+      ),
+      onTap: () => _loadFolder(path),
     );
   }
 
@@ -332,6 +365,10 @@ class _LibraryPanelState extends State<LibraryPanel>
   Future<void> _pickFolder() async {
     final path = await FilePicker.platform.getDirectoryPath();
     if (path == null) return;
+
+    // Persist permission
+    await LibraryService().addRoot(path);
+
     await _loadFolder(path);
   }
 
@@ -351,7 +388,10 @@ class _LibraryPanelState extends State<LibraryPanel>
       final supported = AudioPlayerProvider.supportedExtensions;
       await for (final entity in directory.list()) {
         if (entity is Directory) {
-          dirs.add(entity);
+          // Filter out hidden folders
+          if (!p.basename(entity.path).startsWith('.')) {
+            dirs.add(entity);
+          }
         } else if (entity is File) {
           final ext = p.extension(entity.path).replaceAll('.', '').toLowerCase();
           if (supported.contains(ext)) {
@@ -386,6 +426,17 @@ class _LibraryPanelState extends State<LibraryPanel>
 
   Future<void> _navigateUp() async {
     if (_currentPath == null) return;
+
+    // If current path is a root, go back to root list
+    if (LibraryService().rootsNotifier.value.containsKey(_currentPath)) {
+      setState(() {
+        _currentPath = null;
+        _dirs = [];
+        _files = [];
+      });
+      return;
+    }
+
     final parent = Directory(_currentPath!).parent.path;
     await _loadFolder(parent);
   }

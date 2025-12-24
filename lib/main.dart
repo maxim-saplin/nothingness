@@ -4,10 +4,18 @@ import 'package:provider/provider.dart';
 import 'models/spectrum_settings.dart';
 import 'providers/audio_player_provider.dart';
 import 'screens/media_controller_page.dart';
-import 'services/settings_service.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:nothingness/services/library_service.dart';
+import 'package:nothingness/services/settings_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Hive
+  await Hive.initFlutter();
+
+  // Initialize LibraryService to restore file permissions
+  await LibraryService().init();
 
   // Initialize audio player before app starts to avoid SoLoud init races
   final audioPlayerProvider = AudioPlayerProvider();
