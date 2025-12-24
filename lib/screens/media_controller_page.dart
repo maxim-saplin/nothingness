@@ -1,11 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/screen_config.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
-import '../services/audio_player_service.dart';
+import '../providers/audio_player_provider.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
 import '../widgets/library_panel.dart';
@@ -26,13 +27,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     with WidgetsBindingObserver {
   final _platformChannels = PlatformChannels();
   final _settingsService = SettingsService();
-  final _audioPlayerService = AudioPlayerService();
-
-  SongInfo? _songInfo;
-  List<double> _spectrumData = List.filled(32, 0.0);
+  SongInfo? _micSongInfo;
+  List<double> _micSpectrumData = List.filled(32, 0.0);
   StreamSubscription<List<double>>? _spectrumSubscription;
-  StreamSubscription<List<double>>? _playerSpectrumSubscription;
-  VoidCallback? _songInfoListener;
   Timer? _songInfoTimer;
 
   bool _hasNotificationAccess = false;
@@ -63,7 +60,6 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   Future<void> _bootstrap() async {
-    await _initPlayer();
     await _loadSettings();
   }
 
@@ -80,12 +76,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _handleFullScreenChanged,
     );
     _spectrumSubscription?.cancel();
-    _playerSpectrumSubscription?.cancel();
     _songInfoTimer?.cancel();
-    if (_songInfoListener != null) {
-      _audioPlayerService.songInfoNotifier.removeListener(_songInfoListener!);
-    }
-    _audioPlayerService.dispose();
     super.dispose();
   }
 
@@ -143,51 +134,37 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _fetchSongInfo();
     } else {
       setState(() {
-        _songInfo = _audioPlayerService.songInfoNotifier.value;
+        _micSongInfo = null; // Provider handles player song info
       });
     }
   }
 
   void _attachSpectrumSource(SpectrumSettings settings) {
     _spectrumSubscription?.cancel();
-    _playerSpectrumSubscription?.cancel();
+
+    final player = context.read<AudioPlayerProvider>();
 
     if (settings.audioSource == AudioSourceMode.player) {
-      _audioPlayerService.updateSpectrumSettings(settings);
-      _audioPlayerService.setCaptureEnabled(true);
-      _playerSpectrumSubscription =
-          _audioPlayerService.spectrumStream.listen((data) {
-        setState(() {
-          _spectrumData = data;
-        });
+      player.updateSpectrumSettings(settings);
+      player.setCaptureEnabled(true);
+      setState(() {
+        _micSpectrumData = List.filled(32, 0.0);
       });
     } else {
-      _audioPlayerService.setCaptureEnabled(false);
+      player.setCaptureEnabled(false);
       if (_hasAudioPermission) {
         _spectrumSubscription =
             _platformChannels.spectrumStream.listen((data) {
           setState(() {
-            _spectrumData = data;
+            _micSpectrumData = data;
           });
         });
       } else {
         setState(() {
-          _spectrumData = List.filled(32, 0.0);
+          _micSpectrumData = List.filled(32, 0.0);
         });
       }
     }
-  }
-
-  Future<void> _initPlayer() async {
-    await _audioPlayerService.init();
-    _songInfo = _audioPlayerService.songInfoNotifier.value;
-    _songInfoListener = () {
-      if (!mounted) return;
-      setState(() {
-        _songInfo = _audioPlayerService.songInfoNotifier.value;
-      });
-    };
-    _audioPlayerService.songInfoNotifier.addListener(_songInfoListener!);
   }
 
   Future<void> _loadSettings() async {
@@ -215,7 +192,6 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
     // Update native side
     _platformChannels.updateSpectrumSettings(settings);
-    _audioPlayerService.updateSpectrumSettings(settings);
   }
 
   Future<void> _checkPermissions() async {
@@ -234,7 +210,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   Future<void> _fetchSongInfo() async {
     final songInfo = await _platformChannels.getSongInfo();
     setState(() {
-      _songInfo = songInfo;
+      _micSongInfo = songInfo;
     });
   }
 
@@ -297,7 +273,6 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       bottom: _isLibraryOpen ? 0 : -height,
       height: height,
       child: LibraryPanel(
-        audioPlayerService: _audioPlayerService,
         onClose: _closeLibrary,
       ),
     );
@@ -367,38 +342,40 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   Widget _buildCurrentScreen() {
+    final player = context.watch<AudioPlayerProvider>();
+    final songInfo =
+        _settings.audioSource == AudioSourceMode.microphone &&
+                PlatformChannels.isAndroid
+            ? _micSongInfo
+            : player.songInfo;
+    final spectrumData = _settings.audioSource == AudioSourceMode.player
+        ? player.spectrumData
+        : _micSpectrumData;
+
     switch (_screenConfig.type) {
       case ScreenType.spectrum:
         return SpectrumScreen(
-          songInfo: _songInfo,
-          spectrumData: _spectrumData,
           settings: _settings,
           config: _screenConfig as SpectrumScreenConfig,
-          platformChannels: _platformChannels,
           onToggleSettings: _toggleSettings,
-          onPlayPause: _audioPlayerService.playPause,
-          onNext: _audioPlayerService.next,
-          onPrevious: _audioPlayerService.previous,
+          externalSongInfo: songInfo,
+          externalSpectrumData: spectrumData,
         );
       case ScreenType.polo:
         return PoloScreen(
-          songInfo: _songInfo,
           config: _screenConfig as PoloScreenConfig,
-          platformChannels: _platformChannels,
           onToggleSettings: _toggleSettings,
           settings: _settings,
           debugLayout: _debugLayout,
-          onPlayPause: _audioPlayerService.playPause,
-          onNext: _audioPlayerService.next,
-          onPrevious: _audioPlayerService.previous,
+          externalSongInfo: songInfo,
         );
       case ScreenType.dot:
         return DotScreen(
-          songInfo: _songInfo,
-          spectrumData: _spectrumData,
           settings: _settings,
           config: _screenConfig as DotScreenConfig,
           onToggleSettings: _toggleSettings,
+          externalSongInfo: songInfo,
+          externalSpectrumData: spectrumData,
         );
     }
   }

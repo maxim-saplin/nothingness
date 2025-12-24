@@ -3,16 +3,16 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
 
-import '../services/audio_player_service.dart';
+import '../models/audio_track.dart';
+import '../providers/audio_player_provider.dart';
 
 class LibraryPanel extends StatefulWidget {
-  final AudioPlayerService audioPlayerService;
   final VoidCallback onClose;
 
   const LibraryPanel({
     super.key,
-    required this.audioPlayerService,
     required this.onClose,
   });
 
@@ -97,50 +97,45 @@ class _LibraryPanelState extends State<LibraryPanel>
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          ValueListenableBuilder<int?>(
-            valueListenable: widget.audioPlayerService.currentIndexNotifier,
-            builder: (context, current, _) {
-              return ValueListenableBuilder<List<AudioTrack>>(
-                valueListenable: widget.audioPlayerService.queueNotifier,
-                builder: (context, queue, child) {
-                  if (queue.isEmpty) {
-                    return _emptyState('Queue is empty',
-                        'Pick a folder and tap Play All');
-                  }
-                  return Expanded(
-                    child: ListView.separated(
-                      itemBuilder: (context, index) {
-                        final track = queue[index];
-                        final isActive = current == index;
-                        return ListTile(
-                          leading: Icon(
-                            isActive
-                                ? Icons.play_arrow_rounded
-                                : Icons.music_note,
-                            color: isActive
-                                ? const Color(0xFF00FF88)
-                                : Colors.white70,
-                          ),
-                          title: Text(
-                            track.title,
-                            style: TextStyle(
-                              color: isActive ? Colors.white : Colors.white70,
-                              fontWeight:
-                                  isActive ? FontWeight.w700 : FontWeight.w500,
-                            ),
-                          ),
-                          onTap: () async {
-                            await widget.audioPlayerService
-                                .setQueue(queue, startIndex: index);
-                          },
-                        );
+          Consumer<AudioPlayerProvider>(
+            builder: (context, player, _) {
+              final queue = player.queue;
+              final current = player.currentIndex;
+              if (queue.isEmpty) {
+                return _emptyState('Queue is empty',
+                    'Pick a folder and tap Play All');
+              }
+              return Expanded(
+                child: ListView.separated(
+                  itemBuilder: (context, index) {
+                    final track = queue[index];
+                    final isActive = current == index;
+                    return ListTile(
+                      leading: Icon(
+                        isActive
+                            ? Icons.play_arrow_rounded
+                            : Icons.music_note,
+                        color: isActive
+                            ? const Color(0xFF00FF88)
+                            : Colors.white70,
+                      ),
+                      title: Text(
+                        track.title,
+                        style: TextStyle(
+                          color: isActive ? Colors.white : Colors.white70,
+                          fontWeight:
+                              isActive ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                      onTap: () async {
+                        await player.playFromQueueIndex(index);
                       },
-                        separatorBuilder: (context, separatorIndex) =>
-                          Divider(color: Colors.white12, height: 1),
-                      itemCount: queue.length,
-                    ),
-                  );
-                },
+                    );
+                  },
+                  separatorBuilder: (context, separatorIndex) =>
+                      const Divider(color: Colors.white12, height: 1),
+                  itemCount: queue.length,
+                ),
               );
             },
           ),
@@ -244,7 +239,8 @@ class _LibraryPanelState extends State<LibraryPanel>
         overflow: TextOverflow.ellipsis,
       ),
       onTap: () async {
-        await widget.audioPlayerService.setQueue(_files, startIndex: index);
+        final player = context.read<AudioPlayerProvider>();
+        await player.setQueue(_files, startIndex: index);
         widget.onClose();
       },
     );
@@ -344,9 +340,10 @@ class _LibraryPanelState extends State<LibraryPanel>
       _loading = true;
     });
     try {
-      final tracks = await widget.audioPlayerService.scanFolder(_currentPath!);
+      final player = context.read<AudioPlayerProvider>();
+      final tracks = await player.scanFolder(_currentPath!);
       if (tracks.isNotEmpty) {
-        await widget.audioPlayerService.setQueue(tracks, startIndex: 0);
+        await player.setQueue(tracks, startIndex: 0);
         widget.onClose();
       }
     } finally {

@@ -9,25 +9,27 @@ This document details audio stack choices, data paths, and behaviors for playbac
 - Swap quickly between player and microphone sources based on `SpectrumSettings.audioSource`.
 
 ## Core Components
-- **`AudioPlayerService`**: Initializes SoLoud once, enables visualization, manages queue/load/play/pause/seek, emits `SongInfo`, and disposes prior sources.
+- **`AudioPlayerProvider`**: `ChangeNotifier` that surfaces `AudioPlayerService` state to the UI (song info, playing, queue, shuffle, spectrum data) without prop drilling.
+- **`AudioPlayerService`**: Initializes SoLoud once, enables visualization, manages queue/load/play/pause/seek, emits `SongInfo`, and disposes prior sources. Playback is wrapped in `runZonedGuarded` with skip-on-error and user cancel support (pause stops skip loop when encountering bad files).
 - **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
   - **`SoLoudSpectrumProvider`**: Polls SoLoud `AudioData` (linear) for the current handle. Uses `SpectrumAnalyzer` to apply logarithmic scaling, frequency weighting (pink noise compensation), noise gate, and decay smoothing.
   - **`MicrophoneSpectrumProvider`** (Android-only): Streams FFT bars from the native `AudioCaptureService` via platform channels; requires mic permission.
-- **`MediaControllerPage`**: Waits for player init before applying spectrum settings and wires the provider per `SpectrumSettings`.
+- **`MediaControllerPage`**: Uses Provider for player state; switches capture based on `SpectrumSettings.audioSource` (disables player capture when microphone mode is active).
 
 ## Playback Pipeline (Player Mode)
 ```mermaid
 flowchart LR
-    UI[MediaControllerPage] -->|play/enqueue/seek| Player[AudioPlayerService]
+  UI[MediaControllerPage] -->|watch| Provider[AudioPlayerProvider]
+  Provider -->|play/enqueue/seek| Player[AudioPlayerService]
     Player -->|load file| SoLoud[SoLoud Engine]
     SoLoud -->|PCM + FFT| Spectrum[SoLoudSpectrumProvider]
     Spectrum -->|bars stream| Visualizer[SpectrumVisualizer widgets]
 ```
 
 ### Lifecycle Notes
-- SoLoud initializes at bootstrap; visualization is enabled immediately.
+- SoLoud initializes at bootstrap (awaited in `main`); visualization is enabled immediately.
 - On play: stop prior handle, dispose prior source, load file, play, start spectrum polling.
-- On pause: pause playback and stop spectrum polling to reduce CPU; resume restarts polling.
+- On pause: pause playback and stop spectrum polling to reduce CPU; resume restarts polling. If currently skipping bad files, pause sets a cancel flag to exit the loop.
 - On completion: position check triggers `next()` when position >= duration.
 
 ## Microphone Pipeline (Android Only)
@@ -50,6 +52,7 @@ flowchart LR
 
 ## Error Handling & Guardrails
 - SoLoud init is awaited before visualization calls; UI bootstrap was sequenced to remove `SoLoudNotInitializedException` risk.
+- Playback load/play is wrapped in `runZonedGuarded`; failures skip to the next track until a playable file is found.
 - Spectrum polling checks for a valid handle and skips if absent.
 - Source disposal happens before new loads to prevent leaked handles.
 - Mic pipeline activates only when permission is granted; otherwise bars fall back to zeros.

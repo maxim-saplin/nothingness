@@ -1,34 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/screen_config.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
-import '../services/platform_channels.dart';
+import '../providers/audio_player_provider.dart';
 import '../widgets/retro_lcd_display.dart';
 import '../widgets/skin_layout.dart';
 
 class PoloScreen extends StatefulWidget {
-  final SongInfo? songInfo;
   final PoloScreenConfig config;
-  final PlatformChannels platformChannels;
   final VoidCallback onToggleSettings;
   final SpectrumSettings settings;
   final bool debugLayout;
-  final VoidCallback onPlayPause;
-  final VoidCallback onNext;
-  final VoidCallback onPrevious;
+  final SongInfo? externalSongInfo;
 
   const PoloScreen({
     super.key,
-    required this.songInfo,
     required this.config,
-    required this.platformChannels,
     required this.onToggleSettings,
     required this.settings,
-    required this.onPlayPause,
-    required this.onNext,
-    required this.onPrevious,
     this.debugLayout = false,
+    this.externalSongInfo,
   });
 
   @override
@@ -38,6 +31,9 @@ class PoloScreen extends StatefulWidget {
 class _PoloScreenState extends State<PoloScreen> {
   @override
   Widget build(BuildContext context) {
+    final player = context.watch<AudioPlayerProvider>();
+    final songInfo = widget.externalSongInfo ?? player.songInfo;
+
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -60,7 +56,7 @@ class _PoloScreenState extends State<PoloScreen> {
         lcdRect: widget.config.lcdRect,
         debugLayout: widget.debugLayout,
         lcdContent: RetroLcdDisplay(
-          songInfo: widget.songInfo,
+          songInfo: songInfo,
           fontFamily: widget.config.fontFamily,
           textColor: widget.config.textColor,
         ),
@@ -69,21 +65,21 @@ class _PoloScreenState extends State<PoloScreen> {
           SkinControlArea(
             rect: widget.config.prevRect,
             shape: SkinControlShape.rectangle,
-            onTap: widget.onPrevious,
+            onTap: context.read<AudioPlayerProvider>().previous,
             debugLabel: 'Prev',
           ),
           // Play/Pause Button
           SkinControlArea(
             rect: widget.config.playPauseRect,
             shape: SkinControlShape.circle,
-            onTap: widget.onPlayPause,
+            onTap: context.read<AudioPlayerProvider>().playPause,
             debugLabel: 'Play/Pause',
           ),
           // Next Button
           SkinControlArea(
             rect: widget.config.nextRect,
             shape: SkinControlShape.rectangle,
-            onTap: widget.onNext,
+            onTap: context.read<AudioPlayerProvider>().next,
             debugLabel: 'Next',
           ),
         ],

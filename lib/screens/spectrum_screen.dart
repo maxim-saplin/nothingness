@@ -1,35 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/screen_config.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
-import '../services/platform_channels.dart';
+import '../providers/audio_player_provider.dart';
 import '../widgets/media_button.dart';
 import '../widgets/song_info_display.dart';
 import '../widgets/spectrum_visualizer.dart';
 
 class SpectrumScreen extends StatefulWidget {
-  final SongInfo? songInfo;
-  final List<double> spectrumData;
   final SpectrumSettings settings;
   final SpectrumScreenConfig config;
-  final PlatformChannels platformChannels;
   final VoidCallback onToggleSettings;
-  final VoidCallback onPlayPause;
-  final VoidCallback onNext;
-  final VoidCallback onPrevious;
+  final SongInfo? externalSongInfo;
+  final List<double>? externalSpectrumData;
 
   const SpectrumScreen({
     super.key,
-    required this.songInfo,
-    required this.spectrumData,
     required this.settings,
     required this.config,
-    required this.platformChannels,
     required this.onToggleSettings,
-    required this.onPlayPause,
-    required this.onNext,
-    required this.onPrevious,
+    this.externalSongInfo,
+    this.externalSpectrumData,
   });
 
   @override
@@ -49,6 +42,10 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final player = context.watch<AudioPlayerProvider>();
+    final songInfo = widget.externalSongInfo ?? player.songInfo;
+    final spectrumData = widget.externalSpectrumData ?? player.spectrumData;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -70,7 +67,7 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
                 textScaler: TextScaler.linear(widget.config.textScale),
               ),
               child: SongInfoDisplay(
-                songInfo: widget.songInfo,
+                songInfo: songInfo,
                 textColor: _textColor,
               ),
             ),
@@ -84,7 +81,7 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: SpectrumVisualizer(
-                      data: widget.spectrumData,
+                      data: spectrumData,
                       settings: widget.settings,
                     ),
                   ),
@@ -103,7 +100,8 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
   }
 
   Widget _buildMediaControls() {
-    final isPlaying = widget.songInfo?.isPlaying ?? false;
+    final player = context.watch<AudioPlayerProvider>();
+    final isPlaying = player.songInfo?.isPlaying ?? player.isPlaying;
     final scale = widget.config.mediaControlScale;
 
     return Row(
@@ -116,7 +114,7 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
           accentColor: _mediaSecondary,
           inactiveBackgroundColor: Colors.white.withAlpha(10),
           inactiveIconColor: Colors.white70,
-          onTap: widget.onPrevious,
+          onTap: context.read<AudioPlayerProvider>().previous,
         ),
         SizedBox(width: 32 * scale),
         // Play/Pause button
@@ -125,7 +123,7 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
           size: 72 * scale,
           isPrimary: true,
           accentColor: _mediaPrimary,
-          onTap: widget.onPlayPause,
+          onTap: context.read<AudioPlayerProvider>().playPause,
         ),
         SizedBox(width: 32 * scale),
         // Next button
@@ -135,7 +133,7 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
           accentColor: _mediaSecondary,
           inactiveBackgroundColor: Colors.white.withAlpha(10),
           inactiveIconColor: Colors.white70,
-          onTap: widget.onNext,
+          onTap: context.read<AudioPlayerProvider>().next,
         ),
       ],
     );
