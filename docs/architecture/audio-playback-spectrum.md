@@ -11,7 +11,7 @@ This document details audio stack choices, data paths, and behaviors for playbac
 ## Core Components
 - **`AudioPlayerService`**: Initializes SoLoud once, enables visualization, manages queue/load/play/pause/seek, emits `SongInfo`, and disposes prior sources.
 - **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
-  - **`SoLoudSpectrumProvider`**: Polls SoLoud `AudioData` (linear) for the current handle; applies noise gate and decay smoothing from `SpectrumSettings`.
+  - **`SoLoudSpectrumProvider`**: Polls SoLoud `AudioData` (linear) for the current handle. Uses `SpectrumAnalyzer` to apply logarithmic scaling, frequency weighting (pink noise compensation), noise gate, and decay smoothing.
   - **`MicrophoneSpectrumProvider`** (Android-only): Streams FFT bars from the native `AudioCaptureService` via platform channels; requires mic permission.
 - **`MediaControllerPage`**: Waits for player init before applying spectrum settings and wires the provider per `SpectrumSettings`.
 

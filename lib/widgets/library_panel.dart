@@ -82,14 +82,6 @@ class _LibraryPanelState extends State<LibraryPanel>
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 6,
-            decoration: BoxDecoration(
-              color: Colors.white24,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white70),
@@ -137,14 +129,6 @@ class _LibraryPanelState extends State<LibraryPanel>
                                   isActive ? FontWeight.w700 : FontWeight.w500,
                             ),
                           ),
-                          subtitle: Text(
-                            track.artist,
-                            style: TextStyle(
-                              color: isActive
-                                  ? Colors.white70
-                                  : Colors.white38,
-                            ),
-                          ),
                           onTap: () async {
                             await widget.audioPlayerService
                                 .setQueue(queue, startIndex: index);
@@ -161,46 +145,9 @@ class _LibraryPanelState extends State<LibraryPanel>
             },
           ),
           const SizedBox(height: 12),
-          _buildControls(),
+
         ],
       ),
-    );
-  }
-
-  Widget _buildControls() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: widget.audioPlayerService.previous,
-          icon: const Icon(Icons.skip_previous_rounded, color: Colors.white70),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00FF88),
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          onPressed: widget.audioPlayerService.playPause,
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.play_arrow_rounded),
-              SizedBox(width: 6),
-              Text('Play / Pause'),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: widget.audioPlayerService.next,
-          icon: const Icon(Icons.skip_next_rounded, color: Colors.white70),
-        ),
-      ],
     );
   }
 
