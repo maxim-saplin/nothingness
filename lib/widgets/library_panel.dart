@@ -42,14 +42,23 @@ class _LibraryPanelState extends State<LibraryPanel>
   }
 
   Future<void> _checkAndroidPermissions() async {
-    final hasPermission = await Permission.manageExternalStorage.isGranted;
-    if (!mounted) return;
-    setState(() {
-      _hasAllFilesPermission = hasPermission;
-    });
-    // If we already have permission, load the root automatically
-    if (hasPermission && _currentPath == null) {
-      await _loadAndroidRoot();
+    try {
+      final hasPermission = await Permission.manageExternalStorage.isGranted;
+      if (!mounted) return;
+      setState(() {
+        _hasAllFilesPermission = hasPermission;
+      });
+      // If we already have permission, load the root automatically
+      if (hasPermission && _currentPath == null) {
+        await _loadAndroidRoot();
+      }
+    } catch (e) {
+      debugPrint('Failed to check permissions: $e');
+      if (mounted) {
+        setState(() {
+          _hasAllFilesPermission = false;
+        });
+      }
     }
   }
 
@@ -103,6 +112,10 @@ class _LibraryPanelState extends State<LibraryPanel>
         });
       }
     }
+  }
+
+  bool _shouldShowPermissionButtons() {
+    return Platform.isAndroid && !_hasAllFilesPermission && _currentPath == null;
   }
 
   @override
@@ -294,7 +307,7 @@ class _LibraryPanelState extends State<LibraryPanel>
         children: [
           Row(
             children: [
-              if (Platform.isAndroid && !_hasAllFilesPermission && _currentPath == null) ...[
+              if (_shouldShowPermissionButtons()) ...[
                 // Option 1: Request all files permission
                 ElevatedButton.icon(
                   onPressed: _requestAllFilesPermission,
