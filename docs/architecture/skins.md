@@ -13,7 +13,7 @@ The application uses `ScreenConfig` models to define which screen is currently a
 
 The "Polo" screen is an example of a coordinate-based skin. It consists of:
 
-1.  **Background Image**: A high-resolution image of a car dashboard or radio (`assets/images/polo.png`).
+1.  **Background Image**: A compressed background image of a car dashboard or radio (`assets/images/polo.webp` or optimized PNG). Keep it optimized—it is the largest asset in the APK.
 2.  **LCD Content**: A widget (`RetroLcdDisplay`) rendering text with the `Press Start 2P` pixelated font.
 3.  **Coordinate System**: The content is positioned using a normalized `Rect` (0.0 to 1.0) relative to the background image.
 

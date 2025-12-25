@@ -28,11 +28,15 @@ To build a signed release APK or App Bundle, you must configure the signing keys
     storeFile=<absolute_path_to_your_keystore.jks>
     ```
 2.  **Run the Build:**
-    ```bash
-    flutter build appbundle
-    # or
-    flutter build apk
-    ```
+    - Arm64-only shrinked APK (current shipping target):
+      ```bash
+      flutter build apk --release
+      ```
+    - (Optional) App Bundle:
+      ```bash
+      flutter build appbundle
+      ```
+
 
 ## 🤝 Contributing
 

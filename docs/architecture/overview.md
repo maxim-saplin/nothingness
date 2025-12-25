@@ -42,8 +42,8 @@ graph TD
     -   **Persistence**: Saves/loads state to disk using `SharedPreferences`.
 -   **`AudioPlayerProvider`**: `ChangeNotifier` that wraps an `AudioBackend` implementation and exposes state (`songInfo`, `isPlaying`, `queue`, `shuffle`, spectrum stream) to the UI.
 -   **`AudioBackend` (interface)**: Platform-specific playback + spectrum behind one contract.
-    -   **`SoLoudBackend` (macOS)**: Uses `flutter_soloud` for playback and FFT.
-    -   **`JustAudioBackend` (Android)**: Uses `just_audio` + `audio_service`/`just_audio_background` for playback, media session, notifications, and headset/lock-screen controls. Spectrum comes from the Android visualizer API tied to the player session.
+    -   **`SoLoudBackend` (macOS)**: Uses `flutter_soloud` for playback and FFT. SoLoud native libraries are excluded from Android builds to keep APK size down.
+    -   **`JustAudioBackend` (Android)**: Uses `just_audio` + `audio_service`/`just_audio_background` for playback, media session, notifications, and headset/lock-screen controls. Spectrum comes from the Android visualizer API tied to the player session. Android packaging targets only `arm64-v8a` (no `armeabi-v7a`/`x86_64`).
 -   **`PlatformChannels`**: Android bridge for permissions and visualizer/mic spectrum events.
 
 ### 3. Native Layer (Android)

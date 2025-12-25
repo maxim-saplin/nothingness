@@ -167,7 +167,7 @@ class PoloScreenConfig extends ScreenConfig {
   final Color textColor;
 
   const PoloScreenConfig({
-    this.backgroundImagePath = 'assets/images/polo.png',
+    this.backgroundImagePath = 'assets/images/polo.webp',
     this.fontFamily = 'Press Start 2P',
     this.lcdRect = const Rect.fromLTWH(0.31, 0.38, 0.37, 0.14),
     // Initial guesses for controls - adjust in debug mode
@@ -200,7 +200,7 @@ class PoloScreenConfig extends ScreenConfig {
 
     return PoloScreenConfig(
       backgroundImagePath:
-          json['backgroundImagePath'] as String? ?? 'assets/images/polo.png',
+          json['backgroundImagePath'] as String? ?? 'assets/images/polo.webp',
       fontFamily: json['fontFamily'] as String? ?? 'Press Start 2P',
       // lcdRect uses default from constructor
       textColor: json['textColor'] != null

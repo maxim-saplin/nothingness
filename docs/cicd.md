@@ -10,8 +10,8 @@ This project uses GitHub Actions for CI/CD.
   - Sets up Java 17 and Flutter.
   - Decodes the Android keystore from GitHub Secrets.
   - Runs `flutter test`.
-  - Runs `flutter build apk --release`.
-  - Uploads the APK as an artifact (`app-release.apk`) with 1-day retention.
+  - Runs `flutter build apk --release` (arm64-only, code + resource shrinking enabled).
+  - Uploads the APK artifact (`app-release.apk`, ~20MB, arm64-only) with 1-day retention.
 - **Signing**:
   - Uses the `release` keystore if secrets are valid.
   - Falls back to `debug` signing if secrets are missing (e.g., in forks or invalid config), ensuring the build still passes.

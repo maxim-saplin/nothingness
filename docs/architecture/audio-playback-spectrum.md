@@ -11,7 +11,7 @@ This document details audio stack choices, data paths, and behaviors for playbac
 - **`AudioPlayerProvider`**: `ChangeNotifier` that wraps an `AudioBackend` and surfaces state (song info, playing, queue, shuffle, spectrum data) without prop drilling.
 - **`AudioBackend` implementations**:
   - **`SoLoudBackend` (macOS)**: SoLoud playback, queue/load/play/pause/seek, SoLoud FFT for spectrum.
-  - **`JustAudioBackend` (Android)**: just_audio playback + audio_service/just_audio_background for media session, notification, headset/lock-screen controls; spectrum via Android visualizer bound to the player session.
+  - **`JustAudioBackend` (Android)**: just_audio playback + audio_service/just_audio_background for media session, notification, headset/lock-screen controls; spectrum via Android visualizer bound to the player session. Android package is arm64-only and excludes SoLoud native libs.
 - **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
   - **Backend spectrum**: SoLoud FFT (macOS) or Android visualizer stream.
   - **`MicrophoneSpectrumProvider`** (Android fallback): Streams FFT bars from native `AudioCaptureService` via EventChannel; requires mic permission.
@@ -68,6 +68,7 @@ flowchart LR
 ## Known Limitations / Future Work
 - macOS: spectrum is player-only; no microphone capture path.
 - SoLoud visualization must remain enabled; providers re-enable on start if needed.
+- Android package is arm64-only; adding more ABIs would increase APK size.
 - Consider graceful backoff/logging when native mic stream stalls.
 - Possible enhancement: normalize FFT window size to match bar count more tightly.
 

@@ -14,6 +14,9 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Force Flutter build to target only arm64.
+extra["target-platform"] = "android-arm64"
+
 android {
     namespace = "com.saplin.nothingness"
     compileSdk = flutter.compileSdkVersion
@@ -37,6 +40,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     signingConfigs {
@@ -50,11 +56,32 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystoreProperties["storeFile"] != null) {
                 signingConfig = signingConfigs.getByName("release")
             } else {
                 signingConfig = signingConfigs.getByName("debug")
             }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            excludes += listOf(
+                "**/armeabi-v7a/**",
+                "**/x86_64/**",
+                "**/libflutter_soloud_plugin.so",
+                "**/libFLAC.so",
+                "**/libogg.so",
+                "**/libopus.so",
+                "**/libvorbis.so",
+                "**/libvorbisfile.so"
+            )
+        }
+        resources {
+            excludes += "**/flutter_soloud/web/**"
         }
     }
 }
