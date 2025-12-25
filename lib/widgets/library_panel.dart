@@ -197,7 +197,9 @@ class _LibraryPanelState extends State<LibraryPanel>
                     return ListTile(
                       leading: Icon(
                         isActive
-                            ? Icons.play_arrow_rounded
+                            ? (player.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded)
                             : Icons.music_note,
                         color: isActive
                             ? const Color(0xFF00FF88)
@@ -212,7 +214,11 @@ class _LibraryPanelState extends State<LibraryPanel>
                         ),
                       ),
                       onTap: () async {
-                        await player.playFromQueueIndex(index);
+                        if (isActive) {
+                          await player.playPause();
+                        } else {
+                          await player.playFromQueueIndex(index);
+                        }
                       },
                     );
                   },
@@ -238,18 +244,20 @@ class _LibraryPanelState extends State<LibraryPanel>
         children: [
           Row(
             children: [
-              ElevatedButton.icon(
-                onPressed: _pickFolder,
-                icon: const Icon(Icons.create_new_folder_outlined),
-                label: const Text('Add Folder'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00FF88),
-                  foregroundColor: Colors.black,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              if (Platform.isMacOS)
+                ElevatedButton.icon(
+                  onPressed: _pickFolder,
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: const Text('Add Folder'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00FF88),
+                    foregroundColor: Colors.black,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
+              else
+                const SizedBox(width: 10),
               if (_currentPath != null)
                 TextButton.icon(
                   onPressed: _playAll,
