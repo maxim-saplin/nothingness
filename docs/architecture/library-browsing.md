@@ -13,8 +13,12 @@ This document describes the folder browsing pipeline after moving MediaStore log
 
 1. User taps **Grant Library Access** → `LibraryController.requestPermission()` requests storage/audio permissions.
 2. Controller queries MediaStore (via `on_audio_query`) into `LibrarySong` list.
+   - **Async Scanning**: Queries run in isolates using `compute()` to prevent UI blocking.
+   - **Smart Caching**: `LibraryService` persists the last scan timestamp. On launch, the controller compares this with the MediaStore's latest `dateAdded`/`dateModified`. A full rescan only occurs if new content is detected.
+   - **Refresh**: A manual refresh button in the UI clears the cache and forces a MediaStore rescan.
 3. Controller sets an initial root (from `ExternalPath`) and calls `LibraryBrowser.buildVirtualListing()` to construct a virtual folder tree from song paths.
 4. UI renders folders/files; **Play All** uses `tracksForCurrentPath()` to send a queue to the player.
+   - **Error Handling**: Missing files are marked with an `isNotFound` flag and displayed with a red error icon.
 
 ## Data Flow (macOS)
 

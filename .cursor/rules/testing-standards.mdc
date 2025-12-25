@@ -15,6 +15,7 @@ We mirror the `lib/` directory structure within `test/` to ensure tests are easy
 ## Requirement
 - All new logic (models, services) must have unit tests.
 - All new UI components (widgets, screens) must have widget tests.
+- **No Placeholders**: Do not commit empty test files or placeholder tests (e.g., `expect(true, isTrue)`). If a component cannot be tested yet, document the reason in the code or a tracking issue, but do not create a dummy test file.
 
 ## How to Add Tests
 1. **Create File**: Create a test file in the corresponding `test/` subdirectory (e.g., `lib/models/foo.dart` -> `test/models/foo_test.dart`).

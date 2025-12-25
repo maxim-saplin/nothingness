@@ -61,6 +61,7 @@ flowchart LR
 ## Error Handling & Guardrails
 - SoLoud init is awaited before visualization calls; UI bootstrap was sequenced to remove `SoLoudNotInitializedException` risk.
 - Playback load/play is wrapped in `runZonedGuarded`; failures skip to the next track until a playable file is found.
+- **Android Error Recovery**: `JustAudioBackend` detects when the player gets stuck in an idle state or encounters source errors (e.g., `FileNotFoundException`). It automatically marks the track as `isNotFound` (triggering UI updates via `errorStateNotifier`) and skips to the next track.
 - Spectrum polling checks for a valid handle and skips if absent.
 - Source disposal happens before new loads to prevent leaked handles.
 - Mic pipeline activates only when permission is granted; otherwise bars fall back to zeros.
