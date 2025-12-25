@@ -32,21 +32,21 @@ class _DotScreenState extends State<DotScreen> {
   double _calculateDotRadius(List<double> spectrumData) {
     if (spectrumData.isEmpty) return widget.config.minDotSize;
 
-    double sum = 0;
-    int count = 0;
-    final bassBuckets = min(spectrumData.length, 8);
+    // Use max of bass frequencies (first 3 bins) for punchier response
+    double bassEnergy = 0.0;
+    final bassBuckets = min(spectrumData.length, 3);
     for (int i = 0; i < bassBuckets; i++) {
-      sum += spectrumData[i];
-      count++;
+      bassEnergy = max(bassEnergy, spectrumData[i]);
     }
 
-    final average = count > 0 ? sum / count : 0.0;
+    // Square the energy to exaggerate peaks (make the beat "pop")
+    final energy = bassEnergy * bassEnergy;
 
     final minRadius = widget.config.minDotSize;
     final maxRadius = widget.config.maxDotSize;
     final sensitivity = widget.config.sensitivity;
 
-    return (minRadius + (average * sensitivity * (maxRadius - minRadius)))
+    return (minRadius + (energy * sensitivity * (maxRadius - minRadius)))
         .clamp(minRadius, maxRadius);
   }
 

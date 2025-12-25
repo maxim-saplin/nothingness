@@ -16,7 +16,7 @@ class VisualizerService {
         
         private const val MIN_MAGNITUDE = 2.0 // Lower threshold for 8-bit data
         private const val RISE_SMOOTHING = 0.9
-        private const val GAIN_BOOST_DB = 12.0
+        private const val GAIN_BOOST_DB = 6.0
     }
 
     private var visualizer: Visualizer? = null
@@ -157,7 +157,7 @@ class VisualizerService {
                 continue
             }
             
-            val dynamicRangeDb = 45.0
+            val dynamicRangeDb = 50.0
             val normalized = ((db - thresholdDb) / dynamicRangeDb).coerceIn(0.0, 1.0)
             
             val currentValue = barValues[bar]

@@ -116,7 +116,7 @@ class DotScreenConfig extends ScreenConfig {
     this.maxDotSize = 120.0,
     this.dotOpacity = 1.0,
     this.textOpacity = 1.0,
-    this.sensitivity = 4.0,
+    this.sensitivity = 1.5,
   }) : super(type: ScreenType.dot, name: 'Dot');
 
   @override
@@ -136,7 +136,7 @@ class DotScreenConfig extends ScreenConfig {
       maxDotSize: (json['maxDotSize'] as num?)?.toDouble() ?? 120.0,
       dotOpacity: (json['dotOpacity'] as num?)?.toDouble() ?? 1.0,
       textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
-      sensitivity: (json['sensitivity'] as num?)?.toDouble() ?? 4.0,
+      sensitivity: (json['sensitivity'] as num?)?.toDouble() ?? 1.5,
     );
   }
 

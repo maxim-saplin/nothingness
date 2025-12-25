@@ -36,7 +36,7 @@ class AudioCaptureService(private val context: Context) {
         // Gain boost in dB to apply before gating.
         // Lifts quiet mic signals up so typical slider ranges (-60 to -20) work better.
         // +24 dB corresponds to approx 15.8x amplitude boost.
-        private const val GAIN_BOOST_DB = 12.0
+        private const val GAIN_BOOST_DB = 15.0
     }
     
     private var audioRecord: AudioRecord? = null
@@ -267,7 +267,7 @@ class AudioCaptureService(private val context: Context) {
             
             // Map a fixed dynamic range above the threshold to 0..1
             // This keeps bars responsive even if overall level is low.
-            val dynamicRangeDb = 45.0  // ~45 dB from just above threshold to full scale
+            val dynamicRangeDb = 50.0  // ~50 dB from just above threshold to full scale
             val normalized = ((db - thresholdDb) / dynamicRangeDb).coerceIn(0.0, 1.0)
             
             // Apply asymmetric smoothing (fast attack, configurable decay)
