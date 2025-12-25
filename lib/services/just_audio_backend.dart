@@ -26,7 +26,9 @@ class JustAudioBackend implements AudioBackend {
     'opus',
   };
 
-  final AudioPlayer _player = AudioPlayer();
+  // Use maxSkipsOnError to automatically skip tracks that fail to load
+  // This handles FileNotFoundException and other source errors natively
+  final AudioPlayer _player = AudioPlayer(maxSkipsOnError: 10);
   final PlaylistStore _playlist = PlaylistStore();
   final PlatformChannels _platformChannels = PlatformChannels();
   SpectrumSettings _settings = const SpectrumSettings();
@@ -47,6 +49,7 @@ class JustAudioBackend implements AudioBackend {
   StreamSubscription<List<double>>? _spectrumSub;
   StreamSubscription<int?>? _sessionIdSub;
   StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<PlayerException>? _errorSub;
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
   @override
@@ -55,8 +58,6 @@ class JustAudioBackend implements AudioBackend {
   bool _captureEnabled = true;
   // Track paths of files that failed to load
   final Set<String> _failedTrackPaths = <String>{};
-  // Track previous index to detect skips (which indicate errors)
-  int? _previousIndex;
   // Notifier to trigger UI updates when error state changes
   final ValueNotifier<int> _errorStateNotifier = ValueNotifier(0);
 
@@ -68,31 +69,22 @@ class JustAudioBackend implements AudioBackend {
     await session.configure(const AudioSessionConfiguration.music());
     await session.setActive(true);
 
-    // Listen to player state
+    // Listen to player state - only for updating UI state
     _playerStateSub = _player.playerStateStream.listen((state) {
       isPlayingNotifier.value = state.playing;
-      
-      // Detect when player gets stuck in idle state while trying to play
-      // This can indicate a failed source
-      final currentIndex = _player.currentIndex;
-      if (state.processingState == ProcessingState.idle && 
-          state.playing && 
-          currentIndex != null &&
-          currentIndex >= 0 &&
-          currentIndex < queueNotifier.value.length) {
-        final track = queueNotifier.value[currentIndex];
-        // Check if this track hasn't been marked as failed yet
-        if (!_failedTrackPaths.contains(track.path)) {
-          // Player is trying to play but stuck in idle - likely a failed source
-          debugPrint('[JustAudioBackend] Player stuck in idle state for track: ${track.path}');
-          _handlePlaybackError();
-        }
-      }
-      
       _emitSongInfo();
-      
-      if (state.processingState == ProcessingState.completed) {
-        // Handled by just_audio automatically if using playlist
+    });
+
+    // Listen to errorStream for proper error detection (just_audio 0.10.x API)
+    // This is the canonical way to detect playback errors like FileNotFoundException
+    _errorSub = _player.errorStream.listen((PlayerException e) {
+      debugPrint('[JustAudioBackend] Playback error: code=${e.code}, message=${e.message}, index=${e.index}');
+      final errorIndex = e.index;
+      if (errorIndex != null && 
+          errorIndex >= 0 && 
+          errorIndex < queueNotifier.value.length) {
+        final failedTrack = queueNotifier.value[errorIndex];
+        _markTrackAsNotFound(failedTrack.path);
       }
     });
     
@@ -103,21 +95,6 @@ class JustAudioBackend implements AudioBackend {
         if (index != _playlist.orderIndexOfCurrent()) {
            _playlist.setCurrentOrderIndex(index);
         }
-        
-        // Detect when just_audio skips tracks (indicates error)
-        if (_previousIndex != null && index > _previousIndex! + 1) {
-          // Track was skipped - mark skipped tracks as not found
-          for (int i = _previousIndex! + 1; i < index; i++) {
-            if (i >= 0 && i < queueNotifier.value.length) {
-              final skippedTrack = queueNotifier.value[i];
-              _failedTrackPaths.add(skippedTrack.path);
-              _markTrackAsNotFound(skippedTrack.path);
-            }
-          }
-        }
-        _previousIndex = index;
-      } else {
-        _previousIndex = null;
       }
       _emitSongInfo();
     });
@@ -148,6 +125,7 @@ class JustAudioBackend implements AudioBackend {
   Future<void> dispose() async {
     await _stopSpectrum();
     await _playerStateSub?.cancel();
+    await _errorSub?.cancel();
     await _sessionIdSub?.cancel();
     await _player.dispose();
     await _playlist.dispose();
@@ -210,39 +188,12 @@ class JustAudioBackend implements AudioBackend {
 
   void _markTrackAsNotFound(String path) {
     if (_failedTrackPaths.add(path)) {
+      debugPrint('[JustAudioBackend] Marked track as not found: $path');
       // Path was newly added, notify listeners
       // Trigger error state change to force UI refresh
       _errorStateNotifier.value = _errorStateNotifier.value + 1;
       // Also emit song info
       _emitSongInfo();
-    }
-  }
-
-  /// Handle playback error - mark current track as not found and skip to next
-  Future<void> _handlePlaybackError() async {
-    final currentIndex = _player.currentIndex;
-    if (currentIndex == null || currentIndex < 0 || currentIndex >= queueNotifier.value.length) {
-      return;
-    }
-    
-    final failedTrack = queueNotifier.value[currentIndex];
-    debugPrint('[JustAudioBackend] Playback error detected for track: ${failedTrack.path}');
-    
-    // Mark track as not found
-    _markTrackAsNotFound(failedTrack.path);
-    
-    // Skip to next track
-    try {
-      await _player.seekToNext();
-      debugPrint('[JustAudioBackend] Skipped to next track after error');
-    } catch (e) {
-      debugPrint('[JustAudioBackend] Error skipping to next track: $e');
-      // If seekToNext fails, try using next() method
-      try {
-        await next();
-      } catch (e2) {
-        debugPrint('[JustAudioBackend] Error calling next(): $e2');
-      }
     }
   }
 
@@ -371,14 +322,16 @@ class JustAudioBackend implements AudioBackend {
         await _player.setAudioSources(sources, initialIndex: startIndex);
         debugPrint('[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources at index $startIndex');
       }
-    } catch (e) {
-      debugPrint("Error setting audio source: $e");
-      // If setting sources fails, mark the current track as not found
-      final currentIndex = startIndex ?? _playlist.orderIndexOfCurrent() ?? 0;
-      if (currentIndex >= 0 && currentIndex < tracks.length) {
-        final failedTrack = tracks[currentIndex];
+    } on PlayerException catch (e) {
+      // Handle source loading errors with precise index from exception
+      debugPrint('[JustAudioBackend] PlayerException setting sources: code=${e.code}, message=${e.message}, index=${e.index}');
+      final errorIndex = e.index ?? startIndex ?? _playlist.orderIndexOfCurrent() ?? 0;
+      if (errorIndex >= 0 && errorIndex < tracks.length) {
+        final failedTrack = tracks[errorIndex];
         _markTrackAsNotFound(failedTrack.path);
       }
+    } catch (e) {
+      debugPrint('[JustAudioBackend] Error setting audio source: $e');
     }
   }
 
