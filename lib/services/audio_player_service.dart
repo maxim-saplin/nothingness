@@ -29,7 +29,7 @@ class AudioPlayerService {
     'opus',
   };
 
-  final SoLoud _soloud = SoLoud.instance;
+  late final SoLoud _soloud = SoLoud.instance;
   final PlaylistStore _playlist = PlaylistStore();
 
   late final ValueNotifier<List<AudioTrack>> queueNotifier =

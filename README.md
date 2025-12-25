@@ -1,121 +1,89 @@
-## Nothingness – Media Controller with 80s Spectrum Visualizer
+# Nothingness – Retro Audio Player & Spectrum Visualizer
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/maxim-saplin/nothingness)](https://github.com/maxim-saplin/nothingness/releases/latest)
 
-Nothingness is a Flutter app that shows the **currently playing track on Android**
-and renders a retro, 80s‑style **pixelated spectrum analyzer** driven by the
-microphone.
+Nothingness is a **fully-fledged audio player** and **retro spectrum visualizer** for Android and macOS. It plays your local music library while rendering a pixelated, 80s‑style spectrum analyzer driven directly by the audio playback.
 
-Inspired by a 1 week de-toxing from Zeekr infrotainment while driving VW Polo - I releized I want a simple screen instead of YouTube or Nav just to feel the ever eluding "nothingness" -> see https://www.youtube.com/watch?v=orQKfIXMiA8
-
-Oh, btw, it auto adjusts to Zeekr's notorious DPI (that's when standard Android apps show very small text and buttons).
+Originally inspired by a need for digital minimalism in modern cars (specifically the Zeekr infotainment system), it features a **Global UI Scaling** engine that adapts the interface to any screen DPI, making it perfect for car dashboards, tablets, and desktops.
 
 <img width="1125" height="617" alt="image" src="https://github.com/user-attachments/assets/21ae7465-e6da-4a0e-99af-a41119da2644" />
 
-### Features
+## Features
 
-- 3 skins:
-  - Spectrum
-  - (VW) Polo
-  - Dot
+### 🎵 Audio Player
+-   **Local Playback**: Plays audio files from your device's storage.
+-   **Library Management**:
+    -   **Folder Picker**: Select folders to play.
+    -   **Recursive Enqueue**: "Play All" adds all tracks in a folder and its subfolders.
+    -   **Queue Control**: Reorder, remove, and manage your Now Playing queue.
+-   **Platform Integration**:
+    -   **Android**: Full media session support, background playback, lock screen controls, and notification controls.
+    -   **macOS**: Native playback via SoLoud.
 
-- **Now Playing**
-  - Reads metadata (title/artist/album) from active media sessions on Android.
-  - Simple media controls: **Previous / Play‑Pause / Next**.
+### 📊 Spectrum Visualizer
+-   **Playback-Driven**: Visualizer reacts directly to the music being played (no microphone needed by default).
+-   **Microphone Fallback (Android)**: Option to drive the visualizer via microphone input (classic mode).
+-   **Customizable**:
+    -   **Bars**: 8, 12, or 24 bars.
+    -   **Styles**: Segmented 80s, Solid, Glow.
+    -   **Colors**: Classic, Cyan, Purple, Mono.
+    -   **Tuning**: Adjustable decay speed and noise gate.
 
-- **Spectrum Visualizer**
-  - Microphone‑based FFT analyzer with 8 / 12 / 24 bars.
-  - Pixelated, segmented bars reminiscent of old audio decks.
-  - Tunable:
-    - Noise gate sensitivity (how quiet is considered “silence”).
-    - Bar count.
-    - Color scheme (Classic / Cyan / Purple / Mono).
-    - Bar style (Segmented 80s / Solid / Glow).
-    - Decay speed.
+### 🎨 Skins & UI
+-   **Three Distinct Skins**:
+    -   **Spectrum**: Clean, modern visualizer focus.
+    -   **Polo**: Skeuomorphic retro car dashboard with LCD font.
+    -   **Dot**: Minimalist, fluctuating dot interface.
+-   **UI Scaling**: "Smart Scale" automatically adjusts button sizes and text for automotive head units and high-DPI displays.
+-   **Full Screen Mode**: Immersive mode hiding system bars.
 
-### Skins
+## Skins
 
-#### Spectrum
-
+### Spectrum
 <img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/4d2c5d21-d509-492c-ad1f-dfe3ba59c980" />
 
-#### Polo
-
+### Polo
 <img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/af75f2ed-4e70-487b-9f53-1f313363bc6e" />
 
-#### Dot
-
+### Dot
 <img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/acc57317-2d98-4503-bf69-6ed783f49f8b" />
 
-### CI/CD
-Automated pipelines for testing and releasing are configured via GitHub Actions.
-See [docs/cicd.md](docs/cicd.md) for setup instructions and signing secrets.
+## Architecture Overview
 
-- **CI**: Runs tests and builds APK on every push.
-- **Release**: Manual workflow to build, sign, and publish GitHub Releases.
+Nothingness uses a unified provider architecture with platform-specific backends:
 
-- **Settings**
-  - Three‑dot button in the top‑right toggles the **slide-in Settings Panel**.
-  - The panel overlays the right side of the screen with a frosted glass effect, allowing live preview of changes.
-  - Settings are persisted locally and pushed down to native Kotlin code.
+-   **Flutter Layer**: Handles UI, Navigation, Settings, and Visualization rendering.
+-   **Audio Backend**:
+    -   **macOS**: Uses **SoLoud** (`flutter_soloud`) for low-latency playback and FFT data.
+    -   **Android**: Uses **Just Audio** + **Audio Service** for robust background playback and media session management. Spectrum data is pulled from the Android Visualizer API tied to the player session.
+-   **Native Fallback**: On Android, an optional `AudioCaptureService` can still use the microphone/system mix if selected in settings.
 
-### Architecture Overview
+See [docs/architecture/overview.md](docs/architecture/overview.md) for a deep dive.
 
-- **Flutter (Dart)**
-  - UI, navigation, settings, persistence, visualization.
-  - Custom painter for the spectrum and labels.
-  - `MethodChannel` + `EventChannel` wrappers in `lib/services/platform_channels.dart`.
-  - `SettingsService` in `lib/services/settings_service.dart` acts as the single source of truth for defaults and persistence.
+## Permissions
 
-- **Android (Kotlin)**
-  - `MediaSessionService` (NotificationListenerService) reads active sessions and
-    controls playback.
-  - `AudioCaptureService` uses `AudioRecord` + in‑house FFT to compute spectrum
-    magnitudes and stream bar values to Flutter.
-  - `MainActivity` wires up platform channels and forwards spectrum settings
-    (noise gate, bar count, decay speed) from Flutter to `AudioCaptureService`.
+-   **Android**:
+    -   `READ_MEDIA_AUDIO` / `READ_EXTERNAL_STORAGE`: Required to access and play local music files.
+    -   `RECORD_AUDIO`: Required only if using the "Microphone" spectrum source.
+    -   `POST_NOTIFICATIONS`: For playback controls in the notification shade.
+-   **macOS**:
+    -   File access permissions may be requested by the OS when selecting folders.
 
-### Permissions & Requirements
+## Running the App
 
-- **Android**
-  - Minimum recommended: Android 12 / 12L or later.
-  - Permissions:
-    - `RECORD_AUDIO` – required for microphone‑based spectrum.
-    - Notification access – required to read media metadata and control playback.
-  - The app will:
-    - Ask for microphone permission.
-    - Offer a button to open notification‑access settings.
+1.  Ensure you have Flutter installed.
+2.  Run:
+    ```bash
+    flutter pub get
+    flutter run
+    ```
+3.  **Android**: Select an emulator or device.
+4.  **macOS**: Run as a desktop app.
 
-- **macOS**
-  - Used mainly for UI debugging.
-  - Shows a “macOS Preview” message and does **not** perform media or spectrum
-    operations.
+## CI/CD
 
-### Running the App
-
-1. Ensure you have Flutter installed and on your `PATH`.
-2. From the project root:
-
-   ```bash
-   flutter pub get
-   flutter run
-   ```
-
-3. Select an **Android device or emulator** for full functionality.
-
-### Tuning the Spectrum
-
-- Start with:
-  - Bars: **12** or **24**
-  - Noise gate: around **‑40 dB**
-  - Decay: **Medium**
-- In a **silent room**, bars should be mostly flat.
-- With a **loud song or speaking near the mic**, bars should reach near the top,
-  mainly on low and mid frequencies.
-
-If you change the visual style (bar count, colors, etc.) in **Settings**, the
-media control buttons and other accents automatically sync to that scheme.
+Automated pipelines via GitHub Actions. See [docs/cicd.md](docs/cicd.md).
 
 ## Built With
 
-Cursor Agents (actively used Plan Mode) + Gemini 3 Pro/GPT 5.1 High/ Opus 4.5 High - Gemini 3 Pro was the major worker (it was fast, noticably faster than GPT 5.1, it felt a bit smarter than Opus 4.5 which was also quite fast), yet it's facinating how one model can get into loop trying to fix smth and then another models chimes in, can't say that one model is definetly better than the other + Flutter - over one evening and morning on Nov 29 and 30, 2025.
+Cursor Agents (Plan Mode) + Gemini 3 Pro / GPT 5.1 / Opus 4.5 + Flutter.
