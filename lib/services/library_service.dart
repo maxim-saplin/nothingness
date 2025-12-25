@@ -11,6 +11,7 @@ class LibraryService {
 
   static const String _boxName = 'libraryBox';
   static const String _rootsKey = 'roots';
+  static const String _lastScanTimestampKey = 'lastScanTimestamp';
 
   final SecureBookmarks? _secureBookmarks =
       Platform.isMacOS ? SecureBookmarks() : null;
@@ -77,6 +78,18 @@ class LibraryService {
   Future<void> _persistRoots() async {
     if (_box == null) return;
     await _box!.put(_rootsKey, rootsNotifier.value);
+  }
+
+  /// Store the last scan timestamp (Android only)
+  Future<void> setLastScanTimestamp(int timestampMs) async {
+    if (!Platform.isAndroid || _box == null) return;
+    await _box!.put(_lastScanTimestampKey, timestampMs);
+  }
+
+  /// Get the last scan timestamp (Android only)
+  int? getLastScanTimestamp() {
+    if (!Platform.isAndroid || _box == null) return null;
+    return _box!.get(_lastScanTimestampKey) as int?;
   }
   
   /// Call this when the app is closing to release resources

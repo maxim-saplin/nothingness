@@ -67,6 +67,17 @@ class AudioPlayerProvider extends ChangeNotifier {
     _service.currentIndexNotifier.addListener(_onCurrentIndexChanged);
     _service.shuffleNotifier.addListener(_onShuffleChanged);
 
+    // Listen to error state changes for JustAudioBackend
+    switch (_service) {
+      case JustAudioBackend():
+        _service.errorStateNotifier.addListener(() {
+          _refreshQueueWithNotFoundFlags();
+          notifyListeners();
+        });
+      default:
+        break;
+    }
+
     _songInfo = _service.songInfoNotifier.value;
     _isPlaying = _service.isPlayingNotifier.value;
     _queue = _service.queueNotifier.value;
@@ -90,6 +101,16 @@ class AudioPlayerProvider extends ChangeNotifier {
     _service.currentIndexNotifier.removeListener(_onCurrentIndexChanged);
     _service.shuffleNotifier.removeListener(_onShuffleChanged);
     _spectrumSubscription?.cancel();
+    // Remove error state listener for JustAudioBackend
+    switch (_service) {
+      case JustAudioBackend():
+        _service.errorStateNotifier.removeListener(() {
+          _refreshQueueWithNotFoundFlags();
+          notifyListeners();
+        });
+      default:
+        break;
+    }
     _service.dispose();
     super.dispose();
   }
@@ -105,13 +126,26 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   void _onQueueChanged() {
-    _queue = _service.queueNotifier.value;
+    // Refresh queue with isNotFound flags
+    _refreshQueueWithNotFoundFlags();
     notifyListeners();
   }
 
   void _onCurrentIndexChanged() {
     _currentIndex = _service.currentIndexNotifier.value;
+    // Refresh queue when index changes to ensure isNotFound flags are updated
+    // (e.g., when a track fails and we skip to next)
+    _refreshQueueWithNotFoundFlags();
     notifyListeners();
+  }
+
+  void _refreshQueueWithNotFoundFlags() {
+    switch (_service) {
+      case JustAudioBackend():
+        _queue = _service.getQueueWithNotFoundFlags();
+      default:
+        _queue = _service.queueNotifier.value;
+    }
   }
 
   void _onShuffleChanged() {
@@ -128,8 +162,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     List<AudioTrack> tracks, {
     int startIndex = 0,
     bool shuffle = false,
-  }) =>
-      _service.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
+  }) => _service.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
 
   Future<void> addTracks(List<AudioTrack> tracks, {bool play = false}) =>
       _service.addTracks(tracks, play: play);

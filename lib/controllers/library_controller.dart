@@ -9,6 +9,20 @@ import '../models/audio_track.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 
+// Static function for isolate execution
+Future<List<LibrarySong>> _loadAndroidSongsInIsolate(void _) async {
+  final audioQuery = OnAudioQuery();
+  final songs = await audioQuery.querySongs(
+    sortType: null,
+    orderType: OrderType.ASC_OR_SMALLER,
+    uriType: UriType.EXTERNAL,
+    ignoreCase: true,
+  );
+  return songs
+      .map((song) => LibrarySong(path: song.data, title: song.title))
+      .toList();
+}
+
 class LibraryController extends ChangeNotifier {
   LibraryController({
     required this.libraryBrowser,
@@ -27,6 +41,7 @@ class LibraryController extends ChangeNotifier {
   final Future<List<String>> Function()? _androidRootsLoader;
 
   bool isLoading = false;
+  bool isScanning = false;
   String? error;
   String? currentPath;
   bool hasPermission = !Platform.isAndroid;
@@ -41,9 +56,70 @@ class LibraryController extends ChangeNotifier {
     if (Platform.isAndroid) {
       await _checkAndroidPermission();
       if (hasPermission) {
+        // Check if library needs refreshing based on MediaStore timestamp
+        final needsRefresh = await _shouldRefreshLibrary();
+        if (needsRefresh) {
+          // Clear cache to force rescan
+          _androidSongs = [];
+        }
         await _ensureAndroidSongsLoaded();
         await loadRoot();
       }
+    }
+  }
+
+  /// Check if library needs refreshing by comparing MediaStore timestamp with cached timestamp
+  Future<bool> _shouldRefreshLibrary() async {
+    try {
+      // Query a small sample of songs to get latest timestamp
+      // We'll get the first few and check their timestamps
+      final sampleSongs = await _audioQuery.querySongs(
+        sortType: null,
+        orderType: OrderType.ASC_OR_SMALLER,
+        uriType: UriType.EXTERNAL,
+      );
+
+      if (sampleSongs.isEmpty) {
+        // No songs in MediaStore, don't refresh
+        return false;
+      }
+
+      // Find the maximum timestamp across all songs
+      int? maxTimestamp;
+      for (final song in sampleSongs) {
+        final timestamp = (song.dateAdded ?? 0) > (song.dateModified ?? 0)
+            ? song.dateAdded
+            : song.dateModified;
+        if (timestamp != null) {
+          maxTimestamp = maxTimestamp == null
+              ? timestamp
+              : (timestamp > maxTimestamp ? timestamp : maxTimestamp);
+        }
+      }
+
+      if (maxTimestamp == null) {
+        // Can't determine timestamp, don't refresh
+        return false;
+      }
+
+      final lastScanTimestamp = libraryService.getLastScanTimestamp();
+      if (lastScanTimestamp == null) {
+        // No cached timestamp, need to scan
+        await libraryService.setLastScanTimestamp(maxTimestamp);
+        return true;
+      }
+
+      // Refresh if MediaStore has newer content
+      if (maxTimestamp > lastScanTimestamp) {
+        await libraryService.setLastScanTimestamp(maxTimestamp);
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('Error checking library timestamp: $e');
+      // On error, don't refresh (use cached data)
+      return false;
     }
   }
 
@@ -167,10 +243,86 @@ class LibraryController extends ChangeNotifier {
     return tracks;
   }
 
+  Future<void> refreshLibrary() async {
+    if (!Platform.isAndroid || !hasPermission) return;
+
+    isScanning = true;
+    error = null;
+    _safeNotifyListeners();
+
+    try {
+      // Clear cache
+      _androidSongs = [];
+      // Reload songs
+      await _ensureAndroidSongsLoaded();
+      // Reload current folder if we have one
+      if (currentPath != null) {
+        await loadFolder(currentPath!);
+      } else {
+        await loadRoot();
+      }
+    } catch (e) {
+      error = 'Failed to refresh library: $e';
+    } finally {
+      isScanning = false;
+      _safeNotifyListeners();
+    }
+  }
+
   Future<void> _ensureAndroidSongsLoaded() async {
     if (_androidSongs.isNotEmpty) return;
-    final loader = _androidSongLoader ?? _defaultAndroidSongLoader;
-    _androidSongs = await loader();
+    isScanning = true;
+    _safeNotifyListeners();
+
+    try {
+      // Run in isolate to avoid blocking UI thread
+      _androidSongs = await compute(_loadAndroidSongsInIsolate, null);
+
+      // Update scan timestamp after successful load
+      if (_androidSongs.isNotEmpty) {
+        try {
+          final sampleSongs = await _audioQuery.querySongs(
+            sortType: null,
+            orderType: OrderType.ASC_OR_SMALLER,
+            uriType: UriType.EXTERNAL,
+          );
+          if (sampleSongs.isNotEmpty) {
+            // Find max timestamp
+            int? maxTimestamp;
+            for (final song in sampleSongs) {
+              final timestamp = (song.dateAdded ?? 0) > (song.dateModified ?? 0)
+                  ? song.dateAdded
+                  : song.dateModified;
+              if (timestamp != null) {
+                maxTimestamp = maxTimestamp == null
+                    ? timestamp
+                    : (timestamp > maxTimestamp ? timestamp : maxTimestamp);
+              }
+            }
+            if (maxTimestamp != null) {
+              await libraryService.setLastScanTimestamp(maxTimestamp);
+            }
+          }
+        } catch (e) {
+          debugPrint('Error updating scan timestamp: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'Error loading songs in isolate, falling back to main thread: $e',
+      );
+      // Fallback to main thread if isolate fails
+      try {
+        final loader = _androidSongLoader ?? _defaultAndroidSongLoader;
+        _androidSongs = await loader();
+      } catch (e2) {
+        debugPrint('Error loading songs: $e2');
+        error = 'Failed to load songs: $e2';
+      }
+    } finally {
+      isScanning = false;
+      _safeNotifyListeners();
+    }
   }
 
   Future<List<LibrarySong>> _defaultAndroidSongLoader() async {

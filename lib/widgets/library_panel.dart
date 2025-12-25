@@ -254,17 +254,22 @@ class _LibraryPanelState extends State<LibraryPanel> {
                   itemBuilder: (context, index) {
                     final track = queue[index];
                     final isActive = current == index;
+                    final isNotFound = track.isNotFound;
                     return ListTile(
                       leading: Icon(
-                        isActive
-                            ? (player.isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded)
-                            : Icons.music_note,
-                        color: isActive ? const Color(0xFF00FF88) : Colors.white70,
+                        isNotFound
+                            ? Icons.error
+                            : (isActive
+                                ? (player.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded)
+                                : Icons.music_note),
+                        color: isNotFound
+                            ? Colors.redAccent
+                            : (isActive ? const Color(0xFF00FF88) : Colors.white70),
                       ),
                       title: Text(
-                        track.title,
+                        isNotFound ? '(Not found) ${track.title}' : track.title,
                         style: TextStyle(
                           color: isActive ? Colors.white : Colors.white70,
                           fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
@@ -314,6 +319,21 @@ class _LibraryPanelState extends State<LibraryPanel> {
                 ),
               ] else
                 const SizedBox(width: 10),
+              if (Platform.isAndroid)
+                IconButton(
+                  onPressed: controller.isScanning ? null : () => _refreshLibrary(context),
+                  icon: controller.isScanning
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF00FF88),
+                          ),
+                        )
+                      : const Icon(Icons.refresh, color: Color(0xFF00FF88)),
+                  tooltip: 'Refresh library',
+                ),
               if (controller.currentPath != null)
                 TextButton.icon(
                   onPressed: () => _playAll(context),
@@ -457,6 +477,11 @@ class _LibraryPanelState extends State<LibraryPanel> {
 
     await LibraryService().addRoot(path);
     await _controller.loadFolder(path);
+  }
+
+  Future<void> _refreshLibrary(BuildContext context) async {
+    final controller = context.read<LibraryController>();
+    await controller.refreshLibrary();
   }
 
   Future<void> _playAll(BuildContext context) async {

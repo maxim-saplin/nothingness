@@ -8,24 +8,29 @@ class AudioTrack {
     required this.title,
     this.artist = 'Local File',
     this.duration,
+    this.isNotFound = false,
   });
 
   final String path;
   final String title;
   final String artist;
   final Duration? duration;
+  // Transient state - not persisted to Hive
+  final bool isNotFound;
 
   AudioTrack copyWith({
     String? path,
     String? title,
     String? artist,
     Duration? duration,
+    bool? isNotFound,
   }) {
     return AudioTrack(
       path: path ?? this.path,
       title: title ?? this.title,
       artist: artist ?? this.artist,
       duration: duration ?? this.duration,
+      isNotFound: isNotFound ?? this.isNotFound,
     );
   }
 }

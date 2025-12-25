@@ -46,12 +46,19 @@ class JustAudioBackend implements AudioBackend {
 
   StreamSubscription<List<double>>? _spectrumSub;
   StreamSubscription<int?>? _sessionIdSub;
+  StreamSubscription<PlayerState>? _playerStateSub;
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
   @override
   Stream<List<double>> get spectrumStream => _spectrumController.stream;
 
   bool _captureEnabled = true;
+  // Track paths of files that failed to load
+  final Set<String> _failedTrackPaths = <String>{};
+  // Track previous index to detect skips (which indicate errors)
+  int? _previousIndex;
+  // Notifier to trigger UI updates when error state changes
+  final ValueNotifier<int> _errorStateNotifier = ValueNotifier(0);
 
   @override
   Future<void> init() async {
@@ -62,33 +69,62 @@ class JustAudioBackend implements AudioBackend {
     await session.setActive(true);
 
     // Listen to player state
-    _player.playerStateStream.listen((state) {
+    _playerStateSub = _player.playerStateStream.listen((state) {
       isPlayingNotifier.value = state.playing;
+      
+      // Detect when player gets stuck in idle state while trying to play
+      // This can indicate a failed source
+      final currentIndex = _player.currentIndex;
+      if (state.processingState == ProcessingState.idle && 
+          state.playing && 
+          currentIndex != null &&
+          currentIndex >= 0 &&
+          currentIndex < queueNotifier.value.length) {
+        final track = queueNotifier.value[currentIndex];
+        // Check if this track hasn't been marked as failed yet
+        if (!_failedTrackPaths.contains(track.path)) {
+          // Player is trying to play but stuck in idle - likely a failed source
+          debugPrint('[JustAudioBackend] Player stuck in idle state for track: ${track.path}');
+          _handlePlaybackError();
+        }
+      }
+      
       _emitSongInfo();
       
       if (state.processingState == ProcessingState.completed) {
         // Handled by just_audio automatically if using playlist
       }
     });
-
+    
     _player.positionStream.listen((_) => _emitSongInfo());
     _player.currentIndexStream.listen((index) {
       if (index != null) {
         // Sync back to PlaylistStore silently if needed
-        // But PlaylistStore manages order.
-        // If we use ConcatenatingAudioSource with the *ordered* list,
-        // then player.currentIndex corresponds to queueNotifier index.
-        // We need to find the original base index to update PlaylistStore correctly?
-        // PlaylistStore.setCurrentOrderIndex expects index in the *ordered* list.
-        // So player.currentIndex should match PlaylistStore's order index.
         if (index != _playlist.orderIndexOfCurrent()) {
            _playlist.setCurrentOrderIndex(index);
         }
+        
+        // Detect when just_audio skips tracks (indicates error)
+        if (_previousIndex != null && index > _previousIndex! + 1) {
+          // Track was skipped - mark skipped tracks as not found
+          for (int i = _previousIndex! + 1; i < index; i++) {
+            if (i >= 0 && i < queueNotifier.value.length) {
+              final skippedTrack = queueNotifier.value[i];
+              _failedTrackPaths.add(skippedTrack.path);
+              _markTrackAsNotFound(skippedTrack.path);
+            }
+          }
+        }
+        _previousIndex = index;
+      } else {
+        _previousIndex = null;
       }
       _emitSongInfo();
     });
     
-    _player.sequenceStateStream.listen((_) => _emitSongInfo());
+    _player.sequenceStateStream.listen((sequenceState) {
+      _emitSongInfo();
+    });
 
     // Listen for audio session id availability and restart spectrum capture when it changes.
     _sessionIdSub = _player.androidAudioSessionIdStream.listen((sessionId) {
@@ -111,6 +147,7 @@ class JustAudioBackend implements AudioBackend {
   @override
   Future<void> dispose() async {
     await _stopSpectrum();
+    await _playerStateSub?.cancel();
     await _sessionIdSub?.cancel();
     await _player.dispose();
     await _playlist.dispose();
@@ -132,6 +169,8 @@ class JustAudioBackend implements AudioBackend {
     int startIndex = 0,
     bool shuffle = false,
   }) async {
+    // Clear failed tracks when setting new queue
+    _failedTrackPaths.clear();
     await _playlist.setQueue(
       tracks,
       startBaseIndex: startIndex,
@@ -148,6 +187,62 @@ class JustAudioBackend implements AudioBackend {
       debugPrint('[JustAudioBackend] setQueue: started playback');
     } else {
       debugPrint('[JustAudioBackend] setQueue: sequence empty or invalid index');
+    }
+  }
+
+  /// Returns the queue with isNotFound flags set based on failed playback attempts
+  List<AudioTrack> getQueueWithNotFoundFlags() {
+    return queueNotifier.value.map((track) {
+      if (_failedTrackPaths.contains(track.path)) {
+        return track.copyWith(isNotFound: true);
+      }
+      return track;
+    }).toList();
+  }
+
+  /// Get the error state notifier for listening to error state changes
+  ValueNotifier<int> get errorStateNotifier => _errorStateNotifier;
+
+  /// Check if a track path has failed to load
+  bool isTrackNotFound(String path) {
+    return _failedTrackPaths.contains(path);
+  }
+
+  void _markTrackAsNotFound(String path) {
+    if (_failedTrackPaths.add(path)) {
+      // Path was newly added, notify listeners
+      // Trigger error state change to force UI refresh
+      _errorStateNotifier.value = _errorStateNotifier.value + 1;
+      // Also emit song info
+      _emitSongInfo();
+    }
+  }
+
+  /// Handle playback error - mark current track as not found and skip to next
+  Future<void> _handlePlaybackError() async {
+    final currentIndex = _player.currentIndex;
+    if (currentIndex == null || currentIndex < 0 || currentIndex >= queueNotifier.value.length) {
+      return;
+    }
+    
+    final failedTrack = queueNotifier.value[currentIndex];
+    debugPrint('[JustAudioBackend] Playback error detected for track: ${failedTrack.path}');
+    
+    // Mark track as not found
+    _markTrackAsNotFound(failedTrack.path);
+    
+    // Skip to next track
+    try {
+      await _player.seekToNext();
+      debugPrint('[JustAudioBackend] Skipped to next track after error');
+    } catch (e) {
+      debugPrint('[JustAudioBackend] Error skipping to next track: $e');
+      // If seekToNext fails, try using next() method
+      try {
+        await next();
+      } catch (e2) {
+        debugPrint('[JustAudioBackend] Error calling next(): $e2');
+      }
     }
   }
 
@@ -278,6 +373,12 @@ class JustAudioBackend implements AudioBackend {
       }
     } catch (e) {
       debugPrint("Error setting audio source: $e");
+      // If setting sources fails, mark the current track as not found
+      final currentIndex = startIndex ?? _playlist.orderIndexOfCurrent() ?? 0;
+      if (currentIndex >= 0 && currentIndex < tracks.length) {
+        final failedTrack = tracks[currentIndex];
+        _markTrackAsNotFound(failedTrack.path);
+      }
     }
   }
 
