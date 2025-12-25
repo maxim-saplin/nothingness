@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:external_path/external_path.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -24,10 +25,34 @@ class LibraryPanel extends StatefulWidget {
 class _LibraryPanelState extends State<LibraryPanel>
     with SingleTickerProviderStateMixin {
   String? _currentPath;
+  String? _initialAndroidRoot;
   bool _loading = false;
   String? _error;
   List<Directory> _dirs = [];
   List<AudioTrack> _files = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isAndroid && _currentPath == null) {
+      _loadAndroidRoot();
+    }
+  }
+
+  Future<void> _loadAndroidRoot() async {
+    try {
+      // Get all external storage directories (internal + SD cards)
+      final paths = await ExternalPath.getExternalStorageDirectories();
+      // ignore: unnecessary_null_comparison
+      if (paths != null && paths.isNotEmpty) {
+        _initialAndroidRoot = paths.first;
+        // Load the first one (usually internal storage /storage/emulated/0)
+        await _loadFolder(_initialAndroidRoot!);
+      }
+    } catch (e) {
+      debugPrint('Failed to load Android root: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -427,8 +452,9 @@ class _LibraryPanelState extends State<LibraryPanel>
   Future<void> _navigateUp() async {
     if (_currentPath == null) return;
 
-    // If current path is a root, go back to root list
-    if (LibraryService().rootsNotifier.value.containsKey(_currentPath)) {
+    // If current path is a root or the initial Android root, go back to root list
+    if (LibraryService().rootsNotifier.value.containsKey(_currentPath) ||
+        (_initialAndroidRoot != null && _currentPath == _initialAndroidRoot)) {
       setState(() {
         _currentPath = null;
         _dirs = [];

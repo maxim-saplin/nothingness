@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import 'models/spectrum_settings.dart';
@@ -24,6 +27,19 @@ Future<void> main() async {
 
   // Initialize LibraryService to restore file permissions
   await LibraryService().init();
+
+  // Request storage permissions on Android
+  if (Platform.isAndroid) {
+    // Request Manage External Storage for Android 11+ (API 30+)
+    if (await Permission.manageExternalStorage.request().isGranted) {
+      debugPrint('Manage External Storage permission granted');
+    } else {
+      // Fallback for older Android versions or if Manage is denied
+      // Note: On Android 11+, if Manage is denied, Storage might also be denied or restricted.
+      // But we request it anyway for compatibility.
+      await Permission.storage.request();
+    }
+  }
 
   // Initialize audio player before app starts to avoid SoLoud init races
   final audioPlayerProvider = AudioPlayerProvider();

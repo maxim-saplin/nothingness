@@ -25,6 +25,7 @@ dependencies:
   macos_secure_bookmarks: ^0.2.1
   just_audio: ^0.10.5
   just_audio_background: ^0.0.1-beta.17
+  external_path: ^2.2.0
 
 dev_dependencies:
   flutter_test:
