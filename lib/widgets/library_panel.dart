@@ -318,7 +318,7 @@ class _LibraryPanelState extends State<LibraryPanel>
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   ),
                 ),
-              ] else if (Platform.isMacOS || (Platform.isAndroid && _hasAllFilesPermission)) ...[
+              ] else if (Platform.isMacOS || Platform.isAndroid) ...[
                 ElevatedButton.icon(
                   onPressed: _pickFolder,
                   icon: const Icon(Icons.create_new_folder_outlined),
