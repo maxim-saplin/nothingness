@@ -689,9 +689,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             ElevatedButton.icon(
               onPressed: widget.onRequestAudioPermission,
-              icon: const Icon(Icons.mic),
+              icon: const Icon(Icons.check_circle_outline),
               label: Text(
-                widget.hasAudioPermission ? 'Microphone Granted' : 'Enable Mic',
+                widget.hasAudioPermission
+                    ? 'Permissions Granted'
+                    : 'Grant Required Permissions',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.hasAudioPermission
@@ -717,9 +719,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
-          'Permissions are only required on Android.',
+          '• Required Permissions: Storage (to read files) and Microphone (to generate spectrum visualization).',
+          style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '• Notifications: Required to display song info and control playback when using external music players.',
           style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 12),
         ),
       ],

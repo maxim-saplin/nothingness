@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../models/screen_config.dart';
@@ -221,6 +222,14 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   Future<void> _requestAudioPermission() async {
+    // Request all required permissions via permission_handler
+    await [
+      Permission.storage,
+      Permission.audio,
+      Permission.microphone,
+    ].request();
+    
+    // Also call platform channel request for legacy/specific handling if needed
     await _platformChannels.requestAudioPermission();
     await _checkPermissions();
   }
