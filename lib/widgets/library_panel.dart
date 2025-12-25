@@ -43,6 +43,7 @@ class _LibraryPanelState extends State<LibraryPanel>
     try {
       // Get all external storage directories (internal + SD cards)
       final paths = await ExternalPath.getExternalStorageDirectories();
+      if (!mounted) return;
       // ignore: unnecessary_null_comparison
       if (paths != null && paths.isNotEmpty) {
         _initialAndroidRoot = paths.first;
@@ -433,19 +434,25 @@ class _LibraryPanelState extends State<LibraryPanel>
       dirs.sort((a, b) => a.path.compareTo(b.path));
       files.sort((a, b) => a.title.compareTo(b.title));
 
-      setState(() {
-        _currentPath = path;
-        _dirs = dirs;
-        _files = files;
-      });
+      if (mounted) {
+        setState(() {
+          _currentPath = path;
+          _dirs = dirs;
+          _files = files;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = '$e';
-      });
+      if (mounted) {
+        setState(() {
+          _error = '$e';
+        });
+      }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -475,6 +482,7 @@ class _LibraryPanelState extends State<LibraryPanel>
     try {
       final player = context.read<AudioPlayerProvider>();
       final tracks = await player.scanFolder(_currentPath!);
+      if (!mounted) return;
       if (tracks.isNotEmpty) {
         await player.setQueue(
           tracks,
@@ -484,9 +492,11 @@ class _LibraryPanelState extends State<LibraryPanel>
         widget.onClose();
       }
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 }

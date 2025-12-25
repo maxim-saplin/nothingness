@@ -66,7 +66,7 @@ class LibraryService {
     for (final entry in roots.entries) {
       try {
         await _secureBookmarks!.resolveBookmark(entry.value);
-        await _secureBookmarks!.startAccessingSecurityScopedResource(File(entry.key));
+        await _secureBookmarks.startAccessingSecurityScopedResource(File(entry.key));
         debugPrint('Resolved bookmark for ${entry.key}');
       } catch (e) {
         debugPrint('Failed to resolve bookmark for ${entry.key}: $e');
