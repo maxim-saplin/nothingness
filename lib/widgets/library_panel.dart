@@ -4,6 +4,7 @@ import 'package:external_path/external_path.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../models/audio_track.dart';
@@ -30,12 +31,25 @@ class _LibraryPanelState extends State<LibraryPanel>
   String? _error;
   List<Directory> _dirs = [];
   List<AudioTrack> _files = [];
+  bool _hasAllFilesPermission = false;
 
   @override
   void initState() {
     super.initState();
-    if (Platform.isAndroid && _currentPath == null) {
-      _loadAndroidRoot();
+    if (Platform.isAndroid) {
+      _checkAndroidPermissions();
+    }
+  }
+
+  Future<void> _checkAndroidPermissions() async {
+    final hasPermission = await Permission.manageExternalStorage.isGranted;
+    if (!mounted) return;
+    setState(() {
+      _hasAllFilesPermission = hasPermission;
+    });
+    // If we already have permission, load the root automatically
+    if (hasPermission && _currentPath == null) {
+      await _loadAndroidRoot();
     }
   }
 
@@ -52,6 +66,42 @@ class _LibraryPanelState extends State<LibraryPanel>
       }
     } catch (e) {
       debugPrint('Failed to load Android root: $e');
+    }
+  }
+
+  Future<void> _requestAllFilesPermission() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      // Request Manage External Storage for Android 11+ (API 30+)
+      final status = await Permission.manageExternalStorage.request();
+      if (!mounted) return;
+      
+      if (status.isGranted) {
+        setState(() {
+          _hasAllFilesPermission = true;
+        });
+        // Load Android root after permission is granted
+        await _loadAndroidRoot();
+      } else {
+        setState(() {
+          _error = 'All files permission is required to browse root storage';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to request permission: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -244,7 +294,31 @@ class _LibraryPanelState extends State<LibraryPanel>
         children: [
           Row(
             children: [
-              Platform.isMacOS ?
+              if (Platform.isAndroid && !_hasAllFilesPermission && _currentPath == null) ...[
+                // Option 1: Request all files permission
+                ElevatedButton.icon(
+                  onPressed: _requestAllFilesPermission,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('All Files Permission'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00FF88),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Option 2: Use file picker (scoped storage)
+                ElevatedButton.icon(
+                  onPressed: _pickFolder,
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: const Text('Pick Folder'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white12,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                ),
+              ] else if (Platform.isMacOS || (Platform.isAndroid && _hasAllFilesPermission)) ...[
                 ElevatedButton.icon(
                   onPressed: _pickFolder,
                   icon: const Icon(Icons.create_new_folder_outlined),
@@ -252,11 +326,11 @@ class _LibraryPanelState extends State<LibraryPanel>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00FF88),
                     foregroundColor: Colors.black,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   ),
-                )
-              : const SizedBox(width: 10),
+                ),
+              ] else
+                const SizedBox(width: 10),
               if (_currentPath != null)
                 TextButton.icon(
                   onPressed: _playAll,
