@@ -10,13 +10,13 @@ class VisualizerService {
         private const val MAX_BARS = 32
         
         // Default settings
-        private const val DEFAULT_NOISE_GATE_DB = -35.0
+        private const val DEFAULT_NOISE_GATE_DB = -45.0
         private const val DEFAULT_NUM_BARS = 12
         private const val DEFAULT_FALL_SMOOTHING = 0.12
         
         private const val MIN_MAGNITUDE = 2.0 // Lower threshold for 8-bit data
-        private const val RISE_SMOOTHING = 0.5
-        private const val GAIN_BOOST_DB = 24.0
+        private const val RISE_SMOOTHING = 0.9
+        private const val GAIN_BOOST_DB = 12.0
     }
 
     private var visualizer: Visualizer? = null
@@ -51,7 +51,7 @@ class VisualizerService {
                         processFft(fft, samplingRate)
                     }
                 }
-            }, Visualizer.getMaxCaptureRate() / 2, false, true)
+            }, Visualizer.getMaxCaptureRate(), false, true)
             
             visualizer?.enabled = true
             Log.d(TAG, "Visualizer started for session $sessionId")
@@ -157,7 +157,7 @@ class VisualizerService {
                 continue
             }
             
-            val dynamicRangeDb = 22.0
+            val dynamicRangeDb = 45.0
             val normalized = ((db - thresholdDb) / dynamicRangeDb).coerceIn(0.0, 1.0)
             
             val currentValue = barValues[bar]
