@@ -40,5 +40,5 @@ When adding new features or modifying the architecture, please remember to:
 1.  Update the relevant documentation.
 2.  Add a new section if appropriate.
 3.  Keep diagrams up to date.
-4.  Note whether the built-in audio player (default) or microphone input is the spectrum source for the feature you are touching.
+
 

@@ -1,6 +1,6 @@
 # System Architecture Overview
 
-Nothingness is a Flutter-based media visualizer application that now ships with its own cross-platform audio player (Android + macOS). It bridges a modern Flutter UI with both a built-in playback stack and native Android audio capture capabilities when microphone mode is selected.
+Nothingness is a Flutter-based media visualizer with platform-specific audio backends hidden behind a single interface. macOS uses SoLoud; Android uses just_audio + audio_service for playback, media session, and background controls. Spectrum data comes from the active backend (SoLoud FFT on macOS, Android visualizer tied to the player session), with microphone capture as an optional/fallback Android path.
 
 ## High-Level Diagram
 
@@ -9,16 +9,17 @@ graph TD
     User[User / Touch] --> |Interacts| UI[Flutter UI]
     UI --> |Reads/Writes| Settings[SettingsService]
     UI --> |Displays| Vis[SpectrumVisualizer]
-    UI --> |Uses| Provider[AudioPlayerProvider (ChangeNotifier)]
-    Provider --> |Controls| Player[AudioPlayerService]
-    UI --> |Controls| PC[PlatformChannels]
-    
+    UI --> |Uses| Provider[AudioPlayerProvider]
+    Provider --> |Controls| Backend[AudioBackend]
+    Backend --> |macOS| SoLoud[SoLoudBackend]
+    Backend --> |Android| JA[JustAudioBackend + audio_service]
+    UI --> |Permissions / Settings| PC[PlatformChannels]
+
     Settings --> |Persists| SP[SharedPreferences]
-    
-    PC <--> |MethodChannel| Native[Android Native Layer]
-    Player --> |PCM Capture| Vis
-    Native --> |Audio Data| PC
-    Vis <--> |Audio Data Stream| PC
+    PC <--> |MethodChannel/EventChannel| Native[Android Native Layer]
+    SoLoud --> |FFT| Vis
+    JA --> |Visualizer FFT| Native
+    Native --> |FFT stream| Vis
 ```
 
 ## Key Components
@@ -34,29 +35,31 @@ graph TD
 ### 2. Service Layer
 -   **`SettingsService`**: A singleton service responsible for managing application state.
     -   **Spectrum Settings**: Visualizer configuration (colors, bar count, decay speed).
-    -   **Audio Source**: Global switch between the built-in player (default) and microphone-based capture.
+    -   **Audio Source**: Switch between backend-driven spectrum (default) and microphone capture (Android-only fallback).
     -   **UI Scale**: System-wide scaling factor.
     -   **Screen Configuration**: Manages active screen/skin selection (see [Skins & Screens](skins.md)).
     -   **Full Screen Mode**: Immersive sticky mode that hides system status/navigation bars via `SystemChrome`.
     -   **Persistence**: Saves/loads state to disk using `SharedPreferences`.
--   **`AudioPlayerProvider`**: `ChangeNotifier` that mirrors `AudioPlayerService` state (`songInfo`, `isPlaying`, `queue`, `shuffle`, spectrum stream) for the UI. It wires service `ValueNotifier`s into Provider without prop drilling.
--   **`AudioPlayerService`**: Cross-platform playback, queue management, recursive folder scanning, and PCM capture for spectrum data when the audio source is set to player mode.
--   **`PlatformChannels`**: Handles communication with the host Android system.
-    -   **Methods**: Controlling media playback (play, pause, next, prev).
-    -   **Events**: Receiving real-time audio spectrum data when microphone mode is selected on Android.
+-   **`AudioPlayerProvider`**: `ChangeNotifier` that wraps an `AudioBackend` implementation and exposes state (`songInfo`, `isPlaying`, `queue`, `shuffle`, spectrum stream) to the UI.
+-   **`AudioBackend` (interface)**: Platform-specific playback + spectrum behind one contract.
+    -   **`SoLoudBackend` (macOS)**: Uses `flutter_soloud` for playback and FFT.
+    -   **`JustAudioBackend` (Android)**: Uses `just_audio` + `audio_service`/`just_audio_background` for playback, media session, notifications, and headset/lock-screen controls. Spectrum comes from the Android visualizer API tied to the player session.
+-   **`PlatformChannels`**: Android bridge for permissions and visualizer/mic spectrum events.
 
 ### 3. Native Layer (Android)
 -   **`AudioCaptureService`**: A native Android service that hooks into the system audio output to capture frequency data.
 -   **Method Channels**: Standard Flutter mechanism for passing messages between Dart and Kotlin/Java.
 
 ## Data Flow
-1.  **Startup**: `NothingApp` pre-initializes and awaits `AudioPlayerProvider.init()` (which initializes SoLoud and playlists) before `runApp`, preventing `SoLoudNotInitializedException`. `SettingsService` loads preferences. `PlatformChannels` initializes the native bridge for Android-specific permissions and microphone capture.
-2.  **Runtime (Player mode - default)**: UI reads state from `AudioPlayerProvider`; provider relays `ValueNotifier` updates from `AudioPlayerService` (song info, playing, queue). `AudioPlayerService` streams PCM from playback -> FFT -> provider spectrum stream -> `SpectrumVisualizer` renders frame.
-3.  **Runtime (Microphone mode)**: Native layer captures audio -> sends FFT data to Dart via EventChannel -> `SpectrumVisualizer` renders frame. Provider capture is disabled to avoid redundant polling.
-4.  **User Action**: User changes settings -> `SettingsService` updates notifier -> UI rebuilds. Spectrum source is switched instantly between player PCM and microphone stream. Permissions (mic/notifications) are surfaced in the Settings screen (Android-only).
+1.  **Startup**: `NothingApp` awaits `AudioPlayerProvider.init()` which instantiates the platform `AudioBackend` (SoLoud on macOS; just_audio + audio_service on Android) and restores playlists. `SettingsService` loads preferences. `PlatformChannels` is ready for Android permissions/visualizer events.
+2.  **Runtime (default backend spectrum)**: UI watches `AudioPlayerProvider`; provider relays backend state (`songInfo`, `queue`, `isPlaying`, spectrum stream). Spectrum comes from backend FFT (SoLoud) or Android visualizer tied to the player session.
+3.  **Runtime (microphone fallback, Android)**: If selected in settings, provider disables backend spectrum and subscribes to the mic EventChannel stream from native; bars render directly from that stream.
+4.  **User Action**: Settings changes update notifiers and rebuild UI; spectrum source switches immediately. Android surfaces mic/notification permission prompts when needed; background controls are managed by `audio_service`/`just_audio_background`.
 
 ## Audio
 
--   **Audio playback (SoLoud-based)**: The app uses the `flutter_soloud` singleton for cross-platform playback (Android + macOS). `AudioPlayerService` initializes SoLoud once at startup (awaited in `main`), enables visualization, manages queue/seek, and disposes sources before loading the next track to avoid handle leaks. Playback is wrapped in `runZonedGuarded` with skip-on-error and user cancel handling (pause stops the skip loop) to avoid debugger breaks from native callbacks.
--   **Spectrum visualization abstraction**: Spectrum capture is routed through a `SpectrumProvider` interface. `SoLoudSpectrumProvider` polls SoLoud `AudioData` (linear samples) for FFT bars, applying noise-gate and decay smoothing from `SpectrumSettings`. `MicrophoneSpectrumProvider` is Android-only and streams FFT data from the native service via platform channels. macOS uses the player pipeline only (no microphone capture). Settings flips between providers without restarting the UI.
+-   **Audio playback**: `AudioBackend` abstraction hides platform differences.
+    -   **macOS**: `SoLoudBackend` (flutter_soloud) handles playback/queue and provides FFT for spectrum.
+    -   **Android**: `JustAudioBackend` (just_audio + audio_service/just_audio_background) handles playback, media session, notification, headset/lock-screen controls; spectrum comes from the Android visualizer API bound to the player session.
+-   **Spectrum visualization**: Default source is the active backend’s FFT/visualizer stream. `SpectrumProvider` implementations remain, but microphone capture is now an Android-only fallback via EventChannel; macOS stays player-only. Settings can switch sources without restarting the UI.
 

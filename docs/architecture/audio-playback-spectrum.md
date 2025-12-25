@@ -3,36 +3,39 @@
 This document details audio stack choices, data paths, and behaviors for playback-driven and microphone-driven spectrum visualization. It complements the high-level overview.
 
 ## Goals & Rationale
-- Cross-platform (Android + macOS) spectrum from player output without macOS-native capture.
-- Keep Android microphone capture for ambient mode.
-- Center playback and FFT on `flutter_soloud` (single engine).
-- Swap quickly between player and microphone sources based on `SpectrumSettings.audioSource`.
+- Platform-specific backends behind one interface: SoLoud on macOS; just_audio + audio_service on Android.
+- Spectrum comes from the active backend (SoLoud FFT on macOS, Android visualizer tied to player session) with microphone capture as an Android fallback.
+- Preserve quick switching between backend spectrum and microphone source based on `SpectrumSettings.audioSource`.
 
 ## Core Components
-- **`AudioPlayerProvider`**: `ChangeNotifier` that surfaces `AudioPlayerService` state to the UI (song info, playing, queue, shuffle, spectrum data) without prop drilling.
-- **`AudioPlayerService`**: Initializes SoLoud once, enables visualization, manages queue/load/play/pause/seek, emits `SongInfo`, and disposes prior sources. Playback is wrapped in `runZonedGuarded` with skip-on-error and user cancel support (pause stops skip loop when encountering bad files).
+- **`AudioPlayerProvider`**: `ChangeNotifier` that wraps an `AudioBackend` and surfaces state (song info, playing, queue, shuffle, spectrum data) without prop drilling.
+- **`AudioBackend` implementations**:
+  - **`SoLoudBackend` (macOS)**: SoLoud playback, queue/load/play/pause/seek, SoLoud FFT for spectrum.
+  - **`JustAudioBackend` (Android)**: just_audio playback + audio_service/just_audio_background for media session, notification, headset/lock-screen controls; spectrum via Android visualizer bound to the player session.
 - **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
-  - **`SoLoudSpectrumProvider`**: Polls SoLoud `AudioData` (linear) for the current handle. Uses `SpectrumAnalyzer` to apply logarithmic scaling, frequency weighting (pink noise compensation), noise gate, and decay smoothing.
-  - **`MicrophoneSpectrumProvider`** (Android-only): Streams FFT bars from the native `AudioCaptureService` via platform channels; requires mic permission.
-- **`MediaControllerPage`**: Uses Provider for player state; switches capture based on `SpectrumSettings.audioSource` (disables player capture when microphone mode is active).
+  - **Backend spectrum**: SoLoud FFT (macOS) or Android visualizer stream.
+  - **`MicrophoneSpectrumProvider`** (Android fallback): Streams FFT bars from native `AudioCaptureService` via EventChannel; requires mic permission.
+- **`MediaControllerPage`**: Uses Provider for player state; switches capture based on `SpectrumSettings.audioSource` (backend spectrum by default, mic when explicitly selected on Android).
 
-## Playback Pipeline (Player Mode)
+## Playback Pipeline (Backend Spectrum)
 ```mermaid
 flowchart LR
   UI[MediaControllerPage] -->|watch| Provider[AudioPlayerProvider]
-  Provider -->|play/enqueue/seek| Player[AudioPlayerService]
-    Player -->|load file| SoLoud[SoLoud Engine]
-    SoLoud -->|PCM + FFT| Spectrum[SoLoudSpectrumProvider]
-    Spectrum -->|bars stream| Visualizer[SpectrumVisualizer widgets]
+  Provider -->|play/enqueue/seek| Backend[AudioBackend]
+    Backend -->|macOS| SoLoud[SoLoudBackend]
+    Backend -->|Android| JA[JustAudioBackend]
+    SoLoud -->|PCM + FFT| Vis[SpectrumVisualizer]
+    JA -->|sessionId| Native[Android Visualizer]
+    Native -->|FFT bars| Vis
 ```
 
 ### Lifecycle Notes
-- SoLoud initializes at bootstrap (awaited in `main`); visualization is enabled immediately.
-- On play: stop prior handle, dispose prior source, load file, play, start spectrum polling.
-- On pause: pause playback and stop spectrum polling to reduce CPU; resume restarts polling. If currently skipping bad files, pause sets a cancel flag to exit the loop.
-- On completion: position check triggers `next()` when position >= duration.
+- Backends initialize at bootstrap via `AudioPlayerProvider.init()`; macOS enables SoLoud visualization, Android binds to the player session for visualizer once sources are set.
+- On play: backend stops prior playback/source, loads, plays, and (re)starts spectrum capture (SoLoud FFT or Android visualizer subscription).
+- On pause: pause playback and stop spectrum capture to reduce CPU; resume restarts capture. Skip-on-error handling remains in the backends.
+- On completion: just_audio handles auto-advance in Android; SoLoud backend checks position/duration and advances or stops.
 
-## Microphone Pipeline (Android Only)
+## Microphone Pipeline (Android Only, fallback)
 ```mermaid
 flowchart LR
     UI -->|audioSource: microphone| Platform[PlatformChannels]
@@ -42,13 +45,13 @@ flowchart LR
 
 ### Lifecycle Notes
 - Requires notification/audio capture permissions.
-- Switching to mic mode stops SoLoud polling and subscribes to the native stream.
-- Switching back to player mode re-enables SoLoud polling.
+- Switching to mic mode stops backend spectrum and subscribes to the native mic stream.
+- Switching back to backend mode re-enables backend spectrum (SoLoud FFT or Android visualizer).
 
 ## Settings Impact
-- `SpectrumSettings.audioSource`: toggles player vs mic provider.
-- `SpectrumSettings.barCount`, `decaySpeed`, `noiseGateDb`: applied in providers; decay also maps to SoLoud FFT smoothing.
-- Settings load after player init to avoid SoLoud init errors and are pushed to providers and native mic side.
+- `SpectrumSettings.audioSource`: toggles backend spectrum (default) vs mic provider (Android-only fallback).
+- `SpectrumSettings.barCount`, `decaySpeed`, `noiseGateDb`: applied in spectrum providers; decay also maps to backend FFT/visualizer smoothing when supported.
+- Settings load after backend init to avoid init races and are pushed to providers and native side as needed.
 
 ## Playlist Management
 - Queue state (tracks, play order, current index, shuffle flag) is persisted with Hive via `PlaylistStore`, sized to handle thousands of tracks efficiently.
