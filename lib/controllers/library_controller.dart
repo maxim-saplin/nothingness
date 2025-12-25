@@ -16,9 +16,9 @@ class LibraryController extends ChangeNotifier {
     OnAudioQuery? audioQuery,
     Future<List<LibrarySong>> Function()? androidSongLoader,
     Future<List<String>> Function()? androidRootsLoader,
-  })  : _audioQuery = audioQuery ?? OnAudioQuery(),
-        _androidSongLoader = androidSongLoader,
-        _androidRootsLoader = androidRootsLoader;
+  }) : _audioQuery = audioQuery ?? OnAudioQuery(),
+       _androidSongLoader = androidSongLoader,
+       _androidRootsLoader = androidRootsLoader;
 
   final LibraryBrowser libraryBrowser;
   final LibraryService libraryService;
@@ -35,6 +35,7 @@ class LibraryController extends ChangeNotifier {
   List<LibraryFolder> folders = [];
   List<AudioTrack> tracks = [];
   List<LibrarySong> _androidSongs = [];
+  bool _disposed = false;
 
   Future<void> init() async {
     if (Platform.isAndroid) {
@@ -51,19 +52,21 @@ class LibraryController extends ChangeNotifier {
       final storageStatus = await Permission.storage.status;
       final audioStatus = await Permission.audio.status;
       final micStatus = await Permission.microphone.status;
-      hasPermission = (storageStatus.isGranted || audioStatus.isGranted) && micStatus.isGranted;
-      notifyListeners();
+      hasPermission =
+          (storageStatus.isGranted || audioStatus.isGranted) &&
+          micStatus.isGranted;
+      _safeNotifyListeners();
     } catch (e) {
       debugPrint('Failed to check permissions: $e');
       hasPermission = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
   Future<void> requestPermission() async {
     isLoading = true;
     error = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       final statuses = await [
@@ -73,8 +76,9 @@ class LibraryController extends ChangeNotifier {
       ].request();
 
       hasPermission =
-          (statuses[Permission.storage]!.isGranted || statuses[Permission.audio]!.isGranted) &&
-              statuses[Permission.microphone]!.isGranted;
+          (statuses[Permission.storage]!.isGranted ||
+              statuses[Permission.audio]!.isGranted) &&
+          statuses[Permission.microphone]!.isGranted;
 
       if (hasPermission) {
         await _ensureAndroidSongsLoaded();
@@ -86,7 +90,7 @@ class LibraryController extends ChangeNotifier {
       error = 'Failed to request permission: $e';
     } finally {
       isLoading = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -99,7 +103,7 @@ class LibraryController extends ChangeNotifier {
   Future<void> loadFolder(String path) async {
     isLoading = true;
     error = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       if (Platform.isAndroid) {
@@ -121,22 +125,23 @@ class LibraryController extends ChangeNotifier {
       error = '$e';
     } finally {
       isLoading = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
   Future<void> navigateUp() async {
     if (currentPath == null) return;
 
-    if (Platform.isAndroid && initialAndroidRoot != null && currentPath == initialAndroidRoot) {
-      _clearListing();
-      notifyListeners();
+    if (Platform.isAndroid &&
+        initialAndroidRoot != null &&
+        currentPath == initialAndroidRoot) {
+      await loadRoot(); // Reload root instead of clearing
       return;
     }
 
     if (libraryService.rootsNotifier.value.containsKey(currentPath)) {
       _clearListing();
-      notifyListeners();
+      _safeNotifyListeners();
       return;
     }
 
@@ -208,5 +213,17 @@ class LibraryController extends ChangeNotifier {
     currentPath = null;
     folders = [];
     tracks = [];
+  }
+
+  void _safeNotifyListeners() {
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
