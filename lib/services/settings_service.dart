@@ -72,7 +72,7 @@ class SettingsService {
     // Very wide low-DPI screens (> 2100) are likely large tablets, not cars.
     final bool isAutomotive =
         devicePixelRatio < 2.0 && logicalWidth >= 1600 && logicalWidth <= 2100;
-    final double targetWidth = isAutomotive ? 850.0 : 960.0;
+    final double targetWidth = isAutomotive ? 800.0 : 960.0;
 
     // Calculate scale
     final double scale = logicalWidth / targetWidth;

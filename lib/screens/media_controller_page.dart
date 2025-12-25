@@ -243,9 +243,11 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     });
   }
 
-  Widget _buildLibraryHandle() {
+  Widget _buildLibraryHandle(BuildContext context) {
+    // Respect bottom padding (e.g. nav bar) so the arrow isn't covered
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Positioned(
-      bottom: 12,
+      bottom: 12 + bottomPadding,
       left: 0,
       right: 0,
       child: Center(
@@ -280,63 +282,61 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   @override
   Widget build(BuildContext context) {
-    // Calculate panel width based on logic similar to child screens
-    final screenWidth = MediaQuery.of(context).size.width;
-    // We need to know the effective scale to calculate panel width correctly.
-    // However, ScaledLayout handles scaling internally.
-    // Let's get the raw scale value for calculation purposes.
-    final rawScale = _settingsService.uiScaleNotifier.value;
-    final uiScale = rawScale > 0 ? rawScale : 1.0;
-
-    final logicalScreenWidth = screenWidth / uiScale;
-    final panelWidth = logicalScreenWidth > 900
-        ? logicalScreenWidth / 3
-        : (logicalScreenWidth / 2).clamp(300.0, 400.0);
-
     return ScaledLayout(
-      child: GestureDetector(
-        onVerticalDragUpdate: (details) {
-          final delta = details.primaryDelta ?? 0;
-          if (delta < -8) {
-            _openLibrary();
-          } else if (delta > 8) {
-            _closeLibrary();
-          }
-        },
-        child: Stack(
-          children: [
-            // Current Screen
-            _buildCurrentScreen(),
+      child: Builder(
+        builder: (context) {
+          // Calculate panel width based on logical size from ScaledLayout
+          final logicalScreenWidth = MediaQuery.of(context).size.width;
+          final panelWidth = logicalScreenWidth > 900
+              ? logicalScreenWidth / 3
+              : (logicalScreenWidth / 2).clamp(300.0, 400.0);
 
-            // Library panel
-            _buildLibraryPanel(context),
-            _buildLibraryHandle(),
+          return GestureDetector(
+            onVerticalDragUpdate: (details) {
+              final delta = details.primaryDelta ?? 0;
+              if (delta < -8) {
+                _openLibrary();
+              } else if (delta > 8) {
+                _closeLibrary();
+              }
+            },
+            child: Stack(
+              children: [
+                // Current Screen
+                _buildCurrentScreen(),
 
-            // Settings Panel Overlay
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOutCubic,
-              top: 0,
-              bottom: 0,
-              right: _isSettingsOpen ? 0 : -panelWidth,
-              width: panelWidth,
-              child: SettingsScreen(
-                settings: _settings,
-                onSettingsChanged: _saveSettings,
-                uiScale: _settingsService.uiScaleNotifier.value,
-                onUiScaleChanged: (scale) => _settingsService.saveUiScale(scale),
-                fullScreen: _isFullScreen,
-                onFullScreenChanged: (val) =>
-                    _settingsService.setFullScreen(val, save: true),
-                onClose: _toggleSettings,
-                hasNotificationAccess: _hasNotificationAccess,
-                hasAudioPermission: _hasAudioPermission,
-                onRequestNotificationAccess: _openNotificationSettings,
-                onRequestAudioPermission: _requestAudioPermission,
-              ),
+                // Library panel
+                _buildLibraryPanel(context),
+                _buildLibraryHandle(context),
+
+                // Settings Panel Overlay
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                  top: 0,
+                  bottom: 0,
+                  right: _isSettingsOpen ? 0 : -panelWidth,
+                  width: panelWidth,
+                  child: SettingsScreen(
+                    settings: _settings,
+                    onSettingsChanged: _saveSettings,
+                    uiScale: _settingsService.uiScaleNotifier.value,
+                    onUiScaleChanged: (scale) =>
+                        _settingsService.saveUiScale(scale),
+                    fullScreen: _isFullScreen,
+                    onFullScreenChanged: (val) =>
+                        _settingsService.setFullScreen(val, save: true),
+                    onClose: _toggleSettings,
+                    hasNotificationAccess: _hasNotificationAccess,
+                    hasAudioPermission: _hasAudioPermission,
+                    onRequestNotificationAccess: _openNotificationSettings,
+                    onRequestAudioPermission: _requestAudioPermission,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

@@ -971,6 +971,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildUiScaleControl() {
+    // Calculate effective scale if in Auto mode
+    double effectiveScale = _uiScale;
+    if (_uiScale < 0) {
+      final view = View.of(context);
+      final physicalWidth = view.physicalSize.width;
+      final dpr = view.devicePixelRatio;
+      final logicalWidth = MediaQuery.of(context).size.width;
+      
+      // effectiveScale = physicalWidth / (logicalWidth * dpr)
+      // Wait, logicalWidth = (physicalWidth / dpr) / scale
+      // So scale = (physicalWidth / dpr) / logicalWidth
+      if (logicalWidth > 0) {
+        effectiveScale = (physicalWidth / dpr) / logicalWidth;
+      } else {
+        effectiveScale = 1.0;
+      }
+    }
+
     return Column(
       children: [
         Row(
@@ -985,16 +1003,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trackHeight: 4,
                 ),
                 child: Slider(
-                  // If auto (-1.0), show 1.0 safely (it will be updated shortly by main.dart)
-                  // Also guard against any legacy or out-of-range values by clamping.
-                  value: _uiScale < 0 ? 1.0 : _uiScale.clamp(0.75, 3.0),
+                  // Show effective scale
+                  value: effectiveScale.clamp(0.75, 3.0),
                   min: 0.75,
                   max: 3.0,
                   divisions: 9,
                   onChanged: (value) {
-                    _uiScale = value;
-                  },
-                  onChangeEnd: (value) {
+                    // When dragging, we immediately switch to manual mode
                     _updateUiScale(value);
                   },
                 ),
@@ -1006,7 +1021,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _updateUiScale(-1.0);
               },
               style: TextButton.styleFrom(
-                backgroundColor: Colors.white10,
+                backgroundColor: _uiScale < 0 ? const Color(0xFF00FF88) : Colors.white10,
+                foregroundColor: _uiScale < 0 ? Colors.black : Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
@@ -1016,7 +1032,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: const Text(
                 'AUTO',
-                style: TextStyle(color: Colors.white, fontSize: 10),
+                style: TextStyle(fontSize: 10),
               ),
             ),
           ],

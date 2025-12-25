@@ -14,19 +14,6 @@ class ScaledLayout extends StatelessWidget {
     return ValueListenableBuilder<double>(
       valueListenable: SettingsService().uiScaleNotifier,
       builder: (context, rawUiScale, child) {
-        // Get effective scale (default to 1.0 if auto/-1 or invalid)
-        double uiScale = rawUiScale;
-        if (uiScale <= 0 || !uiScale.isFinite) {
-          uiScale = 1.0;
-        }
-        uiScale = uiScale.clamp(0.5, 4.0);
-
-        // If scale is effectively 1.0, just return the child
-        if ((uiScale - 1.0).abs() < 0.01) {
-          return this.child;
-        }
-
-        // Apply scaling
         return LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
@@ -37,9 +24,29 @@ class ScaledLayout extends StatelessWidget {
               return this.child;
             }
 
+            // Determine effective scale
+            double uiScale = rawUiScale;
+            if (uiScale <= 0 || !uiScale.isFinite) {
+              // Auto mode: Calculate smart scale based on available width
+              final dpr = MediaQuery.of(context).devicePixelRatio;
+              uiScale = SettingsService().calculateSmartScaleForWidth(
+                screenWidth,
+                devicePixelRatio: dpr,
+              );
+            }
+
+            uiScale = uiScale.clamp(0.5, 4.0);
+
+            // If scale is effectively 1.0, just return the child
+            if ((uiScale - 1.0).abs() < 0.01) {
+              return this.child;
+            }
+
             // Calculate logical size (what the content "sees")
             final logicalWidth = screenWidth / uiScale;
             final logicalHeight = screenHeight / uiScale;
+
+            final mediaQuery = MediaQuery.of(context);
 
             return SizedBox(
               width: screenWidth,
@@ -54,9 +61,12 @@ class ScaledLayout extends StatelessWidget {
                       width: logicalWidth,
                       height: logicalHeight,
                       child: MediaQuery(
-                        data: MediaQuery.of(
-                          context,
-                        ).copyWith(size: Size(logicalWidth, logicalHeight)),
+                        data: mediaQuery.copyWith(
+                          size: Size(logicalWidth, logicalHeight),
+                          padding: mediaQuery.padding / uiScale,
+                          viewInsets: mediaQuery.viewInsets / uiScale,
+                          viewPadding: mediaQuery.viewPadding / uiScale,
+                        ),
                         child: this.child,
                       ),
                     ),

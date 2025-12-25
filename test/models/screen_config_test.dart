@@ -116,7 +116,7 @@ void main() {
         expect(config.maxDotSize, 120.0);
         expect(config.dotOpacity, 1.0);
         expect(config.textOpacity, 1.0);
-        expect(config.sensitivity, 2.0);
+        expect(config.sensitivity, 1.5);
       });
     });
 

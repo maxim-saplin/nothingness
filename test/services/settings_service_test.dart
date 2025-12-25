@@ -121,18 +121,18 @@ void main() {
     });
 
     test('calculateSmartScaleForWidth returns correct scale factors', () {
-      // --- Automotive (Low DPI + width 1600-2100) - Target 850 ---
+      // --- Automotive (Low DPI + width 1600-2100) - Target 800 ---
 
-      // Width 1920 (Zeekr) at low DPI -> 1920/850 = 2.25
+      // Width 1920 (Zeekr) at low DPI -> 1920/800 = 2.4
       expect(
         service.calculateSmartScaleForWidth(1920, devicePixelRatio: 1.0),
-        closeTo(2.25, 0.01),
+        closeTo(2.4, 0.01),
       );
 
-      // Width 1600 (lower bound automotive) at low DPI -> 1600/850 = 1.88
+      // Width 1600 (lower bound automotive) at low DPI -> 1600/800 = 2.0
       expect(
         service.calculateSmartScaleForWidth(1600, devicePixelRatio: 1.0),
-        closeTo(1.88, 0.01),
+        closeTo(2.0, 0.01),
       );
 
       // --- Tablets (High DPI OR outside automotive range) - Target 960 ---

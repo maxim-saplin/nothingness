@@ -244,7 +244,7 @@ class _LibraryPanelState extends State<LibraryPanel>
         children: [
           Row(
             children: [
-              if (Platform.isMacOS)
+              Platform.isMacOS ?
                 ElevatedButton.icon(
                   onPressed: _pickFolder,
                   icon: const Icon(Icons.create_new_folder_outlined),
@@ -255,9 +255,8 @@ class _LibraryPanelState extends State<LibraryPanel>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   ),
-                ),
-              else
-                const SizedBox(width: 10),
+                )
+              : const SizedBox(width: 10),
               if (_currentPath != null)
                 TextButton.icon(
                   onPressed: _playAll,
