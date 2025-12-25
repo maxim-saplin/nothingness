@@ -29,6 +29,7 @@ class JustAudioBackend implements AudioBackend {
   final AudioPlayer _player = AudioPlayer();
   final PlaylistStore _playlist = PlaylistStore();
   final PlatformChannels _platformChannels = PlatformChannels();
+  SpectrumSettings _settings = const SpectrumSettings();
 
   @override
   late final ValueNotifier<List<AudioTrack>> queueNotifier =
@@ -44,6 +45,7 @@ class JustAudioBackend implements AudioBackend {
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
 
   StreamSubscription<List<double>>? _spectrumSub;
+  StreamSubscription<int?>? _sessionIdSub;
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
   @override
@@ -71,7 +73,7 @@ class JustAudioBackend implements AudioBackend {
 
     _player.positionStream.listen((_) => _emitSongInfo());
     _player.currentIndexStream.listen((index) {
-      if (index != null && _player.sequence != null) {
+      if (index != null) {
         // Sync back to PlaylistStore silently if needed
         // But PlaylistStore manages order.
         // If we use ConcatenatingAudioSource with the *ordered* list,
@@ -88,15 +90,28 @@ class JustAudioBackend implements AudioBackend {
     
     _player.sequenceStateStream.listen((_) => _emitSongInfo());
 
+    // Listen for audio session id availability and restart spectrum capture when it changes.
+    _sessionIdSub = _player.androidAudioSessionIdStream.listen((sessionId) {
+      if (!_captureEnabled) return;
+      _startSpectrum(sessionId: sessionId);
+    });
+
+    // Restore queue into player if playlist was persisted from previous session.
+    if (queueNotifier.value.isNotEmpty) {
+      debugPrint('[JustAudioBackend] init: restoring ${queueNotifier.value.length} tracks from persistence');
+      await _updatePlayerQueue(startIndex: _playlist.orderIndexOfCurrent() ?? 0);
+    }
+
     // Initialize spectrum if enabled
     if (_captureEnabled) {
-      _startSpectrum();
+      _startSpectrum(sessionId: _player.androidAudioSessionId);
     }
   }
 
   @override
   Future<void> dispose() async {
     await _stopSpectrum();
+    await _sessionIdSub?.cancel();
     await _player.dispose();
     await _playlist.dispose();
   }
@@ -105,7 +120,7 @@ class JustAudioBackend implements AudioBackend {
   void setCaptureEnabled(bool enabled) {
     _captureEnabled = enabled;
     if (enabled) {
-      _startSpectrum();
+      _startSpectrum(sessionId: _player.androidAudioSessionId);
     } else {
       _stopSpectrum();
     }
@@ -126,9 +141,13 @@ class JustAudioBackend implements AudioBackend {
     // Wait, setQueue in PlaylistStore sets currentOrderIndex to 0 (if shuffled) or startIndex (if not).
     // So we should seek to currentOrderIndex.
     final initialIndex = _playlist.orderIndexOfCurrent() ?? 0;
-    if (_player.sequence != null && _player.sequence!.length > initialIndex) {
+    debugPrint('[JustAudioBackend] setQueue: sequence.length=${_player.sequence.length}, initialIndex=$initialIndex');
+    if (_player.sequence.isNotEmpty && _player.sequence.length > initialIndex) {
       await _player.seek(Duration.zero, index: initialIndex);
       await _player.play();
+      debugPrint('[JustAudioBackend] setQueue: started playback');
+    } else {
+      debugPrint('[JustAudioBackend] setQueue: sequence empty or invalid index');
     }
   }
 
@@ -195,7 +214,12 @@ class JustAudioBackend implements AudioBackend {
 
   @override
   void updateSpectrumSettings(SpectrumSettings settings) {
+    _settings = settings;
     _platformChannels.updateSpectrumSettings(settings);
+    // Restart capture when source/decay/noise gate changes.
+    if (_captureEnabled) {
+      _startSpectrum(sessionId: _player.androidAudioSessionId);
+    }
   }
 
   @override
@@ -229,6 +253,7 @@ class JustAudioBackend implements AudioBackend {
 
   Future<void> _updatePlayerQueue({int? startIndex, bool keepCurrent = false}) async {
     final tracks = queueNotifier.value;
+    debugPrint('[JustAudioBackend] _updatePlayerQueue: ${tracks.length} tracks, startIndex=$startIndex, keepCurrent=$keepCurrent');
     final sources = tracks.map((track) {
       return AudioSource.file(
         track.path,
@@ -246,8 +271,10 @@ class JustAudioBackend implements AudioBackend {
         final currentIndex = _playlist.orderIndexOfCurrent();
         final currentPos = _player.position;
         await _player.setAudioSources(sources, initialIndex: currentIndex, initialPosition: currentPos);
+        debugPrint('[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources (keepCurrent)');
       } else {
         await _player.setAudioSources(sources, initialIndex: startIndex);
+        debugPrint('[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources at index $startIndex');
       }
     } catch (e) {
       debugPrint("Error setting audio source: $e");
@@ -272,19 +299,25 @@ class JustAudioBackend implements AudioBackend {
     );
   }
 
-  Future<void> _startSpectrum() async {
+  Future<void> _startSpectrum({int? sessionId}) async {
     if (!_captureEnabled) return;
     await _stopSpectrum();
-    
-    // Wait for session ID to be available
-    if (_player.androidAudioSessionId != null) {
-       _spectrumSub = _platformChannels.spectrumStream(sessionId: _player.androidAudioSessionId).listen(
-        _spectrumController.add,
-      );
-    } else {
-      // Retry or wait?
-      // just_audio usually has session ID after setting source.
+
+    // Choose source based on settings: player (via session id) or microphone (null).
+    final bool useMic = _settings.audioSource == AudioSourceMode.microphone;
+    final int? resolvedSessionId = useMic
+        ? null
+        : (sessionId ?? _player.androidAudioSessionId);
+
+    // If we want player output but don't have a session yet, wait for the
+    // sessionId stream listener to fire instead of falling back to mic.
+    if (!useMic && resolvedSessionId == null) {
+      return;
     }
+
+    _spectrumSub = _platformChannels
+        .spectrumStream(sessionId: resolvedSessionId)
+        .listen(_spectrumController.add);
   }
 
   Future<void> _stopSpectrum() async {
