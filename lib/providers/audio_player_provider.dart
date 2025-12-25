@@ -1,16 +1,27 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
-import '../services/audio_player_service.dart';
+import '../services/audio_backend.dart';
+import '../services/just_audio_backend.dart';
+import '../services/soloud_backend.dart';
 
-/// Provider wrapper for AudioPlayerService.
+/// Provider wrapper for AudioBackend.
 /// Exposes reactive state via ChangeNotifier for use with Provider.
 class AudioPlayerProvider extends ChangeNotifier {
-  final AudioPlayerService _service = AudioPlayerService();
+  late final AudioBackend _service;
+
+  AudioPlayerProvider() {
+    if (Platform.isMacOS) {
+      _service = SoLoudBackend();
+    } else {
+      _service = JustAudioBackend();
+    }
+  }
 
   // Reactive state
   SongInfo? _songInfo;
@@ -33,8 +44,13 @@ class AudioPlayerProvider extends ChangeNotifier {
   Stream<List<double>> get spectrumStream => _service.spectrumStream;
 
   // Pass-through to service
-  static Set<String> get supportedExtensions =>
-      AudioPlayerService.supportedExtensions;
+  static Set<String> get supportedExtensions {
+    if (Platform.isMacOS) {
+      return SoLoudBackend.supportedExtensions;
+    } else {
+      return JustAudioBackend.supportedExtensions;
+    }
+  }
 
   bool _initialized = false;
   bool get initialized => _initialized;

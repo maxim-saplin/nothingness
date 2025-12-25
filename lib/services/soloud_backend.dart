@@ -9,16 +9,13 @@ import 'package:path/path.dart' as p;
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
+import 'audio_backend.dart';
 import 'playlist_store.dart';
 import 'soloud_spectrum_provider.dart';
 import 'spectrum_provider.dart';
 
-/// Centralized audio player/queue + spectrum capture from player output.
-class AudioPlayerService {
-  AudioPlayerService._internal();
-  static final AudioPlayerService _instance = AudioPlayerService._internal();
-  factory AudioPlayerService() => _instance;
-
+/// macOS backend using SoLoud for playback and spectrum capture.
+class SoLoudBackend implements AudioBackend {
   static const Set<String> supportedExtensions = {
     'mp3',
     'm4a',
@@ -32,21 +29,27 @@ class AudioPlayerService {
   final SoLoud _soloud = SoLoud.instance;
   final PlaylistStore _playlist = PlaylistStore();
 
+  @override
   late final ValueNotifier<List<AudioTrack>> queueNotifier =
       _playlist.queueNotifier;
+  @override
   late final ValueNotifier<int?> currentIndexNotifier =
       _playlist.currentOrderIndexNotifier;
+  @override
   late final ValueNotifier<bool> shuffleNotifier = _playlist.shuffleNotifier;
+  @override
   final ValueNotifier<SongInfo?> songInfoNotifier = ValueNotifier(null);
 
   /// Immediate play intent state - updates before track actually loads.
   /// Use this for UI responsiveness during track loading/skipping.
+  @override
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
 
   SpectrumProvider? _spectrumProvider;
   StreamSubscription<List<double>>? _spectrumSub;
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
+  @override
   Stream<List<double>> get spectrumStream => _spectrumController.stream;
 
   SoundHandle? _currentHandle;
@@ -57,6 +60,7 @@ class AudioPlayerService {
   /// Flag to cancel the skip-on-error loop in _playOrderIndex.
   bool _cancelPlayback = false;
 
+  @override
   Future<void> init() async {
     await _playlist.init();
 
@@ -85,6 +89,7 @@ class AudioPlayerService {
     await _emitSongInfo(force: true);
   }
 
+  @override
   Future<void> dispose() async {
     _positionTimer?.cancel();
     await _stopSpectrum();
@@ -98,6 +103,7 @@ class AudioPlayerService {
     await _playlist.dispose();
   }
 
+  @override
   void setCaptureEnabled(bool enabled) {
     _captureEnabled = enabled;
     if (!enabled) {
@@ -107,6 +113,7 @@ class AudioPlayerService {
     }
   }
 
+  @override
   Future<void> setQueue(
     List<AudioTrack> tracks, {
     int startIndex = 0,
@@ -122,6 +129,7 @@ class AudioPlayerService {
     await _playOrderIndex(orderIndex);
   }
 
+  @override
   Future<void> addTracks(List<AudioTrack> tracks, {bool play = false}) async {
     if (tracks.isEmpty) return;
     final firstNewBaseIndex = _playlist.baseLength;
@@ -132,6 +140,7 @@ class AudioPlayerService {
     }
   }
 
+  @override
   Future<void> playPause() async {
     // If we have a queue but nothing is loaded yet, start playback from the
     // current (or first) track instead of silently doing nothing.
@@ -162,6 +171,7 @@ class AudioPlayerService {
     _emitSongInfo();
   }
 
+  @override
   Future<void> next() async {
     final nextIdx = _playlist.nextOrderIndex();
     if (nextIdx != null) {
@@ -169,6 +179,7 @@ class AudioPlayerService {
     }
   }
 
+  @override
   Future<void> previous() async {
     final prevIdx = _playlist.previousOrderIndex();
     if (prevIdx != null) {
@@ -176,6 +187,7 @@ class AudioPlayerService {
     }
   }
 
+  @override
   Future<void> playFromQueueIndex(int orderIndex) async {
     final currentIdx = currentIndexNotifier.value;
     if (currentIdx == orderIndex && _currentHandle != null) {
@@ -185,6 +197,7 @@ class AudioPlayerService {
     await _playOrderIndex(orderIndex);
   }
 
+  @override
   Future<void> shuffleQueue() async {
     await _playlist.reshuffle(
       keepBaseIndex: _playlist.currentBaseIndex ?? 0,
@@ -193,6 +206,7 @@ class AudioPlayerService {
     await _playOrderIndex(idx);
   }
 
+  @override
   Future<void> disableShuffle() async {
     final baseIndex = _playlist.currentBaseIndex ?? 0;
     await _playlist.disableShuffle(keepBaseIndex: baseIndex);
@@ -200,17 +214,20 @@ class AudioPlayerService {
     await _playOrderIndex(idx);
   }
 
+  @override
   Future<void> seek(Duration position) async {
     if (_currentHandle == null) return;
     _soloud.seek(_currentHandle!, position);
     _emitSongInfo();
   }
 
+  @override
   void updateSpectrumSettings(SpectrumSettings settings) {
     _spectrumProvider?.updateSettings(settings);
     _soloud.setFftSmoothing(settings.decaySpeed.value.clamp(0.0, 1.0));
   }
 
+  @override
   Future<int> playlistSizeBytes() {
     return _playlist.persistentSizeBytes();
   }
@@ -401,6 +418,7 @@ class AudioPlayerService {
     );
   }
 
+  @override
   Future<List<AudioTrack>> scanFolder(String rootPath) async {
     final List<AudioTrack> tracks = [];
     final directory = Directory(rootPath);

@@ -10,12 +10,13 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     
     companion object {
         private const val TAG = "MainActivity"
@@ -25,6 +26,7 @@ class MainActivity : FlutterActivity() {
     }
     
     private var audioCaptureService: AudioCaptureService? = null
+    private var visualizerService: VisualizerService? = null
     private var spectrumEventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     
@@ -32,6 +34,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         
         audioCaptureService = AudioCaptureService(this)
+        visualizerService = VisualizerService()
         
         // Method channel for media controls and song info
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL).setMethodCallHandler { call, result ->
@@ -102,6 +105,7 @@ class MainActivity : FlutterActivity() {
                         val barCount = (settings["barCount"] as? Number)?.toInt() ?: 12
                         val decaySpeed = (settings["decaySpeed"] as? Number)?.toDouble() ?: 0.12
                         audioCaptureService?.updateSettings(noiseGateDb, barCount, decaySpeed)
+                        visualizerService?.updateSettings(noiseGateDb, barCount, decaySpeed)
                     }
                     result.success(null)
                 }
@@ -114,7 +118,8 @@ class MainActivity : FlutterActivity() {
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     spectrumEventSink = events
-                    startSpectrumCapture()
+                    val sessionId = arguments as? Int
+                    startSpectrumCapture(sessionId)
                 }
                 
                 override fun onCancel(arguments: Any?) {
@@ -140,21 +145,28 @@ class MainActivity : FlutterActivity() {
         }
     }
     
-    private fun startSpectrumCapture() {
+    private fun startSpectrumCapture(sessionId: Int? = null) {
         if (audioCaptureService?.hasPermission() != true) {
             Log.w(TAG, "Cannot start spectrum capture - no permission")
             return
         }
-        
-        audioCaptureService?.startCapture { spectrumData ->
-            mainHandler.post {
-                spectrumEventSink?.success(spectrumData)
+
+        if (sessionId != null) {
+            audioCaptureService?.stopCapture()
+            visualizerService?.startCapture(sessionId) { spectrumData ->
+                mainHandler.post { spectrumEventSink?.success(spectrumData) }
+            }
+        } else {
+            visualizerService?.stopCapture()
+            audioCaptureService?.startCapture { spectrumData ->
+                mainHandler.post { spectrumEventSink?.success(spectrumData) }
             }
         }
     }
-    
+
     private fun stopSpectrumCapture() {
         audioCaptureService?.stopCapture()
+        visualizerService?.stopCapture()
     }
     
     private fun isNotificationAccessGranted(): Boolean {

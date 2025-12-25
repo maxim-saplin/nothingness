@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 
 import 'models/spectrum_settings.dart';
@@ -10,6 +11,13 @@ import 'package:nothingness/services/settings_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize just_audio_background
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
+    androidNotificationChannelName: 'Audio playback',
+    androidNotificationOngoing: true,
+  );
 
   // Initialize Hive
   await Hive.initFlutter();

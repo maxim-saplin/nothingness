@@ -123,8 +123,8 @@ class PlatformChannels {
   }
 
   // Stream for spectrum data
-  Stream<List<double>> get spectrumStream {
-    return _spectrumChannel.receiveBroadcastStream().map((data) {
+  Stream<List<double>> spectrumStream({int? sessionId}) {
+    return _spectrumChannel.receiveBroadcastStream(sessionId).map((data) {
       if (data is List) {
         return data.map((e) => (e as num).toDouble()).toList();
       }

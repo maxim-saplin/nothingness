@@ -154,7 +154,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       player.setCaptureEnabled(false);
       if (_hasAudioPermission) {
         _spectrumSubscription =
-            _platformChannels.spectrumStream.listen((data) {
+            _platformChannels.spectrumStream().listen((data) {
           setState(() {
             _micSpectrumData = data;
           });

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nothingness/services/audio_player_service.dart';
+import 'package:nothingness/services/soloud_backend.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +20,7 @@ void main() {
       await f.writeAsString('dummy');
     }
 
-    final service = AudioPlayerService();
+    final service = SoLoudBackend();
     final tracks = await service.scanFolder(tempDir.path);
 
     expect(tracks.length, 2);

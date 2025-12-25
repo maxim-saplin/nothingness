@@ -18,7 +18,7 @@ class MicrophoneSpectrumProvider implements SpectrumProvider {
 
   @override
   Future<void> start() async {
-    _sub ??= _platformChannels.spectrumStream.listen(_controller.add);
+    _sub ??= _platformChannels.spectrumStream().listen(_controller.add);
   }
 
   @override
