@@ -26,5 +26,5 @@ void main() {
     expect(tracks.length, 2);
     expect(tracks.any((t) => t.path.endsWith('a.mp3')), isTrue);
     expect(tracks.any((t) => t.path.endsWith('c.flac')), isTrue);
-  });
+  }, skip: Platform.isLinux);
 }

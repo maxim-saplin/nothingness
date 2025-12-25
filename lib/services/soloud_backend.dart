@@ -26,7 +26,7 @@ class SoLoudBackend implements AudioBackend {
     'opus',
   };
 
-  final SoLoud _soloud = SoLoud.instance;
+  late final SoLoud _soloud = SoLoud.instance;
   final PlaylistStore _playlist = PlaylistStore();
 
   @override
