@@ -74,8 +74,7 @@ class _DotScreenState extends State<DotScreen> {
         children: [
           // Fluctuating Dot (Centered)
           Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 16),
+            child: Container(
               width: dotRadius * 2,
               height: dotRadius * 2,
               decoration: BoxDecoration(
