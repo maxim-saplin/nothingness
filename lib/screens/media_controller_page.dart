@@ -10,9 +10,11 @@ import '../models/spectrum_settings.dart';
 import '../providers/audio_player_provider.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
+import '../services/logging_service.dart';
 import '../widgets/library_panel.dart';
 import '../widgets/scaled_layout.dart';
 import 'dot_screen.dart';
+import 'log_screen.dart';
 import 'polo_screen.dart';
 import 'settings_screen.dart';
 import 'spectrum_screen.dart';
@@ -154,8 +156,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     } else {
       player.setCaptureEnabled(false);
       if (_hasAudioPermission) {
-        _spectrumSubscription =
-            _platformChannels.spectrumStream().listen((data) {
+        _spectrumSubscription = _platformChannels.spectrumStream().listen((
+          data,
+        ) {
           setState(() {
             _micSpectrumData = data;
           });
@@ -228,7 +231,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       Permission.audio,
       Permission.microphone,
     ].request();
-    
+
     // Also call platform channel request for legacy/specific handling if needed
     await _platformChannels.requestAudioPermission();
     await _checkPermissions();
@@ -244,6 +247,13 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     setState(() {
       _isLibraryOpen = true;
     });
+  }
+
+  Future<void> _openLogs() async {
+    LoggingService().log(tag: 'UI', message: 'Open Logs screen');
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const LogScreen()));
   }
 
   void _closeLibrary() {
@@ -283,9 +293,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       right: 0,
       bottom: _isLibraryOpen ? 0 : -height,
       height: height,
-      child: LibraryPanel(
-        onClose: _closeLibrary,
-      ),
+      child: LibraryPanel(onClose: _closeLibrary),
     );
   }
 
@@ -340,6 +348,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
                     hasAudioPermission: _hasAudioPermission,
                     onRequestNotificationAccess: _openNotificationSettings,
                     onRequestAudioPermission: _requestAudioPermission,
+                    onShowLogs: _openLogs,
                   ),
                 ),
               ],
@@ -354,9 +363,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     final player = context.watch<AudioPlayerProvider>();
     final songInfo =
         _settings.audioSource == AudioSourceMode.microphone &&
-                PlatformChannels.isAndroid
-            ? _micSongInfo
-            : player.songInfo;
+            PlatformChannels.isAndroid
+        ? _micSongInfo
+        : player.songInfo;
     final spectrumData = _settings.audioSource == AudioSourceMode.player
         ? player.spectrumData
         : _micSpectrumData;

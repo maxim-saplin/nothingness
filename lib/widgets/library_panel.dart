@@ -12,10 +12,7 @@ import '../services/library_browser.dart';
 import '../services/library_service.dart';
 
 class LibraryPanel extends StatefulWidget {
-  const LibraryPanel({
-    super.key,
-    required this.onClose,
-  });
+  const LibraryPanel({super.key, required this.onClose});
 
   final VoidCallback onClose;
 
@@ -30,8 +27,9 @@ class _LibraryPanelState extends State<LibraryPanel> {
   void initState() {
     super.initState();
     _controller = LibraryController(
-      libraryBrowser:
-          LibraryBrowser(supportedExtensions: AudioPlayerProvider.supportedExtensions),
+      libraryBrowser: LibraryBrowser(
+        supportedExtensions: AudioPlayerProvider.supportedExtensions,
+      ),
       libraryService: LibraryService(),
     )..init();
   }
@@ -206,9 +204,12 @@ class _LibraryPanelState extends State<LibraryPanel> {
                     icon: const Icon(Icons.shuffle_rounded),
                     label: Text(player.shuffle ? 'Shuffle (on)' : 'Shuffle'),
                     style: FilledButton.styleFrom(
-                      backgroundColor:
-                          player.shuffle ? const Color(0xFF00FF88) : Colors.white12,
-                      foregroundColor: player.shuffle ? Colors.black : Colors.white,
+                      backgroundColor: player.shuffle
+                          ? const Color(0xFF00FF88)
+                          : Colors.white12,
+                      foregroundColor: player.shuffle
+                          ? Colors.black
+                          : Colors.white,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 10,
@@ -247,7 +248,10 @@ class _LibraryPanelState extends State<LibraryPanel> {
               final queue = player.queue;
               final current = player.currentIndex;
               if (queue.isEmpty) {
-                return _emptyState('Queue is empty', 'Pick a folder and tap Play All');
+                return _emptyState(
+                  'Queue is empty',
+                  'Pick a folder and tap Play All',
+                );
               }
               return Expanded(
                 child: ListView.separated(
@@ -260,19 +264,23 @@ class _LibraryPanelState extends State<LibraryPanel> {
                         isNotFound
                             ? Icons.error
                             : (isActive
-                                ? (player.isPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded)
-                                : Icons.music_note),
+                                  ? (player.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded)
+                                  : Icons.music_note),
                         color: isNotFound
                             ? Colors.redAccent
-                            : (isActive ? const Color(0xFF00FF88) : Colors.white70),
+                            : (isActive
+                                  ? const Color(0xFF00FF88)
+                                  : Colors.white70),
                       ),
                       title: Text(
                         isNotFound ? '(Not found) ${track.title}' : track.title,
                         style: TextStyle(
                           color: isActive ? Colors.white : Colors.white70,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                       onTap: () async {
@@ -314,14 +322,19 @@ class _LibraryPanelState extends State<LibraryPanel> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00FF88),
                     foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ] else
                 const SizedBox(width: 10),
               if (Platform.isAndroid)
                 IconButton(
-                  onPressed: controller.isScanning ? null : () => _refreshLibrary(context),
+                  onPressed: controller.isScanning
+                      ? null
+                      : () => _refreshLibrary(context),
                   icon: controller.isScanning
                       ? const SizedBox(
                           width: 20,
@@ -337,7 +350,10 @@ class _LibraryPanelState extends State<LibraryPanel> {
               if (controller.currentPath != null)
                 TextButton.icon(
                   onPressed: () => _playAll(context),
-                  icon: const Icon(Icons.queue_music_rounded, color: Color(0xFF00FF88)),
+                  icon: const Icon(
+                    Icons.queue_music_rounded,
+                    color: Color(0xFF00FF88),
+                  ),
                   label: const Text(
                     'Play All',
                     style: TextStyle(color: Color(0xFF00FF88)),
@@ -369,7 +385,10 @@ class _LibraryPanelState extends State<LibraryPanel> {
             _emptyState('Cannot open folder', controller.error!)
           else if (controller.currentPath == null)
             roots.isEmpty && !Platform.isAndroid
-                ? _emptyState('No library folders', 'Add a folder to start browsing')
+                ? _emptyState(
+                    'No library folders',
+                    'Add a folder to start browsing',
+                  )
                 : Expanded(
                     child: ListView(
                       children: roots.keys.map(_buildRootTile).toList(),
@@ -414,10 +433,7 @@ class _LibraryPanelState extends State<LibraryPanel> {
   Widget _buildFolderTile(LibraryFolder folder) {
     return ListTile(
       leading: const Icon(Icons.folder, color: Colors.amber),
-      title: Text(
-        folder.name,
-        style: const TextStyle(color: Colors.white),
-      ),
+      title: Text(folder.name, style: const TextStyle(color: Colors.white)),
       onTap: () => _controller.loadFolder(folder.path),
     );
   }
@@ -493,18 +509,19 @@ class _LibraryPanelState extends State<LibraryPanel> {
     List<AudioTrack> tracks = [];
 
     if (Platform.isAndroid) {
-      tracks = await controller.tracksForCurrentPath();
+      // Prefer the current listing (which may include filesystem fallback entries)
+      if (controller.tracks.isNotEmpty) {
+        tracks = List<AudioTrack>.from(controller.tracks);
+      } else {
+        tracks = await controller.tracksForCurrentPath();
+      }
     } else {
       tracks = await player.scanFolder(currentPath);
     }
 
     if (tracks.isEmpty) return;
 
-    await player.setQueue(
-      tracks,
-      startIndex: 0,
-      shuffle: player.shuffle,
-    );
+    await player.setQueue(tracks, startIndex: 0, shuffle: player.shuffle);
     widget.onClose();
   }
 }

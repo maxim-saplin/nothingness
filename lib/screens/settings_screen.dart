@@ -20,6 +20,7 @@ class SettingsScreen extends StatefulWidget {
   final bool hasAudioPermission;
   final VoidCallback onRequestNotificationAccess;
   final VoidCallback onRequestAudioPermission;
+  final VoidCallback onShowLogs;
 
   const SettingsScreen({
     super.key,
@@ -34,6 +35,7 @@ class SettingsScreen extends StatefulWidget {
     required this.hasAudioPermission,
     required this.onRequestNotificationAccess,
     required this.onRequestAudioPermission,
+    required this.onShowLogs,
   });
 
   @override
@@ -330,7 +332,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        if (_settings.audioSource == AudioSourceMode.microphone) ...[
+                        if (_settings.audioSource ==
+                            AudioSourceMode.microphone) ...[
                           _buildSectionHeader('AUDIO'),
                           const SizedBox(height: 16),
 
@@ -384,6 +387,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 16),
                         _buildDotSettings(),
                       ],
+
+                      const SizedBox(height: 24),
+                      _buildSectionHeader('DIAGNOSTICS'),
+                      const SizedBox(height: 16),
+                      _buildOptionTile(
+                        title: 'Logs',
+                        subtitle: 'View recent app logs',
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: ElevatedButton.icon(
+                            onPressed: widget.onShowLogs,
+                            icon: const Icon(Icons.article_outlined),
+                            label: const Text('Show Logs'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00FF88),
+                              foregroundColor: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
 
                       const SizedBox(height: 32),
                     ],
@@ -671,9 +694,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final isSelected = _settings.audioSource == mode;
         return Expanded(
           child: GestureDetector(
-            onTap: () => _updateSettings(
-              _settings.copyWith(audioSource: mode),
-            ),
+            onTap: () => _updateSettings(_settings.copyWith(audioSource: mode)),
             child: Container(
               margin: EdgeInsets.only(
                 right: mode != AudioSourceMode.values.last ? 8 : 0,
@@ -1010,7 +1031,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final physicalWidth = view.physicalSize.width;
       final dpr = view.devicePixelRatio;
       final logicalWidth = MediaQuery.of(context).size.width;
-      
+
       // effectiveScale = physicalWidth / (logicalWidth * dpr)
       // Wait, logicalWidth = (physicalWidth / dpr) / scale
       // So scale = (physicalWidth / dpr) / logicalWidth
@@ -1053,7 +1074,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _updateUiScale(-1.0);
               },
               style: TextButton.styleFrom(
-                backgroundColor: _uiScale < 0 ? const Color(0xFF00FF88) : Colors.white10,
+                backgroundColor: _uiScale < 0
+                    ? const Color(0xFF00FF88)
+                    : Colors.white10,
                 foregroundColor: _uiScale < 0 ? Colors.black : Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -1062,10 +1085,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text(
-                'AUTO',
-                style: TextStyle(fontSize: 10),
-              ),
+              child: const Text('AUTO', style: TextStyle(fontSize: 10)),
             ),
           ],
         ),

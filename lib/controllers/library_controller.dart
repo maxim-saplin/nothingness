@@ -7,8 +7,10 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/audio_track.dart';
+import '../models/log_entry.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
+import '../services/logging_service.dart';
 
 // Static function for isolate execution
 Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
@@ -188,10 +190,35 @@ class LibraryController extends ChangeNotifier {
     try {
       if (Platform.isAndroid) {
         await _ensureAndroidSongsLoaded();
-        final listing = libraryBrowser.buildVirtualListing(
+        var listing = libraryBrowser.buildVirtualListing(
           basePath: path,
           songs: _androidSongs,
         );
+
+        // If MediaStore has nothing for this path (common on some automotive/USB mounts),
+        // fall back to a direct filesystem listing so users can still browse and play.
+        if (listing.folders.isEmpty && listing.tracks.isEmpty) {
+          final dir = Directory(path);
+          if (await dir.exists()) {
+            try {
+              final fsListing = await libraryBrowser.listFileSystem(path);
+              if (fsListing.folders.isNotEmpty || fsListing.tracks.isNotEmpty) {
+                listing = fsListing;
+                LoggingService().log(
+                  tag: 'Library',
+                  message:
+                      'Used filesystem fallback for $path (MediaStore empty)',
+                );
+              }
+            } catch (e) {
+              LoggingService().log(
+                tag: 'Library',
+                message: 'Filesystem fallback failed for $path: $e',
+                level: LogLevel.error,
+              );
+            }
+          }
+        }
         currentPath = listing.path;
         folders = listing.folders;
         tracks = listing.tracks;
@@ -235,6 +262,14 @@ class LibraryController extends ChangeNotifier {
 
     if (Platform.isAndroid) {
       await _ensureAndroidSongsLoaded();
+
+      // If the current listing already has tracks (e.g., from filesystem fallback), reuse it.
+      if (tracks.isNotEmpty && currentPath != null) {
+        final listCopy = List<AudioTrack>.from(tracks);
+        listCopy.sort((a, b) => a.title.compareTo(b.title));
+        return listCopy;
+      }
+
       final filtered = _androidSongs
           .where((song) => song.path.startsWith(currentPath!))
           .map((song) => AudioTrack(path: song.path, title: song.title))
