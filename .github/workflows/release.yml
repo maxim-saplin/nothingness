@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
-    name: Build and Release
+  check-release:
+    name: Check Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    outputs:
+      version: ${{ steps.extract_version.outputs.VERSION }}
+      tag-name: ${{ steps.extract_version.outputs.TAG_NAME }}
     steps:
       - uses: actions/checkout@v4
 
@@ -17,68 +17,30 @@ jobs:
         id: extract_version
         run: |
           VERSION=$(sed -n 's/^version: *//p' pubspec.yaml)
+          TAG_NAME="v$VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "TAG_NAME=v$VERSION" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Check if Release Exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.extract_version.outputs.TAG_NAME }}
         run: |
           if gh release view "$TAG_NAME" > /dev/null 2>&1; then
             echo "::error::Release $TAG_NAME already exists. Please update version in pubspec.yaml."
             exit 1
           fi
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "zulu"
-          java-version: "17"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Decode Keystore
-        env:
-          ENCODED_STRING: ${{ secrets.STOREFILE }}
-        run: |
-          if [ -z "$ENCODED_STRING" ]; then
-            echo "::error::STOREFILE secret is missing."
-            exit 1
-          fi
-          echo "$ENCODED_STRING" | base64 -d > android/app/keystore.jks
-
-      - name: Create key.properties
-        env:
-          STORE_PASSWORD: ${{ secrets.STOREPASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEYPASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEYALIAS }}
-        run: |
-          echo "storePassword=$STORE_PASSWORD" > android/key.properties
-          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-          echo "storeFile=keystore.jks" >> android/key.properties
-
-      - name: Get Dependencies
-        run: flutter pub get
-
-      - name: Run Tests
-        run: flutter test
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Rename APK
-        env:
-          VERSION: ${{ steps.extract_version.outputs.VERSION }}
-        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/nothingness-android-$VERSION.apk
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ env.TAG_NAME }}
-          files: build/app/outputs/flutter-apk/nothingness-android-${{ steps.extract_version.outputs.VERSION }}.apk
-          generate_release_notes: true
+  release:
+    name: Build and Release
+    needs: check-release
+    uses: ./.github/workflows/build-android.yml
+    with:
+      create-release: true
+      release-tag: ${{ needs.check-release.outputs.tag-name }}
+      release-version: ${{ needs.check-release.outputs.version }}
+    secrets:
+      STOREFILE: ${{ secrets.STOREFILE }}
+      STOREPASSWORD: ${{ secrets.STOREPASSWORD }}
+      KEYPASSWORD: ${{ secrets.KEYPASSWORD }}
+      KEYALIAS: ${{ secrets.KEYALIAS }}

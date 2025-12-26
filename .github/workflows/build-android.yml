@@ -1,0 +1,156 @@
+name: Build Android APK
+
+on:
+  workflow_call:
+    inputs:
+      upload-artifact:
+        description: "Upload APK as artifact"
+        required: false
+        type: boolean
+        default: false
+      create-release:
+        description: "Create GitHub release"
+        required: false
+        type: boolean
+        default: false
+      release-tag:
+        description: "Tag name for release (e.g., v1.0.0)"
+        required: false
+        type: string
+      release-version:
+        description: "Version string for release"
+        required: false
+        type: string
+    secrets:
+      STOREFILE:
+        required: true
+      STOREPASSWORD:
+        required: true
+      KEYPASSWORD:
+        required: true
+      KEYALIAS:
+        required: true
+    outputs:
+      apk-path:
+        description: "Path to the built APK"
+        value: ${{ jobs.build.outputs.apk-path }}
+      version:
+        description: "Extracted version from pubspec.yaml"
+        value: ${{ jobs.build.outputs.version }}
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    outputs:
+      apk-path: ${{ steps.rename_apk.outputs.apk-path }}
+      version: ${{ steps.extract_version.outputs.VERSION }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: extract_version
+        run: |
+          VERSION=$(sed -n 's/^version: *//p' pubspec.yaml)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Decode Keystore
+        env:
+          ENCODED_STRING: ${{ secrets.STOREFILE }}
+        run: |
+          if [ -z "$ENCODED_STRING" ]; then
+            echo "::error::STOREFILE secret is missing."
+            exit 1
+          fi
+          echo "$ENCODED_STRING" | base64 -d > android/app/keystore.jks
+
+      - name: Create key.properties
+        env:
+          STORE_PASSWORD: ${{ secrets.STOREPASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEYPASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEYALIAS }}
+        run: |
+          echo "storePassword=$STORE_PASSWORD" > android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android
+            /usr/local/lib/android/sdk
+          key: ${{ runner.os }}-android-sdk-${{ hashFiles('**/build.gradle.kts', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-sdk-
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platforms;android-33
+            ndk;27.0.12077973
+            cmake;3.22.1
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build APK
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.caching=true"
+        run: flutter build apk --release
+
+      - name: Rename APK
+        id: rename_apk
+        env:
+          VERSION: ${{ steps.extract_version.outputs.VERSION }}
+        run: |
+          APK_PATH="build/app/outputs/flutter-apk/nothingness-android-$VERSION.apk"
+          mv build/app/outputs/flutter-apk/app-release.apk "$APK_PATH"
+          echo "apk-path=$APK_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload APK artifact
+        if: inputs.upload-artifact == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: ${{ steps.rename_apk.outputs.apk-path }}
+          retention-days: 1
+
+      - name: Create Release
+        if: inputs.create-release == true
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.release-tag }}
+          files: ${{ steps.rename_apk.outputs.apk-path }}
+          generate_release_notes: true

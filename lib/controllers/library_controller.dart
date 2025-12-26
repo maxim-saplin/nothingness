@@ -346,7 +346,23 @@ class LibraryController extends ChangeNotifier {
     try {
       final roots = await (_androidRootsLoader ?? _defaultAndroidRootsLoader)();
       if (roots.isNotEmpty) {
-        initialAndroidRoot = roots.first;
+        // Prefer a shared /storage root when multiple mount points exist (e.g., internal + USB),
+        // so users can navigate to both from a single root view.
+        const storageRoot = '/storage';
+        final bool hasStorageMounts = roots.any(
+          (r) => r.startsWith('$storageRoot/'),
+        );
+
+        if (hasStorageMounts && Directory(storageRoot).existsSync()) {
+          initialAndroidRoot = storageRoot;
+        } else {
+          // Otherwise prefer the primary volume if present; fall back to the first discovered root.
+          initialAndroidRoot = roots.firstWhere(
+            (r) => r.contains('/storage/emulated/0'),
+            orElse: () => roots.first,
+          );
+        }
+
         await loadFolder(initialAndroidRoot!);
       } else if (_androidSongs.isNotEmpty) {
         initialAndroidRoot = '/storage/emulated/0';

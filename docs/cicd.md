@@ -1,30 +1,52 @@
 # CI/CD & Release Process
 
+## Architecture
+
+This project uses GitHub Actions for CI/CD with a reusable workflow architecture. All build logic is centralized in `.github/workflows/build-android.yml`, which is called by both CI and Release workflows.
+
+### Reusable Workflow (`.github/workflows/build-android.yml`)
+
+The reusable workflow contains all common build steps and optimizations:
+
+- **Setup**:
+  - Java 17 (Zulu distribution)
+  - Android SDK Platform 33, NDK 27.0.12077973, CMake 3.22.1 (pre-installed)
+  - Flutter (stable channel)
+  - Android SDK caching (`~/.android`, `/usr/local/lib/android/sdk`)
+  - Gradle caching (`~/.gradle/caches`, `~/.gradle/wrapper`)
+- **Build Process**:
+  - Decodes Android keystore from GitHub Secrets
+  - Runs `flutter pub get`
+  - Runs `flutter test`
+  - Builds APK with `GRADLE_OPTS: "-Dorg.gradle.caching=true"` (arm64-only, code + resource shrinking enabled)
+  - Renames APK to `nothingness-android-<version>.apk`
+- **Post-build Actions** (conditional):
+  - Upload artifact (if `upload-artifact: true`)
+  - Create GitHub release (if `create-release: true`)
+
+**Inputs**:
+- `upload-artifact`: Upload APK as artifact (boolean)
+- `create-release`: Create GitHub release (boolean)
+- `release-tag`: Tag name for release (string, e.g., `v1.0.0`)
+- `release-version`: Version string for release (string)
+
+**Outputs**:
+- `apk-path`: Path to the built APK
+- `version`: Extracted version from `pubspec.yaml`
+
 ## Pipelines
 
-This project uses GitHub Actions for CI/CD.
-
 ### 1. CI (`.github/workflows/ci.yml`)
-- **Trigger**: Runs on every push and pull request to `main`.
-- **Jobs**:
-  - Sets up Java 17 and Flutter.
-  - Decodes the Android keystore from GitHub Secrets.
-  - Runs `flutter test`.
-  - Runs `flutter build apk --release` (arm64-only, code + resource shrinking enabled).
-  - Uploads the APK artifact (`app-release.apk`, ~20MB, arm64-only) with 1-day retention.
-- **Signing**:
-  - Uses the `release` keystore if secrets are valid.
-  - Falls back to `debug` signing if secrets are missing (e.g., in forks or invalid config), ensuring the build still passes.
+- **Trigger**: Runs on every push and pull request to `main`, or manual dispatch.
+- **Job**: Calls `build-android.yml` with `upload-artifact: true`.
+- **Result**: Uploads the APK artifact (`nothingness-android-<version>.apk`, ~20MB, arm64-only) with 1-day retention.
 
 ### 2. Release (`.github/workflows/release.yml`)
 - **Trigger**: Manual dispatch (`workflow_dispatch`).
-- **Inputs**:
-  - `tag_name` (optional): e.g., `v1.0.0`. If omitted, uses the version from `pubspec.yaml`.
 - **Jobs**:
-  - Builds the release APK (signed).
-  - Renames the APK to `nothingness-android-<version>.apk`.
-  - Creates a GitHub Release with the specified tag.
-  - Uploads the APK asset to the release.
+  1. `check-release`: Extracts version from `pubspec.yaml`, checks if release tag already exists.
+  2. `release`: Calls `build-android.yml` with `create-release: true` and the extracted tag/version.
+- **Result**: Creates a GitHub Release with the tag `v<version>` and uploads the APK asset.
 
 ## Signing Configuration
 
