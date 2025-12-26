@@ -574,6 +574,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Media Slider Width
+          _buildOptionTile(
+            title: 'Slider Width',
+            subtitle: '${(config.mediaSliderWidthFactor * 100).round()}%',
+            child: SliderTheme(
+              data: SliderThemeData(
+                activeTrackColor: const Color(0xFF00FF88),
+                inactiveTrackColor: Colors.white12,
+                thumbColor: const Color(0xFF00FF88),
+                overlayColor: const Color(0xFF00FF88).withAlpha(40),
+                trackHeight: 4,
+              ),
+              child: Slider(
+                value: config.mediaSliderWidthFactor,
+                min: 0.2,
+                max: 1.0,
+                divisions: 16,
+                onChanged: (val) => _updateSpectrumConfig(
+                  config.copyWith(mediaSliderWidthFactor: val),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
 
         // Spectrum Width

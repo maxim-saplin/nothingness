@@ -40,6 +40,9 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
 
   Color get _textColor => widget.config.textColorScheme.colors.first;
 
+  bool _isDragging = false;
+  double _dragValue = 0.0;
+
   @override
   Widget build(BuildContext context) {
     final player = context.watch<AudioPlayerProvider>();
@@ -103,39 +106,111 @@ class _SpectrumScreenState extends State<SpectrumScreen> {
     final player = context.watch<AudioPlayerProvider>();
     final isPlaying = player.songInfo?.isPlaying ?? player.isPlaying;
     final scale = widget.config.mediaControlScale;
+    final songInfo = player.songInfo;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    final position = _isDragging
+        ? _dragValue
+        : (songInfo?.position.toDouble() ?? 0.0);
+    final duration = songInfo?.duration.toDouble() ?? 1.0;
+    final max = duration > 0 ? duration : 1.0;
+    final value = position.clamp(0.0, max);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Previous button
-        MediaButton(
-          icon: Icons.skip_previous_rounded,
-          size: 48 * scale,
-          accentColor: _mediaSecondary,
-          inactiveBackgroundColor: Colors.white.withAlpha(10),
-          inactiveIconColor: Colors.white70,
-          onTap: context.read<AudioPlayerProvider>().previous,
+        FractionallySizedBox(
+          widthFactor: widget.config.mediaSliderWidthFactor,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                Text(
+                  _formatDuration(Duration(milliseconds: position.toInt())),
+                  style: TextStyle(color: _textColor, fontSize: 12),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: value,
+                    min: 0.0,
+                    max: max,
+                    activeColor: _mediaPrimary,
+                    inactiveColor: _mediaSecondary.withValues(alpha: 0.3),
+                    onChangeStart: (newValue) {
+                      setState(() {
+                        _isDragging = true;
+                        _dragValue = newValue;
+                      });
+                    },
+                    onChanged: (newValue) {
+                      setState(() {
+                        _dragValue = newValue;
+                      });
+                    },
+                    onChangeEnd: (newValue) async {
+                      await context.read<AudioPlayerProvider>().seek(
+                            Duration(milliseconds: newValue.toInt()),
+                          );
+                      if (mounted) {
+                        setState(() {
+                          _isDragging = false;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                Text(
+                  _formatDuration(Duration(milliseconds: duration.toInt())),
+                  style: TextStyle(color: _textColor, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
         ),
-        SizedBox(width: 32 * scale),
-        // Play/Pause button
-        MediaButton(
-          icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          size: 72 * scale,
-          isPrimary: true,
-          accentColor: _mediaPrimary,
-          onTap: context.read<AudioPlayerProvider>().playPause,
-        ),
-        SizedBox(width: 32 * scale),
-        // Next button
-        MediaButton(
-          icon: Icons.skip_next_rounded,
-          size: 48 * scale,
-          accentColor: _mediaSecondary,
-          inactiveBackgroundColor: Colors.white.withAlpha(10),
-          inactiveIconColor: Colors.white70,
-          onTap: context.read<AudioPlayerProvider>().next,
+        SizedBox(height: 16 * scale),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Previous button
+            MediaButton(
+              icon: Icons.skip_previous_rounded,
+              size: 48 * scale,
+              accentColor: _mediaSecondary,
+              inactiveBackgroundColor: Colors.white.withAlpha(10),
+              inactiveIconColor: Colors.white70,
+              onTap: context.read<AudioPlayerProvider>().previous,
+            ),
+            SizedBox(width: 32 * scale),
+            // Play/Pause button
+            MediaButton(
+              icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 72 * scale,
+              isPrimary: true,
+              accentColor: _mediaPrimary,
+              onTap: context.read<AudioPlayerProvider>().playPause,
+            ),
+            SizedBox(width: 32 * scale),
+            // Next button
+            MediaButton(
+              icon: Icons.skip_next_rounded,
+              size: 48 * scale,
+              accentColor: _mediaSecondary,
+              inactiveBackgroundColor: Colors.white.withAlpha(10),
+              inactiveIconColor: Colors.white70,
+              onTap: context.read<AudioPlayerProvider>().next,
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds";
+    }
+    return "$twoDigitMinutes:$twoDigitSeconds";
   }
 }

@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nothingness/services/audio_player_service.dart';
+import 'package:nothingness/services/playback_controller.dart';
+
+import 'mock_audio_transport.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,11 +22,15 @@ void main() {
       await f.writeAsString('dummy');
     }
 
-    final service = AudioPlayerService();
-    final tracks = await service.scanFolder(tempDir.path);
+    final transport = MockAudioTransport();
+    final controller = PlaybackController(transport: transport);
+    final tracks = await controller.scanFolder(tempDir.path);
 
     expect(tracks.length, 2);
     expect(tracks.any((t) => t.path.endsWith('a.mp3')), isTrue);
     expect(tracks.any((t) => t.path.endsWith('c.flac')), isTrue);
+
+    await controller.dispose();
+    await tempDir.delete(recursive: true);
   });
 }

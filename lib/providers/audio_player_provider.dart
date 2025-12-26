@@ -6,21 +6,24 @@ import 'package:flutter/foundation.dart';
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
-import '../services/audio_backend.dart';
-import '../services/just_audio_backend.dart';
-import '../services/soloud_backend.dart';
+import '../services/audio_transport.dart';
+import '../services/just_audio_transport.dart';
+import '../services/playback_controller.dart';
+import '../services/soloud_transport.dart';
 
-/// Provider wrapper for AudioBackend.
+/// Provider wrapper for PlaybackController.
 /// Exposes reactive state via ChangeNotifier for use with Provider.
 class AudioPlayerProvider extends ChangeNotifier {
-  late final AudioBackend _service;
+  late final PlaybackController _controller;
+  late final AudioTransport _transport;
 
   AudioPlayerProvider() {
     if (Platform.isMacOS) {
-      _service = SoLoudBackend();
+      _transport = SoLoudTransport();
     } else {
-      _service = JustAudioBackend();
+      _transport = JustAudioTransport();
     }
+    _controller = PlaybackController(transport: _transport);
   }
 
   // Reactive state
@@ -41,14 +44,14 @@ class AudioPlayerProvider extends ChangeNotifier {
   int? get currentIndex => _currentIndex;
   bool get shuffle => _shuffle;
   List<double> get spectrumData => _spectrumData;
-  Stream<List<double>> get spectrumStream => _service.spectrumStream;
+  Stream<List<double>> get spectrumStream => _transport.spectrumStream;
 
-  // Pass-through to service
+  // Pass-through to controller
   static Set<String> get supportedExtensions {
     if (Platform.isMacOS) {
-      return SoLoudBackend.supportedExtensions;
+      return SoLoudTransport.supportedExtensions;
     } else {
-      return JustAudioBackend.supportedExtensions;
+      return JustAudioTransport.supportedExtensions;
     }
   }
 
@@ -59,32 +62,21 @@ class AudioPlayerProvider extends ChangeNotifier {
   Future<void> init() async {
     if (_initialized) return;
 
-    await _service.init();
+    await _controller.init();
 
-    _service.songInfoNotifier.addListener(_onSongInfoChanged);
-    _service.isPlayingNotifier.addListener(_onIsPlayingChanged);
-    _service.queueNotifier.addListener(_onQueueChanged);
-    _service.currentIndexNotifier.addListener(_onCurrentIndexChanged);
-    _service.shuffleNotifier.addListener(_onShuffleChanged);
+    _controller.songInfoNotifier.addListener(_onSongInfoChanged);
+    _controller.isPlayingNotifier.addListener(_onIsPlayingChanged);
+    _controller.queueNotifier.addListener(_onQueueChanged);
+    _controller.currentIndexNotifier.addListener(_onCurrentIndexChanged);
+    _controller.shuffleNotifier.addListener(_onShuffleChanged);
 
-    // Listen to error state changes for JustAudioBackend
-    switch (_service) {
-      case JustAudioBackend():
-        _service.errorStateNotifier.addListener(() {
-          _refreshQueueWithNotFoundFlags();
-          notifyListeners();
-        });
-      default:
-        break;
-    }
+    _songInfo = _controller.songInfoNotifier.value;
+    _isPlaying = _controller.isPlayingNotifier.value;
+    _queue = _controller.queueNotifier.value;
+    _currentIndex = _controller.currentIndexNotifier.value;
+    _shuffle = _controller.shuffleNotifier.value;
 
-    _songInfo = _service.songInfoNotifier.value;
-    _isPlaying = _service.isPlayingNotifier.value;
-    _queue = _service.queueNotifier.value;
-    _currentIndex = _service.currentIndexNotifier.value;
-    _shuffle = _service.shuffleNotifier.value;
-
-    _spectrumSubscription = _service.spectrumStream.listen((data) {
+    _spectrumSubscription = _transport.spectrumStream.listen((data) {
       _spectrumData = data;
       notifyListeners();
     });
@@ -95,89 +87,66 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _service.songInfoNotifier.removeListener(_onSongInfoChanged);
-    _service.isPlayingNotifier.removeListener(_onIsPlayingChanged);
-    _service.queueNotifier.removeListener(_onQueueChanged);
-    _service.currentIndexNotifier.removeListener(_onCurrentIndexChanged);
-    _service.shuffleNotifier.removeListener(_onShuffleChanged);
+    _controller.songInfoNotifier.removeListener(_onSongInfoChanged);
+    _controller.isPlayingNotifier.removeListener(_onIsPlayingChanged);
+    _controller.queueNotifier.removeListener(_onQueueChanged);
+    _controller.currentIndexNotifier.removeListener(_onCurrentIndexChanged);
+    _controller.shuffleNotifier.removeListener(_onShuffleChanged);
     _spectrumSubscription?.cancel();
-    // Remove error state listener for JustAudioBackend
-    switch (_service) {
-      case JustAudioBackend():
-        _service.errorStateNotifier.removeListener(() {
-          _refreshQueueWithNotFoundFlags();
-          notifyListeners();
-        });
-      default:
-        break;
-    }
-    _service.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   void _onSongInfoChanged() {
-    _songInfo = _service.songInfoNotifier.value;
+    _songInfo = _controller.songInfoNotifier.value;
     notifyListeners();
   }
 
   void _onIsPlayingChanged() {
-    _isPlaying = _service.isPlayingNotifier.value;
+    _isPlaying = _controller.isPlayingNotifier.value;
     notifyListeners();
   }
 
   void _onQueueChanged() {
-    // Refresh queue with isNotFound flags
-    _refreshQueueWithNotFoundFlags();
+    _queue = _controller.queueNotifier.value;
     notifyListeners();
   }
 
   void _onCurrentIndexChanged() {
-    _currentIndex = _service.currentIndexNotifier.value;
-    // Refresh queue when index changes to ensure isNotFound flags are updated
-    // (e.g., when a track fails and we skip to next)
-    _refreshQueueWithNotFoundFlags();
+    _currentIndex = _controller.currentIndexNotifier.value;
     notifyListeners();
-  }
-
-  void _refreshQueueWithNotFoundFlags() {
-    switch (_service) {
-      case JustAudioBackend():
-        _queue = _service.getQueueWithNotFoundFlags();
-      default:
-        _queue = _service.queueNotifier.value;
-    }
   }
 
   void _onShuffleChanged() {
-    _shuffle = _service.shuffleNotifier.value;
+    _shuffle = _controller.shuffleNotifier.value;
     notifyListeners();
   }
 
-  Future<void> playPause() => _service.playPause();
-  Future<void> next() => _service.next();
-  Future<void> previous() => _service.previous();
-  Future<void> seek(Duration position) => _service.seek(position);
+  Future<void> playPause() => _controller.playPause();
+  Future<void> next() => _controller.next();
+  Future<void> previous() => _controller.previous();
+  Future<void> seek(Duration position) => _controller.seek(position);
 
   Future<void> setQueue(
     List<AudioTrack> tracks, {
     int startIndex = 0,
     bool shuffle = false,
-  }) => _service.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
+  }) => _controller.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
 
   Future<void> addTracks(List<AudioTrack> tracks, {bool play = false}) =>
-      _service.addTracks(tracks, play: play);
+      _controller.addTracks(tracks, play: play);
 
   Future<void> playFromQueueIndex(int orderIndex) =>
-      _service.playFromQueueIndex(orderIndex);
+      _controller.playFromQueueIndex(orderIndex);
 
-  Future<void> shuffleQueue() => _service.shuffleQueue();
-  Future<void> disableShuffle() => _service.disableShuffle();
+  Future<void> shuffleQueue() => _controller.shuffleQueue();
+  Future<void> disableShuffle() => _controller.disableShuffle();
 
-  void setCaptureEnabled(bool enabled) => _service.setCaptureEnabled(enabled);
+  void setCaptureEnabled(bool enabled) => _transport.setCaptureEnabled(enabled);
   void updateSpectrumSettings(SpectrumSettings settings) =>
-      _service.updateSpectrumSettings(settings);
+      _transport.updateSpectrumSettings(settings);
 
   Future<List<AudioTrack>> scanFolder(String rootPath) =>
-      _service.scanFolder(rootPath);
-  Future<int> playlistSizeBytes() => _service.playlistSizeBytes();
+      _controller.scanFolder(rootPath);
+  Future<int> playlistSizeBytes() => _controller.playlistSizeBytes();
 }

@@ -36,6 +36,7 @@ class SpectrumScreenConfig extends ScreenConfig {
   final double spectrumWidthFactor;
   final double spectrumHeightFactor;
   final double mediaControlScale;
+  final double mediaSliderWidthFactor;
   final SpectrumColorScheme mediaControlColorScheme;
   final SpectrumColorScheme textColorScheme;
 
@@ -45,6 +46,7 @@ class SpectrumScreenConfig extends ScreenConfig {
     this.spectrumWidthFactor = 1.0,
     this.spectrumHeightFactor = 0.5,
     this.mediaControlScale = 0.6,
+    this.mediaSliderWidthFactor = 1.0,
     this.mediaControlColorScheme = SpectrumColorScheme.cyan,
     this.textColorScheme = SpectrumColorScheme.cyan,
   }) : super(type: ScreenType.spectrum, name: 'Spectrum');
@@ -58,6 +60,7 @@ class SpectrumScreenConfig extends ScreenConfig {
     'spectrumWidthFactor': spectrumWidthFactor,
     'spectrumHeightFactor': spectrumHeightFactor,
     'mediaControlScale': mediaControlScale,
+    'mediaSliderWidthFactor': mediaSliderWidthFactor,
     'mediaControlColorScheme': mediaControlColorScheme.name,
     'textColorScheme': textColorScheme.name,
   };
@@ -71,6 +74,8 @@ class SpectrumScreenConfig extends ScreenConfig {
       spectrumHeightFactor:
           (json['spectrumHeightFactor'] as num?)?.toDouble() ?? 1.0,
       mediaControlScale: (json['mediaControlScale'] as num?)?.toDouble() ?? 1.0,
+      mediaSliderWidthFactor:
+          (json['mediaSliderWidthFactor'] as num?)?.toDouble() ?? 1.0,
       mediaControlColorScheme: SpectrumColorScheme.values.firstWhere(
         (c) => c.name == (json['mediaControlColorScheme'] as String?),
         orElse: () => SpectrumColorScheme.classic,
@@ -88,6 +93,7 @@ class SpectrumScreenConfig extends ScreenConfig {
     double? spectrumWidthFactor,
     double? spectrumHeightFactor,
     double? mediaControlScale,
+    double? mediaSliderWidthFactor,
     SpectrumColorScheme? mediaControlColorScheme,
     SpectrumColorScheme? textColorScheme,
   }) {
@@ -97,6 +103,8 @@ class SpectrumScreenConfig extends ScreenConfig {
       spectrumWidthFactor: spectrumWidthFactor ?? this.spectrumWidthFactor,
       spectrumHeightFactor: spectrumHeightFactor ?? this.spectrumHeightFactor,
       mediaControlScale: mediaControlScale ?? this.mediaControlScale,
+      mediaSliderWidthFactor:
+          mediaSliderWidthFactor ?? this.mediaSliderWidthFactor,
       mediaControlColorScheme:
           mediaControlColorScheme ?? this.mediaControlColorScheme,
       textColorScheme: textColorScheme ?? this.textColorScheme,
