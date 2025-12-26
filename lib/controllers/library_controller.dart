@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:external_path/external_path.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -10,7 +11,10 @@ import '../services/library_browser.dart';
 import '../services/library_service.dart';
 
 // Static function for isolate execution
-Future<List<LibrarySong>> _loadAndroidSongsInIsolate(void _) async {
+Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
+  RootIsolateToken rootToken,
+) async {
+  BackgroundIsolateBinaryMessenger.ensureInitialized(rootToken);
   final audioQuery = OnAudioQuery();
   final songs = await audioQuery.querySongs(
     sortType: null,
@@ -276,7 +280,8 @@ class LibraryController extends ChangeNotifier {
 
     try {
       // Run in isolate to avoid blocking UI thread
-      _androidSongs = await compute(_loadAndroidSongsInIsolate, null);
+      final token = RootIsolateToken.instance!;
+      _androidSongs = await compute(_loadAndroidSongsInIsolate, token);
 
       // Update scan timestamp after successful load
       if (_androidSongs.isNotEmpty) {
@@ -354,8 +359,57 @@ class LibraryController extends ChangeNotifier {
 
   Future<List<String>> _defaultAndroidRootsLoader() async {
     try {
-      final paths = await ExternalPath.getExternalStorageDirectories();
-      return paths ?? <String>[];
+      final Set<String> roots = <String>{};
+
+      // 1) App/API-reported external storage dirs (often primary)
+      try {
+        final paths = await ExternalPath.getExternalStorageDirectories();
+        if (paths != null) {
+          roots.addAll(paths.where((p) => p.isNotEmpty));
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      // 2) Heuristic: enumerate /storage mount points including USB volumes
+      try {
+        final storageDir = Directory('/storage');
+        if (await storageDir.exists()) {
+          final entries = storageDir.listSync(followLinks: false);
+          for (final entity in entries) {
+            if (entity is Directory) {
+              final name = entity.uri.pathSegments.isNotEmpty
+                  ? entity.uri.pathSegments.last
+                  : entity.path.split('/').last;
+              // Handle emulated -> emulated/0
+              if (name == 'emulated') {
+                final emu0 = Directory('/storage/emulated/0');
+                if (emu0.existsSync()) {
+                  roots.add(emu0.path);
+                }
+                continue;
+              }
+              // Include other mount points (e.g., XXXX-XXXX, sdcard1)
+              roots.add(entity.path);
+            }
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      // 3) Fallback to common primary path if nothing found
+      if (roots.isEmpty) {
+        final fallback = Directory('/storage/emulated/0');
+        if (fallback.existsSync()) {
+          roots.add(fallback.path);
+        }
+      }
+
+      // Return deterministic order for UI
+      final list = roots.toList();
+      list.sort();
+      return list;
     } catch (_) {
       return [];
     }

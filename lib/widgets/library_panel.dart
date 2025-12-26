@@ -79,10 +79,10 @@ class _LibraryPanelState extends State<LibraryPanel> {
                             children: [
                               const Icon(
                                 Icons.lock_outline,
-                                size: 48,
+                                size: 40,
                                 color: Colors.white54,
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 12),
                               const Text(
                                 'Permissions Required',
                                 style: TextStyle(
@@ -91,7 +91,7 @@ class _LibraryPanelState extends State<LibraryPanel> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               const Text(
                                 'To browse your music library and visualize audio, Nothingness needs access to:\n\n'
                                 '• Storage: To read audio files\n'
@@ -102,7 +102,7 @@ class _LibraryPanelState extends State<LibraryPanel> {
                                   height: 1.5,
                                 ),
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 16),
                               ElevatedButton.icon(
                                 onPressed: controller.requestPermission,
                                 icon: const Icon(Icons.check),

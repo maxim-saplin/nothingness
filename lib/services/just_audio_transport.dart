@@ -32,7 +32,7 @@ class JustAudioTransport implements AudioTransport {
   StreamSubscription<int?>? _sessionIdSub;
   StreamSubscription<List<double>>? _spectrumSub;
   String? _currentPath;
-  
+
   final PlatformChannels _platformChannels = PlatformChannels();
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
@@ -67,11 +67,10 @@ class JustAudioTransport implements AudioTransport {
 
     // Listen to errors
     _errorSub = _player.errorStream.listen((PlayerException e) {
-      debugPrint('[JustAudioTransport] Error: code=${e.code}, message=${e.message}');
-      _eventController.add(TransportErrorEvent(
-        path: _currentPath,
-        error: e,
-      ));
+      debugPrint(
+        '[JustAudioTransport] Error: code=${e.code}, message=${e.message}',
+      );
+      _eventController.add(TransportErrorEvent(path: _currentPath, error: e));
     });
 
     // Emit position updates periodically
@@ -160,20 +159,17 @@ class JustAudioTransport implements AudioTransport {
         artist: artist ?? 'Unknown Artist',
       );
 
-      // Use AudioSource.file for local files
-      final source = AudioSource.file(
-        path,
-        tag: tag,
-      );
+      // Choose source based on URI scheme
+      final bool isContentUri = path.startsWith('content://');
+      final AudioSource source = isContentUri
+          ? AudioSource.uri(Uri.parse(path), tag: tag)
+          : AudioSource.file(path, tag: tag);
 
       await _player.setAudioSource(source);
       _eventController.add(TransportLoadedEvent(path: path));
     } catch (e) {
       debugPrint('[JustAudioTransport] Error loading $path: $e');
-      _eventController.add(TransportErrorEvent(
-        path: path,
-        error: e,
-      ));
+      _eventController.add(TransportErrorEvent(path: path, error: e));
       rethrow;
     }
   }
@@ -193,4 +189,3 @@ class JustAudioTransport implements AudioTransport {
     await _player.seek(position);
   }
 }
-
