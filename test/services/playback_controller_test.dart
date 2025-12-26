@@ -597,6 +597,61 @@ void main() {
       expect(controller.isPlayingNotifier.value, true);
       expect(transport.loadCalls, contains('/path/track_2.mp3'));
     });
+
+    test('repro: late error event with current path does not skip valid track', () async {
+      // Setup: Tracks 1, 2, 3, 4, 5
+      // Track 3 is missing/fails to load
+      final tracks = createTracks(5, startAt: 1);
+      transport.pathsToFailOnLoad.add('/path/track_3.mp3');
+      
+      await controller.setQueue(tracks);
+      
+      // Start playing Track 2
+      await controller.playFromQueueIndex(1);
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+      expect(controller.currentIndexNotifier.value, 1, reason: 'Should be on Track 2');
+      expect(controller.isPlayingNotifier.value, true, reason: 'Track 2 should be playing');
+
+      // Simulate Track 2 ending naturally
+      // This triggers: Load Track 3 -> Fail -> Skip -> Load Track 4
+      transport.emitTrackEnded();
+      
+      // Allow async operations to complete (load failure, skip, load success)
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Verify we are now on Track 4
+      expect(controller.currentIndexNotifier.value, 3, reason: 'Should have skipped Track 3 and be on Track 4');
+      expect(controller.isPlayingNotifier.value, true, reason: 'Track 4 should be playing');
+      expect(transport.loadedPath, '/path/track_4.mp3', reason: 'Transport should have loaded Track 4');
+      
+      // Verify Track 3 is marked as failed
+      expect(controller.queueNotifier.value[2].isNotFound, true, reason: 'Track 3 should be marked as not found');
+      
+      // Verify Track 4 is NOT marked as failed
+      expect(controller.queueNotifier.value[3].isNotFound, false, reason: 'Track 4 should be valid');
+
+      // SIMULATE THE BUG CONDITION:
+      // Transport emits an error event, but it arrives late and is attributed to the CURRENT path (Track 4)
+      // This happens in some transports where the error callback doesn't carry the original path
+      // or simply fires after the internal state has updated.
+      transport.emitError('/path/track_4.mp3', Exception('Late error from previous track'));
+      
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // ASSERTIONS:
+      // 1. We should STILL be on Track 4
+      expect(controller.currentIndexNotifier.value, 3, reason: 'Should still be on Track 4 after spurious error');
+      
+      // 2. Track 4 should STILL be playing
+      expect(controller.isPlayingNotifier.value, true, reason: 'Track 4 should still be playing');
+      
+      // 3. Track 4 should NOT be marked as failed
+      expect(controller.queueNotifier.value[3].isNotFound, false, reason: 'Track 4 should NOT be marked as failed');
+      
+      // 4. We should NOT have skipped to Track 5
+      expect(transport.loadCalls, isNot(contains('/path/track_5.mp3')), reason: 'Should not have attempted to load Track 5');
+    });
   });
 
   // ===========================================================================
