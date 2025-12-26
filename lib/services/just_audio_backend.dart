@@ -382,25 +382,31 @@ class JustAudioBackend implements AudioBackend {
     );
   }
 
+  Timer? _spectrumDebounceTimer;
+
   Future<void> _startSpectrum({int? sessionId}) async {
     if (!_captureEnabled) return;
-    await _stopSpectrum();
+    
+    _spectrumDebounceTimer?.cancel();
+    _spectrumDebounceTimer = Timer(const Duration(milliseconds: 200), () async {
+      await _stopSpectrum();
 
-    // Choose source based on settings: player (via session id) or microphone (null).
-    final bool useMic = _settings.audioSource == AudioSourceMode.microphone;
-    final int? resolvedSessionId = useMic
-        ? null
-        : (sessionId ?? _player.androidAudioSessionId);
+      // Choose source based on settings: player (via session id) or microphone (null).
+      final bool useMic = _settings.audioSource == AudioSourceMode.microphone;
+      final int? resolvedSessionId = useMic
+          ? null
+          : (sessionId ?? _player.androidAudioSessionId);
 
-    // If we want player output but don't have a session yet, wait for the
-    // sessionId stream listener to fire instead of falling back to mic.
-    if (!useMic && resolvedSessionId == null) {
-      return;
-    }
+      // If we want player output but don't have a session yet, wait for the
+      // sessionId stream listener to fire instead of falling back to mic.
+      if (!useMic && resolvedSessionId == null) {
+        return;
+      }
 
-    _spectrumSub = _platformChannels
-        .spectrumStream(sessionId: resolvedSessionId)
-        .listen(_spectrumController.add);
+      _spectrumSub = _platformChannels
+          .spectrumStream(sessionId: resolvedSessionId)
+          .listen(_spectrumController.add);
+    });
   }
 
   Future<void> _stopSpectrum() async {

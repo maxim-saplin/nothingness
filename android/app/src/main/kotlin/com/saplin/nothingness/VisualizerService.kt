@@ -1,7 +1,10 @@
 package com.saplin.nothingness
 
 import android.media.audiofx.Visualizer
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.log10
 
 class VisualizerService {
@@ -21,6 +24,9 @@ class VisualizerService {
 
     private var visualizer: Visualizer? = null
     private var spectrumCallback: ((List<Double>) -> Unit)? = null
+    private var processingHandler: Handler? = null
+    private var processingThread: HandlerThread? = null
+    private val isProcessing = AtomicBoolean(false)
     
     @Volatile private var noiseGateDb: Double = DEFAULT_NOISE_GATE_DB
     @Volatile private var numBars: Int = DEFAULT_NUM_BARS
@@ -37,8 +43,12 @@ class VisualizerService {
     fun startCapture(sessionId: Int, callback: (List<Double>) -> Unit): Boolean {
         stopCapture()
         spectrumCallback = callback
+        isProcessing.set(false)
         
         try {
+            processingThread = HandlerThread("VisualizerProcessing").apply { start() }
+            processingHandler = Handler(processingThread!!.looper)
+
             visualizer = Visualizer(sessionId)
             visualizer?.captureSize = Visualizer.getCaptureSizeRange()[1] // Max size
             
@@ -47,8 +57,14 @@ class VisualizerService {
                 }
 
                 override fun onFftDataCapture(visualizer: Visualizer?, fft: ByteArray?, samplingRate: Int) {
-                    if (fft != null) {
-                        processFft(fft, samplingRate)
+                    if (fft != null && !isProcessing.getAndSet(true)) {
+                        processingHandler?.post {
+                            try {
+                                processFft(fft, samplingRate)
+                            } finally {
+                                isProcessing.set(false)
+                            }
+                        }
                     }
                 }
             }, Visualizer.getMaxCaptureRate(), false, true)
@@ -58,6 +74,7 @@ class VisualizerService {
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Error starting visualizer: $e")
+            stopCapture()
             return false
         }
     }
@@ -71,11 +88,19 @@ class VisualizerService {
         visualizer?.release()
         visualizer = null
         spectrumCallback = null
+        
+        processingThread?.quitSafely()
+        processingThread = null
+        processingHandler = null
     }
+
+    private var magnitudes = DoubleArray(0)
 
     private fun processFft(fft: ByteArray, samplingRate: Int) {
         val n = fft.size
-        val magnitudes = DoubleArray(n / 2)
+        if (magnitudes.size != n / 2) {
+            magnitudes = DoubleArray(n / 2)
+        }
         
         // Calculate magnitudes
         // byte[0] is real part of 0Hz
@@ -94,18 +119,10 @@ class VisualizerService {
     
     private fun calculateBars(magnitudes: DoubleArray, samplingRate: Int) {
         val fftSize = magnitudes.size * 2
-        val nyquist = samplingRate / 2000 // samplingRate is in mHz? No, usually Hz. Visualizer doc says mHz.
-        // Wait, samplingRate in onFftDataCapture is in mHz (milliHertz)?
-        // Docs say: "samplingRate - the sampling rate of the visualized audio stream"
-        // Usually it's 44100000 for 44.1kHz?
-        // Let's assume standard Hz for calculation or check docs.
-        // Visualizer.getMaxCaptureRate() returns mHz.
-        // But samplingRate passed to callback?
-        // Let's assume it's consistent.
-        
-        // Actually, let's just assume 44100 Hz if we can't be sure, or use the value.
-        // If it's mHz, we divide by 1000.
-        val rateHz = if (samplingRate > 1000000) samplingRate / 1000 else samplingRate
+        // Visualizer.getMaxCaptureRate() returns mHz (milliHertz).
+        // The samplingRate passed to onFftDataCapture is also in mHz.
+        // We need Hz for calculations.
+        val rateHz = samplingRate / 1000.0
         
         val binWidth = (rateHz / 2.0) / (fftSize / 2)
         
