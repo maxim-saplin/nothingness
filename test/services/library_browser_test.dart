@@ -5,7 +5,7 @@ import 'package:nothingness/services/library_browser.dart';
 
 void main() {
   group('LibraryBrowser', () {
-    test('buildVirtualListing groups songs into folders and files', () {
+    test('buildVirtualListing groups songs into folders and files', () async {
       final browser = LibraryBrowser(supportedExtensions: {'mp3', 'flac'});
       final songs = [
         const LibrarySong(path: '/storage/emulated/0/Music/song0.mp3', title: 'Root Song'),
@@ -15,7 +15,7 @@ void main() {
         const LibrarySong(path: '/storage/emulated/0/Music/Other/skip.txt', title: 'Skip'),
       ];
 
-      final listing = browser.buildVirtualListing(
+      final listing = await browser.buildVirtualListing(
         basePath: '/storage/emulated/0/Music',
         songs: songs,
       );

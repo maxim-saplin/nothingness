@@ -9,6 +9,8 @@ import 'package:path/path.dart' as p;
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
+import '../models/supported_extensions.dart';
+import 'metadata_extractor.dart';
 import 'playlist_store.dart';
 import 'soloud_spectrum_provider.dart';
 import 'spectrum_provider.dart';
@@ -19,15 +21,8 @@ class AudioPlayerService {
   static final AudioPlayerService _instance = AudioPlayerService._internal();
   factory AudioPlayerService() => _instance;
 
-  static const Set<String> supportedExtensions = {
-    'mp3',
-    'm4a',
-    'aac',
-    'wav',
-    'flac',
-    'ogg',
-    'opus',
-  };
+  static const Set<String> supportedExtensions =
+      SupportedExtensions.supportedExtensions;
 
   late final SoLoud _soloud = SoLoud.instance;
   final PlaylistStore _playlist = PlaylistStore();
@@ -186,9 +181,7 @@ class AudioPlayerService {
   }
 
   Future<void> shuffleQueue() async {
-    await _playlist.reshuffle(
-      keepBaseIndex: _playlist.currentBaseIndex ?? 0,
-    );
+    await _playlist.reshuffle(keepBaseIndex: _playlist.currentBaseIndex ?? 0);
     final idx = currentIndexNotifier.value ?? 0;
     await _playOrderIndex(idx);
   }
@@ -392,9 +385,7 @@ class AudioPlayerService {
     }
 
     songInfoNotifier.value = SongInfo(
-      title: track.title,
-      artist: track.artist,
-      album: '',
+      track: track,
       isPlaying: isPlaying,
       position: position.inMilliseconds,
       duration: duration.inMilliseconds,
@@ -406,18 +397,23 @@ class AudioPlayerService {
     final directory = Directory(rootPath);
     if (!await directory.exists()) return tracks;
 
-    await for (final entity
-        in directory.list(recursive: true, followLinks: false)) {
+    final extractor = createMetadataExtractor();
+
+    await for (final entity in directory.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) continue;
       final ext = p.extension(entity.path).replaceAll('.', '').toLowerCase();
       if (!supportedExtensions.contains(ext)) continue;
-      final title = p.basenameWithoutExtension(entity.path);
-      tracks.add(
-        AudioTrack(
-          path: entity.path,
-          title: title,
-        ),
-      );
+      try {
+        final track = await extractor.extractMetadata(entity.path);
+        tracks.add(track);
+      } catch (e) {
+        // Fallback to filename if extraction fails
+        final title = p.basenameWithoutExtension(entity.path);
+        tracks.add(AudioTrack(path: entity.path, title: title));
+      }
     }
 
     tracks.sort((a, b) => a.title.compareTo(b.title));

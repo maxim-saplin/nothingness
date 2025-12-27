@@ -10,21 +10,16 @@ import 'package:path/path.dart' as p;
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
+import '../models/supported_extensions.dart';
 import 'audio_backend.dart';
+import 'metadata_extractor.dart';
 import 'platform_channels.dart';
 import 'playlist_store.dart';
 
 /// Android backend using just_audio + just_audio_background.
 class JustAudioBackend implements AudioBackend {
-  static const Set<String> supportedExtensions = {
-    'mp3',
-    'm4a',
-    'aac',
-    'wav',
-    'flac',
-    'ogg',
-    'opus',
-  };
+  static const Set<String> supportedExtensions =
+      SupportedExtensions.supportedExtensions;
 
   // Use maxSkipsOnError to automatically skip tracks that fail to load
   // This handles FileNotFoundException and other source errors natively
@@ -76,7 +71,9 @@ class JustAudioBackend implements AudioBackend {
       // If user explicitly requested pause but player resumed (e.g., after error auto-skip),
       // immediately re-pause to honor user intent
       if (_userRequestedPause && state.playing) {
-        debugPrint('[JustAudioBackend] Enforcing user pause intent after auto-skip');
+        debugPrint(
+          '[JustAudioBackend] Enforcing user pause intent after auto-skip',
+        );
         _player.pause();
         return;
       }
@@ -87,27 +84,29 @@ class JustAudioBackend implements AudioBackend {
     // Listen to errorStream for proper error detection (just_audio 0.10.x API)
     // This is the canonical way to detect playback errors like FileNotFoundException
     _errorSub = _player.errorStream.listen((PlayerException e) {
-      debugPrint('[JustAudioBackend] Playback error: code=${e.code}, message=${e.message}, index=${e.index}');
+      debugPrint(
+        '[JustAudioBackend] Playback error: code=${e.code}, message=${e.message}, index=${e.index}',
+      );
       final errorIndex = e.index;
-      if (errorIndex != null && 
-          errorIndex >= 0 && 
+      if (errorIndex != null &&
+          errorIndex >= 0 &&
           errorIndex < queueNotifier.value.length) {
         final failedTrack = queueNotifier.value[errorIndex];
         _markTrackAsNotFound(failedTrack.path);
       }
     });
-    
+
     _player.positionStream.listen((_) => _emitSongInfo());
     _player.currentIndexStream.listen((index) {
       if (index != null) {
         // Sync back to PlaylistStore silently if needed
         if (index != _playlist.orderIndexOfCurrent()) {
-           _playlist.setCurrentOrderIndex(index);
+          _playlist.setCurrentOrderIndex(index);
         }
       }
       _emitSongInfo();
     });
-    
+
     _player.sequenceStateStream.listen((sequenceState) {
       _emitSongInfo();
     });
@@ -120,8 +119,12 @@ class JustAudioBackend implements AudioBackend {
 
     // Restore queue into player if playlist was persisted from previous session.
     if (queueNotifier.value.isNotEmpty) {
-      debugPrint('[JustAudioBackend] init: restoring ${queueNotifier.value.length} tracks from persistence');
-      await _updatePlayerQueue(startIndex: _playlist.orderIndexOfCurrent() ?? 0);
+      debugPrint(
+        '[JustAudioBackend] init: restoring ${queueNotifier.value.length} tracks from persistence',
+      );
+      await _updatePlayerQueue(
+        startIndex: _playlist.orderIndexOfCurrent() ?? 0,
+      );
     }
 
     // Initialize spectrum if enabled
@@ -163,18 +166,24 @@ class JustAudioBackend implements AudioBackend {
       startBaseIndex: startIndex,
       enableShuffle: shuffle,
     );
-    await _updatePlayerQueue(startIndex: 0); // PlaylistStore handles shuffle order, so we start at 0 of the ordered list?
+    await _updatePlayerQueue(
+      startIndex: 0,
+    ); // PlaylistStore handles shuffle order, so we start at 0 of the ordered list?
     // Wait, setQueue in PlaylistStore sets currentOrderIndex to 0 (if shuffled) or startIndex (if not).
     // So we should seek to currentOrderIndex.
     final initialIndex = _playlist.orderIndexOfCurrent() ?? 0;
-    debugPrint('[JustAudioBackend] setQueue: sequence.length=${_player.sequence.length}, initialIndex=$initialIndex');
+    debugPrint(
+      '[JustAudioBackend] setQueue: sequence.length=${_player.sequence.length}, initialIndex=$initialIndex',
+    );
     if (_player.sequence.isNotEmpty && _player.sequence.length > initialIndex) {
       _userRequestedPause = false; // User is starting playback
       await _player.seek(Duration.zero, index: initialIndex);
       await _player.play();
       debugPrint('[JustAudioBackend] setQueue: started playback');
     } else {
-      debugPrint('[JustAudioBackend] setQueue: sequence empty or invalid index');
+      debugPrint(
+        '[JustAudioBackend] setQueue: sequence empty or invalid index',
+      );
     }
   }
 
@@ -308,27 +317,37 @@ class JustAudioBackend implements AudioBackend {
     final directory = Directory(rootPath);
     if (!await directory.exists()) return tracks;
 
-    await for (final entity
-        in directory.list(recursive: true, followLinks: false)) {
+    final extractor = createMetadataExtractor();
+
+    await for (final entity in directory.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) continue;
       final ext = p.extension(entity.path).replaceAll('.', '').toLowerCase();
       if (!supportedExtensions.contains(ext)) continue;
-      final title = p.basenameWithoutExtension(entity.path);
-      tracks.add(
-        AudioTrack(
-          path: entity.path,
-          title: title,
-        ),
-      );
+      try {
+        final track = await extractor.extractMetadata(entity.path);
+        tracks.add(track);
+      } catch (e) {
+        // Fallback to filename if extraction fails
+        final title = p.basenameWithoutExtension(entity.path);
+        tracks.add(AudioTrack(path: entity.path, title: title));
+      }
     }
 
     tracks.sort((a, b) => a.title.compareTo(b.title));
     return tracks;
   }
 
-  Future<void> _updatePlayerQueue({int? startIndex, bool keepCurrent = false}) async {
+  Future<void> _updatePlayerQueue({
+    int? startIndex,
+    bool keepCurrent = false,
+  }) async {
     final tracks = queueNotifier.value;
-    debugPrint('[JustAudioBackend] _updatePlayerQueue: ${tracks.length} tracks, startIndex=$startIndex, keepCurrent=$keepCurrent');
+    debugPrint(
+      '[JustAudioBackend] _updatePlayerQueue: ${tracks.length} tracks, startIndex=$startIndex, keepCurrent=$keepCurrent',
+    );
     final sources = tracks.map((track) {
       return AudioSource.file(
         track.path,
@@ -345,16 +364,27 @@ class JustAudioBackend implements AudioBackend {
       if (keepCurrent) {
         final currentIndex = _playlist.orderIndexOfCurrent();
         final currentPos = _player.position;
-        await _player.setAudioSources(sources, initialIndex: currentIndex, initialPosition: currentPos);
-        debugPrint('[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources (keepCurrent)');
+        await _player.setAudioSources(
+          sources,
+          initialIndex: currentIndex,
+          initialPosition: currentPos,
+        );
+        debugPrint(
+          '[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources (keepCurrent)',
+        );
       } else {
         await _player.setAudioSources(sources, initialIndex: startIndex);
-        debugPrint('[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources at index $startIndex');
+        debugPrint(
+          '[JustAudioBackend] _updatePlayerQueue: set ${sources.length} sources at index $startIndex',
+        );
       }
     } on PlayerException catch (e) {
       // Handle source loading errors with precise index from exception
-      debugPrint('[JustAudioBackend] PlayerException setting sources: code=${e.code}, message=${e.message}, index=${e.index}');
-      final errorIndex = e.index ?? startIndex ?? _playlist.orderIndexOfCurrent() ?? 0;
+      debugPrint(
+        '[JustAudioBackend] PlayerException setting sources: code=${e.code}, message=${e.message}, index=${e.index}',
+      );
+      final errorIndex =
+          e.index ?? startIndex ?? _playlist.orderIndexOfCurrent() ?? 0;
       if (errorIndex >= 0 && errorIndex < tracks.length) {
         final failedTrack = tracks[errorIndex];
         _markTrackAsNotFound(failedTrack.path);
@@ -370,12 +400,10 @@ class JustAudioBackend implements AudioBackend {
       songInfoNotifier.value = null;
       return;
     }
-    
+
     final track = queueNotifier.value[index];
     songInfoNotifier.value = SongInfo(
-      title: track.title,
-      artist: track.artist,
-      album: '',
+      track: track,
       isPlaying: _player.playing,
       position: _player.position.inMilliseconds,
       duration: _player.duration?.inMilliseconds ?? 0,
@@ -386,7 +414,7 @@ class JustAudioBackend implements AudioBackend {
 
   Future<void> _startSpectrum({int? sessionId}) async {
     if (!_captureEnabled) return;
-    
+
     _spectrumDebounceTimer?.cancel();
     _spectrumDebounceTimer = Timer(const Duration(milliseconds: 200), () async {
       await _stopSpectrum();

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/audio_track.dart';
+import 'metadata_extractor.dart';
 
 /// Lightweight representation of a media item path and title.
 class LibrarySong {
@@ -40,14 +41,16 @@ class LibraryBrowser {
   final Set<String> supportedExtensions;
 
   /// Builds a virtual folder listing from a flat list of songs (MediaStore).
-  LibraryListing buildVirtualListing({
+  Future<LibraryListing> buildVirtualListing({
     required String basePath,
     required List<LibrarySong> songs,
-  }) {
+  }) async {
     final normalizedBase = _normalizePath(basePath);
     final folderPaths = <String>{};
     final folders = <LibraryFolder>[];
     final tracks = <AudioTrack>[];
+
+    final extractor = createMetadataExtractor();
 
     for (final song in songs) {
       if (!song.path.startsWith(normalizedBase)) continue;
@@ -62,7 +65,18 @@ class LibraryBrowser {
       if (parts.length == 1) {
         // Direct child file
         if (_isSupported(song.path)) {
-          tracks.add(AudioTrack(path: song.path, title: song.title));
+          try {
+            // Extract metadata to get artist, but prefer title from LibrarySong
+            final extracted = await extractor.extractMetadata(song.path);
+            tracks.add(AudioTrack(
+              path: song.path,
+              title: song.title.isNotEmpty ? song.title : extracted.title,
+              artist: extracted.artist,
+            ));
+          } catch (e) {
+            // Fallback to song title if extraction fails
+            tracks.add(AudioTrack(path: song.path, title: song.title));
+          }
         }
       } else {
         // Child folder
@@ -91,6 +105,8 @@ class LibraryBrowser {
     final folders = <LibraryFolder>[];
     final tracks = <AudioTrack>[];
 
+    final extractor = createMetadataExtractor();
+
     await for (final entity in directory.list()) {
       if (entity is Directory) {
         if (!p.basename(entity.path).startsWith('.')) {
@@ -100,12 +116,18 @@ class LibraryBrowser {
         }
       } else if (entity is File) {
         if (_isSupported(entity.path)) {
-          tracks.add(
-            AudioTrack(
-              path: entity.path,
-              title: p.basenameWithoutExtension(entity.path),
-            ),
-          );
+          try {
+            final track = await extractor.extractMetadata(entity.path);
+            tracks.add(track);
+          } catch (e) {
+            // Fallback to filename if extraction fails
+            tracks.add(
+              AudioTrack(
+                path: entity.path,
+                title: p.basenameWithoutExtension(entity.path),
+              ),
+            );
+          }
         }
       }
     }

@@ -6,7 +6,7 @@ class AudioTrack {
   const AudioTrack({
     required this.path,
     required this.title,
-    this.artist = 'Local File',
+    this.artist = '',
     this.duration,
     this.isNotFound = false,
   });

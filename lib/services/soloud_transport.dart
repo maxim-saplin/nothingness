@@ -7,6 +7,7 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/spectrum_settings.dart';
+import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
 import 'soloud_spectrum_provider.dart';
 import 'spectrum_provider.dart';
@@ -14,15 +15,7 @@ import 'spectrum_provider.dart';
 /// Thin wrapper around SoLoud.
 /// Implements AudioTransport interface - no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
-  static const Set<String> supportedExtensions = {
-    'mp3',
-    'm4a',
-    'aac',
-    'wav',
-    'flac',
-    'ogg',
-    'opus',
-  };
+  static const Set<String> supportedExtensions = SupportedExtensions.supportedExtensions;
   late final SoLoud _soloud = SoLoud.instance;
   final StreamController<TransportEvent> _eventController =
       StreamController<TransportEvent>.broadcast();

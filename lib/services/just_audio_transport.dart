@@ -6,21 +6,15 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import '../models/spectrum_settings.dart';
+import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
 import 'platform_channels.dart';
 
 /// Thin wrapper around just_audio AudioPlayer.
 /// Implements AudioTransport interface - no queue management, no skip logic.
 class JustAudioTransport implements AudioTransport {
-  static const Set<String> supportedExtensions = {
-    'mp3',
-    'm4a',
-    'aac',
-    'wav',
-    'flac',
-    'ogg',
-    'opus',
-  };
+  static const Set<String> supportedExtensions =
+      SupportedExtensions.supportedExtensions;
   // Remove maxSkipsOnError - handle skipping in PlaybackController
   final AudioPlayer _player = AudioPlayer(maxSkipsOnError: 0);
   final StreamController<TransportEvent> _eventController =

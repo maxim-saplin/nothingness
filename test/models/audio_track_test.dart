@@ -34,6 +34,14 @@ void main() {
       expect(track.isNotFound, false);
     });
 
+    test('artist defaults to empty string', () {
+      const track = AudioTrack(
+        path: '/path/to/song.mp3',
+        title: 'Song',
+      );
+      expect(track.artist, '');
+    });
+
     test('Hive adapter handles serialization', () async {
       // Initialize Hive in a temp directory
       final tempDir = await Directory.systemTemp.createTemp('hive_test');

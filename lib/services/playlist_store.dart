@@ -266,7 +266,7 @@ class PlaylistStore {
         return AudioTrack(
           path: path,
           title: entry['title'] as String? ?? '',
-          artist: entry['artist'] as String? ?? 'Local File',
+          artist: entry['artist'] as String? ?? '',
           duration:
               durationMs != null ? Duration(milliseconds: durationMs) : null,
         );

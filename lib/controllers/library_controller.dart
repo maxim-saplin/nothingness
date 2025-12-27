@@ -11,6 +11,7 @@ import '../models/log_entry.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/logging_service.dart';
+import '../services/metadata_extractor.dart';
 
 // Static function for isolate execution
 Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
@@ -190,7 +191,7 @@ class LibraryController extends ChangeNotifier {
     try {
       if (Platform.isAndroid) {
         await _ensureAndroidSongsLoaded();
-        var listing = libraryBrowser.buildVirtualListing(
+        var listing = await libraryBrowser.buildVirtualListing(
           basePath: path,
           songs: _androidSongs,
         );
@@ -270,10 +271,17 @@ class LibraryController extends ChangeNotifier {
         return listCopy;
       }
 
-      final filtered = _androidSongs
-          .where((song) => song.path.startsWith(currentPath!))
-          .map((song) => AudioTrack(path: song.path, title: song.title))
-          .toList();
+      final extractor = createMetadataExtractor();
+      final filtered = <AudioTrack>[];
+      for (final song in _androidSongs.where((song) => song.path.startsWith(currentPath!))) {
+        try {
+          final track = await extractor.extractMetadata(song.path);
+          filtered.add(track);
+        } catch (e) {
+          // Fallback to song title if extraction fails
+          filtered.add(AudioTrack(path: song.path, title: song.title));
+        }
+      }
       filtered.sort((a, b) => a.title.compareTo(b.title));
       return filtered;
     }

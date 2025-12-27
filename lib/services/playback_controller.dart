@@ -8,6 +8,7 @@ import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import 'audio_transport.dart';
 import 'just_audio_transport.dart';
+import 'metadata_extractor.dart';
 import 'playlist_store.dart';
 import 'soloud_transport.dart';
 
@@ -618,9 +619,7 @@ class PlaybackController {
     // Avoid duplicate skipping here to prevent race conditions during source transitions.
 
     songInfoNotifier.value = SongInfo(
-      title: track.title,
-      artist: track.artist,
-      album: '',
+      track: track,
       isPlaying: isPlaying,
       position: position.inMilliseconds,
       duration: duration.inMilliseconds,
@@ -636,6 +635,8 @@ class PlaybackController {
     final directory = Directory(rootPath);
     if (!await directory.exists()) return tracks;
 
+    final extractor = createMetadataExtractor();
+
     await for (final entity in directory.list(
       recursive: true,
       followLinks: false,
@@ -643,8 +644,14 @@ class PlaybackController {
       if (entity is! File) continue;
       final ext = p.extension(entity.path).replaceAll('.', '').toLowerCase();
       if (!_supportedExtensions.contains(ext)) continue;
-      final title = p.basenameWithoutExtension(entity.path);
-      tracks.add(AudioTrack(path: entity.path, title: title));
+      try {
+        final track = await extractor.extractMetadata(entity.path);
+        tracks.add(track);
+      } catch (e) {
+        // Fallback to filename if extraction fails
+        final title = p.basenameWithoutExtension(entity.path);
+        tracks.add(AudioTrack(path: entity.path, title: title));
+      }
     }
 
     tracks.sort((a, b) => a.title.compareTo(b.title));
