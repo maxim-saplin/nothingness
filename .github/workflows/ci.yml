@@ -8,16 +8,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
-    name: Test and Build APK
-    uses: ./.github/workflows/build-android.yml
-    with:
-      upload-artifact: true
-    secrets:
-      STOREFILE: ${{ secrets.STOREFILE }}
-      STOREPASSWORD: ${{ secrets.STOREPASSWORD }}
-      KEYPASSWORD: ${{ secrets.KEYPASSWORD }}
-      KEYALIAS: ${{ secrets.KEYALIAS }}
+  test:
+    name: Test and Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Analyze Code
+        run: flutter analyze

@@ -44,6 +44,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   bool _debugLayout = false;
   bool _isFullScreen = false;
   bool _isLibraryOpen = false;
+  bool _isAppInBackground = false;
 
   @override
   void initState() {
@@ -85,9 +86,23 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && PlatformChannels.isAndroid) {
-      _checkPermissions();
+    if (!PlatformChannels.isAndroid) return;
+
+    if (state == AppLifecycleState.resumed) {
+      // App resumed: restore spectrum processing and refresh permissions
+      _isAppInBackground = false;
       _platformChannels.refreshSessions();
+      // _checkPermissions will call _attachSpectrumSource after checking permissions
+      _checkPermissions();
+      _syncSongInfoSource(_settings);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      // App backgrounded: stop spectrum processing to save battery
+      _isAppInBackground = true;
+      _spectrumSubscription?.cancel();
+      _songInfoTimer?.cancel();
+      final player = context.read<AudioPlayerProvider>();
+      player.setCaptureEnabled(false);
     }
   }
 
@@ -129,6 +144,11 @@ class _MediaControllerPageState extends State<MediaControllerPage>
 
   void _syncSongInfoSource(SpectrumSettings settings) {
     _songInfoTimer?.cancel();
+    // Don't start song info timer if app is in background
+    if (_isAppInBackground) {
+      return;
+    }
+
     if (settings.audioSource == AudioSourceMode.microphone &&
         PlatformChannels.isAndroid) {
       _songInfoTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
@@ -143,6 +163,11 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   void _attachSpectrumSource(SpectrumSettings settings) {
+    // Don't start spectrum processing if app is in background
+    if (_isAppInBackground) {
+      return;
+    }
+
     _spectrumSubscription?.cancel();
 
     final player = context.read<AudioPlayerProvider>();
