@@ -149,7 +149,7 @@ class AndroidMetadataExtractor implements MetadataExtractor {
       final lastExtension = title.substring(lastDotIndex).toLowerCase();
       // If it's a standard extension and there's only one extension, remove it
       if (standardExtensions.contains(lastExtension) &&
-          title.substring(0, lastDotIndex).indexOf('.') == -1) {
+          !title.substring(0, lastDotIndex).contains('.')) {
         title = title.substring(0, lastDotIndex).trim();
       } else {
         // Multiple extensions - keep them but trim whitespace
@@ -265,7 +265,7 @@ class MacOSMetadataExtractor implements MetadataExtractor {
       final lastExtension = title.substring(lastDotIndex).toLowerCase();
       // If it's a standard extension and there's only one extension, remove it
       if (standardExtensions.contains(lastExtension) &&
-          title.substring(0, lastDotIndex).indexOf('.') == -1) {
+          !title.substring(0, lastDotIndex).contains('.')) {
         title = title.substring(0, lastDotIndex).trim();
       } else {
         // Multiple extensions - keep them but trim whitespace

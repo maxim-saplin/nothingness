@@ -123,7 +123,7 @@ class PlaybackController {
           );
         } catch (e) {
           // Ignore load errors on startup - they will be handled if user tries to play
-          debugPrint('Failed to load initial track: \$e');
+          debugPrint('Failed to load initial track: $e');
         }
       }
     }
@@ -244,6 +244,20 @@ class PlaybackController {
 
   void _updateQueueWithNotFoundFlags() {
     queueNotifier.value = _getQueueWithNotFoundFlags();
+    // Update transport queue for MediaSession support (Android)
+    _updateTransportQueue();
+  }
+
+  void _updateTransportQueue() {
+    // Only update if transport is JustAudioTransport (Android)
+    final transport = _transport;
+    if (transport is JustAudioTransport) {
+      final orderedTracks = _getQueueWithNotFoundFlags();
+      // Call setQueue asynchronously to avoid blocking
+      transport.setQueue(orderedTracks).catchError((e) {
+        debugPrint('[PlaybackController] Error updating transport queue: $e');
+      });
+    }
   }
 
   Future<void> playPause() async {
