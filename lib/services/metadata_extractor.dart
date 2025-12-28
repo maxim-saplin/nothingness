@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/audio_track.dart';
 import '../models/supported_extensions.dart';
+import 'settings_service.dart';
 
 /// Abstract interface for metadata extraction strategies.
 abstract class MetadataExtractor {
@@ -16,12 +17,20 @@ abstract class MetadataExtractor {
 /// Android implementation using on_audio_query to query MediaStore.
 class AndroidMetadataExtractor implements MetadataExtractor {
   final OnAudioQuery _audioQuery;
+  final bool useFilenameOverride;
 
-  AndroidMetadataExtractor({OnAudioQuery? audioQuery})
-    : _audioQuery = audioQuery ?? OnAudioQuery();
+  AndroidMetadataExtractor({
+    OnAudioQuery? audioQuery,
+    this.useFilenameOverride = false,
+  }) : _audioQuery = audioQuery ?? OnAudioQuery();
 
   @override
   Future<AudioTrack> extractMetadata(String filePath) async {
+    // If override is enabled, skip MediaStore and use filename parsing directly
+    if (useFilenameOverride) {
+      return _parseFilenameMetadata(filePath);
+    }
+
     try {
       // Query MediaStore for songs matching the file path
       final songs = await _audioQuery.querySongs(
@@ -282,7 +291,11 @@ class MacOSMetadataExtractor implements MetadataExtractor {
 /// Factory function to create platform-specific metadata extractor.
 MetadataExtractor createMetadataExtractor() {
   if (Platform.isAndroid) {
-    return AndroidMetadataExtractor();
+    final useFilenameOverride =
+        SettingsService().useFilenameForMetadataNotifier.value;
+    return AndroidMetadataExtractor(
+      useFilenameOverride: useFilenameOverride,
+    );
   } else {
     return MacOSMetadataExtractor();
   }

@@ -275,7 +275,11 @@ class _LibraryPanelState extends State<LibraryPanel> {
                                   : Colors.white70),
                       ),
                       title: Text(
-                        isNotFound ? '(Not found) ${track.title}' : track.title,
+                        isNotFound
+                            ? '(Not found) ${track.title}'
+                            : (track.artist.isNotEmpty
+                                ? '${track.artist} - ${track.title}'
+                                : track.title),
                         style: TextStyle(
                           color: isActive ? Colors.white : Colors.white70,
                           fontWeight: isActive

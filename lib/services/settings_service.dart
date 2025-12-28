@@ -17,6 +17,7 @@ class SettingsService {
   static const String _uiScaleKey = 'ui_scale';
   static const String _screenConfigKey = 'screen_config';
   static const String _fullScreenKey = 'full_screen';
+  static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -28,6 +29,7 @@ class SettingsService {
   static const AudioSourceMode defaultAudioSource = AudioSourceMode.player;
   static const double defaultUiScale = -1.0; // -1.0 indicates "auto" / not set
   static const bool defaultFullScreen = false;
+  static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
 
   final ValueNotifier<SpectrumSettings> settingsNotifier = ValueNotifier(
@@ -37,6 +39,9 @@ class SettingsService {
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
   final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(
     defaultFullScreen,
+  );
+  final ValueNotifier<bool> useFilenameForMetadataNotifier = ValueNotifier(
+    defaultUseFilenameForMetadata,
   );
   final ValueNotifier<ScreenConfig> screenConfigNotifier = ValueNotifier(
     defaultScreenConfig,
@@ -155,6 +160,11 @@ class SettingsService {
     // Apply system UI mode (without saving again)
     setFullScreen(isFullScreen, save: false);
 
+    // 5. Load Use Filename For Metadata
+    final useFilenameForMetadata =
+        prefs.getBool(_useFilenameForMetadataKey) ?? defaultUseFilenameForMetadata;
+    useFilenameForMetadataNotifier.value = useFilenameForMetadata;
+
     return settings;
   }
 
@@ -195,6 +205,13 @@ class SettingsService {
     } else {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
+  }
+
+  /// Sets the use filename for metadata setting.
+  Future<void> setUseFilenameForMetadata(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_useFilenameForMetadataKey, enable);
+    useFilenameForMetadataNotifier.value = enable;
   }
 
   void toggleDebugLayout() {
