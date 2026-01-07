@@ -178,6 +178,10 @@ class JustAudioTransport implements AudioTransport {
 
   @override
   Future<void> play() async {
+    // Audio session can be deactivated by the OS while paused/backgrounded.
+    // Re-activate on play to make resume reliable.
+    final session = await AudioSession.instance;
+    await session.setActive(true);
     await _player.play();
   }
 

@@ -28,7 +28,12 @@ Future<void> main() async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
         androidNotificationChannelName: 'Audio playback',
-        androidNotificationOngoing: true,
+        // Keep the foreground service alive while paused.
+        //
+        // Some devices will otherwise stop the service after being paused in the
+        // background, which can invalidate the player/audio session. The user
+        // then returns to the app and "Play" appears to do nothing.
+        androidStopForegroundOnPause: false,
       ),
     );
   }
@@ -37,9 +42,7 @@ Future<void> main() async {
   final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
   await audioPlayerProvider.init();
 
-  runApp(
-    NothingApp(audioPlayerProvider: audioPlayerProvider),
-  );
+  runApp(NothingApp(audioPlayerProvider: audioPlayerProvider));
 }
 
 class NothingApp extends StatefulWidget {
