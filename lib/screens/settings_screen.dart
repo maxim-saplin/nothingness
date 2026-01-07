@@ -1155,7 +1155,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(color: Colors.white, fontSize: 14),
           ),
           value: _eqSettings.enabled,
-          onChanged: (val) => _updateEqSettings(_eqSettings.copyWith(enabled: val)),
+          onChanged: (val) =>
+              _updateEqSettings(_eqSettings.copyWith(enabled: val)),
           activeTrackColor: const Color(0xFF00FF88),
           contentPadding: EdgeInsets.zero,
         ),
@@ -1180,7 +1181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final gains = _eqSettings.gainsDb;
 
     return SizedBox(
-      height: 160,
+      height: 200,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(EqSettings.bandCount, (i) {
@@ -1191,7 +1192,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(
                   '${value.toStringAsFixed(0)} dB',
-                  style: TextStyle(color: Colors.white.withAlpha(170), fontSize: 11),
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(170),
+                    fontSize: 11,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Expanded(
@@ -1213,7 +1217,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (newVal) {
                           final updated = List<double>.from(gains);
                           updated[i] = newVal;
-                          _updateEqSettings(_eqSettings.copyWith(gainsDb: updated));
+                          _updateEqSettings(
+                            _eqSettings.copyWith(gainsDb: updated),
+                          );
                         },
                       ),
                     ),
@@ -1222,11 +1228,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 6),
                 Text(
                   labels[i],
-                  style: TextStyle(color: Colors.white.withAlpha(170), fontSize: 11),
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(170),
+                    fontSize: 11,
+                  ),
                 ),
                 Text(
                   'Hz',
-                  style: TextStyle(color: Colors.white.withAlpha(90), fontSize: 10),
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(90),
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),
