@@ -40,9 +40,51 @@ void main() {
       );
 
       expect(sections.single.entries, [
-        '/storage/emulated/0/Downloads/Music',
+        '/storage/emulated/0/Downloads',
         '/storage/emulated/0/Music',
       ]);
+    });
+
+    test('Nextcloud app-scoped path -> picks first branching folder (CDs)', () {
+      final roots = const ['/storage/emulated/0'];
+      const base =
+          '/storage/emulated/0/Android/media/com.nextcloud.client/nextcloud/user@host/Music/CDs';
+      final songs = const [
+        LibrarySong(path: '$base/ArtistA/Album1/1.mp3', title: '1'),
+        LibrarySong(path: '$base/ArtistB/Album2/2.mp3', title: '2'),
+      ];
+
+      final sections = AndroidSmartRoots.compute(
+        deviceRoots: roots,
+        songs: songs,
+        maxEntriesPerDevice: 5,
+      );
+
+      expect(sections, hasLength(1));
+      expect(sections.single.entries, [base]);
+    });
+
+    test('no branching chain -> stays at partition root (not overly deep)', () {
+      final roots = const ['/storage/emulated/0'];
+      final songs = const [
+        LibrarySong(
+          path: '/storage/emulated/0/Music/Rock/live/1.mp3',
+          title: '1',
+        ),
+        LibrarySong(
+          path: '/storage/emulated/0/Music/Rock/studio/2.mp3',
+          title: '2',
+        ),
+      ];
+
+      final sections = AndroidSmartRoots.compute(
+        deviceRoots: roots,
+        songs: songs,
+        maxEntriesPerDevice: 5,
+      );
+
+      // Even though Rock branches, we prefer the top-level entry point Music.
+      expect(sections.single.entries, ['/storage/emulated/0/Music']);
     });
 
     test('internal and USB roots become separate sections', () {

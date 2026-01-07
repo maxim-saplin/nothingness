@@ -464,15 +464,14 @@ class _LibraryPanelState extends State<LibraryPanel> {
   }
 
   Widget _buildAndroidSmartRootTile(String path) {
-    final display = path.startsWith('/storage/')
-        ? path.substring('/storage/'.length)
-        : path;
+    final title = p.basename(path.isEmpty ? '/' : path);
 
     return ListTile(
       leading: const Icon(Icons.folder_special, color: Color(0xFF00FF88)),
       title: Text(
-        display,
+        title,
         style: const TextStyle(color: Colors.white),
+        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         path,
