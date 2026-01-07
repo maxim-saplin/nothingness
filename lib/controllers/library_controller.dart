@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../models/audio_track.dart';
 import '../models/log_entry.dart';
+import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/logging_service.dart';
@@ -53,6 +54,10 @@ class LibraryController extends ChangeNotifier {
   String? currentPath;
   bool hasPermission = !Platform.isAndroid;
   String? initialAndroidRoot;
+
+  /// Android-only: computed smart root sections (grouped by device/mount).
+  /// When `currentPath == null`, the UI can render these as the entry list.
+  List<SmartRootSection> androidSmartRootSections = const [];
 
   List<LibraryFolder> folders = [];
   List<AudioTrack> tracks = [];
@@ -240,11 +245,16 @@ class LibraryController extends ChangeNotifier {
   Future<void> navigateUp() async {
     if (currentPath == null) return;
 
-    if (Platform.isAndroid &&
-        initialAndroidRoot != null &&
-        currentPath == initialAndroidRoot) {
-      await loadRoot(); // Reload root instead of clearing
-      return;
+    if (Platform.isAndroid) {
+      final smartEntries = androidSmartRootSections
+          .expand((s) => s.entries)
+          .toSet();
+      if (smartEntries.contains(currentPath)) {
+        // If the user is at a smart-root entry, go back to smart roots list.
+        _clearListing();
+        _safeNotifyListeners();
+        return;
+      }
     }
 
     if (libraryService.rootsNotifier.value.containsKey(currentPath)) {
@@ -388,26 +398,43 @@ class LibraryController extends ChangeNotifier {
   Future<void> _loadAndroidRoot() async {
     try {
       final roots = await (_androidRootsLoader ?? _defaultAndroidRootsLoader)();
-      if (roots.isNotEmpty) {
-        // Prefer a shared /storage root when multiple mount points exist (e.g., internal + USB),
-        // so users can navigate to both from a single root view.
-        const storageRoot = '/storage';
-        final bool hasStorageMounts = roots.any(
-          (r) => r.startsWith('$storageRoot/'),
+      if (roots.isNotEmpty && _androidSongs.isNotEmpty) {
+        // Compute smart roots (closest music folders) per device/mount.
+        androidSmartRootSections = AndroidSmartRoots.compute(
+          deviceRoots: roots,
+          songs: _androidSongs,
+          maxEntriesPerDevice: 5,
         );
 
-        if (hasStorageMounts && Directory(storageRoot).existsSync()) {
-          initialAndroidRoot = storageRoot;
-        } else {
-          // Otherwise prefer the primary volume if present; fall back to the first discovered root.
-          initialAndroidRoot = roots.firstWhere(
-            (r) => r.contains('/storage/emulated/0'),
-            orElse: () => roots.first,
-          );
+        final smartEntries = androidSmartRootSections
+            .expand((s) => s.entries)
+            .toList()
+          ..sort();
+
+        if (smartEntries.length == 1) {
+          // Zero-click: if there's exactly one entry overall, open it immediately.
+          initialAndroidRoot = smartEntries.single;
+          await loadFolder(initialAndroidRoot!);
+          return;
         }
 
+        // Otherwise show the smart-roots list (root view).
+        _clearListing();
+        _safeNotifyListeners();
+        return;
+      }
+
+      // Fallback: if we have roots but couldn't compute smart roots, open a reasonable default.
+      if (roots.isNotEmpty) {
+        initialAndroidRoot = roots.firstWhere(
+          (r) => r.contains('/storage/emulated/0'),
+          orElse: () => roots.first,
+        );
         await loadFolder(initialAndroidRoot!);
-      } else if (_androidSongs.isNotEmpty) {
+        return;
+      }
+
+      if (_androidSongs.isNotEmpty) {
         initialAndroidRoot = '/storage/emulated/0';
         await loadFolder(initialAndroidRoot!);
       }

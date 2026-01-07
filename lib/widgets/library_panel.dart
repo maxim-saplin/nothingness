@@ -388,16 +388,18 @@ class _LibraryPanelState extends State<LibraryPanel> {
           else if (controller.error != null)
             _emptyState('Cannot open folder', controller.error!)
           else if (controller.currentPath == null)
-            roots.isEmpty && !Platform.isAndroid
-                ? _emptyState(
-                    'No library folders',
-                    'Add a folder to start browsing',
-                  )
-                : Expanded(
-                    child: ListView(
-                      children: roots.keys.map(_buildRootTile).toList(),
-                    ),
-                  )
+            Platform.isAndroid
+                ? _buildAndroidSmartRoots(controller)
+                : (roots.isEmpty
+                      ? _emptyState(
+                          'No library folders',
+                          'Add a folder to start browsing',
+                        )
+                      : Expanded(
+                          child: ListView(
+                            children: roots.keys.map(_buildRootTile).toList(),
+                          ),
+                        ))
           else if (controller.folders.isEmpty && controller.tracks.isEmpty)
             _emptyState('Empty folder', 'No audio files found here')
           else
@@ -411,6 +413,73 @@ class _LibraryPanelState extends State<LibraryPanel> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAndroidSmartRoots(LibraryController controller) {
+    final sections = controller.androidSmartRootSections;
+    if (sections.isEmpty) {
+      return _emptyState(
+        'No music found',
+        'Try Refresh, or add music to your device',
+      );
+    }
+
+    return Expanded(
+      child: ListView.builder(
+        itemCount: sections.length,
+        itemBuilder: (context, sectionIndex) {
+          final section = sections[sectionIndex];
+          final header = _androidDeviceLabel(section.deviceRoot);
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  header,
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ...section.entries.map(_buildAndroidSmartRootTile),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _androidDeviceLabel(String deviceRoot) {
+    if (deviceRoot.contains('/storage/emulated/0')) return 'Internal storage';
+    if (deviceRoot.startsWith('/storage/')) {
+      final id = p.basename(deviceRoot);
+      return 'USB storage ($id)';
+    }
+    return 'Storage';
+  }
+
+  Widget _buildAndroidSmartRootTile(String path) {
+    final display = path.startsWith('/storage/')
+        ? path.substring('/storage/'.length)
+        : path;
+
+    return ListTile(
+      leading: const Icon(Icons.folder_special, color: Color(0xFF00FF88)),
+      title: Text(
+        display,
+        style: const TextStyle(color: Colors.white),
+      ),
+      subtitle: Text(
+        path,
+        style: const TextStyle(color: Colors.white38, fontSize: 10),
+        overflow: TextOverflow.ellipsis,
+      ),
+      onTap: () => _controller.loadFolder(path),
     );
   }
 

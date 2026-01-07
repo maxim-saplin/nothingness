@@ -16,7 +16,11 @@ This document describes the folder browsing pipeline after moving MediaStore log
    - **Async Scanning**: Queries run in isolates using `compute()` to prevent UI blocking.
    - **Smart Caching**: `LibraryService` persists the last scan timestamp. On launch, the controller compares this with the MediaStore's latest `dateAdded`/`dateModified`. A full rescan only occurs if new content is detected.
    - **Refresh**: A manual refresh button in the UI clears the cache and forces a MediaStore rescan.
-3. Controller sets an initial root (from `ExternalPath`) and calls `LibraryBrowser.buildVirtualListing()` to construct a virtual folder tree from song paths.
+3. Controller computes **Smart Roots** from the MediaStore song paths and discovered Android storage mount points.
+   - **Goal**: Reduce clicks by starting users as close as possible to music folders (e.g. show `/storage/emulated/0/Music` instead of `/storage` → `emulated` → `0` → `Music`).
+   - **Grouped by device**: Smart roots are grouped by storage device/mount point (internal vs USB volumes).
+   - **Cap to avoid flooding**: If a device would produce more than 5 smart entries, the UI falls back to showing only the device root (e.g. `/storage/emulated/0`) for that device.
+4. When the user taps a smart root entry, the controller calls `LibraryBrowser.buildVirtualListing()` to construct a virtual folder tree from MediaStore song paths under that base path.
 4. UI renders folders/files; **Play All** uses `tracksForCurrentPath()` to send a queue to the player.
    - **Error Handling**: Missing files are marked with an `isNotFound` flag and displayed with a red error icon. During playback (tap/Next/Previous/natural advance), missing/known-failed tracks are skipped deterministically while preserving the red marking in the queue.
 
