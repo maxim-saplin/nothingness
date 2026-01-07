@@ -1,6 +1,7 @@
+import 'dart:io';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 
 import 'models/spectrum_settings.dart';
@@ -9,16 +10,10 @@ import 'screens/media_controller_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
+import 'services/nothing_audio_handler.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize just_audio_background
-  await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
-    androidNotificationChannelName: 'Audio playback',
-    androidNotificationOngoing: true,
-  );
 
   // Initialize Hive
   await Hive.initFlutter();
@@ -26,8 +21,20 @@ Future<void> main() async {
   // Initialize LibraryService to restore file permissions
   await LibraryService().init();
 
-  // Initialize audio player before app starts to avoid SoLoud init races
-  final audioPlayerProvider = AudioPlayerProvider();
+  NothingAudioHandler? handler;
+  if (Platform.isAndroid) {
+    handler = await AudioService.init(
+      builder: () => NothingAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
+        androidNotificationChannelName: 'Audio playback',
+        androidNotificationOngoing: true,
+      ),
+    );
+  }
+
+  // Initialize audio player before app starts to avoid init races
+  final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
   await audioPlayerProvider.init();
 
   runApp(

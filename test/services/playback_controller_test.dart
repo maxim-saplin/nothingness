@@ -42,6 +42,7 @@ void main() {
     controller = PlaybackController(
       transport: transport,
       playlist: playlist,
+      preflightFileExists: false,
     );
     await controller.init();
   });
@@ -317,15 +318,39 @@ void main() {
       await controller.setQueue(tracks);
       await Future.delayed(const Duration(milliseconds: 50));
 
-      // Track 1 should be marked as broken now (after skip attempt)
-      // User taps on track 1 in the queue
+      // First, reach track 1 via Next so it becomes known-failed.
+      await controller.next(); // tries track 1, fails, advances to 2
+      await Future.delayed(const Duration(milliseconds: 80));
+
+      expect(controller.queueNotifier.value[1].isNotFound, true);
+      expect(controller.currentIndexNotifier.value, 2);
+      expect(controller.isPlayingNotifier.value, true);
+
+      // User taps on track 1 in the queue: should mark red and advance to a
+      // playable track (track 2), keeping playback running.
       transport.resetCalls();
       await controller.playFromQueueIndex(1);
+      await Future.delayed(const Duration(milliseconds: 50));
 
-      // Should NOT attempt to load/play the broken track
-      // Instead, just update the UI to show it's selected
-      expect(transport.playCalls, isEmpty);
-      expect(controller.isPlayingNotifier.value, false);
+      expect(controller.queueNotifier.value[1].isNotFound, true);
+      expect(controller.currentIndexNotifier.value, 2);
+      expect(controller.isPlayingNotifier.value, true);
+    });
+
+    test('previous() skips known missing track and keeps playback running', () async {
+      // Start at track 3, but track 2 is missing.
+      transport.pathsToFailOnLoad.add('/path/track_2.mp3');
+      final tracks = createTracks(5);
+      await controller.setQueue(tracks, startIndex: 3);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // Going previous should attempt track 2, mark it not found, then land on 1.
+      await controller.previous();
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      expect(controller.queueNotifier.value[2].isNotFound, true);
+      expect(controller.currentIndexNotifier.value, 1);
+      expect(controller.isPlayingNotifier.value, true);
     });
 
     test('skips missing track then plays next available', () async {

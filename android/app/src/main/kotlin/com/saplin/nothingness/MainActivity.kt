@@ -28,6 +28,7 @@ class MainActivity : AudioServiceActivity() {
     private var audioCaptureService: AudioCaptureService? = null
     private var visualizerService: VisualizerService? = null
     private var spectrumEventSink: EventChannel.EventSink? = null
+    private var lastSpectrumSessionId: Int? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -118,13 +119,15 @@ class MainActivity : AudioServiceActivity() {
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     spectrumEventSink = events
-                    val sessionId = arguments as? Int
+                    val sessionId = (arguments as? Number)?.toInt()
+                    lastSpectrumSessionId = sessionId
                     startSpectrumCapture(sessionId)
                 }
                 
                 override fun onCancel(arguments: Any?) {
                     stopSpectrumCapture()
                     spectrumEventSink = null
+                    lastSpectrumSessionId = null
                 }
             }
         )
@@ -146,17 +149,20 @@ class MainActivity : AudioServiceActivity() {
     }
     
     private fun startSpectrumCapture(sessionId: Int? = null) {
-        if (audioCaptureService?.hasPermission() != true) {
-            Log.w(TAG, "Cannot start spectrum capture - no permission")
-            return
-        }
-
         if (sessionId != null) {
+            // Visualizer-based capture (player output). Do not gate on mic permission.
+            // If the platform requires RECORD_AUDIO for Visualizer, VisualizerService
+            // will fail gracefully and logs will show the reason.
             audioCaptureService?.stopCapture()
             visualizerService?.startCapture(sessionId) { spectrumData ->
                 mainHandler.post { spectrumEventSink?.success(spectrumData) }
             }
         } else {
+            // Microphone capture requires RECORD_AUDIO permission.
+            if (audioCaptureService?.hasPermission() != true) {
+                Log.w(TAG, "Cannot start spectrum capture (mic) - no permission")
+                return
+            }
             visualizerService?.stopCapture()
             audioCaptureService?.startCapture { spectrumData ->
                 mainHandler.post { spectrumEventSink?.success(spectrumData) }
@@ -206,7 +212,7 @@ class MainActivity : AudioServiceActivity() {
                 Log.d(TAG, "Audio permission granted")
                 // Restart spectrum capture if event sink is active
                 if (spectrumEventSink != null) {
-                    startSpectrumCapture()
+                    startSpectrumCapture(lastSpectrumSessionId)
                 }
             } else {
                 Log.w(TAG, "Audio permission denied")

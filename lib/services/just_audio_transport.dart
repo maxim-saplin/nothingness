@@ -1,11 +1,10 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 
-import '../models/audio_track.dart';
 import '../models/spectrum_settings.dart';
 import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
@@ -33,10 +32,6 @@ class JustAudioTransport implements AudioTransport {
       StreamController<List<double>>.broadcast();
   SpectrumSettings _settings = const SpectrumSettings();
   bool _captureEnabled = true;
-
-  // Queue management for MediaSession
-  List<AudioSource>? _queueSources;
-  final Map<String, int> _pathToIndex = {};
 
   @override
   Stream<TransportEvent> get eventStream => _eventController.stream;
@@ -90,8 +85,15 @@ class JustAudioTransport implements AudioTransport {
     }
   }
 
+  /// Android-only. Used by the Android AudioHandler to forward session id to UI.
+  Stream<int?> get androidAudioSessionIdStream => _player.androidAudioSessionIdStream;
+
+  /// Android-only. Used by the Android AudioHandler to forward session id to UI.
+  int? get androidAudioSessionId => _player.androidAudioSessionId;
+
   Future<void> _startSpectrum() async {
     if (!_captureEnabled) return;
+    if (!PlatformChannels.isAndroid) return;
     await _stopSpectrum();
 
     final bool useMic = _settings.audioSource == AudioSourceMode.microphone;
@@ -147,81 +149,13 @@ class JustAudioTransport implements AudioTransport {
     await _spectrumController.close();
   }
 
-  /// Set the full queue for MediaSession support.
-  /// This populates the AudioPlayer's queue so Android's MediaSession
-  /// can advertise next/previous actions.
-  Future<void> setQueue(List<AudioTrack> tracks) async {
-    if (tracks.isEmpty) {
-      _pathToIndex.clear();
-      _queueSources = null;
-      return;
-    }
-
-    _pathToIndex.clear();
-
-    // Build sources with MediaItems
-    final sources = <AudioSource>[];
-    for (int i = 0; i < tracks.length; i++) {
-      final track = tracks[i];
-      _pathToIndex[track.path] = i;
-
-      final tag = MediaItem(
-        id: track.path,
-        title: track.title,
-        artist: track.artist,
-      );
-
-      final bool isContentUri = track.path.startsWith('content://');
-      final AudioSource source = isContentUri
-          ? AudioSource.uri(Uri.parse(track.path), tag: tag)
-          : AudioSource.file(track.path, tag: tag);
-
-      sources.add(source);
-    }
-
-    // Store sources for later use
-    _queueSources = sources;
-
-    // Set the queue sources if player is initialized
-    // If not initialized yet, it will be set on first load()
-    if (_player.sequence.isNotEmpty || _currentPath != null) {
-      try {
-        final currentIndex = _pathToIndex[_currentPath] ?? 0;
-        final currentPos = _player.position;
-        await _player.setAudioSources(
-          sources,
-          initialIndex: currentIndex,
-          initialPosition: currentPos,
-        );
-      } catch (e) {
-        debugPrint('[JustAudioTransport] Error setting queue: $e');
-      }
-    }
-  }
-
   @override
   Future<void> load(String path, {String? title, String? artist}) async {
     try {
       _currentPath = path;
 
-      // If we have queue sources, seek to the track in the queue
-      if (_queueSources != null && _pathToIndex.containsKey(path)) {
-        final index = _pathToIndex[path]!;
-
-        // If queue sources aren't set yet, set them now
-        if (_player.sequence.isEmpty) {
-          await _player.setAudioSources(_queueSources!, initialIndex: index);
-        } else {
-          // Seek to the track in the existing queue
-          await _player.seek(Duration.zero, index: index);
-        }
-
-        _eventController.add(TransportLoadedEvent(path: path));
-        return;
-      }
-
-      // Fallback: load single source if queue not available
-      // This shouldn't happen in normal operation, but keeps compatibility
+      // Always single-track on all platforms. Queue ownership lives above the
+      // transport (PlaybackController on desktop, AudioHandler on Android).
       final tag = MediaItem(
         id: path,
         title: title ?? 'Unknown Title',

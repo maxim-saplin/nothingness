@@ -21,12 +21,16 @@ enum PlayIntent {
   pause,
 }
 
+/// Internal classification of why a selection/play attempt is happening.
+enum _SelectionReason { userTap, previous, autoAdvance, setQueue, other }
+
 /// Single source of truth for playback logic.
 /// Manages user intent, queue, error recovery, and coordinates with AudioTransport.
 class PlaybackController {
   final AudioTransport _transport;
   final PlaylistStore _playlist;
   final bool debugPlaybackLogs;
+  final bool preflightFileExists;
 
   // User intent - explicit state for what the user wants
   PlayIntent _userIntent = PlayIntent.pause;
@@ -43,11 +47,8 @@ class PlaybackController {
 
   // Used to correctly attribute error events even if we've moved to another track.
   String? _pendingLoadPath;
-  // When the pending load started; used to attribute error timing correctly.
-  DateTime? _pendingLoadStartedAt;
-  // Last error event observed from transport, for timing-based attribution.
-  String? _lastErrorEventPath;
-  DateTime? _lastErrorEventAt;
+  // (Intentionally no error timing attribution fields: we avoid misattribution
+  // by only acting on errors that match the pending load path.)
   // Track transient error streak to avoid burning through the queue
   int _transientErrorCount = 0;
   DateTime? _transientWindowStart;
@@ -58,8 +59,11 @@ class PlaybackController {
   // DateTime? _pendingLoadStartedAt;
   // bool _pendingLoadThrewError = false;
 
-  // Flag to suppress auto-skip during explicit user actions (like tapping a track)
-  bool _suppressAutoSkip = false;
+  // Operation generation to ignore stale async continuations (rapid taps).
+  int _opGeneration = 0;
+
+  _SelectionReason _lastSelectionReason = _SelectionReason.other;
+  int _lastSelectionDirection = 1;
 
   StreamSubscription<TransportEvent>? _transportEventSub;
   Timer? _positionTimer;
@@ -73,6 +77,7 @@ class PlaybackController {
     required AudioTransport transport,
     PlaylistStore? playlist,
     this.debugPlaybackLogs = false,
+    this.preflightFileExists = true,
   }) : _transport = transport,
        _playlist = playlist ?? PlaylistStore(),
        _supportedExtensions = _getSupportedExtensions(transport);
@@ -154,8 +159,6 @@ class PlaybackController {
     switch (event) {
       case TransportErrorEvent(:final path):
         _log('Event ERROR path=${path ?? 'null'}');
-        _lastErrorEventPath = path;
-        _lastErrorEventAt = DateTime.now();
         _handleTrackError(path);
       case TransportEndedEvent(:final path):
         _log('Event ENDED path=${path ?? 'null'}');
@@ -172,9 +175,9 @@ class PlaybackController {
   void _handleTrackError(String? path) {
     if (path == null) return;
 
-    // Only treat errors as load failures when they match the track currently
-    // being loaded. Errors for any other path (including the current/playing
-    // track after we've moved on) are ignored to prevent misattribution.
+    // We only act on errors we can confidently attribute to the track currently
+    // being loaded. Real transports can emit late/spurious errors for the
+    // "current" path; those must not corrupt playback.
     final isForPendingLoad = path == _pendingLoadPath;
     if (!isForPendingLoad) {
       _log(
@@ -183,14 +186,15 @@ class PlaybackController {
       return;
     }
 
-    // Do not mark as failed here for pending loads. Genuine failures will be
-    // handled by the thrown error in load()'s catch path. This avoids
-    // misattributed current-path errors flagging valid tracks.
-    if (_pendingLoadPath == path) {
-      _log(
-        'Pending error for same path; clearing pending without marking failed. path=$path',
-      );
-      _pendingLoadPath = null;
+    // Mark failed immediately so UI turns red, but do not attempt to advance
+    // from the event handler. The in-flight load() path will deterministically
+    // handle the failure (throwing transports) and advance from a single place.
+    //
+    // This avoids double-advancing and prevents background async work from
+    // outliving tests/dispose.
+    _log('PendingLoadErrorEvent: path=$path (mark failed; defer advance to load/catch)');
+    if (_failedTrackPaths.add(path)) {
+      _updateQueueWithNotFoundFlags();
     }
   }
 
@@ -209,7 +213,6 @@ class PlaybackController {
     if (_pendingLoadPath == path) {
       _log('OnLoaded: clearing pending for path=$path');
       _pendingLoadPath = null;
-      _pendingLoadStartedAt = null;
     }
     // Clear the failed flag if track now loads successfully
     if (_failedTrackPaths.remove(path)) {
@@ -223,7 +226,11 @@ class PlaybackController {
     final nextIdx = _playlist.nextOrderIndex();
     _log('SkipToNext: nextIdx=${nextIdx?.toString() ?? 'null'}');
     if (nextIdx != null) {
-      await playFromQueueIndex(nextIdx, isAutoSkip: true);
+      await playFromQueueIndex(
+        nextIdx,
+        isAutoSkip: true,
+        direction: 1,
+      );
     } else {
       // End of queue
       isPlayingNotifier.value = false;
@@ -244,20 +251,6 @@ class PlaybackController {
 
   void _updateQueueWithNotFoundFlags() {
     queueNotifier.value = _getQueueWithNotFoundFlags();
-    // Update transport queue for MediaSession support (Android)
-    _updateTransportQueue();
-  }
-
-  void _updateTransportQueue() {
-    // Only update if transport is JustAudioTransport (Android)
-    final transport = _transport;
-    if (transport is JustAudioTransport) {
-      final orderedTracks = _getQueueWithNotFoundFlags();
-      // Call setQueue asynchronously to avoid blocking
-      transport.setQueue(orderedTracks).catchError((e) {
-        debugPrint('[PlaybackController] Error updating transport queue: $e');
-      });
-    }
   }
 
   Future<void> playPause() async {
@@ -298,7 +291,7 @@ class PlaybackController {
     _userIntent = PlayIntent.play; // Navigation implies play intent
     final nextIdx = _playlist.nextOrderIndex();
     if (nextIdx != null) {
-      await playFromQueueIndex(nextIdx, isAutoSkip: true);
+      await playFromQueueIndex(nextIdx, isAutoSkip: true, direction: 1);
     }
   }
 
@@ -306,7 +299,7 @@ class PlaybackController {
     _userIntent = PlayIntent.play; // Navigation implies play intent
     final prevIdx = _playlist.previousOrderIndex();
     if (prevIdx != null) {
-      await playFromQueueIndex(prevIdx, isAutoSkip: true);
+      await playFromQueueIndex(prevIdx, isAutoSkip: true, direction: -1);
     }
   }
 
@@ -314,26 +307,28 @@ class PlaybackController {
     int orderIndex, {
     bool isAutoSkip = false,
     bool respectPauseIntent = false,
+    int direction = 1,
   }) async {
+    final op = ++_opGeneration;
     _log(
-      'playFromQueueIndex: orderIndex=$orderIndex autoSkip=$isAutoSkip respectPause=$respectPauseIntent',
+      'playFromQueueIndex: orderIndex=$orderIndex autoSkip=$isAutoSkip respectPause=$respectPauseIntent dir=$direction',
     );
     if (orderIndex < 0 || orderIndex >= _playlist.length) return;
 
     final track = _playlist.trackForOrderIndex(orderIndex);
     if (track == null) return;
 
-    // If track is known to be broken and this is an auto-skip (not user tap),
-    // don't try to play - just select it
-    if (isAutoSkip && _failedTrackPaths.contains(track.path)) {
-      await _playlist.setCurrentOrderIndex(orderIndex);
-      if (isPlayingNotifier.value) {
-        await _transport.pause();
-        isPlayingNotifier.value = false;
-      }
-      _emitSongInfo(force: true);
-      return;
-    }
+    final isUserTap = !isAutoSkip && !respectPauseIntent;
+    _lastSelectionReason = isUserTap
+        ? _SelectionReason.userTap
+        : (respectPauseIntent
+              ? _SelectionReason.setQueue
+              : (isAutoSkip
+                    ? (direction < 0
+                          ? _SelectionReason.previous
+                          : _SelectionReason.autoAdvance)
+                    : _SelectionReason.other));
+    _lastSelectionDirection = direction == 0 ? 1 : direction.sign;
 
     // If caller wants to respect pause intent (e.g., setQueue), check before proceeding
     if (respectPauseIntent && _userIntent == PlayIntent.pause) {
@@ -343,196 +338,165 @@ class PlaybackController {
       return;
     }
 
-    // Save previous intent - we'll only commit to play intent if load succeeds
-    await _playlist.setCurrentOrderIndex(orderIndex);
-
-    // Optimistic update for UI responsiveness
-    isPlayingNotifier.value = true;
-
-    // Suppress auto-skip only for pure user taps (no special flags set)
-    // When user explicitly taps a track and it fails, we don't want to auto-skip
-    // Internal calls (setQueue, next, previous, etc.) should pass a flag to allow skip
-    final isUserTap = !isAutoSkip && !respectPauseIntent;
-    if (isUserTap) {
-      _suppressAutoSkip = true;
-      _log('UserTap: suppress auto-skip');
+    // Navigation/tap implies play (even if previously paused); setQueue may
+    // opt out via respectPauseIntent.
+    if (!respectPauseIntent) {
+      _userIntent = PlayIntent.play;
     }
 
-    // Track this as pending load - error handler will check this
-    _pendingLoadPath = track.path;
-    _pendingLoadStartedAt = DateTime.now();
-    _log('StartLoad: path=${track.path}');
+    await _playWithAutoAdvance(
+      orderIndex,
+      op: op,
+      direction: _lastSelectionDirection,
+      reason: _lastSelectionReason,
+      respectPauseIntent: respectPauseIntent,
+    );
+  }
 
-    try {
-      await _transport.load(
-        track.path,
-        title: track.title,
-        artist: track.artist,
-      );
+  bool _shouldPreflightExists(String path) {
+    if (!preflightFileExists) return false;
+    final uri = Uri.tryParse(path);
+    if (uri != null && uri.hasScheme) {
+      // content://, http(s)://, etc. can't be preflighted via dart:io File.
+      return false;
+    }
+    // Avoid preflighting empty/odd paths.
+    if (path.isEmpty) return false;
+    return true;
+  }
 
-      // Clear pending load path on success
-      _pendingLoadPath = null;
-      _pendingLoadStartedAt = null;
-      _log('LoadSuccess: path=${track.path}');
+  Future<void> _playWithAutoAdvance(
+    int startOrderIndex, {
+    required int op,
+    required int direction,
+    required _SelectionReason reason,
+    required bool respectPauseIntent,
+  }) async {
+    if (_playlist.length == 0) return;
+    final dir = direction == 0 ? 1 : direction.sign;
+    var idx = startOrderIndex;
 
-      // Re-enable auto-skip
-      if (isUserTap) {
-        _suppressAutoSkip = false;
-        _log('UserTap: re-enable auto-skip');
-      }
+    for (var attempts = 0; attempts < _playlist.length; attempts++) {
+      if (op != _opGeneration) return;
+      if (idx < 0 || idx >= _playlist.length) break;
 
-      // Allow any error events to finish processing
-      await Future<void>.delayed(Duration.zero);
+      final track = _playlist.trackForOrderIndex(idx);
+      if (track == null) break;
 
-      // Check if track failed to load (error handler may have added it)
-      if (_failedTrackPaths.contains(track.path)) {
-        // Keep pause intent, don't play
-        if (_playlist.currentOrderIndexNotifier.value == orderIndex) {
-          isPlayingNotifier.value = false;
-        }
+      await _playlist.setCurrentOrderIndex(idx);
+
+      // Respect pause intent for setQueue only.
+      if (respectPauseIntent && _userIntent == PlayIntent.pause) {
+        isPlayingNotifier.value = false;
+        _emitSongInfo(force: true);
         return;
       }
 
-      // Load succeeded - commit to play intent
-      _userIntent = PlayIntent.play;
-
-      await _transport.play();
-      _log('Play: path=${track.path}');
-
-      // Check again if user paused while starting playback
-      if (_userIntent == PlayIntent.pause) {
-        await _transport.pause();
-        isPlayingNotifier.value = false;
+      final isKnownFailed = _failedTrackPaths.contains(track.path);
+      // If already known failed, normally keep scanning.
+      // Exception: for a direct user tap on the requested track, allow a retry
+      // attempt (the file may have been restored).
+      if (isKnownFailed && !(reason == _SelectionReason.userTap && idx == startOrderIndex)) {
+        _updateQueueWithNotFoundFlags();
+        idx += dir;
+        continue;
       }
-    } catch (e) {
-      _log('LoadError: path=${track.path} error=$e');
 
-      // Special-case transient transport failures (e.g., JustAudio "Connection aborted")
-      final isTransient = _isTransientTransportError(e);
-      if (isTransient) {
-        _log('TransientError: path=${track.path}');
-        final now = DateTime.now();
-        if (_transientWindowStart == null ||
-            now.difference(_transientWindowStart!).inSeconds > 5) {
-          _transientWindowStart = now;
-          _transientErrorCount = 0;
+      // Optional deterministic preflight for filesystem paths.
+      if (_shouldPreflightExists(track.path)) {
+        final exists = await File(track.path).exists();
+        if (!exists) {
+          _log('PreflightMissing: path=${track.path}');
+          _failedTrackPaths.add(track.path);
+          _updateQueueWithNotFoundFlags();
+          idx += dir;
+          continue;
+        }
+      }
+
+      // Optimistic UI update for responsiveness.
+      isPlayingNotifier.value = true;
+
+      _pendingLoadPath = track.path;
+      _log('StartLoad: path=${track.path}');
+
+      try {
+        await _transport.load(track.path, title: track.title, artist: track.artist);
+        if (op != _opGeneration) return;
+
+        _pendingLoadPath = null;
+        _log('LoadSuccess: path=${track.path}');
+
+        if (_failedTrackPaths.remove(track.path)) {
+          _updateQueueWithNotFoundFlags();
         }
 
-        // Attempt a short backoff retry once for transient errors
-        try {
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-          _pendingLoadPath = track.path;
-          _pendingLoadStartedAt = DateTime.now();
-          await _transport.load(
-            track.path,
-            title: track.title,
-            artist: track.artist,
-          );
-          _pendingLoadPath = null;
-          _pendingLoadStartedAt = null;
-          _log('TransientRetrySuccess: path=${track.path}');
+        // Commit to play intent and start playback.
+        _userIntent = PlayIntent.play;
+        await _transport.play();
+        if (op != _opGeneration) return;
 
-          if (isUserTap) {
-            _suppressAutoSkip = false;
+        if (_userIntent == PlayIntent.pause) {
+          await _transport.pause();
+          isPlayingNotifier.value = false;
+        }
+
+        _emitSongInfo(force: true);
+        return;
+      } catch (e) {
+        if (op != _opGeneration) return;
+        _log('LoadError: path=${track.path} error=$e');
+
+        // Transient failures: retry briefly, then continue scanning.
+        if (_isTransientTransportError(e)) {
+          final now = DateTime.now();
+          if (_transientWindowStart == null ||
+              now.difference(_transientWindowStart!).inSeconds > 5) {
+            _transientWindowStart = now;
+            _transientErrorCount = 0;
           }
+          try {
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+            if (op != _opGeneration) return;
+            _pendingLoadPath = track.path;
+            await _transport.load(track.path, title: track.title, artist: track.artist);
+            if (op != _opGeneration) return;
+            _pendingLoadPath = null;
 
-          _userIntent = PlayIntent.play;
-          await _transport.play();
-          _emitSongInfo(force: true);
-          return;
-        } catch (_) {
-          _log('TransientRetryFailed: path=${track.path}');
-          _transientErrorCount += 1;
-          // Do not mark as failed for transient errors
-          _pendingLoadPath = null;
-          _pendingLoadStartedAt = null;
-          _updateQueueWithNotFoundFlags();
-
-          // Circuit breaker: too many transients in a short window => pause
-          if (_transientErrorCount >= 3) {
-            _log('TransientPause: count=$_transientErrorCount');
-            isPlayingNotifier.value = false;
-            await _transport.pause();
+            _userIntent = PlayIntent.play;
+            await _transport.play();
             _emitSongInfo(force: true);
             return;
-          }
+          } catch (_) {
+            _transientErrorCount += 1;
+            _pendingLoadPath = null;
 
-          if (_userIntent == PlayIntent.play && !_suppressAutoSkip) {
-            _log('TransientSkip: intent=play');
-            await _skipToNext();
-          } else {
-            _log('TransientNoSkip: intent=pause or suppressed');
-            isPlayingNotifier.value = false;
+            if (_transientErrorCount >= 3) {
+              isPlayingNotifier.value = false;
+              await _transport.pause();
+              _emitSongInfo(force: true);
+              return;
+            }
+
+            idx += dir;
+            continue;
           }
-          _emitSongInfo(force: true);
-          return;
         }
-      }
 
-      final pendingStartedAt = _pendingLoadStartedAt;
-      final lastErrAt = _lastErrorEventAt;
-      final lastErrPath = _lastErrorEventPath;
-      final isErrorLikelyFromThisLoad =
-          lastErrPath == track.path &&
-          pendingStartedAt != null &&
-          lastErrAt != null &&
-          lastErrAt.isAfter(pendingStartedAt);
-      _log(
-        'ErrorAttribution: lastErrPath=${lastErrPath ?? 'null'} lastErrAt=${lastErrAt?.toIso8601String() ?? 'null'} pendingStart=${pendingStartedAt?.toIso8601String() ?? 'null'} likely=$isErrorLikelyFromThisLoad',
-      );
+        // Definitive failure: mark failed and advance deterministically.
+        _failedTrackPaths.add(track.path);
+        _pendingLoadPath = null;
+        _updateQueueWithNotFoundFlags();
+        debugPrint('Error playing track: $e');
 
-      // If the error seems ambiguous (no matching recent error event for this
-      // load), retry once before marking as failed.
-      if (!isErrorLikelyFromThisLoad) {
-        _log('RetryOnce: path=${track.path}');
-        try {
-          // Re-establish pending state and attempt a single retry.
-          _pendingLoadPath = track.path;
-          _pendingLoadStartedAt = DateTime.now();
-          await _transport.load(
-            track.path,
-            title: track.title,
-            artist: track.artist,
-          );
-          _pendingLoadPath = null;
-          _pendingLoadStartedAt = null;
-          _log('RetrySuccess: path=${track.path}');
-
-          if (isUserTap) {
-            _suppressAutoSkip = false;
-          }
-
-          // Success on retry: proceed to play
-          _userIntent = PlayIntent.play;
-          await _transport.play();
-          _emitSongInfo(force: true);
-          return;
-        } catch (_) {
-          _log('RetryFailed: path=${track.path}');
-          // Fall through to failure handling
-        }
-      }
-
-      // Treat thrown load errors as a failure of this track even if
-      // the transport does not emit a well-formed error event.
-      _failedTrackPaths.add(track.path);
-      _pendingLoadPath = null;
-      _pendingLoadStartedAt = null;
-      _updateQueueWithNotFoundFlags();
-      debugPrint('Error playing track: $e');
-      // If user intends to play and this was not a suppressed user tap,
-      // advance to the next track immediately. This covers transports that
-      // throw on load without a timely error event.
-      if (_userIntent == PlayIntent.play && !_suppressAutoSkip) {
-        _log('SkipAfterError: intent=play');
-        await _skipToNext();
-      } else {
-        // Revert visual state on error
-        _log('PauseAfterError: intent=pause or suppressed');
-        isPlayingNotifier.value = false;
+        idx += dir;
+        continue;
       }
     }
 
+    // No playable tracks found in the scan range.
+    isPlayingNotifier.value = false;
+    await _transport.pause();
     _emitSongInfo(force: true);
   }
 
@@ -565,7 +529,11 @@ class PlaybackController {
     if (tracks.isNotEmpty) {
       final initialIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
       // Use respectPauseIntent to allow concurrent playPause() calls to cancel playback
-      await playFromQueueIndex(initialIndex, respectPauseIntent: true);
+      await playFromQueueIndex(
+        initialIndex,
+        respectPauseIntent: true,
+        direction: 1,
+      );
 
       // Re-check intent - user may have paused during load
       if (_userIntent == PlayIntent.pause) {

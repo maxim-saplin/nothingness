@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 2.1.8+15
+version: 2.1.9+16
 
 environment:
   sdk: ^3.10.1
@@ -17,6 +17,7 @@ dependencies:
   hive_flutter: ^1.1.0
   shared_preferences: ^2.2.3
   audio_session: ^0.2.2
+  audio_service: ^0.18.18
   file_picker: ^10.3.8
   permission_handler: ^12.0.1
   flutter_soloud: ^3.4.7

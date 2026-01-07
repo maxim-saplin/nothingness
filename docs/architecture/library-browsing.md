@@ -18,7 +18,7 @@ This document describes the folder browsing pipeline after moving MediaStore log
    - **Refresh**: A manual refresh button in the UI clears the cache and forces a MediaStore rescan.
 3. Controller sets an initial root (from `ExternalPath`) and calls `LibraryBrowser.buildVirtualListing()` to construct a virtual folder tree from song paths.
 4. UI renders folders/files; **Play All** uses `tracksForCurrentPath()` to send a queue to the player.
-   - **Error Handling**: Missing files are marked with an `isNotFound` flag and displayed with a red error icon.
+   - **Error Handling**: Missing files are marked with an `isNotFound` flag and displayed with a red error icon. During playback (tap/Next/Previous/natural advance), missing/known-failed tracks are skipped deterministically while preserving the red marking in the queue.
 
 ## Data Flow (macOS)
 

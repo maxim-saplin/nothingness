@@ -4,17 +4,18 @@ This document details audio stack choices, data paths, and behaviors for playbac
 
 ## Goals & Rationale
 - Clean separation of concerns: `PlaybackController` handles business logic (user intent, queue, error recovery), `AudioTransport` provides thin native player control.
-- Platform-specific transports behind one interface: SoLoud on macOS; just_audio + audio_service on Android.
+- Platform-specific transports behind one interface: SoLoud on macOS; just_audio on Android. On Android, `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
 - Spectrum comes from the active transport (SoLoud FFT on macOS, Android visualizer tied to player session) with microphone capture as an Android fallback.
 - Preserve quick switching between transport spectrum and microphone source based on `SpectrumSettings.audioSource`.
 - User intent tracking via `PlayIntent` enum prevents race conditions between pause and auto-skip.
 
 ## Core Components
 - **`AudioPlayerProvider`**: `ChangeNotifier` that wraps a `PlaybackController` and surfaces state (song info, playing, queue, shuffle, spectrum data) without prop drilling.
+- **`NothingAudioHandler` (Android)**: `audio_service` handler that owns MediaSession/notification state. It mirrors queue/media item/playback state for the OS and delegates playback decisions to `PlaybackController`.
 - **`PlaybackController`**: Single source of truth for playback logic. Responsibilities include:
   - **User intent tracking**: Maintains `PlayIntent` enum (play/pause) to represent explicit user intent, preventing race conditions between pause and auto-skip.
   - **Queue management**: Owns `PlaylistStore` instance, manages track ordering, shuffle state, and current index.
-  - **Error recovery policy**: Listens to transport error events, checks `userIntent` before deciding to skip or stay paused. If `userIntent == play` and error occurs → skip to next; if `userIntent == pause` → stay paused.
+  - **Deterministic missing-file handling**: Centralized in a bounded scan loop (`_playWithAutoAdvance`) so missing/known-failed tracks are always marked red and skipped consistently across tap/Next/Previous/natural advance.
   - **`isNotFound` tracking**: Backend-agnostic tracking of failed track paths (moved from platform-specific implementations).
   - **SongInfo emission**: Consolidates song info updates from transport position/duration.
 - **`AudioTransport` (interface)**: Thin abstraction over platform-specific players. Provides minimal interface:
@@ -26,7 +27,7 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - Does NOT handle: queue management, skip logic, user intent tracking
 - **`AudioTransport` implementations**:
   - **`SoLoudTransport` (macOS)**: Thin wrapper around SoLoud for playback and FFT. No queue awareness, no skip logic.
-  - **`JustAudioTransport` (Android)**: Thin wrapper around just_audio + audio_service/just_audio_background for playback, media session, notification, headset/lock-screen controls. Spectrum via Android visualizer bound to the player session. No `maxSkipsOnError` - all skipping handled by `PlaybackController`. Android package is arm64-only and excludes SoLoud native libs.
+  - **`JustAudioTransport` (Android)**: Thin wrapper around just_audio for playback control and position/duration/events. Spectrum via Android visualizer bound to the player session. No queue management; no `maxSkipsOnError` - all skipping handled by `PlaybackController`. Android package is arm64-only and excludes SoLoud native libs.
 - **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
   - **Transport spectrum**: SoLoud FFT (macOS) or Android visualizer stream.
   - **`MicrophoneSpectrumProvider`** (Android fallback): Streams FFT bars from native `AudioCaptureService` via EventChannel; requires mic permission.
@@ -36,7 +37,9 @@ This document details audio stack choices, data paths, and behaviors for playbac
 ```mermaid
 flowchart LR
   UI[MediaControllerPage] -->|watch| Provider[AudioPlayerProvider]
-  Provider -->|play/enqueue/seek| Controller[PlaybackController]
+  Provider -->|Android| Handler[NothingAudioHandler]
+  Provider -->|NonAndroid| Controller[PlaybackController]
+  Handler -->|delegates| Controller
   Controller -->|load/play/pause/seek| Transport[AudioTransport]
     Transport -->|macOS| SoLoud[SoLoudTransport]
     Transport -->|Android| JA[JustAudioTransport]
@@ -51,7 +54,7 @@ flowchart LR
 - On play: `PlaybackController` sets `userIntent = PlayIntent.play`, transport stops prior playback/source, loads, plays, and (re)starts spectrum capture (SoLoud FFT or Android visualizer subscription).
 - On pause: `PlaybackController` sets `userIntent = PlayIntent.pause`, transport pauses playback and stops spectrum capture to reduce CPU; resume restarts capture. Error recovery respects `userIntent` - if paused, errors don't trigger auto-skip.
 - On completion: Transport emits `TransportEndedEvent`; `PlaybackController` checks `userIntent` and advances to next track if `userIntent == play`, otherwise stops.
-- On error: Transport emits `TransportErrorEvent`; `PlaybackController` marks track as `isNotFound`, checks `userIntent`, and skips only if `userIntent == play`. All skip logic handled in Dart, no native `maxSkipsOnError`.
+- On error / missing file: missing/known-failed tracks are marked `isNotFound` and skipped consistently across tap/Next/Previous/natural advance. `TransportErrorEvent` is used to mark pending-load failures safely (no second skip chain); the `load()` catch path drives the skip. Optional preflight: `PlaybackController(preflightFileExists: true)` (default) checks `File(path).exists()` for filesystem paths and skips immediately if missing (skips `content://` URIs).
 
 ## Microphone Pipeline (Android Only, fallback)
 ```mermaid
@@ -78,14 +81,16 @@ flowchart LR
 
 ## Error Handling & Guardrails
 - SoLoud init is awaited before visualization calls; UI bootstrap was sequenced to remove `SoLoudNotInitializedException` risk.
-- **Error Recovery Policy**: `PlaybackController` listens to `TransportErrorEvent` from transports. When an error occurs:
-  - Track path is marked as `isNotFound` (backend-agnostic, stored in controller's `_failedTrackPaths` set)
-  - Controller checks `userIntent`:
-    - If `userIntent == PlayIntent.play`: Automatically skips to next track
-    - If `userIntent == PlayIntent.pause`: Stays paused, does not skip (prevents race conditions)
-  - All skip logic handled in Dart; no native `maxSkipsOnError` in transports
-- **User Intent Tracking**: `PlayIntent` enum prevents race conditions. When user pauses, `userIntent = PlayIntent.pause` is set explicitly. If transport auto-skips due to error, controller checks intent before deciding to skip, ensuring user's pause intent is respected.
-- Transport load/play errors are caught and emitted as `TransportErrorEvent`; controller handles recovery based on user intent.
+- **Missing files / failed tracks (deterministic)**:
+  - Missing-file behavior is centralized in a bounded scan loop (`_playWithAutoAdvance`).
+  - Invariants:
+    - Tap missing track: mark red (`isNotFound`) and continue to the next playable track.
+    - Next/Previous/natural end: missing/known-failed tracks are skipped automatically.
+    - Known-failed + user tap retries once (so “file restored” can clear red and play).
+  - Optional preflight: `preflightFileExists` (default true) checks filesystem paths before calling `load()`.
+- **Error event handling (safe attribution)**:
+  - `TransportErrorEvent` is only used to mark the pending-load track as failed; it does not start an additional skip chain.
+  - The `load()` catch path is responsible for advancing, preventing double-advance races.
 - Spectrum polling checks for a valid handle and skips if absent.
 - Source disposal happens before new loads to prevent leaked handles.
 - Mic pipeline activates only when permission is granted; otherwise bars fall back to zeros.

@@ -94,6 +94,7 @@ void main() {
     controller = PlaybackController(
       transport: transport,
       playlist: playlist,
+      preflightFileExists: false,
     );
     await controller.init();
   });
