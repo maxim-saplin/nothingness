@@ -4,6 +4,7 @@ import android.Manifest
 import android.database.ContentObserver
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.audiofx.Equalizer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -36,6 +37,13 @@ class MainActivity : AudioServiceActivity() {
 
     private var mediaStoreEventSink: EventChannel.EventSink? = null
     private var mediaStoreObserver: ContentObserver? = null
+
+    // --- EQ (Android AudioEffect) ---
+    private var equalizer: Equalizer? = null
+    private var eqSessionId: Int? = null
+    private var eqEnabled: Boolean = false
+    private var eqGainsDb: List<Double> = listOf(0.0, 0.0, 0.0, 0.0, 0.0)
+    private val eqUiCentersHz: IntArray = intArrayOf(60, 230, 910, 3600, 14000)
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -114,6 +122,30 @@ class MainActivity : AudioServiceActivity() {
                         audioCaptureService?.updateSettings(noiseGateDb, barCount, decaySpeed)
                         visualizerService?.updateSettings(noiseGateDb, barCount, decaySpeed)
                     }
+                    result.success(null)
+                }
+                "setEqualizerSettings" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val settings = call.arguments as? Map<String, Any>
+                    if (settings != null) {
+                        eqEnabled = (settings["enabled"] as? Boolean) ?: false
+                        val rawGains = settings["gainsDb"]
+                        eqGainsDb = if (rawGains is List<*>) {
+                            rawGains.map { (it as? Number)?.toDouble() ?: 0.0 }
+                        } else {
+                            listOf(0.0, 0.0, 0.0, 0.0, 0.0)
+                        }
+                        Log.d(TAG, "EQ settings updated: enabled=$eqEnabled gainsDb=$eqGainsDb sessionId=$eqSessionId")
+                        applyEqSettings()
+                    }
+                    result.success(null)
+                }
+                "setEqualizerSessionId" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val args = call.arguments as? Map<String, Any>
+                    val sessionId = (args?.get("sessionId") as? Number)?.toInt()
+                    Log.d(TAG, "EQ session id set: $sessionId")
+                    setEqualizerSession(sessionId)
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -219,6 +251,92 @@ class MainActivity : AudioServiceActivity() {
         visualizerService?.stopCapture()
     }
 
+    private fun setEqualizerSession(sessionId: Int?) {
+        // Disable/release when no session id.
+        if (sessionId == null || sessionId < 0) {
+            releaseEqualizer()
+            return
+        }
+        try {
+            // Recreate if different session or missing.
+            if (equalizer == null || eqSessionId != sessionId) {
+                releaseEqualizer()
+                equalizer = Equalizer(0, sessionId)
+                eqSessionId = sessionId
+            }
+            applyEqSettings()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to create Equalizer for sessionId=$sessionId", t)
+            releaseEqualizer()
+        }
+    }
+
+    private fun applyEqSettings() {
+        val eq = equalizer ?: return
+        try {
+            eq.enabled = eqEnabled
+            if (!eqEnabled) return
+
+            val bandRange = eq.bandLevelRange
+            val minMb = bandRange[0].toInt()
+            val maxMb = bandRange[1].toInt()
+
+            val numBands = eq.numberOfBands.toInt().coerceAtLeast(0)
+            if (numBands == 0) return
+
+            // Map 5 UI bands to nearest device bands (by center frequency).
+            val deviceCentersHz = IntArray(numBands) { b ->
+                // getCenterFreq returns milliHz.
+                (eq.getCenterFreq(b.toShort()).toInt() / 1000).coerceAtLeast(0)
+            }
+
+            // Targets -> device band index.
+            val mappedBand = IntArray(eqUiCentersHz.size) { i ->
+                val target = eqUiCentersHz[i]
+                var bestIdx = 0
+                var bestDist = Int.MAX_VALUE
+                for (b in 0 until numBands) {
+                    val dist = kotlin.math.abs(deviceCentersHz[b] - target)
+                    if (dist < bestDist) {
+                        bestDist = dist
+                        bestIdx = b
+                    }
+                }
+                bestIdx
+            }
+
+            // Combine if collisions: average gains for all UI sliders mapped to same device band.
+            val sumDb = DoubleArray(numBands) { 0.0 }
+            val count = IntArray(numBands) { 0 }
+            for (i in mappedBand.indices) {
+                val b = mappedBand[i]
+                val gain = eqGainsDb.getOrNull(i) ?: 0.0
+                sumDb[b] += gain
+                count[b] += 1
+            }
+
+            for (b in 0 until numBands) {
+                if (count[b] == 0) continue
+                val avgDb = sumDb[b] / count[b].toDouble()
+                val mb = (avgDb * 100.0).toInt().coerceIn(minMb, maxMb)
+                eq.setBandLevel(b.toShort(), mb.toShort())
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed applying EQ settings", t)
+        }
+    }
+
+    private fun releaseEqualizer() {
+        try {
+            equalizer?.release()
+        } catch (_: Throwable) {
+            // ignore
+        } finally {
+            equalizer = null
+            eqSessionId = null
+        }
+    }
+
     private fun registerMediaStoreObserver() {
         if (mediaStoreObserver != null) return
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -305,5 +423,6 @@ class MainActivity : AudioServiceActivity() {
         super.onDestroy()
         stopSpectrumCapture()
         unregisterMediaStoreObserver()
+        releaseEqualizer()
     }
 }

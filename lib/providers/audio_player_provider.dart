@@ -12,6 +12,7 @@ import '../services/audio_transport.dart';
 import '../services/just_audio_transport.dart';
 import '../services/playback_controller.dart';
 import '../services/platform_channels.dart';
+import '../services/settings_service.dart';
 import '../services/soloud_transport.dart';
 
 /// Provider wrapper for PlaybackController.
@@ -127,6 +128,10 @@ class AudioPlayerProvider extends ChangeNotifier {
       _androidSessionId = (initialSessionId != null && initialSessionId >= 0)
           ? initialSessionId
           : null;
+      await _platformChannels.setEqualizerSessionId(_androidSessionId);
+      await _platformChannels.updateEqualizerSettings(
+        SettingsService().eqSettingsNotifier.value,
+      );
 
       _androidCustomEventSub = handler.customEventStream.listen((event) {
         if (event is Map && event['type'] == 'sessionId') {
@@ -134,6 +139,7 @@ class AudioPlayerProvider extends ChangeNotifier {
           // Allow `0` as a fallback (output mix) on devices where app session id
           // isn't available or is delayed.
           _androidSessionId = (raw != null && raw >= 0) ? raw : null;
+          _platformChannels.setEqualizerSessionId(_androidSessionId);
           _maybeStartAndroidSpectrum();
         }
       });

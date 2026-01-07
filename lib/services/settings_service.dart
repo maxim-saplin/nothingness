@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/screen_config.dart';
+import '../models/eq_settings.dart';
 import '../models/spectrum_settings.dart';
+import 'platform_channels.dart';
 
 class SettingsService {
   // Singleton
@@ -18,6 +20,7 @@ class SettingsService {
   static const String _screenConfigKey = 'screen_config';
   static const String _fullScreenKey = 'full_screen';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
+  static const String _eqSettingsKey = 'eq_settings';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -31,9 +34,14 @@ class SettingsService {
   static const bool defaultFullScreen = false;
   static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
+  static const bool defaultEqEnabled = false;
 
   final ValueNotifier<SpectrumSettings> settingsNotifier = ValueNotifier(
     const SpectrumSettings(),
+  );
+
+  final ValueNotifier<EqSettings> eqSettingsNotifier = ValueNotifier(
+    const EqSettings(),
   );
 
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
@@ -106,6 +114,20 @@ class SettingsService {
     }
     settingsNotifier.value = settings;
 
+    // 1b. Load EQ Settings
+    final eqJsonString = prefs.getString(_eqSettingsKey);
+    EqSettings eqSettings;
+    if (eqJsonString != null) {
+      try {
+        eqSettings = EqSettings.fromJson(jsonDecode(eqJsonString));
+      } catch (e) {
+        eqSettings = const EqSettings();
+      }
+    } else {
+      eqSettings = const EqSettings();
+    }
+    eqSettingsNotifier.value = eqSettings;
+
     // 2. Load UI Scale (with migration)
     if (prefs.containsKey(_uiScaleKey)) {
       final loadedScale = prefs.getDouble(_uiScaleKey) ?? defaultUiScale;
@@ -173,6 +195,18 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_settingsKey, jsonEncode(settings.toJson()));
     settingsNotifier.value = settings;
+  }
+
+  /// Saves the EQ settings to persistence.
+  Future<void> saveEqSettings(EqSettings settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_eqSettingsKey, jsonEncode(settings.toJson()));
+    eqSettingsNotifier.value = settings;
+
+    // Apply immediately on Android (best-effort).
+    if (PlatformChannels.isAndroid) {
+      PlatformChannels().updateEqualizerSettings(settings);
+    }
   }
 
   /// Saves the UI scale to persistence.

@@ -93,6 +93,15 @@ jobs:
           # reuse the matching NDK/CMake into the cached SDK directory.
           packages: "platforms;android-33"
 
+      - name: Cache Android NDK + CMake
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/licenses
+            /usr/local/lib/android/sdk/ndk/27.0.12077973
+            /usr/local/lib/android/sdk/cmake/3.22.1
+          key: ${{ runner.os }}-android-ndk-27.0.12077973-cmake-3.22.1-v1
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -107,7 +116,7 @@ jobs:
 
       - name: Build APK
         env:
-          GRADLE_OPTS: "-Dorg.gradle.caching=true"
+          GRADLE_OPTS: "-Dorg.gradle.caching=true -Dorg.gradle.vfs.watch=false"
         run: flutter build apk --release --no-pub
 
       - name: Rename APK

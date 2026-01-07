@@ -207,6 +207,9 @@ class _MediaControllerPageState extends State<MediaControllerPage>
     _attachSpectrumSource(settings);
     // Update native side with loaded settings
     _platformChannels.updateSpectrumSettings(settings);
+    _platformChannels.updateEqualizerSettings(
+      _settingsService.eqSettingsNotifier.value,
+    );
   }
 
   Future<void> _saveSettings(SpectrumSettings settings) async {

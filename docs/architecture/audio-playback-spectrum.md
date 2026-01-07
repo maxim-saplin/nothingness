@@ -101,6 +101,14 @@ flowchart LR
 - Android package is arm64-only; adding more ABIs would increase APK size.
 - Consider graceful backoff/logging when native mic stream stalls.
 - Possible enhancement: normalize FFT window size to match bar count more tightly.
+- Android EQ: v1 uses the platform `android.media.audiofx.Equalizer` (device-dependent).
+
+## Android Equalizer (v1)
+- **Scope**: Android-only audio effect; UI lives in Settings → GLOBAL → EQ.
+- **Engine**: `android.media.audiofx.Equalizer` attached to the current `just_audio` session id.
+- **UI**: Fixed 5-band graphic EQ (60 / 230 / 910 / 3.6k / 14k Hz) with per-band gain sliders.
+- **Mapping**: Each UI band is mapped to the nearest device-supported Equalizer band by center frequency; if multiple UI bands map to the same device band, gains are averaged.
+- **Notes**: Support varies by OEM/ROM; on unsupported devices the app should fail gracefully (EQ disabled).
 
 ## References
 - High-level overview: [overview.md](overview.md)

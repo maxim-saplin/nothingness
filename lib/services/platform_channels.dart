@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../models/eq_settings.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 
@@ -121,6 +122,26 @@ class PlatformChannels {
       await _mediaChannel.invokeMethod('updateSpectrumSettings', settings.toJson());
     } catch (e) {
       debugPrint('Error updating spectrum settings: $e');
+    }
+  }
+
+  Future<void> setEqualizerSessionId(int? sessionId) async {
+    if (!isAndroid) return;
+    try {
+      await _mediaChannel.invokeMethod('setEqualizerSessionId', <String, Object?>{
+        'sessionId': sessionId,
+      });
+    } catch (e) {
+      debugPrint('Error setting EQ session id: $e');
+    }
+  }
+
+  Future<void> updateEqualizerSettings(EqSettings settings) async {
+    if (!isAndroid) return;
+    try {
+      await _mediaChannel.invokeMethod('setEqualizerSettings', settings.toJson());
+    } catch (e) {
+      debugPrint('Error updating EQ settings: $e');
     }
   }
 
