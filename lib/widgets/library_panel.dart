@@ -12,9 +12,14 @@ import '../services/library_browser.dart';
 import '../services/library_service.dart';
 
 class LibraryPanel extends StatefulWidget {
-  const LibraryPanel({super.key, required this.onClose});
+  const LibraryPanel({
+    super.key,
+    required this.onClose,
+    required this.isOpen,
+  });
 
   final VoidCallback onClose;
+  final bool isOpen;
 
   @override
   State<LibraryPanel> createState() => _LibraryPanelState();
@@ -22,6 +27,8 @@ class LibraryPanel extends StatefulWidget {
 
 class _LibraryPanelState extends State<LibraryPanel> {
   late final LibraryController _controller;
+  bool _didInitWhenOpened = false;
+  TabController? _tabController;
 
   @override
   void initState() {
@@ -31,13 +38,32 @@ class _LibraryPanelState extends State<LibraryPanel> {
         supportedExtensions: AudioPlayerProvider.supportedExtensions,
       ),
       libraryService: LibraryService(),
-    )..init();
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant LibraryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isOpen && !_didInitWhenOpened) {
+      _didInitWhenOpened = true;
+      _controller.init();
+    }
   }
 
   @override
   void dispose() {
+    _tabController?.removeListener(_handleTabChange);
+    _tabController = null;
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    final controller = _tabController;
+    if (controller == null) return;
+    if (!controller.indexIsChanging && controller.index == 1) {
+      _controller.onFoldersTabVisible();
+    }
   }
 
   @override
@@ -139,14 +165,24 @@ class _LibraryPanelState extends State<LibraryPanel> {
                 child: Column(
                   children: [
                     _buildHeader(),
-                    const TabBar(
-                      indicatorColor: Color(0xFF00FF88),
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.white54,
-                      tabs: [
-                        Tab(text: 'Now Playing'),
-                        Tab(text: 'Folders'),
-                      ],
+                    Builder(
+                      builder: (context) {
+                        final tc = DefaultTabController.of(context);
+                        if (_tabController != tc) {
+                          _tabController?.removeListener(_handleTabChange);
+                          _tabController = tc;
+                          _tabController?.addListener(_handleTabChange);
+                        }
+                        return const TabBar(
+                          indicatorColor: Color(0xFF00FF88),
+                          labelColor: Colors.white,
+                          unselectedLabelColor: Colors.white54,
+                          tabs: [
+                            Tab(text: 'Now Playing'),
+                            Tab(text: 'Folders'),
+                          ],
+                        );
+                      },
                     ),
                     Expanded(
                       child: TabBarView(
@@ -334,23 +370,6 @@ class _LibraryPanelState extends State<LibraryPanel> {
                 ),
               ] else
                 const SizedBox(width: 10),
-              if (Platform.isAndroid)
-                IconButton(
-                  onPressed: controller.isScanning
-                      ? null
-                      : () => _refreshLibrary(context),
-                  icon: controller.isScanning
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF00FF88),
-                          ),
-                        )
-                      : const Icon(Icons.refresh, color: Color(0xFF00FF88)),
-                  tooltip: 'Refresh library',
-                ),
               if (controller.currentPath != null)
                 TextButton.icon(
                   onPressed: () => _playAll(context),
@@ -565,11 +584,6 @@ class _LibraryPanelState extends State<LibraryPanel> {
 
     await LibraryService().addRoot(path);
     await _controller.loadFolder(path);
-  }
-
-  Future<void> _refreshLibrary(BuildContext context) async {
-    final controller = context.read<LibraryController>();
-    await controller.refreshLibrary();
   }
 
   Future<void> _playAll(BuildContext context) async {

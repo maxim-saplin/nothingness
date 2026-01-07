@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 2.1.11+18
+version: 2.1.12+19
 
 environment:
   sdk: ^3.10.1

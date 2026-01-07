@@ -1,11 +1,13 @@
 package com.saplin.nothingness
 
 import android.Manifest
+import android.database.ContentObserver
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -22,6 +24,7 @@ class MainActivity : AudioServiceActivity() {
         private const val TAG = "MainActivity"
         private const val MEDIA_CHANNEL = "com.saplin.nothingness/media"
         private const val SPECTRUM_CHANNEL = "com.saplin.nothingness/spectrum"
+        private const val MEDIASTORE_CHANNEL = "com.saplin.nothingness/mediastore"
         private const val PERMISSION_REQUEST_CODE = 1001
     }
     
@@ -30,6 +33,9 @@ class MainActivity : AudioServiceActivity() {
     private var spectrumEventSink: EventChannel.EventSink? = null
     private var lastSpectrumSessionId: Int? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var mediaStoreEventSink: EventChannel.EventSink? = null
+    private var mediaStoreObserver: ContentObserver? = null
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -113,6 +119,44 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // MediaStore channel: change notifications + version checks
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getMediaStoreVersion" -> {
+                    try {
+                        // Available on Android 11+ (API 30). For older devices, return null.
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            val version = MediaStore.getVersion(
+                                applicationContext,
+                                MediaStore.VOLUME_EXTERNAL
+                            )
+                            result.success(version)
+                        } else {
+                            result.success(null)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "getMediaStoreVersion failed", e)
+                        result.success(null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    mediaStoreEventSink = events
+                    registerMediaStoreObserver()
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    unregisterMediaStoreObserver()
+                    mediaStoreEventSink = null
+                }
+            }
+        )
         
         // Event channel for spectrum data stream
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, SPECTRUM_CHANNEL).setStreamHandler(
@@ -174,6 +218,37 @@ class MainActivity : AudioServiceActivity() {
         audioCaptureService?.stopCapture()
         visualizerService?.stopCapture()
     }
+
+    private fun registerMediaStoreObserver() {
+        if (mediaStoreObserver != null) return
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                mediaStoreEventSink?.success(mapOf("changed" to true))
+            }
+        }
+        try {
+            contentResolver.registerContentObserver(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                true,
+                observer
+            )
+            mediaStoreObserver = observer
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register MediaStore observer", e)
+        }
+    }
+
+    private fun unregisterMediaStoreObserver() {
+        val observer = mediaStoreObserver ?: return
+        try {
+            contentResolver.unregisterContentObserver(observer)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister MediaStore observer", e)
+        } finally {
+            mediaStoreObserver = null
+        }
+    }
     
     private fun isNotificationAccessGranted(): Boolean {
         val enabledListeners = Settings.Secure.getString(
@@ -229,5 +304,6 @@ class MainActivity : AudioServiceActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopSpectrumCapture()
+        unregisterMediaStoreObserver()
     }
 }

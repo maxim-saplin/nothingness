@@ -14,8 +14,11 @@ This document describes the folder browsing pipeline after moving MediaStore log
 1. User taps **Grant Library Access** → `LibraryController.requestPermission()` requests storage/audio permissions.
 2. Controller queries MediaStore (via `on_audio_query`) into `LibrarySong` list.
    - **Async Scanning**: Queries run in isolates using `compute()` to prevent UI blocking.
-   - **Smart Caching**: `LibraryService` persists the last scan timestamp. On launch, the controller compares this with the MediaStore's latest `dateAdded`/`dateModified`. A full rescan only occurs if new content is detected.
-   - **Refresh**: A manual refresh button in the UI clears the cache and forces a MediaStore rescan.
+   - **Lazy Initialization**: On Android, MediaStore is not queried at app launch. The library is initialized only when the user opens the Library panel and navigates to the Folders tab.
+   - **Change Detection (Fast Path)**:
+     - A native `ContentObserver` watches `MediaStore.Audio.Media.EXTERNAL_CONTENT_URI` and marks the app’s library cache as “dirty” when changes occur.
+     - On Android 11+, the app also reads `MediaStore.getVersion(...)` as a low-cost way to detect significant MediaStore changes.
+   - **Refresh Policy**: There is no manual refresh button. When the user navigates to the **Folders** tab, the controller refreshes only if MediaStore is detected as changed; otherwise it reuses cached results.
 3. Controller computes **Smart Roots** from the MediaStore song paths and discovered Android storage mount points.
    - **Goal**: Reduce clicks by starting users as close as possible to music folders (e.g. show `/storage/emulated/0/Music` instead of `/storage` → `emulated` → `0` → `Music`).
    - **Grouped by device**: Smart roots are grouped by storage device/mount point (internal vs USB volumes).

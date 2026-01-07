@@ -318,7 +318,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       right: 0,
       bottom: _isLibraryOpen ? 0 : -height,
       height: height,
-      child: LibraryPanel(onClose: _closeLibrary),
+      child: LibraryPanel(onClose: _closeLibrary, isOpen: _isLibraryOpen),
     );
   }
 

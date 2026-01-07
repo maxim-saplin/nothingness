@@ -10,6 +10,8 @@ import '../models/spectrum_settings.dart';
 class PlatformChannels {
   static const _mediaChannel = MethodChannel('com.saplin.nothingness/media');
   static const _spectrumChannel = EventChannel('com.saplin.nothingness/spectrum');
+  static const _mediaStoreChannel = MethodChannel('com.saplin.nothingness/mediastore');
+  static const _mediaStoreEvents = EventChannel('com.saplin.nothingness/mediastore');
 
   static final bool isAndroid = Platform.isAndroid;
 
@@ -131,6 +133,25 @@ class PlatformChannels {
       return <double>[];
     }).handleError((error) {
       debugPrint('Spectrum stream error: $error');
+    });
+  }
+
+  /// Android 11+ MediaStore version string. Returns null if unavailable.
+  Future<String?> getMediaStoreVersion() async {
+    if (!isAndroid) return null;
+    try {
+      return await _mediaStoreChannel.invokeMethod<String>('getMediaStoreVersion');
+    } catch (e) {
+      debugPrint('Error getting MediaStore version: $e');
+      return null;
+    }
+  }
+
+  /// Stream that emits when MediaStore reports changes (ContentObserver).
+  Stream<void> mediaStoreChanges() {
+    if (!isAndroid) return const Stream<void>.empty();
+    return _mediaStoreEvents.receiveBroadcastStream().map((_) => null).handleError((error) {
+      debugPrint('MediaStore stream error: $error');
     });
   }
 }

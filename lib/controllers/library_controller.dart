@@ -12,6 +12,8 @@ import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/logging_service.dart';
+import '../services/android_media_store_freshness.dart';
+import '../services/media_store_freshness.dart';
 import '../services/metadata_extractor.dart';
 
 // Static function for isolate execution
@@ -35,16 +37,26 @@ class LibraryController extends ChangeNotifier {
   LibraryController({
     required this.libraryBrowser,
     required this.libraryService,
+    MediaStoreFreshness? mediaStoreFreshness,
+    bool? isAndroidOverride,
     OnAudioQuery? audioQuery,
     Future<List<LibrarySong>> Function()? androidSongLoader,
     Future<List<String>> Function()? androidRootsLoader,
   }) : _audioQuery = audioQuery ?? OnAudioQuery(),
+       _mediaStoreFreshness =
+           mediaStoreFreshness ??
+           (Platform.isAndroid
+               ? AndroidMediaStoreFreshness()
+               : NoopMediaStoreFreshness()),
+       _isAndroidOverride = isAndroidOverride,
        _androidSongLoader = androidSongLoader,
        _androidRootsLoader = androidRootsLoader;
 
   final LibraryBrowser libraryBrowser;
   final LibraryService libraryService;
   final OnAudioQuery _audioQuery;
+  final MediaStoreFreshness _mediaStoreFreshness;
+  final bool? _isAndroidOverride;
   final Future<List<LibrarySong>> Function()? _androidSongLoader;
   final Future<List<String>> Function()? _androidRootsLoader;
 
@@ -64,8 +76,10 @@ class LibraryController extends ChangeNotifier {
   List<LibrarySong> _androidSongs = [];
   bool _disposed = false;
 
+  bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
+
   Future<void> init() async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _checkAndroidPermission();
       if (hasPermission) {
         // Check if library needs refreshing based on MediaStore timestamp
@@ -77,6 +91,25 @@ class LibraryController extends ChangeNotifier {
         await _ensureAndroidSongsLoaded();
         await loadRoot();
       }
+    }
+  }
+
+  /// Called when the Library UI navigates to the "Folders" tab.
+  ///
+  /// Android-only: checks whether MediaStore changed and refreshes the library
+  /// if needed. If unchanged, this is a no-op.
+  Future<void> onFoldersTabVisible() async {
+    if (!_isAndroid) return;
+    if (!hasPermission) return;
+    if (isScanning) return;
+
+    try {
+      final changed = await _mediaStoreFreshness.consumeIfChanged();
+      if (changed) {
+        await refreshLibrary();
+      }
+    } catch (e) {
+      debugPrint('Error checking MediaStore freshness: $e');
     }
   }
 
