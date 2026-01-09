@@ -46,8 +46,10 @@ class _DotScreenState extends State<DotScreen> {
     final maxRadius = widget.config.maxDotSize;
     final sensitivity = widget.config.sensitivity;
 
-    return (minRadius + (energy * sensitivity * (maxRadius - minRadius)))
-        .clamp(minRadius, maxRadius);
+    return (minRadius + (energy * sensitivity * (maxRadius - minRadius))).clamp(
+      minRadius,
+      maxRadius,
+    );
   }
 
   @override
@@ -60,6 +62,7 @@ class _DotScreenState extends State<DotScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -70,43 +73,119 @@ class _DotScreenState extends State<DotScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Fluctuating Dot (Centered)
-          Center(
-            child: Container(
-              width: dotRadius * 2,
-              height: dotRadius * 2,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: widget.config.dotOpacity),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenSize = MediaQuery.of(context).size;
+          final screenWidth = screenSize.width;
+          final screenHeight = screenSize.height;
 
-          // Song Title (Lower bottom)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: MediaQuery.of(context).size.height / 9,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Text(
-                songInfo?.title ?? 'Nothing playing',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(
-                    alpha: widget.config.textOpacity,
+          // Center circle: 30% of smaller dimension
+          final centerDiameter = min(screenWidth, screenHeight) * 0.3;
+
+          // Bottom rectangles: 40% width, 15% height
+          final bottomButtonWidth = screenWidth * 0.4;
+          final bottomButtonHeight = screenHeight * 0.15;
+          final bottomPadding = 106.0; // Small padding from edge
+
+          return Stack(
+            children: [
+              // Fluctuating Dot (Centered)
+              Center(
+                child: Container(
+                  width: dotRadius * 2,
+                  height: dotRadius * 2,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(
+                      alpha: widget.config.dotOpacity,
+                    ),
+                    shape: BoxShape.circle,
                   ),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ),
-        ],
+
+              // Song Title (Lower bottom)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: screenHeight / 9,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  child: Text(
+                    songInfo?.title ?? 'Nothing playing',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(
+                        alpha: widget.config.textOpacity,
+                      ),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+
+              // Center Play/Pause Button (Circular)
+              Positioned(
+                left: (screenWidth - centerDiameter) / 2,
+                top: (screenHeight - centerDiameter) / 2,
+                width: centerDiameter,
+                height: centerDiameter,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: player.playPause,
+                    customBorder: const CircleBorder(),
+                    splashColor: Colors.white.withValues(alpha: 0.3),
+                    highlightColor: Colors.white.withValues(alpha: 0.1),
+                    child: Container(),
+                  ),
+                ),
+              ),
+
+              // Bottom Left Previous Button (Rectangular)
+              Positioned(
+                left: bottomPadding,
+                bottom: bottomPadding,
+                width: bottomButtonWidth,
+                height: bottomButtonHeight,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: player.previous,
+                    customBorder: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    splashColor: Colors.white.withValues(alpha: 0.3),
+                    highlightColor: Colors.white.withValues(alpha: 0.1),
+                    child: Container(),
+                  ),
+                ),
+              ),
+
+              // Bottom Right Next Button (Rectangular)
+              Positioned(
+                right: bottomPadding,
+                bottom: bottomPadding,
+                width: bottomButtonWidth,
+                height: bottomButtonHeight,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: player.next,
+                    customBorder: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    splashColor: Colors.white.withValues(alpha: 0.3),
+                    highlightColor: Colors.white.withValues(alpha: 0.1),
+                    child: Container(),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

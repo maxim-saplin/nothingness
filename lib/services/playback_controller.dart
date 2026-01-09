@@ -328,9 +328,46 @@ class PlaybackController {
 
   Future<void> previous() async {
     _userIntent = PlayIntent.play; // Navigation implies play intent
-    final prevIdx = _playlist.previousOrderIndex();
-    if (prevIdx != null) {
-      await playFromQueueIndex(prevIdx, isAutoSkip: true, direction: -1);
+    
+    // Check if there's a current track loaded
+    final currentIdx = _playlist.currentOrderIndexNotifier.value;
+    if (currentIdx == null) {
+      // No track loaded, try to go to previous song
+      final prevIdx = _playlist.previousOrderIndex();
+      if (prevIdx != null) {
+        await playFromQueueIndex(prevIdx, isAutoSkip: true, direction: -1);
+      }
+      return;
+    }
+
+    // Get current playback position
+    try {
+      final position = await _transport.position;
+      const threshold = Duration(seconds: 3);
+      
+      if (position > threshold) {
+        // Position > 3 seconds: restart current song
+        await seek(Duration.zero);
+        // Ensure playback starts if paused
+        if (_userIntent == PlayIntent.play && !isPlayingNotifier.value) {
+          await _transport.play();
+          isPlayingNotifier.value = true;
+          _emitSongInfo();
+        }
+      } else {
+        // Position <= 3 seconds: go to previous song
+        final prevIdx = _playlist.previousOrderIndex();
+        if (prevIdx != null) {
+          await playFromQueueIndex(prevIdx, isAutoSkip: true, direction: -1);
+        }
+      }
+    } catch (e) {
+      // Position unavailable: fall back to previous song behavior
+      _log('Error getting position in previous(): $e');
+      final prevIdx = _playlist.previousOrderIndex();
+      if (prevIdx != null) {
+        await playFromQueueIndex(prevIdx, isAutoSkip: true, direction: -1);
+      }
     }
   }
 

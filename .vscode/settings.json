@@ -1,0 +1,9 @@
+{
+  // Keep the VS Code Testing panel focused on unit/widget tests under `test/`.
+  // Integration tests live under `integration_test/` and can still be run manually
+  // (for example: `flutter test integration_test/...`).
+  "dart.allowTestsOutsideTestFolder": false,
+
+  // Extra guard: exclude integration tests explicitly from discovery.
+  "dart.testExclude": ["integration_test/**"]
+}
