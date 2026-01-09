@@ -114,10 +114,14 @@ jobs:
       - name: Run Tests
         run: flutter test --no-pub
 
+      # Safety: force regeneration of plugin registrant for the no-dev graph.
+      - name: Remove stale GeneratedPluginRegistrant
+        run: rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
       - name: Build APK
         env:
           GRADLE_OPTS: "-Dorg.gradle.caching=true -Dorg.gradle.vfs.watch=false"
-        run: flutter build apk --release --no-pub
+        run: flutter build apk --release
 
       - name: Rename APK
         id: rename_apk
