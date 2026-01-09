@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -31,6 +32,10 @@ class PlaybackController {
   final PlaylistStore _playlist;
   final bool debugPlaybackLogs;
   final bool preflightFileExists;
+  final Future<bool> Function(String path) _fileExists;
+  final bool captureRecentLogs;
+  final int recentLogCapacity;
+  final List<String> _recentLogs = <String>[];
 
   // User intent - explicit state for what the user wants
   PlayIntent _userIntent = PlayIntent.pause;
@@ -65,6 +70,12 @@ class PlaybackController {
   _SelectionReason _lastSelectionReason = _SelectionReason.other;
   int _lastSelectionDirection = 1;
 
+  // Diagnostics: last error attribution
+  String? _lastErrorPath;
+  String? _lastErrorReason;
+  String? _lastErrorMessage;
+  DateTime? _lastErrorAt;
+
   StreamSubscription<TransportEvent>? _transportEventSub;
   Timer? _positionTimer;
 
@@ -78,15 +89,33 @@ class PlaybackController {
     PlaylistStore? playlist,
     this.debugPlaybackLogs = false,
     this.preflightFileExists = true,
+    Future<bool> Function(String path)? fileExists,
+    this.captureRecentLogs = false,
+    this.recentLogCapacity = 50,
   }) : _transport = transport,
        _playlist = playlist ?? PlaylistStore(),
+       _fileExists = fileExists ?? _defaultFileExists,
        _supportedExtensions = _getSupportedExtensions(transport);
 
   void _log(String message) {
+    if (captureRecentLogs || debugPlaybackLogs) {
+      _recentLogs.add(message);
+      final cap = max(1, recentLogCapacity);
+      if (_recentLogs.length > cap) {
+        _recentLogs.removeRange(0, _recentLogs.length - cap);
+      }
+    }
     if (debugPlaybackLogs) {
       debugPrint('[PlaybackController] $message');
     }
   }
+
+  static Future<bool> _defaultFileExists(String path) => File(path).exists();
+
+  /// Returns a snapshot of recent controller logs (if enabled).
+  ///
+  /// This is primarily intended for test/diagnostic tooling.
+  List<String> recentLogs() => List<String>.unmodifiable(_recentLogs);
 
   // Expose playlist notifiers
   ValueNotifier<int?> get currentIndexNotifier =>
@@ -192,7 +221,13 @@ class PlaybackController {
     //
     // This avoids double-advancing and prevents background async work from
     // outliving tests/dispose.
-    _log('PendingLoadErrorEvent: path=$path (mark failed; defer advance to load/catch)');
+    _log(
+      'PendingLoadErrorEvent: path=$path (mark failed; defer advance to load/catch)',
+    );
+    _lastErrorPath = path;
+    _lastErrorReason = 'transport_error_event';
+    _lastErrorMessage = 'TransportErrorEvent';
+    _lastErrorAt = DateTime.now();
     if (_failedTrackPaths.add(path)) {
       _updateQueueWithNotFoundFlags();
     }
@@ -226,11 +261,7 @@ class PlaybackController {
     final nextIdx = _playlist.nextOrderIndex();
     _log('SkipToNext: nextIdx=${nextIdx?.toString() ?? 'null'}');
     if (nextIdx != null) {
-      await playFromQueueIndex(
-        nextIdx,
-        isAutoSkip: true,
-        direction: 1,
-      );
+      await playFromQueueIndex(nextIdx, isAutoSkip: true, direction: 1);
     } else {
       // End of queue
       isPlayingNotifier.value = false;
@@ -396,7 +427,8 @@ class PlaybackController {
       // If already known failed, normally keep scanning.
       // Exception: for a direct user tap on the requested track, allow a retry
       // attempt (the file may have been restored).
-      if (isKnownFailed && !(reason == _SelectionReason.userTap && idx == startOrderIndex)) {
+      if (isKnownFailed &&
+          !(reason == _SelectionReason.userTap && idx == startOrderIndex)) {
         _updateQueueWithNotFoundFlags();
         idx += dir;
         continue;
@@ -404,9 +436,13 @@ class PlaybackController {
 
       // Optional deterministic preflight for filesystem paths.
       if (_shouldPreflightExists(track.path)) {
-        final exists = await File(track.path).exists();
+        final exists = await _fileExists(track.path);
         if (!exists) {
           _log('PreflightMissing: path=${track.path}');
+          _lastErrorPath = track.path;
+          _lastErrorReason = 'preflight_missing';
+          _lastErrorMessage = 'File does not exist';
+          _lastErrorAt = DateTime.now();
           _failedTrackPaths.add(track.path);
           _updateQueueWithNotFoundFlags();
           idx += dir;
@@ -421,7 +457,11 @@ class PlaybackController {
       _log('StartLoad: path=${track.path}');
 
       try {
-        await _transport.load(track.path, title: track.title, artist: track.artist);
+        await _transport.load(
+          track.path,
+          title: track.title,
+          artist: track.artist,
+        );
         if (op != _opGeneration) return;
 
         _pendingLoadPath = null;
@@ -446,6 +486,12 @@ class PlaybackController {
       } catch (e) {
         if (op != _opGeneration) return;
         _log('LoadError: path=${track.path} error=$e');
+        _lastErrorPath = track.path;
+        _lastErrorReason = _isTransientTransportError(e)
+            ? 'transport_load_transient'
+            : 'transport_load_error';
+        _lastErrorMessage = e.toString();
+        _lastErrorAt = DateTime.now();
 
         // Transient failures: retry briefly, then continue scanning.
         if (_isTransientTransportError(e)) {
@@ -459,7 +505,11 @@ class PlaybackController {
             await Future<void>.delayed(const Duration(milliseconds: 200));
             if (op != _opGeneration) return;
             _pendingLoadPath = track.path;
-            await _transport.load(track.path, title: track.title, artist: track.artist);
+            await _transport.load(
+              track.path,
+              title: track.title,
+              artist: track.artist,
+            );
             if (op != _opGeneration) return;
             _pendingLoadPath = null;
 
@@ -655,5 +705,31 @@ class PlaybackController {
     // Heuristics: JustAudio PlayerException "Connection aborted" often
     // occurs during rapid track changes or codec re-init and is transient.
     return s.contains('connection aborted') || s.contains('10000000');
+  }
+
+  /// Structured snapshot of playback controller state for diagnostics.
+  ///
+  /// This is intended for debugging and emulator automation.
+  Map<String, Object?> diagnosticsSnapshot() {
+    final idx = _playlist.currentOrderIndexNotifier.value;
+    final track = idx == null ? null : _playlist.trackForOrderIndex(idx);
+    return <String, Object?>{
+      'userIntent': _userIntent.name,
+      'isPlaying': isPlayingNotifier.value,
+      'currentOrderIndex': idx,
+      'currentPath': track?.path,
+      'queueLength': _playlist.length,
+      'failedTrackPaths': _failedTrackPaths.toList()..sort(),
+      'pendingLoadPath': _pendingLoadPath,
+      'lastSelectionReason': _lastSelectionReason.name,
+      'lastSelectionDirection': _lastSelectionDirection,
+      'lastError': <String, Object?>{
+        'path': _lastErrorPath,
+        'reason': _lastErrorReason,
+        'message': _lastErrorMessage,
+        'at': _lastErrorAt?.toIso8601String(),
+      },
+      'recentLogs': recentLogs(),
+    };
   }
 }

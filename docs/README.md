@@ -15,6 +15,9 @@ Welcome to the documentation for the Nothingness project.
   - [Testing Standards](../.cursor/rules/testing-standards.mdc) - Requirements and guidelines for testing.
   - [Documentation Rules](../.cursor/rules/documentation.mdc) - When and how to write documentation.
 
+- **Testing & Diagnostics**
+  - [Device/emulator integration testing (no audio files)](device-testing.md) - Integration tests + deterministic playback harness (Android + macOS; target selection matters).
+
 ### Building for Release
 
 To build a signed release APK or App Bundle, you must configure the signing keys.

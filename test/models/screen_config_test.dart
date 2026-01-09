@@ -176,7 +176,7 @@ void main() {
 
         final config = ScreenConfig.fromJson(json) as PoloScreenConfig;
 
-        expect(config.backgroundImagePath, 'assets/images/polo.heic');
+        expect(config.backgroundImagePath, 'assets/images/polo.webp');
         expect(config.fontFamily, 'Press Start 2P');
         expect(config.textColor, const Color(0xFF000000));
       });

@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 2.1.15+21
+version: 2.1.16+22
 
 environment:
   sdk: ^3.10.1
@@ -31,6 +31,9 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+
+  integration_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0

@@ -11,11 +11,36 @@ We mirror the `lib/` directory structure within `test/` to ensure tests are easy
 - `test/services/` -> Unit tests for services (mock dependencies).
 - `test/widgets/` -> Widget tests for reusable components.
 - `test/screens/` -> Widget tests for full pages.
+- `test/testing/` -> Unit tests for test harness helpers under `lib/testing/`.
+
+We also use Flutter’s emulator/device integration tests:
+
+- `integration_test/` -> End-to-end behavior tests on a real device/emulator.
 
 ## Requirement
 - All new logic (models, services) must have unit tests.
 - All new UI components (widgets, screens) must have widget tests.
+- Behavior that depends on platform/device eventing (e.g. “natural track ended”, lifecycle, real navigation flows) should have **integration_test** coverage.
 - **No Placeholders**: Do not commit empty test files or placeholder tests (e.g., `expect(true, isTrue)`). If a component cannot be tested yet, document the reason in the code or a tracking issue, but do not create a dummy test file.
+
+## Integration tests (emulator/device)
+
+Use `integration_test/` when validating **cross-widget behavior** or contracts that are hard to express in pure widget tests:
+
+- Skip/advance behavior across tap/next/prev/end events
+- “Inspectable” diagnostics flows and stable UI selectors
+
+### Test-only entrypoint
+
+When integration tests need deterministic behavior (no real audio files, no plugin-level playback), use a test-only entrypoint such as:
+
+- `lib/main_test.dart`
+
+This can wire:
+
+- a fake transport
+- controllable file-exists provider
+- stable selectors (e.g. `ValueKey`s) for automation
 
 ## How to Add Tests
 1. **Create File**: Create a test file in the corresponding `test/` subdirectory (e.g., `lib/models/foo.dart` -> `test/models/foo_test.dart`).
@@ -27,3 +52,4 @@ We mirror the `lib/` directory structure within `test/` to ensure tests are easy
 ## How to Run Tests
 - **All Tests**: `flutter test`
 - **Specific File**: `flutter test test/path/to/file_test.dart`
+- **Integration tests (single file)**: `flutter test -d <deviceId> integration_test/some_test.dart`

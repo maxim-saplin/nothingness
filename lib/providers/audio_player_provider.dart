@@ -22,6 +22,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   AudioTransport? _transport;
   NothingAudioHandler? _androidHandler;
   final PlatformChannels _platformChannels = PlatformChannels();
+  final bool? _isAndroidOverride;
 
   // Android-only: spectrum capture is driven by sessionId from AudioHandler.
   int? _androidSessionId;
@@ -31,18 +32,6 @@ class AudioPlayerProvider extends ChangeNotifier {
   StreamSubscription<List<MediaItem>>? _androidQueueSub;
   StreamSubscription<MediaItem?>? _androidMediaItemSub;
   StreamSubscription<PlaybackState>? _androidPlaybackStateSub;
-
-  AudioPlayerProvider({NothingAudioHandler? androidHandler}) {
-    if (Platform.isAndroid) {
-      _androidHandler = androidHandler;
-    } else if (Platform.isMacOS) {
-      _transport = SoLoudTransport();
-      _controller = PlaybackController(transport: _transport!);
-    } else {
-      _transport = JustAudioTransport();
-      _controller = PlaybackController(transport: _transport!);
-    }
-  }
 
   // Reactive state
   SongInfo? _songInfo;
@@ -67,6 +56,8 @@ class AudioPlayerProvider extends ChangeNotifier {
   Stream<List<double>> get spectrumStream =>
       _transport?.spectrumStream ?? _spectrumController.stream;
 
+  bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
+
   // Pass-through to controller
   static Set<String> get supportedExtensions {
     if (Platform.isMacOS) {
@@ -83,7 +74,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   Future<void> init() async {
     if (_initialized) return;
 
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       final handler = _androidHandler;
       if (handler == null) {
         throw StateError(
@@ -176,7 +167,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    if (!Platform.isAndroid) {
+    if (!_isAndroid) {
       final controller = _controller;
       if (controller != null) {
         controller.songInfoNotifier.removeListener(_onSongInfoChanged);
@@ -223,7 +214,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   Future<void> playPause() async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       final handler = _androidHandler!;
       if (_isPlaying) {
         await handler.pause();
@@ -236,7 +227,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   Future<void> next() async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _androidHandler!.skipToNext();
       return;
     }
@@ -244,7 +235,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   Future<void> previous() async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _androidHandler!.skipToPrevious();
       return;
     }
@@ -252,7 +243,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _androidHandler!.seek(position);
       return;
     }
@@ -264,7 +255,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     int startIndex = 0,
     bool shuffle = false,
   }) async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       final handler = _androidHandler!;
       await handler.customAction('setQueue', <String, Object?>{
         'tracks': tracks.map(_encodeTrack).toList(growable: false),
@@ -273,30 +264,34 @@ class AudioPlayerProvider extends ChangeNotifier {
       });
       return;
     }
-    await _controller!.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
+    await _controller!.setQueue(
+      tracks,
+      startIndex: startIndex,
+      shuffle: shuffle,
+    );
   }
 
   Future<void> addTracks(List<AudioTrack> tracks, {bool play = false}) =>
-      Platform.isAndroid
-          ? _androidHandler!.customAction('addTracks', <String, Object?>{
-              'tracks': tracks.map(_encodeTrack).toList(growable: false),
-              'play': play,
-            })
-          : _controller!.addTracks(tracks, play: play);
+      _isAndroid
+      ? _androidHandler!.customAction('addTracks', <String, Object?>{
+          'tracks': tracks.map(_encodeTrack).toList(growable: false),
+          'play': play,
+        })
+      : _controller!.addTracks(tracks, play: play);
 
-  Future<void> playFromQueueIndex(int orderIndex) =>
-      Platform.isAndroid
-          ? _androidHandler!.customAction('playFromQueueIndex', orderIndex)
-          : _controller!.playFromQueueIndex(orderIndex);
+  Future<void> playFromQueueIndex(int orderIndex) => _isAndroid
+      ? _androidHandler!.customAction('playFromQueueIndex', orderIndex)
+      : _controller!.playFromQueueIndex(orderIndex);
 
-  Future<void> shuffleQueue() =>
-      Platform.isAndroid ? _androidHandler!.customAction('shuffleQueue') : _controller!.shuffleQueue();
-  Future<void> disableShuffle() => Platform.isAndroid
+  Future<void> shuffleQueue() => _isAndroid
+      ? _androidHandler!.customAction('shuffleQueue')
+      : _controller!.shuffleQueue();
+  Future<void> disableShuffle() => _isAndroid
       ? _androidHandler!.customAction('disableShuffle')
       : _controller!.disableShuffle();
 
   void setCaptureEnabled(bool enabled) {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       _captureEnabled = enabled;
       if (!enabled) {
         _spectrumSubscription?.cancel();
@@ -313,7 +308,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   void updateSpectrumSettings(SpectrumSettings settings) {
     _settings = settings;
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       _platformChannels.updateSpectrumSettings(settings);
       if (_captureEnabled) {
         _maybeStartAndroidSpectrum();
@@ -325,7 +320,8 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   Future<List<AudioTrack>> scanFolder(String rootPath) =>
       _controller?.scanFolder(rootPath) ?? Future.value(const <AudioTrack>[]);
-  Future<int> playlistSizeBytes() => _controller?.playlistSizeBytes() ?? Future.value(0);
+  Future<int> playlistSizeBytes() =>
+      _controller?.playlistSizeBytes() ?? Future.value(0);
 
   Map<String, Object?> _encodeTrack(AudioTrack t) {
     return <String, Object?>{
@@ -365,11 +361,53 @@ class AudioPlayerProvider extends ChangeNotifier {
     if (sessionId == null) return;
 
     _spectrumSubscription?.cancel();
-    _spectrumSubscription =
-        _platformChannels.spectrumStream(sessionId: sessionId).listen((data) {
-      _spectrumData = data;
-      _spectrumController.add(data);
-      notifyListeners();
-    });
+    _spectrumSubscription = _platformChannels
+        .spectrumStream(sessionId: sessionId)
+        .listen((data) {
+          _spectrumData = data;
+          _spectrumController.add(data);
+          notifyListeners();
+        });
+  }
+
+  /// Test-only constructor that forces the PlaybackController path on Android.
+  ///
+  /// This intentionally bypasses AudioService/AudioHandler and is intended for
+  /// deterministic emulator integration tests (no real audio files).
+  AudioPlayerProvider.forTests({
+    required PlaybackController controller,
+    required AudioTransport transport,
+  }) : _controller = controller,
+       _transport = transport,
+       _androidHandler = null,
+       _isAndroidOverride = false;
+
+  AudioPlayerProvider({
+    NothingAudioHandler? androidHandler,
+    PlaybackController? controller,
+    AudioTransport? transport,
+    bool? isAndroidOverride,
+  }) : _isAndroidOverride = isAndroidOverride {
+    if (controller != null || transport != null) {
+      if (controller == null || transport == null) {
+        throw ArgumentError(
+          'AudioPlayerProvider: controller and transport must be provided together',
+        );
+      }
+      _controller = controller;
+      _transport = transport;
+      _androidHandler = androidHandler;
+      return;
+    }
+
+    if (Platform.isAndroid) {
+      _androidHandler = androidHandler;
+    } else if (Platform.isMacOS) {
+      _transport = SoLoudTransport();
+      _controller = PlaybackController(transport: _transport!);
+    } else {
+      _transport = JustAudioTransport();
+      _controller = PlaybackController(transport: _transport!);
+    }
   }
 }
