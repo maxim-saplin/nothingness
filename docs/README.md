@@ -17,6 +17,7 @@ Welcome to the documentation for the Nothingness project.
 
 - **Testing & Diagnostics**
   - [Device/emulator integration testing (no audio files)](device-testing.md) - Integration tests + deterministic playback harness (Android + macOS; target selection matters).
+  - [SoLoud Android fallback](soloud-android-fallback.md) - Backend toggle design, constraints, and ADB validation notes.
 
 ### Building for Release
 

@@ -444,6 +444,17 @@ class LibraryController extends ChangeNotifier {
             .toList()
           ..sort();
 
+        if (smartEntries.isEmpty) {
+          // Smart roots produced no entries (e.g., songs under device root or
+          // mismatched roots). Fall back to a reasonable default root view.
+          initialAndroidRoot = roots.firstWhere(
+            (r) => r.contains('/storage/emulated/0'),
+            orElse: () => roots.first,
+          );
+          await loadFolder(initialAndroidRoot!);
+          return;
+        }
+
         if (smartEntries.length == 1) {
           // Zero-click: if there's exactly one entry overall, open it immediately.
           initialAndroidRoot = smartEntries.single;

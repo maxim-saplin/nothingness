@@ -11,6 +11,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'services/nothing_audio_handler.dart';
+import 'services/soloud_transport.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,10 +22,23 @@ Future<void> main() async {
   // Initialize LibraryService to restore file permissions
   await LibraryService().init();
 
+  // Load user settings early so we can choose decoder before starting AudioService
+  final settingsService = SettingsService();
+  await settingsService.loadSettings();
+
   NothingAudioHandler? handler;
   if (Platform.isAndroid) {
+    var useSoloud = settingsService.androidSoloudDecoderNotifier.value;
+    if (useSoloud) {
+      final available = await SoLoudTransport.probeAvailable();
+      if (!available) {
+        // Auto-disable toggle to avoid repeated init failures on unsupported builds.
+        await settingsService.setAndroidSoloudDecoder(false);
+        useSoloud = false;
+      }
+    }
     handler = await AudioService.init(
-      builder: () => NothingAudioHandler(),
+      builder: () => NothingAudioHandler(useSoloud: useSoloud),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
         androidNotificationChannelName: 'Audio playback',
@@ -58,7 +72,7 @@ class _NothingAppState extends State<NothingApp> {
   @override
   void initState() {
     super.initState();
-    SettingsService().loadSettings();
+    // Settings already loaded in main() for decoder selection; keep notifier in sync if needed
   }
 
   @override

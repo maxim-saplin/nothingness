@@ -4,8 +4,8 @@ This document details audio stack choices, data paths, and behaviors for playbac
 
 ## Goals & Rationale
 - Clean separation of concerns: `PlaybackController` handles business logic (user intent, queue, error recovery), `AudioTransport` provides thin native player control.
-- Platform-specific transports behind one interface: SoLoud on macOS; just_audio on Android. On Android, `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
-- Spectrum comes from the active transport (SoLoud FFT on macOS, Android visualizer tied to player session) with microphone capture as an Android fallback.
+- Platform-specific transports behind one interface: SoLoud on macOS; just_audio on Android by default. On Android, a user-facing toggle can switch to SoLoud for all formats. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
+- Spectrum comes from the active transport (SoLoud FFT on macOS; Android visualizer tied to the player session when using just_audio) with microphone capture as an Android fallback.
 - Preserve quick switching between transport spectrum and microphone source based on `SpectrumSettings.audioSource`.
 - User intent tracking via `PlayIntent` enum prevents race conditions between pause and auto-skip.
 
@@ -26,8 +26,8 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - Spectrum stream (optional)
   - Does NOT handle: queue management, skip logic, user intent tracking
 - **`AudioTransport` implementations**:
-  - **`SoLoudTransport` (macOS)**: Thin wrapper around SoLoud for playback and FFT. No queue awareness, no skip logic.
-  - **`JustAudioTransport` (Android)**: Thin wrapper around just_audio for playback control and position/duration/events. Spectrum via Android visualizer bound to the player session. No queue management; no `maxSkipsOnError` - all skipping handled by `PlaybackController`. Android package is arm64-only and excludes SoLoud native libs.
+  - **`SoLoudTransport` (macOS/Android toggle)**: Thin wrapper around SoLoud for playback and FFT. No queue awareness, no skip logic. On Android, selected via the “SoLoud Decoder” toggle (restart required).
+  - **`JustAudioTransport` (Android default)**: Thin wrapper around just_audio for playback control and position/duration/events. Spectrum via Android visualizer bound to the player session. No queue management; no `maxSkipsOnError` - all skipping handled by `PlaybackController`. Android package is arm64-only.
 - **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
   - **Transport spectrum**: SoLoud FFT (macOS) or Android visualizer stream.
   - **`MicrophoneSpectrumProvider`** (Android fallback): Streams FFT bars from native `AudioCaptureService` via EventChannel; requires mic permission.
@@ -42,7 +42,7 @@ flowchart LR
   Handler -->|delegates| Controller
   Controller -->|load/play/pause/seek| Transport[AudioTransport]
     Transport -->|macOS| SoLoud[SoLoudTransport]
-    Transport -->|Android| JA[JustAudioTransport]
+    Transport -->|Android| JA[JustAudioTransport / SoLoudTransport]
     SoLoud -->|PCM + FFT| Vis[SpectrumVisualizer]
     JA -->|sessionId| Native[Android Visualizer]
     Native -->|FFT bars| Vis
@@ -70,7 +70,8 @@ flowchart LR
 - Switching back to transport mode re-enables transport spectrum (SoLoud FFT or Android visualizer).
 
 ## Settings Impact
-- `SpectrumSettings.audioSource`: toggles transport spectrum (default) vs mic provider (Android-only fallback).
+- `SpectrumSettings.audioSource`: toggles transport spectrum (default) vs mic provider (Android-only fallback). On Android + SoLoud, transport spectrum may be unavailable unless SoLoud FFT is wired to the UI.
+- **Android SoLoud Decoder toggle**: selects the playback backend at startup (restart required). If SoLoud native libs are missing, the toggle auto-disables and the app falls back to just_audio.
 - `SpectrumSettings.barCount`, `decaySpeed`, `noiseGateDb`: applied in spectrum providers; decay also maps to transport FFT/visualizer smoothing when supported.
 - Settings load after transport/controller init to avoid init races and are pushed to transports and native side as needed.
 
@@ -99,6 +100,7 @@ flowchart LR
 - macOS: spectrum is player-only; no microphone capture path.
 - SoLoud visualization must remain enabled; providers re-enable on start if needed.
 - Android package is arm64-only; adding more ABIs would increase APK size.
+- On Android + SoLoud: platform visualizer/EQ tied to the just_audio session id is not available unless explicitly bridged.
 - Consider graceful backoff/logging when native mic stream stalls.
 - Possible enhancement: normalize FFT window size to match bar count more tightly.
 - Android EQ: v1 uses the platform `android.media.audiofx.Equalizer` (device-dependent).
@@ -108,7 +110,7 @@ flowchart LR
 - **Engine**: `android.media.audiofx.Equalizer` attached to the current `just_audio` session id.
 - **UI**: Fixed 5-band graphic EQ (60 / 230 / 910 / 3.6k / 14k Hz) with per-band gain sliders.
 - **Mapping**: Each UI band is mapped to the nearest device-supported Equalizer band by center frequency; if multiple UI bands map to the same device band, gains are averaged.
-- **Notes**: Support varies by OEM/ROM; on unsupported devices the app should fail gracefully (EQ disabled).
+- **Notes**: Support varies by OEM/ROM; on unsupported devices the app should fail gracefully (EQ disabled). The SoLoud backend does not currently provide a compatible session id, so EQ only applies when using `just_audio`.
 
 ## References
 - High-level overview: [overview.md](overview.md)

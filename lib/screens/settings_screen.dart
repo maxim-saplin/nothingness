@@ -269,6 +269,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           subtitle: 'Android only',
                           child: _buildPermissionButtons(),
                         ),
+                      const SizedBox(height: 16),
+                      // Android-only SoLoud decoder toggle
+                      if (Platform.isAndroid)
+                        _buildOptionTile(
+                          title: 'SoLoud Decoder',
+                          subtitle: _settingsService.androidSoloudDecoderNotifier.value
+                              ? 'Enabled (restart required)'
+                              : 'Disabled (restart required)',
+                          child: SwitchListTile(
+                            title: const Text(
+                              'Use SoLoud for playback (Android)',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            value: _settingsService.androidSoloudDecoderNotifier.value,
+                            onChanged: (val) async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              await _settingsService.setAndroidSoloudDecoder(val);
+                              if (!mounted) return;
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Restart the app to apply the new playback backend.'),
+                                ),
+                              );
+                              setState(() {});
+                            },
+                            activeTrackColor: const Color(0xFF00FF88),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
                       const SizedBox(height: 24),
 
                       // --- SCREEN SPECIFIC SETTINGS ---

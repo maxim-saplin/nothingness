@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/audio_track.dart';
 import 'audio_transport.dart';
 import 'just_audio_transport.dart';
+import 'soloud_transport.dart';
 import 'playback_controller.dart';
 import 'playlist_store.dart';
 
@@ -15,8 +16,10 @@ import 'playlist_store.dart';
 /// which remains the single source of truth for queue/index/shuffle logic.
 class NothingAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
-  factory NothingAudioHandler({bool debugLogs = false}) {
-    final transport = JustAudioTransport()..setCaptureEnabled(false);
+  factory NothingAudioHandler({bool debugLogs = false, bool useSoloud = false}) {
+    final AudioTransport transport = useSoloud
+        ? (SoLoudTransport()..setCaptureEnabled(false))
+        : (JustAudioTransport()..setCaptureEnabled(false));
     final controller = PlaybackController(
       transport: transport,
       playlist: PlaylistStore(),
@@ -27,14 +30,14 @@ class NothingAudioHandler extends BaseAudioHandler
 
   NothingAudioHandler._({
     required PlaybackController controller,
-    required JustAudioTransport transport,
+    required AudioTransport transport,
   })  : _controller = controller,
         _transport = transport {
     unawaited(_init());
   }
 
   final PlaybackController _controller;
-  final JustAudioTransport _transport;
+  final AudioTransport _transport;
 
   final Completer<void> _initCompleter = Completer<void>();
   Future<void> get ready => _initCompleter.future;
@@ -48,7 +51,12 @@ class NothingAudioHandler extends BaseAudioHandler
   ///
   /// This is needed because `customEvent` is not replayed; consumers that
   /// subscribe after `ready` would otherwise miss the initial session id.
-  int? get androidAudioSessionId => _transport.androidAudioSessionId;
+  int? get androidAudioSessionId {
+    if (_transport is JustAudioTransport) {
+      return (_transport).androidAudioSessionId;
+    }
+    return null; // SoLoud path: no platform session id
+  }
 
   StreamSubscription<TransportEvent>? _transportEventsSub;
   StreamSubscription<int?>? _sessionIdSub;
@@ -98,14 +106,20 @@ class NothingAudioHandler extends BaseAudioHandler
       });
 
       // Forward audio session id to the UI for Visualizer-based spectrum.
-      _sessionIdSub = _transport.androidAudioSessionIdStream.listen((id) {
-        customEvent.add(<String, Object?>{'type': 'sessionId', 'value': id});
-      });
-      // Also emit the current value so late subscribers don't miss the first id.
-      customEvent.add(<String, Object?>{
-        'type': 'sessionId',
-        'value': _transport.androidAudioSessionId,
-      });
+      if (_transport is JustAudioTransport) {
+        _sessionIdSub =
+            (_transport).androidAudioSessionIdStream.listen((id) {
+          customEvent.add(<String, Object?>{'type': 'sessionId', 'value': id});
+        });
+        // Also emit the current value so late subscribers don't miss the first id.
+        customEvent.add(<String, Object?>{
+          'type': 'sessionId',
+          'value': (_transport).androidAudioSessionId,
+        });
+      } else {
+        // SoLoud path: emit null so UI can avoid Visualizer-based spectrum
+        customEvent.add(<String, Object?>{'type': 'sessionId', 'value': null});
+      }
 
       // Initial push.
       _updateQueue();

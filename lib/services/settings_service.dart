@@ -21,6 +21,7 @@ class SettingsService {
   static const String _fullScreenKey = 'full_screen';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
   static const String _eqSettingsKey = 'eq_settings';
+  static const String _androidSoloudDecoderKey = 'android_soloud_decoder';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -43,6 +44,9 @@ class SettingsService {
   final ValueNotifier<EqSettings> eqSettingsNotifier = ValueNotifier(
     const EqSettings(),
   );
+
+  // Android-only: use SoLoud decoder instead of platform MediaCodec
+  final ValueNotifier<bool> androidSoloudDecoderNotifier = ValueNotifier(false);
 
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
   final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(
@@ -187,6 +191,14 @@ class SettingsService {
         prefs.getBool(_useFilenameForMetadataKey) ?? defaultUseFilenameForMetadata;
     useFilenameForMetadataNotifier.value = useFilenameForMetadata;
 
+    // 6. Load Android SoLoud decoder toggle (Android only)
+    try {
+      final val = prefs.getBool(_androidSoloudDecoderKey) ?? false;
+      androidSoloudDecoderNotifier.value = val;
+    } catch (_) {
+      androidSoloudDecoderNotifier.value = false;
+    }
+
     return settings;
   }
 
@@ -250,5 +262,12 @@ class SettingsService {
 
   void toggleDebugLayout() {
     debugLayoutNotifier.value = !debugLayoutNotifier.value;
+  }
+
+  /// Sets the Android-only SoLoud decoder toggle.
+  Future<void> setAndroidSoloudDecoder(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_androidSoloudDecoderKey, enable);
+    androidSoloudDecoderNotifier.value = enable;
   }
 }

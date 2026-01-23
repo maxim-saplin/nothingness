@@ -34,6 +34,12 @@ These tests are **target-specific**. If you use VSCode’s Testing pane and your
   - Android: Android SDK + emulator (via Android Studio) + `adb` available on your PATH
   - macOS: Xcode + desktop tooling required for Flutter macOS builds
 
+If you are validating the **SoLoud backend on Android**:
+- Enable **Settings → SoLoud Decoder** and restart the app (backend selection happens at startup).
+- Ensure the APK bundles SoLoud native libs; otherwise the toggle auto-disables.
+- Check for probe failures in logcat:
+  - `adb logcat -v time | grep -i 'SoLoudTransport\|flutter_soloud\|dlopen failed'`
+
 Optional but recommended:
 
 - Create an AVD you consistently use for local testing (example name: `Nothingness_API_34`).

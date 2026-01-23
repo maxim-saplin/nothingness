@@ -48,9 +48,11 @@ class AndroidSmartRoots {
 
       final candidates = _candidatesForDevice(root: root, songDirs: dirs);
 
-      final entriesForDevice = (candidates.length > maxEntriesPerDevice)
+      final entriesForDevice = candidates.isEmpty
           ? <String>[root]
-          : candidates;
+          : (candidates.length > maxEntriesPerDevice
+                ? <String>[root]
+                : candidates);
 
       sections.add(
         SmartRootSection(deviceRoot: root, entries: entriesForDevice),

@@ -71,13 +71,7 @@ android {
         jniLibs {
             excludes += listOf(
                 "**/armeabi-v7a/**",
-                "**/x86_64/**",
-                "**/libflutter_soloud_plugin.so",
-                "**/libFLAC.so",
-                "**/libogg.so",
-                "**/libopus.so",
-                "**/libvorbis.so",
-                "**/libvorbisfile.so"
+                "**/x86_64/**"
             )
         }
         resources {
