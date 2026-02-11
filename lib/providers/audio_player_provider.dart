@@ -13,6 +13,7 @@ import '../services/just_audio_transport.dart';
 import '../services/playback_controller.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
+import '../services/soloud_spectrum_bridge.dart';
 import '../services/soloud_transport.dart';
 
 /// Provider wrapper for PlaybackController.
@@ -32,6 +33,10 @@ class AudioPlayerProvider extends ChangeNotifier {
   StreamSubscription<List<MediaItem>>? _androidQueueSub;
   StreamSubscription<MediaItem?>? _androidMediaItemSub;
   StreamSubscription<PlaybackState>? _androidPlaybackStateSub;
+
+  // Android + SoLoud: bridge for SoLoud FFT data (bypasses native Visualizer).
+  SoloudSpectrumBridge? _soloudSpectrumBridge;
+  bool _isSoloudActive = false;
 
   // Reactive state
   SongInfo? _songInfo;
@@ -124,6 +129,16 @@ class AudioPlayerProvider extends ChangeNotifier {
         SettingsService().eqSettingsNotifier.value,
       );
 
+      // Eagerly detect SoLoud backend (BehaviorSubject replay is async and
+      // may arrive after _captureEnabled is set to false).
+      _isSoloudActive = handler.isSoloudBackend;
+      if (_isSoloudActive) {
+        _soloudSpectrumBridge = SoloudSpectrumBridge(
+          sourceStream: handler.spectrumStream,
+        );
+        _soloudSpectrumBridge!.updateSettings(_settings);
+      }
+
       _androidCustomEventSub = handler.customEventStream.listen((event) {
         if (event is Map && event['type'] == 'sessionId') {
           final raw = (event['value'] as num?)?.toInt();
@@ -131,6 +146,15 @@ class AudioPlayerProvider extends ChangeNotifier {
           // isn't available or is delayed.
           _androidSessionId = (raw != null && raw >= 0) ? raw : null;
           _platformChannels.setEqualizerSessionId(_androidSessionId);
+          _maybeStartAndroidSpectrum();
+        } else if (event is Map && event['type'] == 'backend') {
+          _isSoloudActive = event['value'] == 'soloud';
+          if (_isSoloudActive && _soloudSpectrumBridge == null) {
+            _soloudSpectrumBridge = SoloudSpectrumBridge(
+              sourceStream: handler.spectrumStream,
+            );
+            _soloudSpectrumBridge!.updateSettings(_settings);
+          }
           _maybeStartAndroidSpectrum();
         }
       });
@@ -183,6 +207,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     _androidQueueSub?.cancel();
     _androidMediaItemSub?.cancel();
     _androidPlaybackStateSub?.cancel();
+    _soloudSpectrumBridge?.dispose();
     _spectrumController.close();
     _controller?.dispose();
     super.dispose();
@@ -296,9 +321,16 @@ class AudioPlayerProvider extends ChangeNotifier {
       if (!enabled) {
         _spectrumSubscription?.cancel();
         _spectrumSubscription = null;
+        if (_isSoloudActive) {
+          _soloudSpectrumBridge?.stop();
+          _androidHandler?.setCaptureEnabled(false);
+        }
         _spectrumData = List.filled(32, 0.0);
         notifyListeners();
       } else {
+        if (_isSoloudActive) {
+          _androidHandler?.setCaptureEnabled(true);
+        }
         _maybeStartAndroidSpectrum();
       }
       return;
@@ -309,6 +341,10 @@ class AudioPlayerProvider extends ChangeNotifier {
   void updateSpectrumSettings(SpectrumSettings settings) {
     _settings = settings;
     if (_isAndroid) {
+      _soloudSpectrumBridge?.updateSettings(settings);
+      if (_isSoloudActive) {
+        _androidHandler?.updateSpectrumSettings(settings);
+      }
       _platformChannels.updateSpectrumSettings(settings);
       if (_captureEnabled) {
         _maybeStartAndroidSpectrum();
@@ -357,6 +393,20 @@ class AudioPlayerProvider extends ChangeNotifier {
   void _maybeStartAndroidSpectrum() {
     if (!_captureEnabled) return;
     if (_settings.audioSource != AudioSourceMode.player) return;
+
+    // SoLoud path: use the SoLoud FFT bridge instead of native Visualizer.
+    if (_isSoloudActive && _soloudSpectrumBridge != null) {
+      _spectrumSubscription?.cancel();
+      _soloudSpectrumBridge!.start();
+      _spectrumSubscription = _soloudSpectrumBridge!.stream.listen((data) {
+        _spectrumData = data;
+        _spectrumController.add(data);
+        notifyListeners();
+      });
+      return;
+    }
+
+    // just_audio path: use native Visualizer via platform channel.
     final sessionId = _androidSessionId;
     if (sessionId == null) return;
 

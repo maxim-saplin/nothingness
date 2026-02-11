@@ -40,7 +40,7 @@ Target: Android 12L headunit (aptiv/zeekr_dhu), app package `com.saplin.nothingn
 - Controller: `NothingAudioHandler` selects transport at startup based on the Android toggle.
 
 ## Spectrum / EQ / Effects
-- Spectrum: SoLoud FFT is available where wired. On Android, the current visualizer pipeline relies on a player session id (from `just_audio`); SoLoud does **not** expose a compatible session id yet, so transport spectrum may be unavailable unless wired to SoLoud FFT on Android.
+- Spectrum: On Android + SoLoud, spectrum visualization works via `SoloudSpectrumBridge`, which routes SoLoud FFT data directly from the transport to the UI. This bypasses the native Android Visualizer (which requires a just_audio session id that SoLoud cannot provide). The bridge is created eagerly when `NothingAudioHandler.isSoloudBackend` is true, and capture is controlled via `NothingAudioHandler.setCaptureEnabled()`.
 - EQ: Android `Equalizer` is tied to the player session id (just_audio). On SoLoud, EQ is not applied via the platform effect unless explicitly bridged.
 
 ## Risks & Trade-offs

@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/audio_track.dart';
+import '../models/spectrum_settings.dart';
 import 'audio_transport.dart';
 import 'just_audio_transport.dart';
 import 'soloud_transport.dart';
@@ -44,8 +45,26 @@ class NothingAudioHandler extends BaseAudioHandler
 
   /// Convenience stream for UI layer (provider) to subscribe to custom events.
   ///
-  /// In particular, we emit `{type: 'sessionId', value: <int?>}` updates.
+  /// In particular, we emit `{type: 'sessionId', value: <int?>}` and
+  /// `{type: 'backend', value: 'soloud'|'just_audio'}` updates.
   Stream<dynamic> get customEventStream => customEvent;
+
+  /// Whether this handler was initialised with the SoLoud backend.
+  bool get isSoloudBackend => _transport is SoLoudTransport;
+
+  /// Spectrum stream from the transport (useful when SoLoud is active and
+  /// the native Visualizer is unavailable).
+  Stream<List<double>> get spectrumStream => _transport.spectrumStream;
+
+  /// Enable or disable spectrum capture on the underlying transport.
+  void setCaptureEnabled(bool enabled) {
+    _transport.setCaptureEnabled(enabled);
+  }
+
+  /// Forward spectrum settings to the underlying transport.
+  void updateSpectrumSettings(SpectrumSettings settings) {
+    _transport.updateSpectrumSettings(settings);
+  }
 
   /// Android-only: exposes the latest known audio session id for the player.
   ///
@@ -120,6 +139,12 @@ class NothingAudioHandler extends BaseAudioHandler
         // SoLoud path: emit null so UI can avoid Visualizer-based spectrum
         customEvent.add(<String, Object?>{'type': 'sessionId', 'value': null});
       }
+
+      // Emit backend type so the provider can route spectrum correctly.
+      customEvent.add(<String, Object?>{
+        'type': 'backend',
+        'value': _transport is SoLoudTransport ? 'soloud' : 'just_audio',
+      });
 
       // Initial push.
       _updateQueue();
