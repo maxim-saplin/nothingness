@@ -1,77 +1,27 @@
-# Feasibility: SoLoud Fallback for Android Opus
+# SoLoud: Single Playback Backend on Android
 
-Date: 2026-01-19
+Date: 2026-01-19 (original); updated 2026-02-11
 Target: Android 12L headunit (aptiv/zeekr_dhu), app package `com.saplin.nothingness`
 
 ## Summary
-- Problem: Platform playback for Opus is silent on the headunit after update; VLC works via software decode.
-- Proposal: Allow an Android-only **backend toggle** to switch the playback engine to SoLoud (software decode) for **all formats**, while keeping `audio_service` for MediaSession integration.
-- Outcome: Restores Opus playback reliability and provides a user-controlled fallback without breaking media session controls.
+SoLoud (`flutter_soloud` v3.4.7) is the sole playback backend on all platforms (Android + macOS). The previous `just_audio` backend and Android toggle have been removed as part of the single-backend simplification.
 
-## Capabilities & Constraints
-- `flutter_soloud` (v3.4.7 already in dependencies) provides cross-platform software decoding and playback. Android support is available via NDK.
-- Decoding: Handles Ogg/Opus in software; outputs PCM that can be routed to Android `AudioTrack` internally.
-- Integrations: `audio_service` remains the media session owner; SoLoud is only the PCM source/renderer.
-- Offload: No hardware offload; CPU/battery trade-off on the SoLoud path.
-- **Native libs must be packaged**: `libflutter_soloud_plugin.so` plus its deps (`libFLAC.so`, `libogg.so`, `libopus.so`, `libvorbis.so`, `libvorbisfile.so`). Packaging exclusions must not strip these.
+## Architecture
+- `SoLoudTransport` implements `AudioTransport` and handles software decoding/playback for all audio formats.
+- `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates to `PlaybackController` which uses `SoLoudTransport`.
+- Spectrum visualization uses SoLoud's built-in FFT, streamed via `NothingAudioHandler.spectrumStream` → `AudioPlayerProvider`.
+- Microphone spectrum capture remains available via native `AudioCaptureService` and platform channels.
 
-## Selection & Guardrails (Current)
-- **User toggle**: Android Settings → “SoLoud Decoder” selects the backend for all formats.
-- **Startup probe**: App checks SoLoud availability on startup. If native libs are missing or SoLoud init fails, the toggle is auto-disabled and the app falls back to `just_audio`.
-- **No codec auto-detection yet**: Codec probing and silent-output heuristics are deferred for now in favor of the explicit toggle.
+## Native Libraries
+`libflutter_soloud_plugin.so` plus dependencies (`libFLAC.so`, `libogg.so`, `libopus.so`, `libvorbis.so`, `libvorbisfile.so`) must be packaged in the APK. Packaging exclusions must not strip these.
 
-## Fallback Integration Plan
-- Transport abstraction: `AudioTransport` with `JustAudioTransport` and `SoLoudTransport` implementations.
-- Switch logic:
-  - **At startup**, if the Android toggle is enabled, use `SoLoudTransport` for all formats.
-  - Otherwise, use `JustAudioTransport`.
-- Media Session & Controls:
-  - Keep `audio_service` as the single `AudioHandler` owner (`NothingAudioHandler`).
-  - Media actions (`play/pause/seek/skipNext/skipPrevious`) map to the active transport.
-  - Position updates flow to `audio_service` from transport events.
-- Audio focus & attributes:
-  - Continue using `audio_session` to request audio focus regardless of transport.
-- Notifications & lockscreen:
-  - No change: metadata and playback state are updated by `AudioHandler`.
+## Known Limitations
+- **No hardware offload**: SoLoud uses software decoding; higher CPU/battery usage. Acceptable for headunit target.
+- **EQ disabled**: Platform `android.media.audiofx.Equalizer` required a just_audio session id. A SoLoud filter-based EQ is planned.
+- **Android package is arm64-only**.
 
-## API Sketch (Minimal Changes)
-- Dart: `AudioTransport` interface: `load(path)`, `play()`, `pause()`, `seek(position)`.
-- `SoLoudTransport` (Android/macOS): software decode/playback, emits position/ended events.
-- Controller: `NothingAudioHandler` selects transport at startup based on the Android toggle.
-
-## Spectrum / EQ / Effects
-- Spectrum: On Android + SoLoud, spectrum visualization works via `SoloudSpectrumBridge`, which routes SoLoud FFT data directly from the transport to the UI. This bypasses the native Android Visualizer (which requires a just_audio session id that SoLoud cannot provide). The bridge is created eagerly when `NothingAudioHandler.isSoloudBackend` is true, and capture is controlled via `NothingAudioHandler.setCaptureEnabled()`.
-- EQ: Android `Equalizer` is tied to the player session id (just_audio). On SoLoud, EQ is not applied via the platform effect unless explicitly bridged.
-
-## Risks & Trade-offs
-- CPU/Battery: Software decode consumes more CPU; acceptable for headunits, but monitor thermal.
-- Latency/Seek: SoLoud seek latency may differ from ExoPlayer; validate with long Opus files.
-- Feature parity: Crossfade/gapless may require extra work with SoLoud; start with parity for basic play/pause/seek.
-- Library size: APK increases due to native libs.
-- Maintenance: Keep a device blacklist and a runtime probe to guard against regressions.
-
-## Testing Plan (ADB)
-- Prechecks:
-  - Enable the Android toggle, restart the app, and play `.opus` and `.mp3`.
-  - Verify SoLoud probe logs do not show `dlopen failed`.
-- Logging:
-  - `adb logcat -v time | grep -i 'SoLoudTransport\|flutter_soloud\|dlopen failed'`.
-  - `adb logcat -v time | grep -i 'AudioTrack\|MediaCodec\|opus'` (platform path).
-- Controls:
-  - Verify notification controls (prev/next/play/pause) operate SoLoud transport.
-  - Check position scrubbing updates both UI and media session.
-- Route/Focus:
-  - Validate audio focus gain/loss events pause/resume SoLoud playback.
-
-## Rollout Strategy
-- User-controlled toggle only (no auto-detection).
-- Safe fallback: If SoLoud init fails, the app auto-disables the toggle and falls back to `just_audio`.
-
-## Work Breakdown
-1. Android toggle + persistence (restart required).
-2. SoLoud availability probe on startup + auto-disable on failure.
-3. `SoLoudTransport` implementation and end-of-track events.
-4. ADB validation on headunit; performance checks.
-
-## Decision
-Feasible with low-risk integration: reuse existing media session infra and provide a user-controlled SoLoud backend toggle on Android. This provides a reliable fallback for Opus without breaking media session controls.
+## Testing
+- Verify SoLoud probe at startup; show error dialog if native libs missing.
+- Validate notification controls (prev/next/play/pause) work via `audio_service`.
+- Confirm spectrum visualization animates from SoLoud FFT.
+- Confirm mic spectrum still works when switching audio source.

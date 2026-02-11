@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import 'audio_transport.dart';
-import 'just_audio_transport.dart';
 import 'metadata_extractor.dart';
 import 'playlist_store.dart';
 import 'soloud_transport.dart';
@@ -728,12 +727,9 @@ class PlaybackController {
   }
 
   static Set<String> _getSupportedExtensions(AudioTransport transport) {
-    if (transport is JustAudioTransport) {
-      return JustAudioTransport.supportedExtensions;
-    } else if (transport is SoLoudTransport) {
+    if (transport is SoLoudTransport) {
       return SoLoudTransport.supportedExtensions;
     }
-    // Default fallback
     return const {'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus'};
   }
 

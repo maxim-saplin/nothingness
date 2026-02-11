@@ -9,11 +9,8 @@ import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import '../services/nothing_audio_handler.dart';
 import '../services/audio_transport.dart';
-import '../services/just_audio_transport.dart';
 import '../services/playback_controller.dart';
 import '../services/platform_channels.dart';
-import '../services/settings_service.dart';
-import '../services/soloud_spectrum_bridge.dart';
 import '../services/soloud_transport.dart';
 
 /// Provider wrapper for PlaybackController.
@@ -25,18 +22,11 @@ class AudioPlayerProvider extends ChangeNotifier {
   final PlatformChannels _platformChannels = PlatformChannels();
   final bool? _isAndroidOverride;
 
-  // Android-only: spectrum capture is driven by sessionId from AudioHandler.
-  int? _androidSessionId;
   bool _captureEnabled = true;
   SpectrumSettings _settings = const SpectrumSettings();
-  StreamSubscription<dynamic>? _androidCustomEventSub;
   StreamSubscription<List<MediaItem>>? _androidQueueSub;
   StreamSubscription<MediaItem?>? _androidMediaItemSub;
   StreamSubscription<PlaybackState>? _androidPlaybackStateSub;
-
-  // Android + SoLoud: bridge for SoLoud FFT data (bypasses native Visualizer).
-  SoloudSpectrumBridge? _soloudSpectrumBridge;
-  bool _isSoloudActive = false;
 
   // Reactive state
   SongInfo? _songInfo;
@@ -65,11 +55,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   // Pass-through to controller
   static Set<String> get supportedExtensions {
-    if (Platform.isMacOS) {
-      return SoLoudTransport.supportedExtensions;
-    } else {
-      return JustAudioTransport.supportedExtensions;
-    }
+    return SoLoudTransport.supportedExtensions;
   }
 
   bool _initialized = false;
@@ -118,47 +104,6 @@ class AudioPlayerProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      // Pull the current sessionId eagerly (customEvent is not replayed).
-      // Allow `0` as well (output mix) as a fallback on some devices.
-      final initialSessionId = handler.androidAudioSessionId;
-      _androidSessionId = (initialSessionId != null && initialSessionId >= 0)
-          ? initialSessionId
-          : null;
-      await _platformChannels.setEqualizerSessionId(_androidSessionId);
-      await _platformChannels.updateEqualizerSettings(
-        SettingsService().eqSettingsNotifier.value,
-      );
-
-      // Eagerly detect SoLoud backend (BehaviorSubject replay is async and
-      // may arrive after _captureEnabled is set to false).
-      _isSoloudActive = handler.isSoloudBackend;
-      if (_isSoloudActive) {
-        _soloudSpectrumBridge = SoloudSpectrumBridge(
-          sourceStream: handler.spectrumStream,
-        );
-        _soloudSpectrumBridge!.updateSettings(_settings);
-      }
-
-      _androidCustomEventSub = handler.customEventStream.listen((event) {
-        if (event is Map && event['type'] == 'sessionId') {
-          final raw = (event['value'] as num?)?.toInt();
-          // Allow `0` as a fallback (output mix) on devices where app session id
-          // isn't available or is delayed.
-          _androidSessionId = (raw != null && raw >= 0) ? raw : null;
-          _platformChannels.setEqualizerSessionId(_androidSessionId);
-          _maybeStartAndroidSpectrum();
-        } else if (event is Map && event['type'] == 'backend') {
-          _isSoloudActive = event['value'] == 'soloud';
-          if (_isSoloudActive && _soloudSpectrumBridge == null) {
-            _soloudSpectrumBridge = SoloudSpectrumBridge(
-              sourceStream: handler.spectrumStream,
-            );
-            _soloudSpectrumBridge!.updateSettings(_settings);
-          }
-          _maybeStartAndroidSpectrum();
-        }
-      });
-
       // Android spectrum: start disabled until UI requests it via setCaptureEnabled.
       _captureEnabled = false;
     } else {
@@ -203,11 +148,9 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
 
     _spectrumSubscription?.cancel();
-    _androidCustomEventSub?.cancel();
     _androidQueueSub?.cancel();
     _androidMediaItemSub?.cancel();
     _androidPlaybackStateSub?.cancel();
-    _soloudSpectrumBridge?.dispose();
     _spectrumController.close();
     _controller?.dispose();
     super.dispose();
@@ -321,16 +264,11 @@ class AudioPlayerProvider extends ChangeNotifier {
       if (!enabled) {
         _spectrumSubscription?.cancel();
         _spectrumSubscription = null;
-        if (_isSoloudActive) {
-          _soloudSpectrumBridge?.stop();
-          _androidHandler?.setCaptureEnabled(false);
-        }
+        _androidHandler?.setCaptureEnabled(false);
         _spectrumData = List.filled(32, 0.0);
         notifyListeners();
       } else {
-        if (_isSoloudActive) {
-          _androidHandler?.setCaptureEnabled(true);
-        }
+        _androidHandler?.setCaptureEnabled(true);
         _maybeStartAndroidSpectrum();
       }
       return;
@@ -341,10 +279,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   void updateSpectrumSettings(SpectrumSettings settings) {
     _settings = settings;
     if (_isAndroid) {
-      _soloudSpectrumBridge?.updateSettings(settings);
-      if (_isSoloudActive) {
-        _androidHandler?.updateSpectrumSettings(settings);
-      }
+      _androidHandler?.updateSpectrumSettings(settings);
       _platformChannels.updateSpectrumSettings(settings);
       if (_captureEnabled) {
         _maybeStartAndroidSpectrum();
@@ -394,30 +329,12 @@ class AudioPlayerProvider extends ChangeNotifier {
     if (!_captureEnabled) return;
     if (_settings.audioSource != AudioSourceMode.player) return;
 
-    // SoLoud path: use the SoLoud FFT bridge instead of native Visualizer.
-    if (_isSoloudActive && _soloudSpectrumBridge != null) {
-      _spectrumSubscription?.cancel();
-      _soloudSpectrumBridge!.start();
-      _spectrumSubscription = _soloudSpectrumBridge!.stream.listen((data) {
-        _spectrumData = data;
-        _spectrumController.add(data);
-        notifyListeners();
-      });
-      return;
-    }
-
-    // just_audio path: use native Visualizer via platform channel.
-    final sessionId = _androidSessionId;
-    if (sessionId == null) return;
-
     _spectrumSubscription?.cancel();
-    _spectrumSubscription = _platformChannels
-        .spectrumStream(sessionId: sessionId)
-        .listen((data) {
-          _spectrumData = data;
-          _spectrumController.add(data);
-          notifyListeners();
-        });
+    _spectrumSubscription = _androidHandler!.spectrumStream.listen((data) {
+      _spectrumData = data;
+      _spectrumController.add(data);
+      notifyListeners();
+    });
   }
 
   /// Test-only constructor that forces the PlaybackController path on Android.
@@ -452,11 +369,8 @@ class AudioPlayerProvider extends ChangeNotifier {
 
     if (Platform.isAndroid) {
       _androidHandler = androidHandler;
-    } else if (Platform.isMacOS) {
-      _transport = SoLoudTransport();
-      _controller = PlaybackController(transport: _transport!);
     } else {
-      _transport = JustAudioTransport();
+      _transport = SoLoudTransport();
       _controller = PlaybackController(transport: _transport!);
     }
   }

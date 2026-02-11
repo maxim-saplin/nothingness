@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/screen_config.dart';
-import '../models/eq_settings.dart';
 import '../models/spectrum_settings.dart';
 import '../services/settings_service.dart';
 
@@ -45,7 +44,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late SpectrumSettings _settings;
-  late EqSettings _eqSettings;
   late double _uiScale;
   late bool _fullScreen;
   late ScreenConfig _screenConfig;
@@ -56,7 +54,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _settings = widget.settings;
-    _eqSettings = _settingsService.eqSettingsNotifier.value;
     _uiScale = widget.uiScale;
     _fullScreen = widget.fullScreen;
     _screenConfig = _settingsService.screenConfigNotifier.value;
@@ -130,13 +127,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _fullScreen = enable;
     });
     widget.onFullScreenChanged(enable);
-  }
-
-  Future<void> _updateEqSettings(EqSettings newSettings) async {
-    setState(() {
-      _eqSettings = newSettings;
-    });
-    await _settingsService.saveEqSettings(newSettings);
   }
 
   Future<void> _updateScreenType(ScreenType type) async {
@@ -249,7 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // EQ (Global setting)
                       _buildOptionTile(
                         title: 'EQ',
-                        subtitle: _eqSettings.enabled ? 'On' : 'Off',
+                        subtitle: 'Unavailable',
                         child: _buildEqControls(),
                       ),
                       const SizedBox(height: 24),
@@ -268,35 +258,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           title: 'Permissions',
                           subtitle: 'Android only',
                           child: _buildPermissionButtons(),
-                        ),
-                      const SizedBox(height: 16),
-                      // Android-only SoLoud decoder toggle
-                      if (Platform.isAndroid)
-                        _buildOptionTile(
-                          title: 'SoLoud Decoder',
-                          subtitle: _settingsService.androidSoloudDecoderNotifier.value
-                              ? 'Enabled (restart required)'
-                              : 'Disabled (restart required)',
-                          child: SwitchListTile(
-                            title: const Text(
-                              'Use SoLoud for playback (Android)',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
-                            value: _settingsService.androidSoloudDecoderNotifier.value,
-                            onChanged: (val) async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              await _settingsService.setAndroidSoloudDecoder(val);
-                              if (!mounted) return;
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Restart the app to apply the new playback backend.'),
-                                ),
-                              );
-                              setState(() {});
-                            },
-                            activeTrackColor: const Color(0xFF00FF88),
-                            contentPadding: EdgeInsets.zero,
-                          ),
                         ),
                       const SizedBox(height: 24),
 
@@ -1178,102 +1139,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SwitchListTile(
-          title: const Text(
-            'Enable Equalizer (Android)',
-            style: TextStyle(color: Colors.white, fontSize: 14),
-          ),
-          value: _eqSettings.enabled,
-          onChanged: (val) =>
-              _updateEqSettings(_eqSettings.copyWith(enabled: val)),
-          activeTrackColor: const Color(0xFF00FF88),
-          contentPadding: EdgeInsets.zero,
+        Text(
+          'Equalizer is not available with the current playback backend. '
+          'A SoLoud filter-based EQ is planned for a future update.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.47), fontSize: 13),
         ),
-        const SizedBox(height: 12),
-        if (_eqSettings.enabled) _buildEqSliders(),
-        if (_eqSettings.enabled) const SizedBox(height: 8),
-        if (_eqSettings.enabled)
-          Text(
-            '• 5-band graphic EQ. Actual band mapping depends on device support.',
-            style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 12),
-          ),
       ],
-    );
-  }
-
-  Widget _buildEqSliders() {
-    const minDb = -12.0;
-    const maxDb = 12.0;
-    const divisions = 24; // 1dB steps
-    const labels = <String>['60', '230', '910', '3.6k', '14k'];
-
-    final gains = _eqSettings.gainsDb;
-
-    return SizedBox(
-      height: 200,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(EqSettings.bandCount, (i) {
-          final value = gains[i].clamp(minDb, maxDb);
-          return Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  '${value.toStringAsFixed(0)} dB',
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(170),
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: RotatedBox(
-                    quarterTurns: -1,
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: const Color(0xFF00FF88),
-                        inactiveTrackColor: Colors.white12,
-                        thumbColor: const Color(0xFF00FF88),
-                        overlayColor: const Color(0xFF00FF88).withAlpha(40),
-                        trackHeight: 4,
-                      ),
-                      child: Slider(
-                        value: value,
-                        min: minDb,
-                        max: maxDb,
-                        divisions: divisions,
-                        onChanged: (newVal) {
-                          final updated = List<double>.from(gains);
-                          updated[i] = newVal;
-                          _updateEqSettings(
-                            _eqSettings.copyWith(gainsDb: updated),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  labels[i],
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(170),
-                    fontSize: 11,
-                  ),
-                ),
-                Text(
-                  'Hz',
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(90),
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
     );
   }
 

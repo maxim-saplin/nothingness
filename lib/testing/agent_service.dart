@@ -126,7 +126,6 @@ class AgentService {
   ) async {
     final s = SettingsService();
     return _ok({
-      'androidSoloudDecoder': s.androidSoloudDecoderNotifier.value,
       'screenType': s.screenConfigNotifier.value.type.name,
       'screenName': s.screenConfigNotifier.value.name,
       'debugLayout': s.debugLayoutNotifier.value,
@@ -156,8 +155,6 @@ class AgentService {
 
     final s = SettingsService();
     switch (name) {
-      case 'androidSoloudDecoder':
-        await s.setAndroidSoloudDecoder(value == 'true');
       case 'fullScreen':
         await s.setFullScreen(value == 'true');
       case 'debugLayout':

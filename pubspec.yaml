@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 2.1.18+24
+version: 2.2.0+25
 
 environment:
   sdk: ^3.10.1
@@ -24,8 +24,6 @@ dependencies:
   path: ^1.9.0
   provider: ^6.1.2
   macos_secure_bookmarks: ^0.2.1
-  just_audio: ^0.10.5
-  just_audio_background: ^0.0.1-beta.17
   external_path: ^2.2.0
   on_audio_query: ^2.9.0
 
