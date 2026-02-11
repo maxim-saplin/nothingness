@@ -1,9 +1,7 @@
 ---
-description: Guidelines for polling GitHub Actions workflow runs via MCP tools.
-globs: ".github/workflows/**/*.yml", ".github/workflows/**/*.yaml"
-alwaysApply: false
+name: github-actions-polling
+description: Guidelines for polling GitHub Actions workflow runs via MCP tools. Use when working with CI/CD workflows, monitoring builds, or debugging workflow failures.
 ---
-
 # GitHub Actions Polling & Feedback Loop
 
 When using GitHub MCP tools to monitor workflow runs (CI/CD feedback loop), avoid tight, wasteful polling.
@@ -30,14 +28,14 @@ When using GitHub MCP tools to monitor workflow runs (CI/CD feedback loop), avoi
 
 If a workflow run fails (`conclusion: failure`):
 
-1.  **Inspect Annotations first**:
-    - Often, syntax errors (like invalid YAML or expression errors) appear as annotations on the run summary, not in the job logs.
-    - Check the `mcp_GitHub_get_workflow_run` response for fields indicating failure reasons or annotations if available.
-    - **Note:** The current MCP tools might not expose annotations directly in `get_workflow_run`. If logs are empty (`total_jobs: 0`), it strongly suggests a **workflow file syntax error** or **startup failure** that prevents jobs from running.
+1. **Inspect Annotations first**:
+   - Often, syntax errors (like invalid YAML or expression errors) appear as annotations on the run summary, not in the job logs.
+   - Check the `mcp_GitHub_get_workflow_run` response for fields indicating failure reasons or annotations if available.
+   - **Note:** The current MCP tools might not expose annotations directly in `get_workflow_run`. If logs are empty (`total_jobs: 0`), it strongly suggests a **workflow file syntax error** or **startup failure** that prevents jobs from running.
 
-2.  **Fetch Logs**:
-    - Use `mcp_GitHub_get_job_logs` (with `failed_only: true`).
-    - If `total_jobs: 0` is returned, assume it is a syntax/configuration error and **ask the user** to check the "Annotations" or "Summary" in the GitHub UI, as the API might not expose the parser error details.
+2. **Fetch Logs**:
+   - Use `mcp_GitHub_get_job_logs` (with `failed_only: true`).
+   - If `total_jobs: 0` is returned, assume it is a syntax/configuration error and **ask the user** to check the "Annotations" or "Summary" in the GitHub UI, as the API might not expose the parser error details.
 
 ## Behavior in CI/CD Tasks
 
@@ -52,7 +50,7 @@ If a workflow run fails (`conclusion: failure`):
 
 ## Handling Tool Unavailability or Errors
 
-- If any GitHub MCP tool needed for polling (e.g. `mcp_GitHub_list_workflow_runs`, `mcp_GitHub_get_workflow_run`, `mcp_GitHub_get_job_logs`) is:
+- If any GitHub MCP tool needed for polling is:
   - unavailable,
   - returns persistent permission errors (403/401),
   - or repeatedly fails for non-transient reasons,

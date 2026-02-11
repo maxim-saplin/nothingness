@@ -1,13 +1,11 @@
 ---
-description: Standards for code quality, linting, and modern API usage in Flutter.
-globs: lib/**/*.dart, test/**/*.dart
-alwaysApply: true
+name: flutter-best-practices
+description: Standards for code quality, linting, and modern API usage in Flutter. Use when writing or modifying Dart code. Covers deprecations and analyzer rules.
 ---
 # Flutter Code Quality & Modernization
 
 ## 1. Run the Analyzer
 After making substantive changes to Dart code, **ALWAYS** run `flutter analyze` to catch errors, warnings, and deprecations.
-- Use `required_permissions: ["all"]` to avoid sandbox issues with the Flutter SDK.
 - Fix **ALL** reported issues before finishing the task.
 
 ## 2. Modern API Usage

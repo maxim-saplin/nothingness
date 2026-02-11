@@ -1,6 +1,6 @@
 ---
+name: testing-standards
 description: Standards and instructions for testing in the Nothingness project.
-alwaysApply: false
 ---
 # Testing Standards
 
@@ -13,14 +13,14 @@ We mirror the `lib/` directory structure within `test/` to ensure tests are easy
 - `test/screens/` -> Widget tests for full pages.
 - `test/testing/` -> Unit tests for test harness helpers under `lib/testing/`.
 
-We also use Flutter’s emulator/device integration tests:
+We also use Flutter's emulator/device integration tests:
 
 - `integration_test/` -> End-to-end behavior tests on a real device/emulator.
 
 ## Requirement
 - All new logic (models, services) must have unit tests.
 - All new UI components (widgets, screens) must have widget tests.
-- Behavior that depends on platform/device eventing (e.g. “natural track ended”, lifecycle, real navigation flows) should have **integration_test** coverage.
+- Behavior that depends on platform/device eventing (e.g. "natural track ended", lifecycle, real navigation flows) should have **integration_test** coverage.
 - **No Placeholders**: Do not commit empty test files or placeholder tests (e.g., `expect(true, isTrue)`). If a component cannot be tested yet, document the reason in the code or a tracking issue, but do not create a dummy test file.
 
 ## Integration tests (emulator/device)
@@ -28,7 +28,7 @@ We also use Flutter’s emulator/device integration tests:
 Use `integration_test/` when validating **cross-widget behavior** or contracts that are hard to express in pure widget tests:
 
 - Skip/advance behavior across tap/next/prev/end events
-- “Inspectable” diagnostics flows and stable UI selectors
+- "Inspectable" diagnostics flows and stable UI selectors
 
 ### Test-only entrypoint
 

@@ -12,6 +12,7 @@ import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'services/nothing_audio_handler.dart';
 import 'services/soloud_transport.dart';
+import 'testing/agent_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +56,8 @@ Future<void> main() async {
   // Initialize audio player before app starts to avoid init races
   final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
   await audioPlayerProvider.init();
+
+  AgentService.register(provider: audioPlayerProvider);
 
   runApp(NothingApp(audioPlayerProvider: audioPlayerProvider));
 }
