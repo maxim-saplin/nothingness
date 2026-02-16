@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/screen_config.dart';
@@ -36,6 +36,12 @@ class SettingsService {
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
   static const bool defaultEqEnabled = false;
 
+  /// Light scrim drawn behind dark OEM status-bar icons on automotive displays.
+  static const Color automotiveStatusBarScrimLight = Color(0xFFE8E8E8);
+
+  /// Dark scrim used when system is in dark mode on automotive displays.
+  static const Color automotiveStatusBarScrimDark = Color(0xFF2C2C2C);
+
   final ValueNotifier<SpectrumSettings> settingsNotifier = ValueNotifier(
     const SpectrumSettings(),
   );
@@ -56,6 +62,16 @@ class SettingsService {
   );
   final ValueNotifier<bool> debugLayoutNotifier = ValueNotifier(false);
 
+  /// Heuristic: low-DPI (< 2.0) + wide (>= 1600 logical) = automotive / IVI.
+  ///
+  /// Phone displays are high-DPI (>= 2.0) so they never match.
+  /// Known automotive displays:
+  ///   - Zeekr DHU: 2560x1600 @ 160dpi (DPR 1.0, logical width 2560)
+  ///   - Typical IVI: 1920x720 @ 160dpi (DPR 1.0, logical width 1920)
+  static bool isLikelyAutomotive(double logicalWidth, double devicePixelRatio) {
+    return devicePixelRatio < 2.0 && logicalWidth >= 1600;
+  }
+
   /// Calculates a smart UI scale based on logical width and device pixel ratio.
   ///
   /// - [logicalWidth]: The width of the screen in logical pixels.
@@ -73,18 +89,12 @@ class SettingsService {
       return 1.0;
     }
 
-    // Determine target width based on screen characteristics.
-    //
-    // Heuristic:
-    // - Low DPI (< 2.0) AND width in automotive range (1600-2100 logical) = Automotive
-    //   Use 850 target for large touch targets (e.g. Zeekr 1920 -> 2.25x)
-    // - Otherwise = Tablet/Normal display
-    //   Use 960 target for balanced information density
-    //
-    // Automotive displays are typically 1920x720 or 1920x1080 at ~160dpi (DPR ~1.0).
-    // Very wide low-DPI screens (> 2100) are likely large tablets, not cars.
+    // Heuristic: low DPI (< 2.0) + wide (>= 1600) = automotive.
+    // Automotive displays: 1920x720, 2560x1600, etc. at ~160dpi (DPR ~1.0).
+    // Use 800 target for large touch targets on automotive.
+    // Use 960 target for balanced information density on tablets/phones.
     final bool isAutomotive =
-        devicePixelRatio < 2.0 && logicalWidth >= 1600 && logicalWidth <= 2100;
+        SettingsService.isLikelyAutomotive(logicalWidth, devicePixelRatio);
     final double targetWidth = isAutomotive ? 800.0 : 960.0;
 
     // Calculate scale
@@ -235,9 +245,29 @@ class SettingsService {
     }
 
     if (enable) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Color(0x00000000),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Color(0xFF000000),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ));
     } else {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      final brightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      final useDarkIcons = brightness == Brightness.light;
+
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+        statusBarColor: const Color(0x00000000),
+        statusBarIconBrightness:
+            useDarkIcons ? Brightness.dark : Brightness.light,
+        statusBarBrightness:
+            useDarkIcons ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: const Color(0xFF0A0A0F),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ));
     }
   }
 

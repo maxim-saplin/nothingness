@@ -161,13 +161,14 @@ void main() {
         closeTo(2.0, 0.01),
       );
 
-      // --- Tablets (High DPI OR outside automotive range) - Target 960 ---
-
-      // Width 2560 (very wide low-DPI tablet, outside automotive range) -> 2560/960 = 2.66
+      // --- Automotive – Zeekr DHU (2560 logical, DPR 1.0) ---
+      // 2560/800 = 3.2, clamped to 3.0
       expect(
         service.calculateSmartScaleForWidth(2560, devicePixelRatio: 1.0),
-        closeTo(2.66, 0.01),
+        3.0,
       );
+
+      // --- Tablets (High DPI OR outside automotive range) - Target 960 ---
 
       // Width 1280 (tablet) at low DPI but below automotive range -> 1280/960 = 1.33
       expect(
@@ -198,6 +199,19 @@ void main() {
         service.calculateSmartScaleForWidth(1920, devicePixelRatio: 2.0),
         2.0,
       );
+    });
+
+    test('isLikelyAutomotive detects automotive vs phone displays', () {
+      // Zeekr DHU: 2560 logical, DPR 1.0
+      expect(SettingsService.isLikelyAutomotive(2560, 1.0), isTrue);
+      // Typical IVI: 1920 logical, DPR 1.0
+      expect(SettingsService.isLikelyAutomotive(1920, 1.0), isTrue);
+      // Phone: 1080 logical, DPR 2.75
+      expect(SettingsService.isLikelyAutomotive(1080, 2.75), isFalse);
+      // Tablet at high DPI
+      expect(SettingsService.isLikelyAutomotive(1920, 2.0), isFalse);
+      // Small low-DPI display (not wide enough)
+      expect(SettingsService.isLikelyAutomotive(1280, 1.0), isFalse);
     });
 
     test('loadSettings handles corrupted data by returning defaults', () async {

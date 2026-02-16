@@ -1,0 +1,90 @@
+TS 00:41:13
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:14
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:15
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:16
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:17
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:18
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:19
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:20
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:22
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:23
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:24
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:25
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:26
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:27
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---
+TS 00:41:28
+    active=false
+    media-session com.saplin.nothingness/media-session/18 (userId=0)
+      active=false
+      state=PlaybackState {state=NONE(0), position=76320, buffered position=0, speed=1.0, updated=166938299, actions=16252927, custom actions=[Action:mName='Stop, mIcon=2131165276, mExtras=null], active item id=10, error=null}
+---

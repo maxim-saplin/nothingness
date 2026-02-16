@@ -54,8 +54,6 @@ class NothingAudioHandler extends BaseAudioHandler
     _transport.updateSpectrumSettings(settings);
   }
 
-  StreamSubscription<TransportEvent>? _transportEventsSub;
-
   Duration _lastPosition = Duration.zero;
 
   VoidCallback? _queueListener;
@@ -87,7 +85,7 @@ class NothingAudioHandler extends BaseAudioHandler
       _controller.shuffleNotifier.addListener(_shuffleListener!);
 
       // Use transport position events to keep playbackState.position updated.
-      _transportEventsSub = _transport.eventStream.listen((event) {
+      _transport.eventStream.listen((event) {
         if (event case TransportPositionEvent(position: final position)) {
           _lastPosition = position;
           _updatePlaybackState();
@@ -187,7 +185,16 @@ class NothingAudioHandler extends BaseAudioHandler
   Future<void> play() async {
     await ready;
     if (!_controller.isPlayingNotifier.value) {
-      await _controller.playPause();
+      try {
+        await _controller.playPause();
+      } catch (e) {
+        // Some OEM/device paths can invalidate the underlying player source
+        // while keeping process/session objects alive. If simple "play" fails,
+        // force a reload of the current queue item and try again.
+        debugPrint('[NothingAudioHandler] play() failed, forcing reload: $e');
+        final idx = _controller.currentIndexNotifier.value ?? 0;
+        await _controller.playFromQueueIndex(idx);
+      }
     }
   }
 
@@ -201,9 +208,14 @@ class NothingAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stop() async {
+    // Keep handler/controller alive.
+    //
+    // On some devices, stop callbacks can be issued while app process remains
+    // alive; fully disposing here leaves a "zombie" session that no longer
+    // reacts to Play without app restart. Treat stop as pause to preserve
+    // recoverability from the in-app controls.
     await pause();
-    await _cleanup();
-    await super.stop();
+    _updatePlaybackState();
   }
 
   @override
@@ -275,25 +287,6 @@ class NothingAudioHandler extends BaseAudioHandler
     }).whereType<AudioTrack>().toList(growable: false);
   }
 
-  Future<void> _cleanup() async {
-    if (_queueListener != null) {
-      _controller.queueNotifier.removeListener(_queueListener!);
-    }
-    if (_indexListener != null) {
-      _controller.currentIndexNotifier.removeListener(_indexListener!);
-    }
-    if (_playingListener != null) {
-      _controller.isPlayingNotifier.removeListener(_playingListener!);
-    }
-    if (_songInfoListener != null) {
-      _controller.songInfoNotifier.removeListener(_songInfoListener!);
-    }
-    if (_shuffleListener != null) {
-      _controller.shuffleNotifier.removeListener(_shuffleListener!);
-    }
-    await _transportEventsSub?.cancel();
-    await _controller.dispose();
-  }
 }
 
 

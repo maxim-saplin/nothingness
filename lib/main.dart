@@ -89,9 +89,47 @@ class _NothingAppState extends State<NothingApp> {
             builder: (context, child) {
               if (child == null) return const SizedBox.shrink();
 
-              // ScaledLayout handles all UI scaling (in MediaControllerPage)
-              // so just return child here.
-              return child;
+              // On automotive OEM displays (e.g. Zeekr DHU) the platform
+              // ignores statusBarIconBrightness/statusBarColor.  Draw a
+              // Flutter scrim over the status-bar area so dark OEM icons
+              // stay readable.  This sits outside ScaledLayout so it uses
+              // raw screen coordinates.
+              return ValueListenableBuilder<bool>(
+                valueListenable: SettingsService().fullScreenNotifier,
+                builder: (context, isFullScreen, appChild) {
+                  if (isFullScreen) return appChild!;
+
+                  final view = View.of(context);
+                  final dpr = view.devicePixelRatio;
+                  final logicalWidth = view.physicalSize.width / dpr;
+                  if (!SettingsService.isLikelyAutomotive(logicalWidth, dpr)) {
+                    return appChild!;
+                  }
+
+                  final statusBarHeight = MediaQuery.of(context).padding.top;
+                  final brightness = MediaQuery.platformBrightnessOf(context);
+
+                  return Stack(
+                    children: [
+                      appChild!,
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: statusBarHeight,
+                        child: IgnorePointer(
+                          child: ColoredBox(
+                            color: brightness == Brightness.dark
+                                ? SettingsService.automotiveStatusBarScrimDark
+                                : SettingsService.automotiveStatusBarScrimLight,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+                child: child,
+              );
             },
           );
         },

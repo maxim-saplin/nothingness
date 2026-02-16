@@ -107,6 +107,12 @@ class _MediaControllerPageState extends State<MediaControllerPage>
   }
 
   @override
+  void didChangePlatformBrightness() {
+    // Re-apply the overlay style so status-bar icons match the new theme.
+    _settingsService.setFullScreen(_isFullScreen, save: false);
+  }
+
+  @override
   void reassemble() {
     super.reassemble();
     // Developer Optimization:

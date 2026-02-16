@@ -18,6 +18,8 @@ Welcome to the documentation for the Nothingness project.
 - **Testing & Diagnostics**
   - [Device/emulator integration testing (no audio files)](device-testing.md) - Integration tests + deterministic playback harness (Android + macOS; target selection matters).
   - [SoLoud: Single Playback Backend](soloud-android-fallback.md) - SoLoud-only architecture on Android, native library requirements, and known limitations.
+  - [Zeekr DHU Status-Bar Contrast](zeekr/zeekr-dhu-status-bar-contrast.md) - Automotive status-bar scrim for OEM displays that ignore `SystemUiOverlayStyle`.
+  - [Oppo Find N5: Playback session stuck](oppo-find-n5-playback-session-stuck.md) - Release-build case where media session stays in `state=NONE` and in-app Play becomes unresponsive until restart.
 
 ### Building for Release
 
