@@ -19,3 +19,7 @@ This is a Flutter media controller application. Consult the relevant skills in `
 1. **Context efficiency**: Don't load all rules—consult only those relevant to the current task
 2. **Run validation**: Always run `flutter analyze` after Dart changes
 3. **Reference docs**: Point to existing documentation rather than re-explaining
+
+## Temp Files
+
+Store at local .tmp/ folder

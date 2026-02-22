@@ -25,10 +25,11 @@ This plan is diagnostic. It does not modify app code.
 ## Baseline snapshot (before any toggle)
 
 ```bash
-adb shell dumpsys media_session > /tmp/zeekr_media_session_baseline.txt
-adb shell dumpsys audio > /tmp/zeekr_audio_baseline.txt
-adb shell cmd media_session list-sessions > /tmp/zeekr_sessions_baseline.txt
-adb shell pm query-receivers --components -a android.intent.action.MEDIA_BUTTON > /tmp/zeekr_media_button_receivers.txt
+mkdir -p .tmp
+adb shell dumpsys media_session > .tmp/zeekr_media_session_baseline.txt
+adb shell dumpsys audio > .tmp/zeekr_audio_baseline.txt
+adb shell cmd media_session list-sessions > .tmp/zeekr_sessions_baseline.txt
+adb shell pm query-receivers --components -a android.intent.action.MEDIA_BUTTON > .tmp/zeekr_media_button_receivers.txt
 ```
 
 ## Candidate OEM components to test

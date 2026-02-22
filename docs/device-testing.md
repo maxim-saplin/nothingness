@@ -102,7 +102,8 @@ adb logcat | grep 'NOTHING_DIAG|'
 ### Screenshot
 
 ```bash
-adb exec-out screencap -p > /tmp/nothingness.png
+mkdir -p .tmp
+adb exec-out screencap -p > .tmp/nothingness.png
 ```
 
 ### Quick “what’s on screen” dump (optional)
