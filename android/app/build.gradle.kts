@@ -14,8 +14,14 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-// Force Flutter build to target only arm64.
-extra["target-platform"] = "android-arm64"
+val ciEmulatorAbi = System.getenv("CI_EMULATOR_ABI")
+
+// Default to arm64 for production/release builds, allow x86_64 override for emulator CI.
+extra["target-platform"] = if (ciEmulatorAbi == "x86_64") {
+    "android-x64"
+} else {
+    "android-arm64"
+}
 
 android {
     namespace = "com.saplin.nothingness"
@@ -41,7 +47,11 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         ndk {
-            abiFilters.add("arm64-v8a")
+            if (ciEmulatorAbi == "x86_64") {
+                abiFilters.add("x86_64")
+            } else {
+                abiFilters.add("arm64-v8a")
+            }
         }
     }
 
@@ -69,10 +79,11 @@ android {
 
     packaging {
         jniLibs {
-            excludes += listOf(
-                "**/armeabi-v7a/**",
-                "**/x86_64/**"
-            )
+            val jniExcludes = mutableListOf("**/armeabi-v7a/**")
+            if (ciEmulatorAbi != "x86_64") {
+                jniExcludes += "**/x86_64/**"
+            }
+            excludes += jniExcludes
         }
         resources {
             excludes += "**/flutter_soloud/web/**"
