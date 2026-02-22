@@ -35,13 +35,14 @@ jobs:
 
       - name: Run Emulator Power Regression
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CI_EMULATOR_ABI: x86_64
         with:
           api-level: 33
           arch: x86_64
           profile: pixel_6
           disable-animations: true
           script: |
-            export CI_EMULATOR_ABI=x86_64
             flutter build apk --debug --target-platform android-x64
             adb install -r build/app/outputs/flutter-apk/app-debug.apk
             tool/power/emulator_power_regression.sh --ci --window-sec 120 --sample-sec 5
