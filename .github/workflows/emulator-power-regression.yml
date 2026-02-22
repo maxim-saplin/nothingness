@@ -1,0 +1,55 @@
+name: Emulator Power Regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  emulator-power-regression:
+    name: Emulator Power Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Run Emulator Power Regression
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            flutter build apk --debug
+            adb install -r build/app/outputs/flutter-apk/app-debug.apk
+            tool/power/emulator_power_regression.sh --ci --window-sec 120 --sample-sec 5
+
+      - name: Upload power artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-power-regression-artifacts
+          path: .tmp/power
+          if-no-files-found: warn
+          retention-days: 7

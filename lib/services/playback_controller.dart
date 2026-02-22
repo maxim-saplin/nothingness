@@ -327,7 +327,7 @@ class PlaybackController {
 
   Future<void> previous() async {
     _userIntent = PlayIntent.play; // Navigation implies play intent
-    
+
     // Check if there's a current track loaded
     final currentIdx = _playlist.currentOrderIndexNotifier.value;
     if (currentIdx == null) {
@@ -343,7 +343,7 @@ class PlaybackController {
     try {
       final position = await _transport.position;
       const threshold = Duration(seconds: 3);
-      
+
       if (position > threshold) {
         // Position > 3 seconds: restart current song
         await seek(Duration.zero);
@@ -450,15 +450,6 @@ class PlaybackController {
       final track = _playlist.trackForOrderIndex(idx);
       if (track == null) break;
 
-      await _playlist.setCurrentOrderIndex(idx);
-
-      // Respect pause intent for setQueue only.
-      if (respectPauseIntent && _userIntent == PlayIntent.pause) {
-        isPlayingNotifier.value = false;
-        _emitSongInfo(force: true);
-        return;
-      }
-
       final isKnownFailed = _failedTrackPaths.contains(track.path);
       // If already known failed, normally keep scanning.
       // Exception: for a direct user tap on the requested track, allow a retry
@@ -484,6 +475,15 @@ class PlaybackController {
           idx += dir;
           continue;
         }
+      }
+
+      await _playlist.setCurrentOrderIndex(idx);
+
+      // Respect pause intent for setQueue only.
+      if (respectPauseIntent && _userIntent == PlayIntent.pause) {
+        isPlayingNotifier.value = false;
+        _emitSongInfo(force: true);
+        return;
       }
 
       // Optimistic UI update for responsiveness.
@@ -675,7 +675,9 @@ class PlaybackController {
     final track = idx == null ? null : _playlist.trackForOrderIndex(idx);
 
     if (idx == null || track == null) {
-      songInfoNotifier.value = null;
+      if (force || songInfoNotifier.value != null) {
+        songInfoNotifier.value = null;
+      }
       return;
     }
 
@@ -686,12 +688,25 @@ class PlaybackController {
     // Note: end-of-track advancement is handled via TransportEndedEvent.
     // Avoid duplicate skipping here to prevent race conditions during source transitions.
 
-    songInfoNotifier.value = SongInfo(
+    final nextSongInfo = SongInfo(
       track: track,
       isPlaying: isPlaying,
       position: position.inMilliseconds,
       duration: duration.inMilliseconds,
     );
+
+    if (!force) {
+      final current = songInfoNotifier.value;
+      if (current != null &&
+          current.track.path == nextSongInfo.track.path &&
+          current.isPlaying == nextSongInfo.isPlaying &&
+          current.position == nextSongInfo.position &&
+          current.duration == nextSongInfo.duration) {
+        return;
+      }
+    }
+
+    songInfoNotifier.value = nextSongInfo;
   }
 
   Future<int> playlistSizeBytes() {

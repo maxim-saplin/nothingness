@@ -24,6 +24,32 @@ ACTIVITY=$PKG/.MainActivity
 
 ## Baseline capture loop (copy/paste)
 
+## Automated quick check (local + CI)
+
+For fast regression signal, use the automated runner:
+
+```bash
+tool/power/emulator_power_regression.sh --window-sec 120 --sample-sec 5
+```
+
+Artifacts are written under `.tmp/power/<timestamp>-auto-regression/` and include:
+
+- sampled package CPU for S0 control and S1 background-idle
+- `dumpsys` snapshots (`cpuinfo`, `power`, `activity services`, `jobscheduler`, `alarm`)
+- `logcat` slice + parsed `summary.json`
+
+The parser (`tool/power/evaluate_power_capture.py`) marks regressions using quick-win thresholds:
+
+- idle median CPU delta (S1 - S0) too high
+- idle p95 CPU too high or sustained high CPU streak
+- playback-state churn signature too high in logcat
+
+Use `--ci` to enforce strict exit behavior:
+
+```bash
+tool/power/emulator_power_regression.sh --ci --window-sec 120 --sample-sec 5
+```
+
 ### 0) Prepare a clean baseline window
 
 ```bash

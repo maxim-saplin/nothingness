@@ -6,6 +6,22 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/testing/test_harness.dart';
 import 'package:nothingness/testing/test_overlay.dart';
 
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 3),
+  Duration step = const Duration(milliseconds: 50),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await tester.pump(step);
+    if (condition()) {
+      return;
+    }
+  }
+  throw TestFailure('Condition not met within ${timeout.inMilliseconds}ms');
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -35,7 +51,21 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(TestKeys.queueItem(0)));
-      await tester.pumpAndSettle();
+
+      await _pumpUntil(tester, () {
+        final missingMarked = find
+            .descendant(
+              of: find.byKey(TestKeys.queueItem(0)),
+              matching: find.textContaining('(Not found)'),
+            )
+            .evaluate()
+            .isNotEmpty;
+        final advancedToNext = find
+            .textContaining('idx=1')
+            .evaluate()
+            .isNotEmpty;
+        return missingMarked && advancedToNext;
+      });
 
       expect(
         find.descendant(

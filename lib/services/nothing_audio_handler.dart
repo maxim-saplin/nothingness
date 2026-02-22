@@ -29,8 +29,8 @@ class NothingAudioHandler extends BaseAudioHandler
   NothingAudioHandler._({
     required PlaybackController controller,
     required AudioTransport transport,
-  })  : _controller = controller,
-        _transport = transport {
+  }) : _controller = controller,
+       _transport = transport {
     unawaited(_init());
   }
 
@@ -87,6 +87,10 @@ class NothingAudioHandler extends BaseAudioHandler
       // Use transport position events to keep playbackState.position updated.
       _transport.eventStream.listen((event) {
         if (event case TransportPositionEvent(position: final position)) {
+          if ((position - _lastPosition).abs() <
+              const Duration(milliseconds: 200)) {
+            return;
+          }
           _lastPosition = position;
           _updatePlaybackState();
         } else if (event case TransportLoadedEvent()) {
@@ -118,9 +122,7 @@ class NothingAudioHandler extends BaseAudioHandler
       title: t.title,
       artist: t.artist,
       duration: t.duration,
-      extras: <String, Object?>{
-        'isNotFound': t.isNotFound,
-      },
+      extras: <String, Object?>{'isNotFound': t.isNotFound},
     );
   }
 
@@ -151,8 +153,9 @@ class NothingAudioHandler extends BaseAudioHandler
     final playing = _controller.isPlayingNotifier.value;
     final currentQueue = queue.value;
     final currentMedia = mediaItem.value;
-    final int? idx =
-        currentMedia == null ? null : currentQueue.indexWhere((m) => m.id == currentMedia.id);
+    final int? idx = currentMedia == null
+        ? null
+        : currentQueue.indexWhere((m) => m.id == currentMedia.id);
     final shuffle = _controller.shuffleNotifier.value;
 
     playbackState.add(
@@ -175,7 +178,9 @@ class NothingAudioHandler extends BaseAudioHandler
         bufferedPosition: Duration.zero,
         speed: 1.0,
         queueIndex: (idx != null && idx >= 0) ? idx : null,
-        shuffleMode: shuffle ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+        shuffleMode: shuffle
+            ? AudioServiceShuffleMode.all
+            : AudioServiceShuffleMode.none,
         repeatMode: AudioServiceRepeatMode.none,
       ),
     );
@@ -248,7 +253,11 @@ class NothingAudioHandler extends BaseAudioHandler
         final tracks = _decodeTracks(map['tracks']);
         final startIndex = (map['startIndex'] as num?)?.toInt() ?? 0;
         final shuffle = map['shuffle'] as bool? ?? false;
-        await _controller.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
+        await _controller.setQueue(
+          tracks,
+          startIndex: startIndex,
+          shuffle: shuffle,
+        );
         return null;
       case 'addTracks':
         final map = (extras as Map?) ?? const <String, Object?>{};
@@ -274,19 +283,22 @@ class NothingAudioHandler extends BaseAudioHandler
 
   List<AudioTrack> _decodeTracks(dynamic raw) {
     if (raw is! List) return const <AudioTrack>[];
-    return raw.whereType<Map>().map((m) {
-      final path = m['path'] as String? ?? '';
-      if (path.isEmpty) return null;
-      final durationMs = m['durationMs'] as int?;
-      return AudioTrack(
-        path: path,
-        title: m['title'] as String? ?? '',
-        artist: m['artist'] as String? ?? '',
-        duration: durationMs != null ? Duration(milliseconds: durationMs) : null,
-      );
-    }).whereType<AudioTrack>().toList(growable: false);
+    return raw
+        .whereType<Map>()
+        .map((m) {
+          final path = m['path'] as String? ?? '';
+          if (path.isEmpty) return null;
+          final durationMs = m['durationMs'] as int?;
+          return AudioTrack(
+            path: path,
+            title: m['title'] as String? ?? '',
+            artist: m['artist'] as String? ?? '',
+            duration: durationMs != null
+                ? Duration(milliseconds: durationMs)
+                : null,
+          );
+        })
+        .whereType<AudioTrack>()
+        .toList(growable: false);
   }
-
 }
-
-

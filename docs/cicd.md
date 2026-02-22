@@ -48,6 +48,15 @@ The reusable workflow contains all common build steps and optimizations:
   2. `release`: Calls `build-android.yml` with `create-release: true` and the extracted tag/version.
 - **Result**: Creates a GitHub Release with the tag `v<version>` and uploads the APK asset.
 
+### 3. Emulator power regression (`.github/workflows/emulator-power-regression.yml`)
+- **Trigger**: Manual dispatch and nightly schedule.
+- **Job**:
+  - boots Android emulator (API 33)
+  - builds + installs debug APK
+  - runs `tool/power/emulator_power_regression.sh --ci --window-sec 120 --sample-sec 5`
+  - uploads `.tmp/power/` artifacts
+- **Result**: Provides a threshold-based signal for idle background CPU/churn regressions before they become user-visible battery issues.
+
 ## Signing Configuration
 
 To sign release builds, the following **Repository Secrets** must be configured in GitHub:
