@@ -50,12 +50,47 @@ The reusable workflow contains all common build steps and optimizations:
 
 ### 3. Emulator power regression (`.github/workflows/emulator-power-regression.yml`)
 - **Trigger**: Manual dispatch and nightly schedule.
+- **Nightly behavior**: Scheduled runs execute only when the repository has commits within the last 24 hours; otherwise the workflow skips the heavy emulator job.
 - **Job**:
   - boots Android emulator (API 33)
   - builds + installs debug APK
   - runs `tool/power/emulator_power_regression.sh --ci --window-sec 120 --sample-sec 5`
   - uploads `.tmp/power/` artifacts
 - **Result**: Provides a threshold-based signal for idle background CPU/churn regressions before they become user-visible battery issues.
+
+#### How regression evaluation works
+
+The regression script captures two windows and compares them:
+
+- **S0 control window**: app is force-stopped and device is idle on home screen.
+- **S1 idle-background window**: app is launched, then sent to home screen, then measured while idle in background.
+
+The evaluator (`tool/power/evaluate_power_capture.py`) writes a `summary.json` artifact and, in CI strict mode (`--ci`), fails the job when violations are detected.
+
+#### Failure criteria (strict mode)
+
+The run fails if any of these are true:
+
+- `median_delta > 0.8` **and** `s1_median > 0.8`
+- `s1_p95 > 2.5`
+- `s1_max_consecutive_gt4 >= 3`
+- `log_churn_count > 10`
+
+`active_wakelock` is currently warning-level only (reported, but not fail by itself).
+
+#### How to read and treat results
+
+1. Open **Actions → Emulator Power Regression** run.
+2. Check top-level outcome:
+   - **Green**: no threshold violations.
+   - **Red**: either CI/infrastructure failure or threshold regression failure.
+3. Download `emulator-power-regression-artifacts` and inspect `summary.json`.
+
+Recommended triage:
+
+- **Infra failure** (emulator boot/build/install/script crash): fix CI/environment first, then re-run.
+- **Threshold failure** (`summary.json.status = fail`): treat as potential regression in background behavior; compare key metrics against recent passing runs before merging.
+- **Warning only** (`warnings` non-empty, `status = pass`): track, but do not block by default.
 
 ## Signing Configuration
 

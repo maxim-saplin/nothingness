@@ -9,8 +9,44 @@ permissions:
   contents: read
 
 jobs:
+  precheck:
+    name: Decide whether to run
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decide run condition
+        id: decide
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual dispatch: running."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          now_ts="$(date +%s)"
+          last_commit_ts="$(git log -1 --format=%ct)"
+          age_sec=$((now_ts - last_commit_ts))
+          threshold_sec=$((24 * 60 * 60))
+
+          echo "Latest commit age (seconds): $age_sec"
+
+          if (( age_sec <= threshold_sec )); then
+            echo "Recent changes detected in the last 24h: running."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changes in the last 24h: skipping."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   emulator-power-regression:
     name: Emulator Power Regression
+    needs: precheck
+    if: needs.precheck.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 50
 
@@ -35,13 +71,15 @@ jobs:
 
       - name: Run Emulator Power Regression
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CI_EMULATOR_ABI: x86_64
         with:
           api-level: 33
           arch: x86_64
           profile: pixel_6
           disable-animations: true
           script: |
-            flutter build apk --debug
+            flutter build apk --debug --target-platform android-x64
             adb install -r build/app/outputs/flutter-apk/app-debug.apk
             tool/power/emulator_power_regression.sh --ci --window-sec 120 --sample-sec 5
 
