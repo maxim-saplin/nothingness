@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP UI Variants Showcase</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0A0A0F; color: #E0E0E0; font-family: 'Inter', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+
+  /* ---- Top Nav ---- */
+  .navbar { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: #111118; border-bottom: 1px solid #222; overflow-x: auto; flex-shrink: 0; }
+  .navbar button { padding: 8px 16px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer; border-radius: 4px; white-space: nowrap; font-size: 13px; transition: all 0.2s; }
+  .navbar button:hover { border-color: #555; color: #ccc; }
+  .navbar button.active { background: #00FF88; color: #0A0A0F; border-color: #00FF88; font-weight: 600; }
+
+  /* ---- Variant Info ---- */
+  .variant-info { padding: 8px 24px; background: #0A0A0F; border-bottom: 1px solid #1A1A1A; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+  .variant-name { color: #00FF88; font-size: 14px; font-weight: 600; }
+  .variant-desc { color: #666; font-size: 12px; }
+  .variant-counter { color: #555; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  /* ---- Device Toggle ---- */
+  .toggle-bar { display: flex; align-items: center; gap: 16px; padding: 8px 24px; background: #0E0E14; border-bottom: 1px solid #1A1A1A; flex-shrink: 0; }
+  .toggle-bar label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .device-btn { padding: 4px 12px; border: 1px solid #333; background: transparent; color: #888; cursor: pointer; border-radius: 3px; font-size: 12px; transition: all 0.2s; }
+  .device-btn:hover { border-color: #555; color: #ccc; }
+  .device-btn.active { border-color: #00FF88; color: #00FF88; }
+
+  .kbd-hint { margin-left: auto; color: #444; font-size: 11px; }
+  .kbd-hint kbd { display: inline-block; padding: 1px 5px; border: 1px solid #333; border-radius: 3px; background: #1A1A1F; color: #666; font-size: 10px; font-family: inherit; }
+
+  /* ---- Preview ---- */
+  .preview-container { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 24px; overflow: auto; }
+  .preview-frame { border: 1px solid #222; border-radius: 8px; overflow: hidden; transition: width 0.3s ease, height 0.3s ease; background: #000; position: relative; }
+  .preview-frame.mobile { width: 390px; height: 844px; }
+  .preview-frame.tablet { width: 1024px; height: 768px; }
+  .preview-frame.desktop { width: 100%; height: calc(100vh - 120px); }
+  .preview-frame iframe { width: 100%; height: 100%; border: none; display: block; opacity: 1; transition: opacity 0.15s ease; }
+  .preview-frame iframe.loading { opacity: 0.3; }
+
+  /* Loading spinner overlay */
+  .loading-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; z-index: 2; }
+  .loading-overlay.visible { opacity: 1; }
+  .spinner { width: 32px; height: 32px; border: 3px solid #333; border-top-color: #00FF88; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+  <!-- Variant Navigation -->
+  <nav class="navbar" id="navbar">
+    <button data-variant="phosphor" data-desc="1980s Green CRT Terminal" class="active">1. Phosphor</button>
+    <button data-variant="ledwall" data-desc="LED Dot-Matrix Display">2. LED Wall</button>
+    <button data-variant="autobahn" data-desc="BMW E46 Head Unit">3. Autobahn</button>
+    <button data-variant="synthwave" data-desc="Neon Retrowave">4. Synthwave</button>
+    <button data-variant="nixie" data-desc="Vacuum Tube Hi-Fi">5. Nixie</button>
+    <button data-variant="datacore" data-desc="Sci-Fi Command Console">6. Datacore</button>
+    <button data-variant="walkman" data-desc="Portable Cassette Player">7. Walkman</button>
+    <button data-variant="void" data-desc="Ultra-Minimal B&W">8. Void</button>
+    <button data-variant="paper" data-desc="E-Ink Newsprint">9. Paper</button>
+    <button data-variant="signal" data-desc="Military Radar Screen">10. Signal</button>
+    <button data-variant="mono" data-desc="Swiss Typography B&W Grid">11. Mono</button>
+    <button data-variant="abyss" data-desc="Deep Sonar Waveform">12. Abyss</button>
+    <button data-variant="brutalist" data-desc="Raw HTML 1996">13. Brutalist</button>
+    <button data-variant="tape" data-desc="Reel-to-Reel Tape Machine">14. Tape</button>
+  </nav>
+
+  <!-- Variant Info -->
+  <div class="variant-info">
+    <span class="variant-name" id="variantName">PHOSPHOR</span>
+    <span class="variant-desc" id="variantDesc">1980s Green CRT Terminal</span>
+    <span class="variant-counter" id="variantCounter">1 / 14</span>
+  </div>
+
+  <!-- Device Toggle -->
+  <div class="toggle-bar">
+    <label>Preview:</label>
+    <button class="device-btn" data-device="mobile">Mobile (390x844)</button>
+    <button class="device-btn active" data-device="tablet">Tablet (1024x768)</button>
+    <button class="device-btn" data-device="desktop">Desktop (Full)</button>
+    <span class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> switch variants &nbsp; <kbd>1</kbd>&ndash;<kbd>9</kbd> <kbd>0</kbd>=10 jump &nbsp; <kbd>M</kbd> <kbd>T</kbd> <kbd>D</kbd> device</span>
+  </div>
+
+  <!-- Preview Area -->
+  <div class="preview-container">
+    <div class="preview-frame tablet" id="previewFrame">
+      <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+      <iframe id="previewIframe" src="variants/phosphor.html"></iframe>
+    </div>
+  </div>
+
+  <script>
+    const iframe = document.getElementById('previewIframe');
+    const frame = document.getElementById('previewFrame');
+    const overlay = document.getElementById('loadingOverlay');
+    const navButtons = Array.from(document.querySelectorAll('.navbar button'));
+    const deviceButtons = document.querySelectorAll('.device-btn');
+    const variantName = document.getElementById('variantName');
+    const variantDesc = document.getElementById('variantDesc');
+    const variantCounter = document.getElementById('variantCounter');
+
+    let currentIndex = 0;
+
+    function showLoading() {
+      iframe.classList.add('loading');
+      overlay.classList.add('visible');
+    }
+
+    function hideLoading() {
+      iframe.classList.remove('loading');
+      overlay.classList.remove('visible');
+    }
+
+    iframe.addEventListener('load', hideLoading);
+
+    function selectVariant(index) {
+      if (index < 0 || index >= navButtons.length) return;
+      currentIndex = index;
+      const btn = navButtons[index];
+      navButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const variant = btn.dataset.variant;
+      showLoading();
+      iframe.src = 'variants/' + variant + '.html';
+      variantName.textContent = variant.toUpperCase();
+      variantDesc.textContent = btn.dataset.desc;
+      variantCounter.textContent = (index + 1) + ' / ' + navButtons.length;
+      // Scroll button into view if needed
+      btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+
+    navButtons.forEach((btn, i) => {
+      btn.addEventListener('click', () => selectVariant(i));
+    });
+
+    deviceButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        deviceButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        frame.className = 'preview-frame ' + btn.dataset.device;
+      });
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      // Skip if user is typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          selectVariant((currentIndex - 1 + navButtons.length) % navButtons.length);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          selectVariant((currentIndex + 1) % navButtons.length);
+          break;
+        case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+          selectVariant(parseInt(e.key) - 1);
+          break;
+        case '0':
+          selectVariant(9); // 0 = variant 10
+          break;
+        case 'm': case 'M':
+          document.querySelector('[data-device="mobile"]').click();
+          break;
+        case 't': case 'T':
+          document.querySelector('[data-device="tablet"]').click();
+          break;
+        case 'd': case 'D':
+          document.querySelector('[data-device="desktop"]').click();
+          break;
+      }
+    });
+  </script>
+</body>
+</html>

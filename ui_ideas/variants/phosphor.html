@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP — PHOSPHOR</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0A0A0F;
+  --green: #33FF33;
+  --green-dim: #00CC00;
+  --green-vdim: #115511;
+  --crt-bg: #050508;
+  --font: "Courier New", monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  font-family: var(--font);
+  color: var(--green);
+  overflow: hidden;
+}
+
+/* CRT Monitor Shell */
+.crt-shell {
+  position: absolute;
+  inset: 12px;
+  display: flex;
+  flex-direction: column;
+  background: var(--crt-bg);
+  border-radius: 18px;
+  border: 3px solid #1a1a20;
+  box-shadow:
+    0 0 30px rgba(51,255,51,0.06),
+    inset 0 0 60px rgba(0,0,0,0.7);
+  overflow: hidden;
+}
+
+/* Scanlines overlay */
+.crt-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.15) 2px,
+    rgba(0,0,0,0.15) 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+  border-radius: 18px;
+}
+
+/* Screen curvature highlight */
+.crt-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    rgba(51,255,51,0.03) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 101;
+}
+
+/* Flicker animation */
+@keyframes flicker {
+  0%   { opacity: 1; }
+  3%   { opacity: 0.97; }
+  6%   { opacity: 1; }
+  42%  { opacity: 0.98; }
+  44%  { opacity: 1; }
+  90%  { opacity: 1; }
+  92%  { opacity: 0.96; }
+  94%  { opacity: 1; }
+}
+
+.crt-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: flicker 4s infinite;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Phosphor glow on all text */
+.crt-content * {
+  text-shadow: 0 0 5px rgba(51,255,51,0.5);
+}
+
+/* ─── NAV BAR ─── */
+.nav-bar {
+  display: flex;
+  border-bottom: 1px solid var(--green-vdim);
+  padding: 6px 10px;
+  gap: 4px;
+  flex-shrink: 0;
+  background: rgba(5,5,8,0.9);
+  z-index: 10;
+}
+
+.nav-btn {
+  font-family: var(--font);
+  font-size: 13px;
+  background: none;
+  border: 1px solid var(--green-vdim);
+  color: var(--green-dim);
+  padding: 6px 14px;
+  cursor: pointer;
+  min-height: 48px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.nav-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.nav-btn.active {
+  background: var(--green);
+  color: var(--crt-bg);
+  border-color: var(--green);
+  text-shadow: none !important;
+}
+
+.nav-btn.active * {
+  text-shadow: none !important;
+}
+
+.nav-spacer { flex: 1; }
+
+.nav-title {
+  font-size: 13px;
+  color: var(--green-dim);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── SCREENS ─── */
+.screen {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+  flex-direction: column;
+}
+.screen.active {
+  display: flex;
+}
+
+/* ─── HOME SCREEN ─── */
+.home-screen {
+  padding: 12px;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.now-playing-info {
+  text-align: center;
+  padding: 4px 0;
+}
+
+.now-playing-title {
+  font-size: 15px;
+  color: var(--green);
+  margin-bottom: 2px;
+}
+
+.now-playing-artist {
+  font-size: 12px;
+  color: var(--green-dim);
+}
+
+/* Spectrum Visualizer */
+.spectrum-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 160px;
+  padding: 8px 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  min-height: 48px;
+}
+
+.spectrum-bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 24px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--green);
+  white-space: pre;
+}
+
+body.mobile .spectrum-bar {
+  width: 18px;
+  font-size: 12px;
+}
+
+/* Cassette ASCII Art */
+.cassette-container {
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--green-dim);
+  padding: 8px 0;
+  white-space: pre;
+}
+
+body.mobile .cassette-container {
+  font-size: 9px;
+}
+
+/* Transport Controls */
+.transport {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.transport-btn {
+  font-family: var(--font);
+  font-size: 13px;
+  background: none;
+  border: 1px solid var(--green-vdim);
+  color: var(--green-dim);
+  padding: 8px 16px;
+  cursor: pointer;
+  min-height: 48px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.transport-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.transport-btn.active {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Progress Bar */
+.progress-bar-container {
+  width: 100%;
+  max-width: 400px;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--green-dim);
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  background: var(--green-vdim);
+  border: 1px solid var(--green-vdim);
+  position: relative;
+  cursor: pointer;
+  min-height: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--green-dim);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+/* ─── SETTINGS SCREEN ─── */
+.settings-screen {
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.settings-header {
+  font-size: 14px;
+  color: var(--green);
+  border-bottom: 1px solid var(--green-vdim);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.settings-group {
+  margin-bottom: 12px;
+}
+
+.settings-group-title {
+  font-size: 12px;
+  color: var(--green-dim);
+  margin-bottom: 4px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 48px;
+  border: 1px solid transparent;
+  transition: all 0.05s;
+}
+
+.settings-row:hover {
+  background: var(--green);
+  color: var(--crt-bg);
+  text-shadow: none !important;
+}
+
+.settings-row:hover * {
+  text-shadow: none !important;
+  color: var(--crt-bg);
+}
+
+.settings-row .cursor {
+  width: 16px;
+  flex-shrink: 0;
+  color: var(--green);
+}
+
+.settings-row:hover .cursor {
+  color: var(--crt-bg);
+}
+
+.settings-row .key {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.settings-row .dots {
+  flex: 1;
+  overflow: hidden;
+  color: var(--green-vdim);
+  white-space: nowrap;
+  margin: 0 4px;
+}
+
+.settings-row:hover .dots {
+  color: var(--crt-bg);
+  opacity: 0.4;
+}
+
+.settings-row .value {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--green);
+}
+
+/* ─── BROWSER SCREEN ─── */
+.browser-screen {
+  padding: 0;
+  overflow: hidden;
+}
+
+.browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--green-vdim);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.browser-toolbar-btn {
+  font-family: var(--font);
+  font-size: 12px;
+  background: none;
+  border: 1px solid var(--green-vdim);
+  color: var(--green-dim);
+  padding: 6px 10px;
+  cursor: pointer;
+  min-height: 48px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.browser-toolbar-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.browser-search {
+  font-family: var(--font);
+  font-size: 12px;
+  background: var(--crt-bg);
+  border: 1px solid var(--green-vdim);
+  color: var(--green);
+  padding: 6px 8px;
+  flex: 1;
+  min-width: 80px;
+  min-height: 48px;
+  outline: none;
+}
+
+.browser-search:focus {
+  border-color: var(--green);
+}
+
+.browser-search::placeholder {
+  color: var(--green-vdim);
+}
+
+.breadcrumb {
+  font-size: 12px;
+  color: var(--green-dim);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--green-vdim);
+  white-space: nowrap;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.breadcrumb-part {
+  cursor: pointer;
+  color: var(--green-dim);
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.breadcrumb-part:hover {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.breadcrumb-sep {
+  color: var(--green-vdim);
+  margin: 0 2px;
+}
+
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 48px;
+  border: 1px solid transparent;
+  transition: all 0.05s;
+  gap: 6px;
+}
+
+.file-row:hover, .file-row.selected {
+  background: var(--green);
+  color: var(--crt-bg);
+  text-shadow: none !important;
+}
+
+.file-row:hover *, .file-row.selected * {
+  text-shadow: none !important;
+  color: var(--crt-bg);
+}
+
+.file-row .file-cursor {
+  width: 16px;
+  flex-shrink: 0;
+  visibility: hidden;
+}
+
+.file-row:hover .file-cursor {
+  visibility: visible;
+}
+
+.file-row .file-icon {
+  width: 20px;
+  flex-shrink: 0;
+  color: var(--green-dim);
+}
+
+.file-row .file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row .file-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--green-vdim);
+  white-space: nowrap;
+}
+
+.file-row:hover .file-meta {
+  color: var(--crt-bg);
+  opacity: 0.7;
+}
+
+.browser-status {
+  font-size: 11px;
+  color: var(--green-vdim);
+  padding: 4px 10px;
+  border-top: 1px solid var(--green-vdim);
+  flex-shrink: 0;
+}
+
+/* ─── BLINKING CURSOR ─── */
+@keyframes blink-cursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.blink-cursor {
+  animation: blink-cursor 1s infinite;
+  color: var(--green);
+}
+
+/* ─── RESPONSIVE ─── */
+body.mobile .crt-shell {
+  inset: 4px;
+  border-radius: 10px;
+}
+
+body.mobile .crt-shell::before {
+  border-radius: 10px;
+}
+
+body.mobile .crt-shell::after {
+  border-radius: 10px;
+}
+
+body.mobile .nav-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+body.mobile .nav-title {
+  font-size: 10px;
+}
+
+body.mobile .spectrum-container {
+  height: 100px;
+}
+
+body.mobile .cassette-container {
+  font-size: 8px;
+}
+
+body.mobile .now-playing-title {
+  font-size: 13px;
+}
+
+body.mobile .settings-row {
+  font-size: 11px;
+}
+
+body.mobile .file-row {
+  font-size: 11px;
+}
+
+body.tablet .spectrum-container {
+  height: 140px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--crt-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--green-vdim);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--green-dim);
+}
+</style>
+</head>
+<body>
+<div class="crt-shell">
+  <div class="crt-content">
+    <!-- NAV BAR -->
+    <div class="nav-bar">
+      <button class="nav-btn active" data-screen="home">[HOME]</button>
+      <button class="nav-btn" data-screen="settings">[SETTINGS]</button>
+      <button class="nav-btn" data-screen="browser">[BROWSER]</button>
+      <span class="nav-spacer"></span>
+      <span class="nav-title">FileAMP v1.0</span>
+    </div>
+
+    <!-- HOME SCREEN -->
+    <div class="screen home-screen active" id="screen-home">
+      <div class="now-playing-info">
+        <div class="now-playing-title" id="now-playing-title">Stairway to Heaven.mp3</div>
+        <div class="now-playing-artist" id="now-playing-artist">Led Zeppelin</div>
+      </div>
+
+      <div class="spectrum-container" id="spectrum" title="Click to toggle play/pause">
+      </div>
+
+      <div class="cassette-container" id="cassette"></div>
+
+      <div class="progress-bar-container">
+        <span id="time-current">00:00</span>
+        <div class="progress-track" id="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <span id="time-total">08:02</span>
+      </div>
+
+      <div class="transport">
+        <button class="transport-btn" id="btn-prev" title="Previous">|&lt;&lt;</button>
+        <button class="transport-btn" id="btn-play" title="Play/Pause">PLAY</button>
+        <button class="transport-btn" id="btn-stop" title="Stop">STOP</button>
+        <button class="transport-btn" id="btn-next" title="Next">&gt;&gt;|</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS SCREEN -->
+    <div class="screen settings-screen" id="screen-settings">
+      <div class="settings-header">
+        ╔══════════════════════════════════╗<br>
+        ║  SETTINGS <span class="blink-cursor">█</span>                      ║<br>
+        ╚══════════════════════════════════╝
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">── VISUALIZER ──</div>
+        <div class="settings-row" data-setting="viz-style" data-options="Bars,Wave,Dots,Blocks" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Style</span>
+          <span class="dots"></span>
+          <span class="value">Bars</span>
+        </div>
+        <div class="settings-row" data-setting="bar-count" data-options="8,12,16,24" data-idx="1">
+          <span class="cursor">&gt;</span>
+          <span class="key">Bar Count</span>
+          <span class="dots"></span>
+          <span class="value">12</span>
+        </div>
+        <div class="settings-row" data-setting="bar-speed" data-options="Slow,Normal,Fast" data-idx="1">
+          <span class="cursor">&gt;</span>
+          <span class="key">Animation Speed</span>
+          <span class="dots"></span>
+          <span class="value">Normal</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">── APPEARANCE ──</div>
+        <div class="settings-row" data-setting="color-scheme" data-options="Green,Amber,Blue,White" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Color Scheme</span>
+          <span class="dots"></span>
+          <span class="value">Green</span>
+        </div>
+        <div class="settings-row" data-setting="scanlines" data-options="On,Off" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Scanlines</span>
+          <span class="dots"></span>
+          <span class="value">On</span>
+        </div>
+        <div class="settings-row" data-setting="flicker" data-options="On,Off" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">CRT Flicker</span>
+          <span class="dots"></span>
+          <span class="value">On</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">── PLAYBACK ──</div>
+        <div class="settings-row" data-setting="shuffle" data-options="Off,On" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Shuffle</span>
+          <span class="dots"></span>
+          <span class="value">Off</span>
+        </div>
+        <div class="settings-row" data-setting="repeat" data-options="Off,Track,All" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Repeat Mode</span>
+          <span class="dots"></span>
+          <span class="value">Off</span>
+        </div>
+        <div class="settings-row" data-setting="gapless" data-options="On,Off" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Gapless Playback</span>
+          <span class="dots"></span>
+          <span class="value">On</span>
+        </div>
+        <div class="settings-row" data-setting="crossfade" data-options="Off,1s,2s,3s,5s" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Crossfade</span>
+          <span class="dots"></span>
+          <span class="value">Off</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">── SYSTEM ──</div>
+        <div class="settings-row" data-setting="buffer" data-options="128KB,256KB,512KB,1MB" data-idx="1">
+          <span class="cursor">&gt;</span>
+          <span class="key">Buffer Size</span>
+          <span class="dots"></span>
+          <span class="value">256KB</span>
+        </div>
+        <div class="settings-row" data-setting="output" data-options="Stereo,Mono,Surround" data-idx="0">
+          <span class="cursor">&gt;</span>
+          <span class="key">Output</span>
+          <span class="dots"></span>
+          <span class="value">Stereo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BROWSER SCREEN -->
+    <div class="screen browser-screen" id="screen-browser">
+      <div class="browser-toolbar">
+        <button class="browser-toolbar-btn" id="btn-play-all">[PLAY ALL]</button>
+        <button class="browser-toolbar-btn" id="btn-shuffle-all">[SHUFFLE]</button>
+        <input type="text" class="browser-search" id="browser-search" placeholder="/ search...">
+      </div>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="file-list" id="file-list"></div>
+      <div class="browser-status" id="browser-status"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── FILE TREE DATA ───
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ─── STATE ───
+let isPlaying = false;
+let spectrumData = new Array(12).fill(0);
+let currentTrack = { name: 'Stairway to Heaven.mp3', duration: '08:02', artist: 'Led Zeppelin' };
+let playProgress = 0;
+let reelFrame = 0;
+const reelChars = ['/', '-', '\\', '|'];
+let browserPath = [FILE_TREE];
+let searchQuery = '';
+let selectedFileIndex = -1;
+
+// ─── NAVIGATION ───
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const screen = btn.dataset.screen;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + screen).classList.add('active');
+  });
+});
+
+// ─── RESPONSIVE ───
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  document.body.classList.toggle('mobile', width < 600);
+  document.body.classList.toggle('tablet', width >= 600 && width < 1025);
+  document.body.classList.toggle('desktop', width >= 1025);
+});
+ro.observe(document.body);
+
+// ─── SPECTRUM VISUALIZER ───
+const spectrumEl = document.getElementById('spectrum');
+const blocks = ' ▁▂▃▄▅▆▇█';
+
+function renderSpectrum(data) {
+  const isMobile = document.body.classList.contains('mobile');
+  const barCount = isMobile ? 8 : 12;
+  const maxHeight = isMobile ? 8 : 12;
+  const displayData = data.slice(0, barCount);
+
+  let html = '';
+  for (let i = 0; i < displayData.length; i++) {
+    const val = Math.max(0, Math.min(1, displayData[i]));
+    const height = Math.round(val * maxHeight);
+    let col = '';
+    for (let row = maxHeight; row >= 1; row--) {
+      if (row <= height) {
+        const blockIdx = Math.min(8, Math.max(1, Math.round(val * 8)));
+        col += blocks[row === height ? blockIdx : 8] + '\n';
+      } else {
+        col += ' \n';
+      }
+    }
+    html += '<div class="spectrum-bar">' + col + '</div>';
+  }
+  spectrumEl.innerHTML = html;
+}
+
+function updateSpectrum() {
+  if (isPlaying) {
+    spectrumData = spectrumData.map((v, i) => {
+      const target = Math.random() * 0.7 + (i < 3 ? 0.3 : 0);
+      return v + (target - v) * 0.3;
+    });
+  } else {
+    spectrumData = spectrumData.map(v => v * 0.95);
+  }
+  renderSpectrum(spectrumData);
+  requestAnimationFrame(updateSpectrum);
+}
+
+// ─── CASSETTE ASCII ART ───
+const cassetteEl = document.getElementById('cassette');
+
+function renderCassette() {
+  const r1 = reelChars[reelFrame % 4];
+  const r2 = reelChars[(reelFrame + 2) % 4];
+  const isMobile = document.body.classList.contains('mobile');
+
+  if (isMobile) {
+    cassetteEl.textContent =
+      '  ┌──────────────────────┐\n' +
+      '  │  ┌────┐    ┌────┐   │\n' +
+      '  │  │ ' + r1 + '  │    │ ' + r2 + '  │   │\n' +
+      '  │  └────┘    └────┘   │\n' +
+      '  │    ╲__________╱     │\n' +
+      '  └──────────────────────┘';
+  } else {
+    cassetteEl.textContent =
+      '    ┌──────────────────────────────────────┐\n' +
+      '    │  ╔══════╗            ╔══════╗        │\n' +
+      '    │  ║  ' + r1 + '   ║────────────║  ' + r2 + '   ║        │\n' +
+      '    │  ║      ║░░░░░░░░░░░║      ║        │\n' +
+      '    │  ╚══════╝            ╚══════╝        │\n' +
+      '    │      ╲______________________╱        │\n' +
+      '    └──────────────────────────────────────┘';
+  }
+}
+
+// ─── PLAY / PAUSE ───
+function togglePlay() {
+  isPlaying = !isPlaying;
+  document.getElementById('btn-play').textContent = isPlaying ? 'PAUSE' : 'PLAY';
+  document.getElementById('btn-play').classList.toggle('active', isPlaying);
+}
+
+spectrumEl.addEventListener('click', togglePlay);
+document.getElementById('btn-play').addEventListener('click', togglePlay);
+
+document.getElementById('btn-stop').addEventListener('click', () => {
+  isPlaying = false;
+  playProgress = 0;
+  document.getElementById('btn-play').textContent = 'PLAY';
+  document.getElementById('btn-play').classList.remove('active');
+  updateProgress();
+});
+
+// ─── PROGRESS ───
+function parseDuration(str) {
+  const parts = str.split(':');
+  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60).toString().padStart(2, '0');
+  const s = Math.floor(secs % 60).toString().padStart(2, '0');
+  return m + ':' + s;
+}
+
+function updateProgress() {
+  const total = parseDuration(currentTrack.duration);
+  const current = playProgress * total;
+  document.getElementById('time-current').textContent = formatTime(current);
+  document.getElementById('time-total').textContent = currentTrack.duration;
+  document.getElementById('progress-fill').style.width = (playProgress * 100) + '%';
+}
+
+document.getElementById('progress-track').addEventListener('click', (e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  playProgress = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  updateProgress();
+});
+
+// ─── MAIN ANIMATION LOOP ───
+let lastTime = 0;
+let reelTimer = 0;
+
+function mainLoop(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (isPlaying) {
+    const total = parseDuration(currentTrack.duration);
+    playProgress += (dt / 1000) / total;
+    if (playProgress >= 1) {
+      playProgress = 0;
+      playNextTrack();
+    }
+    updateProgress();
+
+    reelTimer += dt;
+    if (reelTimer > 150) {
+      reelFrame++;
+      reelTimer = 0;
+    }
+  }
+
+  renderCassette();
+  requestAnimationFrame(mainLoop);
+}
+
+// ─── TRACK MANAGEMENT ───
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(c => getAllFiles(c));
+}
+
+function findParentFolder(fileName) {
+  function search(node, parent) {
+    if (node.type === 'file' && node.name === fileName) return parent;
+    if (node.children) {
+      for (const child of node.children) {
+        const result = search(child, node);
+        if (result) return result;
+      }
+    }
+    return null;
+  }
+  return search(FILE_TREE, null);
+}
+
+const allFiles = getAllFiles(FILE_TREE);
+
+function setTrack(file) {
+  currentTrack = { name: file.name, duration: file.duration };
+  const parent = findParentFolder(file.name);
+  currentTrack.artist = parent ? parent.name : '';
+  playProgress = 0;
+  document.getElementById('now-playing-title').textContent = file.name;
+  document.getElementById('now-playing-artist').textContent = currentTrack.artist;
+  updateProgress();
+}
+
+function playNextTrack() {
+  const idx = allFiles.findIndex(f => f.name === currentTrack.name);
+  const next = allFiles[(idx + 1) % allFiles.length];
+  setTrack(next);
+}
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  playNextTrack();
+});
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+  const idx = allFiles.findIndex(f => f.name === currentTrack.name);
+  const prev = allFiles[(idx - 1 + allFiles.length) % allFiles.length];
+  setTrack(prev);
+});
+
+// ─── SETTINGS ───
+document.querySelectorAll('.settings-row').forEach(row => {
+  row.addEventListener('click', () => {
+    const options = row.dataset.options.split(',');
+    const valueEl = row.querySelector('.value');
+    const current = valueEl.textContent;
+    const currentIdx = options.indexOf(current);
+    const nextIdx = (currentIdx + 1) % options.length;
+    valueEl.textContent = options[nextIdx];
+  });
+});
+
+// Fill dot leaders
+function fillDots() {
+  document.querySelectorAll('.settings-row').forEach(row => {
+    const dotsEl = row.querySelector('.dots');
+    if (dotsEl) {
+      dotsEl.textContent = '.'.repeat(60);
+    }
+  });
+}
+fillDots();
+
+// ─── BROWSER ───
+const fileListEl = document.getElementById('file-list');
+const breadcrumbEl = document.getElementById('breadcrumb');
+const browserStatusEl = document.getElementById('browser-status');
+const browserSearchEl = document.getElementById('browser-search');
+
+function getCurrentFolder() {
+  return browserPath[browserPath.length - 1];
+}
+
+function renderBreadcrumb() {
+  let html = '';
+  browserPath.forEach((node, i) => {
+    if (i > 0) html += '<span class="breadcrumb-sep">/</span>';
+    html += '<button class="breadcrumb-part" data-depth="' + i + '">' + node.name + '</button>';
+  });
+  html += '<span class="blink-cursor">█</span>';
+  breadcrumbEl.innerHTML = html;
+
+  breadcrumbEl.querySelectorAll('.breadcrumb-part').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const depth = parseInt(btn.dataset.depth);
+      browserPath = browserPath.slice(0, depth + 1);
+      searchQuery = '';
+      browserSearchEl.value = '';
+      renderBrowser();
+    });
+  });
+}
+
+function renderBrowser() {
+  const folder = getCurrentFolder();
+  const children = folder.children || [];
+
+  const folders = children.filter(c => c.type === 'folder');
+  const files = children.filter(c => c.type === 'file');
+
+  const query = searchQuery.toLowerCase();
+  const filteredFolders = query ? folders.filter(f => f.name.toLowerCase().includes(query)) : folders;
+  const filteredFiles = query ? files.filter(f => f.name.toLowerCase().includes(query)) : files;
+
+  let html = '';
+
+  // ".." to go up
+  if (browserPath.length > 1) {
+    html += '<div class="file-row" data-action="up">' +
+      '<span class="file-cursor">&gt;</span>' +
+      '<span class="file-icon">[..]</span>' +
+      '<span class="file-name">..</span>' +
+      '<span class="file-meta"></span>' +
+      '</div>';
+  }
+
+  filteredFolders.forEach((f, i) => {
+    const count = f.children ? f.children.length : 0;
+    html += '<div class="file-row" data-action="folder" data-idx="' + i + '">' +
+      '<span class="file-cursor">&gt;</span>' +
+      '<span class="file-icon">[DIR]</span>' +
+      '<span class="file-name">' + escHtml(f.name) + '</span>' +
+      '<span class="file-meta">' + count + ' items</span>' +
+      '</div>';
+  });
+
+  filteredFiles.forEach((f, i) => {
+    html += '<div class="file-row" data-action="file" data-idx="' + i + '">' +
+      '<span class="file-cursor">&gt;</span>' +
+      '<span class="file-icon"> ♪  </span>' +
+      '<span class="file-name">' + escHtml(f.name) + '</span>' +
+      '<span class="file-meta">' + f.duration + '  ' + f.size + '</span>' +
+      '</div>';
+  });
+
+  if (filteredFolders.length === 0 && filteredFiles.length === 0 && query) {
+    html += '<div class="file-row" style="color:var(--green-vdim);cursor:default;">' +
+      '<span class="file-cursor"></span>' +
+      '<span class="file-icon"></span>' +
+      '<span class="file-name">No matches found.</span>' +
+      '<span class="file-meta"></span>' +
+      '</div>';
+  }
+
+  fileListEl.innerHTML = html;
+
+  // Status
+  const totalFiles = files.length;
+  const totalFolders = folders.length;
+  browserStatusEl.textContent = totalFolders + ' folder(s), ' + totalFiles + ' file(s)' +
+    (query ? ' | filter: "' + query + '"' : '');
+
+  renderBreadcrumb();
+
+  // Attach events
+  fileListEl.querySelectorAll('.file-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const action = row.dataset.action;
+      if (action === 'up') {
+        browserPath.pop();
+        searchQuery = '';
+        browserSearchEl.value = '';
+        renderBrowser();
+      } else if (action === 'folder') {
+        const idx = parseInt(row.dataset.idx);
+        const targetFolder = filteredFolders[idx];
+        browserPath.push(targetFolder);
+        searchQuery = '';
+        browserSearchEl.value = '';
+        renderBrowser();
+      } else if (action === 'file') {
+        const idx = parseInt(row.dataset.idx);
+        const file = filteredFiles[idx];
+        setTrack(file);
+        isPlaying = true;
+        document.getElementById('btn-play').textContent = 'PAUSE';
+        document.getElementById('btn-play').classList.add('active');
+        // Switch to home screen
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.nav-btn[data-screen="home"]').classList.add('active');
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-home').classList.add('active');
+      }
+    });
+  });
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+browserSearchEl.addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  renderBrowser();
+});
+
+document.getElementById('btn-play-all').addEventListener('click', () => {
+  const folder = getCurrentFolder();
+  const files = getAllFiles(folder);
+  if (files.length > 0) {
+    setTrack(files[0]);
+    isPlaying = true;
+    document.getElementById('btn-play').textContent = 'PAUSE';
+    document.getElementById('btn-play').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.nav-btn[data-screen="home"]').classList.add('active');
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-home').classList.add('active');
+  }
+});
+
+document.getElementById('btn-shuffle-all').addEventListener('click', () => {
+  const folder = getCurrentFolder();
+  const files = getAllFiles(folder);
+  if (files.length > 0) {
+    // Shuffle
+    for (let i = files.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [files[i], files[j]] = [files[j], files[i]];
+    }
+    setTrack(files[0]);
+    isPlaying = true;
+    document.getElementById('btn-play').textContent = 'PAUSE';
+    document.getElementById('btn-play').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.nav-btn[data-screen="home"]').classList.add('active');
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-home').classList.add('active');
+  }
+});
+
+// ─── INIT ───
+renderBrowser();
+renderSpectrum(spectrumData);
+renderCassette();
+updateProgress();
+updateSpectrum();
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>

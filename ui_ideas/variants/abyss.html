@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP - ABYSS</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#020208;
+  color:#4488FF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ===================== MAIN CONTENT (canvas + track info) ===================== */
+.main-content{
+  position:fixed;inset:0;
+  height:100vh;
+  transition:height 300ms ease;
+  z-index:1;
+  cursor:default;
+  overflow:hidden;
+}
+.main-content.compressed{
+  height:30vh;
+}
+
+#abyssCanvas{
+  position:absolute;
+  top:0;left:0;
+  width:100%;height:100%;
+  display:block;
+}
+
+.track-overlay{
+  position:absolute;
+  left:0;right:0;
+  top:0;bottom:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  padding:0 24px;
+  /* Shift up so text sits above center waveform line */
+  padding-bottom:12vh;
+}
+
+.main-content.compressed .track-overlay{
+  padding-bottom:2vh;
+}
+
+.track-name{
+  font-size:clamp(18px, 4.5vw, 32px);
+  font-weight:300;
+  letter-spacing:0.06em;
+  color:#AACCFF;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:90vw;
+  text-align:center;
+  text-shadow:0 0 20px rgba(68,136,255,0.4);
+}
+
+.artist-name{
+  font-size:clamp(10px, 2.2vw, 13px);
+  font-weight:300;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:rgba(170,204,255,0.35);
+  margin-top:10px;
+  text-align:center;
+}
+
+.time-display{
+  font-size:11px;
+  font-weight:300;
+  letter-spacing:0.12em;
+  color:rgba(68,136,255,0.3);
+  margin-top:12px;
+  text-align:center;
+}
+
+.main-content.compressed .track-name{
+  font-size:clamp(14px, 3vw, 20px);
+}
+.main-content.compressed .artist-name{
+  font-size:clamp(9px, 1.8vw, 11px);
+  margin-top:6px;
+}
+.main-content.compressed .time-display{
+  font-size:10px;
+  margin-top:6px;
+}
+
+/* ===================== TRIGGER DOTS ===================== */
+.trigger-dots{
+  position:fixed;
+  bottom:16px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:18px;
+  letter-spacing:6px;
+  color:rgba(68,136,255,0.25);
+  cursor:pointer;
+  z-index:12;
+  padding:12px 20px;
+  transition:color 0.2s;
+  pointer-events:auto;
+}
+.trigger-dots:hover{
+  color:rgba(68,136,255,0.5);
+}
+.main-content.compressed ~ .trigger-dots{
+  display:none;
+}
+
+/* ===================== PANEL OVERLAY ===================== */
+.panel-overlay{
+  position:fixed;inset:0;
+  background:rgba(2,2,8,0.85);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  opacity:0;pointer-events:none;
+  transition:opacity 300ms;
+  z-index:50;
+}
+.panel-overlay.open{opacity:1;pointer-events:auto}
+
+/* ===================== BOTTOM SHEET ===================== */
+.bottom-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  height:70vh;
+  transform:translateY(100%);
+  transition:transform 300ms cubic-bezier(0.32,0.72,0,1);
+  z-index:51;
+  border-radius:16px 16px 0 0;
+  background:rgba(8,8,24,0.95);
+  border-top:1px solid rgba(68,136,255,0.2);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.bottom-sheet.open{transform:translateY(0)}
+
+/* Drag handle */
+.sheet-handle{
+  display:flex;justify-content:center;
+  padding:12px 0 8px;
+  flex-shrink:0;
+  cursor:grab;
+}
+.sheet-handle-bar{
+  width:40px;height:3px;
+  background:rgba(68,136,255,0.25);
+  border-radius:2px;
+}
+
+/* Tab bar */
+.sheet-tabs{
+  display:flex;
+  border-bottom:1px solid rgba(68,136,255,0.1);
+  flex-shrink:0;
+}
+.sheet-tab{
+  flex:1;
+  padding:12px 0;
+  text-align:center;
+  font-size:11px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(68,136,255,0.35);
+  background:none;border:none;
+  cursor:pointer;
+  font-family:inherit;
+  position:relative;
+  transition:color 0.2s;
+  min-height:44px;
+  display:flex;align-items:center;justify-content:center;
+}
+.sheet-tab:hover{color:rgba(68,136,255,0.6)}
+.sheet-tab.active{color:#4488FF}
+.sheet-tab.active::after{
+  content:'';
+  position:absolute;bottom:-1px;left:20%;right:20%;
+  height:1px;background:#4488FF;
+}
+
+/* Tab content */
+.tab-content{
+  display:none;
+  flex:1;
+  overflow:hidden;
+  flex-direction:column;
+}
+.tab-content.active{display:flex}
+
+/* ===================== BROWSER TAB ===================== */
+.browser-header{
+  display:flex;gap:8px;
+  padding:12px 16px;
+  flex-shrink:0;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.breadcrumbs{
+  display:flex;
+  gap:4px;
+  align-items:center;
+  font-size:12px;
+  color:rgba(68,136,255,0.4);
+  padding:0 16px 8px;
+  flex-shrink:0;
+  flex-wrap:wrap;
+  min-height:0;
+}
+.breadcrumb{
+  cursor:pointer;
+  padding:2px 4px;
+  border-radius:2px;
+  transition:color 0.2s;
+}
+.breadcrumb:hover{color:#4488FF}
+.breadcrumb.current{color:rgba(68,136,255,0.7)}
+.breadcrumb-sep{opacity:0.3}
+
+.search-box{
+  flex:1;min-width:140px;
+  background:rgba(68,136,255,0.06);
+  border:1px solid rgba(68,136,255,0.15);
+  border-radius:4px;
+  padding:8px 12px;
+  color:#AACCFF;
+  font-family:inherit;font-size:13px;
+  min-height:40px;
+  outline:none;
+}
+.search-box:focus{
+  border-color:rgba(68,136,255,0.4);
+}
+.search-box::placeholder{color:rgba(68,136,255,0.25)}
+
+.btn-abyss{
+  background:rgba(68,136,255,0.06);
+  border:1px solid rgba(68,136,255,0.2);
+  color:rgba(68,136,255,0.6);
+  font-family:inherit;font-size:11px;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:8px 14px;
+  border-radius:4px;cursor:pointer;
+  transition:all 0.2s;
+  min-height:40px;
+}
+.btn-abyss:hover{
+  border-color:rgba(68,136,255,0.5);
+  color:#4488FF;
+  background:rgba(68,136,255,0.1);
+}
+
+.file-list{
+  flex:1;overflow-y:auto;
+  padding:0 16px 16px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(68,136,255,0.15) transparent;
+}
+.file-list::-webkit-scrollbar{width:4px}
+.file-list::-webkit-scrollbar-track{background:transparent}
+.file-list::-webkit-scrollbar-thumb{background:rgba(68,136,255,0.15);border-radius:2px}
+
+.file-item{
+  display:flex;align-items:center;
+  padding:10px 8px;
+  border-bottom:1px solid rgba(68,136,255,0.06);
+  cursor:pointer;
+  border-radius:4px;
+  transition:background 0.15s;
+  min-height:44px;
+  gap:10px;
+}
+.file-item:hover{background:rgba(68,136,255,0.08)}
+.file-item:last-child{border-bottom:none}
+
+.file-icon{
+  font-size:14px;
+  opacity:0.4;
+  flex-shrink:0;
+  width:20px;text-align:center;
+  color:#4488FF;
+}
+.file-info{flex:1;min-width:0}
+.file-name{
+  font-size:13px;
+  color:rgba(170,204,255,0.8);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.file-meta{
+  font-size:11px;
+  color:rgba(68,136,255,0.3);
+  margin-top:2px;
+}
+.file-item.playing-now .file-name{color:#4488FF;text-shadow:0 0 8px rgba(68,136,255,0.3)}
+.file-item.playing-now .file-icon{opacity:1}
+
+/* ===================== SETTINGS TAB ===================== */
+.settings-scroll{
+  flex:1;overflow-y:auto;
+  padding:16px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(68,136,255,0.15) transparent;
+}
+.settings-scroll::-webkit-scrollbar{width:4px}
+.settings-scroll::-webkit-scrollbar-track{background:transparent}
+.settings-scroll::-webkit-scrollbar-thumb{background:rgba(68,136,255,0.15);border-radius:2px}
+
+.setting-group{margin-bottom:20px}
+.setting-group-title{
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(68,136,255,0.3);
+  margin-bottom:8px;
+  padding-bottom:6px;
+  border-bottom:1px solid rgba(68,136,255,0.08);
+}
+.setting-row{
+  display:flex;justify-content:space-between;
+  align-items:center;
+  padding:10px 4px;
+  cursor:pointer;
+  min-height:44px;
+  border-radius:4px;
+  transition:background 0.15s;
+}
+.setting-row:hover{background:rgba(68,136,255,0.05)}
+.setting-label{
+  font-size:13px;
+  color:rgba(170,204,255,0.6);
+}
+.setting-value{
+  font-size:13px;
+  color:rgba(68,136,255,0.35);
+  letter-spacing:0.5px;
+}
+.setting-value.active-val{color:#4488FF}
+
+.settings-footer{
+  text-align:center;
+  font-size:10px;
+  letter-spacing:1px;
+  color:rgba(68,136,255,0.15);
+  padding:20px 0;
+}
+</style>
+</head>
+<body>
+
+<!-- MAIN CONTENT: canvas + track info overlay -->
+<div class="main-content" id="mainContent">
+  <canvas id="abyssCanvas"></canvas>
+  <div class="track-overlay">
+    <div class="track-name" id="trackName">A B Y S S</div>
+    <div class="artist-name" id="artistName">tap to begin</div>
+    <div class="time-display" id="timeDisplay"></div>
+  </div>
+</div>
+
+<!-- Trigger dots -->
+<div class="trigger-dots" id="triggerDots">...</div>
+
+<!-- Panel overlay -->
+<div class="panel-overlay" id="panelOverlay"></div>
+
+<!-- Bottom sheet -->
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="sheet-handle" id="sheetHandle">
+    <div class="sheet-handle-bar"></div>
+  </div>
+
+  <div class="sheet-tabs">
+    <button class="sheet-tab active" data-tab="browser">BROWSER</button>
+    <button class="sheet-tab" data-tab="settings">SETTINGS</button>
+  </div>
+
+  <!-- BROWSER TAB -->
+  <div class="tab-content active" id="tab-browser">
+    <div class="browser-header">
+      <input type="text" class="search-box" id="searchInput" placeholder="Search...">
+      <button class="btn-abyss" id="btnPlayAll">PLAY ALL</button>
+      <button class="btn-abyss" id="btnShuffle">SHUFFLE</button>
+    </div>
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-scroll">
+
+      <div class="setting-group">
+        <div class="setting-group-title">Playback</div>
+        <div class="setting-row" data-setting="shuffle" data-options="Off,On">
+          <span class="setting-label">Shuffle</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="repeat" data-options="Off,All,One">
+          <span class="setting-label">Repeat</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="gapless" data-options="Off,On">
+          <span class="setting-label">Gapless Playback</span>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" data-setting="crossfade" data-options="0s,2s,4s,6s,8s">
+          <span class="setting-label">Crossfade</span>
+          <span class="setting-value">0s</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Audio</div>
+        <div class="setting-row" data-setting="output" data-options="System Default,Headphones,External DAC">
+          <span class="setting-label">Output Device</span>
+          <span class="setting-value">System Default</span>
+        </div>
+        <div class="setting-row" data-setting="equalizer" data-options="Off,On">
+          <span class="setting-label">Equalizer</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="replaygain" data-options="Off,Track,Album">
+          <span class="setting-label">ReplayGain</span>
+          <span class="setting-value active-val">Album</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Library</div>
+        <div class="setting-row" data-setting="scan" data-options="Off,On">
+          <span class="setting-label">Scan on Startup</span>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" style="cursor:default">
+          <span class="setting-label">Media Folder</span>
+          <span class="setting-value">/Media/MP3 Collection</span>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        FileAMP v1.0 &mdash; ABYSS Edition
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// === FILE TREE DATA ===
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// === STATE ===
+let isPlaying = false;
+let currentTrack = null;
+let currentArtist = '';
+let currentDuration = 0;
+let elapsed = 0;
+let playlist = [];
+let playlistIndex = -1;
+let sheetOpen = false;
+let currentFolder = FILE_TREE;
+let navStack = [];
+
+// Waveform animation state
+let waveEnergy = 0;       // 0 = idle/paused, 1 = fully playing
+let wavePhase = 0;
+let noiseSeeds = [];
+for (let i = 0; i < 8; i++) noiseSeeds.push(Math.random() * 1000);
+
+// Particles
+const particles = [];
+const PARTICLE_COUNT = 30;
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particles.push({
+    x: Math.random(),
+    y: Math.random(),
+    vx: (Math.random() - 0.5) * 0.0003,
+    vy: (Math.random() - 0.5) * 0.0002 - 0.0001,
+    size: Math.random() * 1.5 + 0.5,
+    alpha: Math.random() * 0.15 + 0.03,
+    pulse: Math.random() * Math.PI * 2,
+  });
+}
+
+// === DOM REFS ===
+const $mainContent = document.getElementById('mainContent');
+const $canvas = document.getElementById('abyssCanvas');
+const ctx = $canvas.getContext('2d');
+const $trackName = document.getElementById('trackName');
+const $artistName = document.getElementById('artistName');
+const $timeDisplay = document.getElementById('timeDisplay');
+const $triggerDots = document.getElementById('triggerDots');
+const $panelOverlay = document.getElementById('panelOverlay');
+const $bottomSheet = document.getElementById('bottomSheet');
+const $searchInput = document.getElementById('searchInput');
+const $fileList = document.getElementById('fileList');
+const $breadcrumbs = document.getElementById('breadcrumbs');
+
+// === CANVAS SIZING ===
+let canvasW = 0, canvasH = 0;
+
+function resizeCanvas() {
+  const rect = $mainContent.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvasW = rect.width;
+  canvasH = rect.height;
+  $canvas.width = canvasW * dpr;
+  $canvas.height = canvasH * dpr;
+  $canvas.style.width = canvasW + 'px';
+  $canvas.style.height = canvasH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+const resizeObserver = new ResizeObserver(() => resizeCanvas());
+resizeObserver.observe($mainContent);
+resizeCanvas();
+
+// === HELPERS ===
+function parseDuration(str) {
+  const p = str.split(':').map(Number);
+  return p[0] * 60 + p[1];
+}
+
+function formatTime(sec) {
+  const m = Math.floor(Math.max(0, sec) / 60);
+  const s = Math.floor(Math.max(0, sec) % 60);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+// Simple seeded noise-like function for waveform variation
+function noiseAt(seed, t) {
+  return Math.sin(seed * 127.1 + t * 3.7) * Math.cos(seed * 269.5 + t * 1.3);
+}
+
+// === COLLECT ALL FILES ===
+function collectFiles(node, path) {
+  const cur = [...path, node.name];
+  let files = [];
+  if (node.type === 'file') {
+    files.push({ name: node.name, duration: node.duration, size: node.size, path: cur });
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      files = files.concat(collectFiles(child, cur));
+    }
+  }
+  return files;
+}
+
+const allFiles = collectFiles(FILE_TREE, []);
+
+function getArtist(file) {
+  if (file.path.length >= 4) return file.path[file.path.length - 2];
+  if (file.path.length >= 3) return file.path[file.path.length - 2];
+  return '';
+}
+
+// === PLAYBACK ===
+function setTrack(file) {
+  currentTrack = file;
+  currentArtist = getArtist(file);
+  currentDuration = parseDuration(file.duration);
+  elapsed = 0;
+  isPlaying = true;
+  updateDisplay();
+}
+
+function togglePlay() {
+  if (!currentTrack && allFiles.length > 0) {
+    playlist = [...allFiles];
+    playlistIndex = 0;
+    setTrack(playlist[0]);
+    return;
+  }
+  isPlaying = !isPlaying;
+  updateDisplay();
+}
+
+function playNextTrack() {
+  if (playlist.length === 0) return;
+  playlistIndex = (playlistIndex + 1) % playlist.length;
+  setTrack(playlist[playlistIndex]);
+}
+
+function playPrevTrack() {
+  if (playlist.length === 0) return;
+  if (elapsed > 3) {
+    elapsed = 0;
+    return;
+  }
+  playlistIndex = (playlistIndex - 1 + playlist.length) % playlist.length;
+  setTrack(playlist[playlistIndex]);
+}
+
+function updateDisplay() {
+  const name = currentTrack ? currentTrack.name.replace('.mp3', '') : 'A B Y S S';
+  $trackName.textContent = name;
+  $artistName.textContent = currentTrack ? currentArtist : 'tap to begin';
+  if (currentTrack) {
+    $timeDisplay.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+  } else {
+    $timeDisplay.textContent = '';
+  }
+}
+
+// === MAIN SCREEN INTERACTION ===
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+
+$mainContent.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = Date.now();
+}, { passive: true });
+
+$mainContent.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchStartTime;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  // Horizontal swipe = prev/next
+  if (absDx > 50 && absDx > absDy * 1.5 && dt < 500) {
+    if (dx < 0) playNextTrack();
+    else playPrevTrack();
+    return;
+  }
+
+  // Tap = play/pause (also handle seek)
+  if (absDx < 15 && absDy < 15 && dt < 300) {
+    handleCanvasTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }
+}, { passive: true });
+
+$mainContent.addEventListener('click', e => {
+  if ('ontouchstart' in window) return;
+  handleCanvasTap(e.clientX, e.clientY);
+});
+
+function handleCanvasTap(clientX, clientY) {
+  const rect = $mainContent.getBoundingClientRect();
+  const relY = (clientY - rect.top) / rect.height;
+  const centerY = 0.5;
+  // If tapping near the waveform center band (40%-60% of height), treat as seek
+  if (currentTrack && currentDuration > 0 && Math.abs(relY - centerY) < 0.12) {
+    const relX = (clientX - rect.left) / rect.width;
+    elapsed = clamp(relX, 0, 1) * currentDuration;
+    updateDisplay();
+    return;
+  }
+  togglePlay();
+}
+
+// === BOTTOM SHEET ===
+function openSheet() {
+  sheetOpen = true;
+  $panelOverlay.classList.add('open');
+  $bottomSheet.classList.add('open');
+  $mainContent.classList.add('compressed');
+  $triggerDots.style.display = 'none';
+  renderBrowser();
+}
+
+function closeSheet() {
+  sheetOpen = false;
+  $panelOverlay.classList.remove('open');
+  $bottomSheet.classList.remove('open');
+  $mainContent.classList.remove('compressed');
+  setTimeout(() => { $triggerDots.style.display = ''; }, 300);
+}
+
+$triggerDots.addEventListener('click', e => {
+  e.stopPropagation();
+  openSheet();
+});
+
+$panelOverlay.addEventListener('click', closeSheet);
+document.getElementById('sheetHandle').addEventListener('dblclick', closeSheet);
+
+// === TABS ===
+document.querySelectorAll('.sheet-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sheet-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// === BROWSER: FOLDER NAVIGATION ===
+function navigateTo(folder, pushStack) {
+  if (pushStack && currentFolder !== folder) {
+    navStack.push(currentFolder);
+  }
+  currentFolder = folder;
+  $searchInput.value = '';
+  renderBrowser();
+}
+
+function navigateUp() {
+  if (navStack.length > 0) {
+    currentFolder = navStack.pop();
+    $searchInput.value = '';
+    renderBrowser();
+  }
+}
+
+function navigateToDepth(depth) {
+  const fullPath = getPathToFolder(currentFolder);
+  if (depth < fullPath.length) {
+    navStack = fullPath.slice(0, depth);
+    currentFolder = fullPath[depth];
+    $searchInput.value = '';
+    renderBrowser();
+  }
+}
+
+function getPathToFolder(target) {
+  const path = [];
+  function find(node) {
+    path.push(node);
+    if (node === target) return true;
+    if (node.children) {
+      for (const child of node.children) {
+        if (find(child)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  find(FILE_TREE);
+  return path;
+}
+
+function renderBrowser() {
+  const searchTerm = $searchInput.value.toLowerCase().trim();
+
+  // Breadcrumbs
+  const pathFolders = getPathToFolder(currentFolder);
+  $breadcrumbs.innerHTML = '';
+  pathFolders.forEach((f, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = '/';
+      $breadcrumbs.appendChild(sep);
+    }
+    const bc = document.createElement('span');
+    bc.className = 'breadcrumb' + (i === pathFolders.length - 1 ? ' current' : '');
+    bc.textContent = f.name;
+    if (i < pathFolders.length - 1) {
+      bc.addEventListener('click', () => navigateToDepth(i));
+    }
+    $breadcrumbs.appendChild(bc);
+  });
+
+  // File list
+  $fileList.innerHTML = '';
+
+  if (searchTerm) {
+    const items = allFiles.filter(f => f.name.toLowerCase().includes(searchTerm));
+    renderSearchResults(items, searchTerm);
+    return;
+  }
+
+  if (!currentFolder.children) return;
+
+  // Back button if not root
+  if (navStack.length > 0) {
+    const back = document.createElement('div');
+    back.className = 'file-item';
+    back.innerHTML = '<span class="file-icon">\u2190</span><div class="file-info"><div class="file-name">..</div></div>';
+    back.addEventListener('click', navigateUp);
+    $fileList.appendChild(back);
+  }
+
+  const sorted = [...currentFolder.children].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  for (const item of sorted) {
+    const el = document.createElement('div');
+    el.className = 'file-item';
+
+    if (currentTrack && item.type === 'file' && item.name === currentTrack.name) {
+      el.classList.add('playing-now');
+    }
+
+    if (item.type === 'folder') {
+      const count = collectFiles(item, []).length;
+      el.innerHTML = `<span class="file-icon">\u25B8</span><div class="file-info"><div class="file-name">${esc(item.name)}</div><div class="file-meta">${count} track${count !== 1 ? 's' : ''}</div></div>`;
+      el.addEventListener('click', () => navigateTo(item, true));
+    } else {
+      el.innerHTML = `<span class="file-icon">${currentTrack && item.name === currentTrack.name ? '\u25B6' : '\u266A'}</span><div class="file-info"><div class="file-name">${esc(item.name.replace('.mp3', ''))}</div><div class="file-meta">${item.duration} &middot; ${item.size}</div></div>`;
+      el.addEventListener('click', () => {
+        const files = currentFolder.children
+          .filter(c => c.type === 'file')
+          .map(c => {
+            const p = getPathToFolder(currentFolder).map(f => f.name);
+            return { name: c.name, duration: c.duration, size: c.size, path: [...p, c.name] };
+          });
+        playlist = files;
+        playlistIndex = files.findIndex(f => f.name === item.name);
+        if (playlistIndex < 0) playlistIndex = 0;
+        setTrack(playlist[playlistIndex]);
+        renderBrowser();
+      });
+    }
+
+    $fileList.appendChild(el);
+  }
+}
+
+function renderSearchResults(results, term) {
+  $fileList.innerHTML = '';
+  if (results.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:40px 0;color:rgba(68,136,255,0.25);font-size:13px';
+    empty.textContent = 'No results';
+    $fileList.appendChild(empty);
+    return;
+  }
+
+  for (const file of results) {
+    const el = document.createElement('div');
+    el.className = 'file-item';
+    if (currentTrack && file.name === currentTrack.name) {
+      el.classList.add('playing-now');
+    }
+
+    const artist = getArtist(file);
+    el.innerHTML = `<span class="file-icon">${currentTrack && file.name === currentTrack.name ? '\u25B6' : '\u266A'}</span><div class="file-info"><div class="file-name">${esc(file.name.replace('.mp3', ''))}</div><div class="file-meta">${artist} &middot; ${file.duration}</div></div>`;
+    el.addEventListener('click', () => {
+      playlist = [...results];
+      playlistIndex = results.indexOf(file);
+      setTrack(file);
+      renderBrowser();
+    });
+    $fileList.appendChild(el);
+  }
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+$searchInput.addEventListener('input', renderBrowser);
+
+// === PLAY ALL / SHUFFLE ===
+document.getElementById('btnPlayAll').addEventListener('click', () => {
+  const files = collectFiles(currentFolder, getPathToFolder(currentFolder).map(f => f.name).slice(0, -1));
+  if (files.length === 0) return;
+  playlist = files;
+  playlistIndex = 0;
+  setTrack(playlist[0]);
+  closeSheet();
+});
+
+document.getElementById('btnShuffle').addEventListener('click', () => {
+  const files = collectFiles(currentFolder, getPathToFolder(currentFolder).map(f => f.name).slice(0, -1));
+  if (files.length === 0) return;
+  for (let i = files.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
+  playlist = files;
+  playlistIndex = 0;
+  setTrack(playlist[0]);
+  closeSheet();
+});
+
+// === SETTINGS: CLICK-TO-CYCLE ===
+document.querySelectorAll('.setting-row[data-options]').forEach(row => {
+  row.addEventListener('click', () => {
+    const options = row.dataset.options.split(',');
+    const valEl = row.querySelector('.setting-value');
+    const current = valEl.textContent.trim();
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    valEl.textContent = next;
+    valEl.classList.toggle('active-val', next !== options[0]);
+  });
+});
+
+// === CANVAS DRAWING ===
+
+function drawParticles(time) {
+  for (const p of particles) {
+    // Drift
+    p.x += p.vx;
+    p.y += p.vy;
+    // Wrap around
+    if (p.x < -0.05) p.x = 1.05;
+    if (p.x > 1.05) p.x = -0.05;
+    if (p.y < -0.05) p.y = 1.05;
+    if (p.y > 1.05) p.y = -0.05;
+
+    const pulseAlpha = p.alpha * (0.6 + 0.4 * Math.sin(time * 0.001 + p.pulse));
+    const px = p.x * canvasW;
+    const py = p.y * canvasH;
+
+    ctx.beginPath();
+    ctx.arc(px, py, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(68,136,255,${pulseAlpha})`;
+    ctx.fill();
+  }
+}
+
+function getWaveformY(x, time, centerY, amplitude) {
+  // x is 0..1 across canvas width
+  // Combine multiple sine waves with different frequencies and phases
+  const t = time * 0.001;
+
+  // Base gentle sine (breathing)
+  let y = Math.sin(x * Math.PI * 2 * 1.5 + t * 3.14) * 0.4;
+
+  // Second harmonic
+  y += Math.sin(x * Math.PI * 2 * 3.2 + t * 2.1 + 1.3) * 0.25;
+
+  // Third harmonic
+  y += Math.sin(x * Math.PI * 2 * 5.7 + t * 4.7 + 2.6) * 0.15;
+
+  // When playing, add more energetic components and noise
+  const energy = waveEnergy;
+  if (energy > 0.01) {
+    // Fast oscillations
+    y += Math.sin(x * Math.PI * 2 * 8.3 + t * 6.2) * 0.3 * energy;
+    y += Math.sin(x * Math.PI * 2 * 13.1 + t * 8.9 + 0.7) * 0.2 * energy;
+    y += Math.sin(x * Math.PI * 2 * 21.0 + t * 11.3 + 1.4) * 0.12 * energy;
+
+    // Noise-like variation using seeded pseudo-noise
+    for (let i = 0; i < 4; i++) {
+      y += noiseAt(noiseSeeds[i], x * 20 + t * (3 + i * 1.7)) * 0.18 * energy;
+    }
+  }
+
+  // Scale by amplitude
+  return centerY + y * amplitude;
+}
+
+function drawWaveform(time) {
+  if (canvasW === 0 || canvasH === 0) return;
+
+  const centerY = canvasH * 0.5;
+  const baseAmplitude = 20;
+  const playAmplitude = 45;
+  const amplitude = lerp(baseAmplitude, playAmplitude, waveEnergy);
+
+  const progress = currentDuration > 0 ? clamp(elapsed / currentDuration, 0, 1) : 0;
+  const progressX = progress * canvasW;
+
+  const steps = Math.max(Math.floor(canvasW / 2), 200);
+  const stepW = canvasW / steps;
+
+  // --- Main waveform line ---
+  // Draw in two passes: played (bright) and unplayed (dim)
+
+  // Played portion
+  ctx.beginPath();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#66AAFF';
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = '#4488FF';
+
+  let firstPlayedDrawn = false;
+  for (let i = 0; i <= steps; i++) {
+    const x = i * stepW;
+    if (x > progressX + 1) break;
+    const nx = i / steps;
+    const y = getWaveformY(nx, time, centerY, amplitude);
+    if (!firstPlayedDrawn) { ctx.moveTo(x, y); firstPlayedDrawn = true; }
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Unplayed portion
+  ctx.beginPath();
+  ctx.strokeStyle = '#223366';
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = '#223366';
+
+  let firstUnplayedDrawn = false;
+  const startI = Math.max(0, Math.floor(progress * steps) - 1);
+  for (let i = startI; i <= steps; i++) {
+    const x = i * stepW;
+    if (x < progressX - 1) continue;
+    const nx = i / steps;
+    const y = getWaveformY(nx, time, centerY, amplitude);
+    if (!firstUnplayedDrawn) { ctx.moveTo(x, y); firstUnplayedDrawn = true; }
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Reset shadow for next drawings
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+
+  // --- Fade trail below waveform ---
+  // Build a path along the waveform then down to create a filled gradient area
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const x = i * stepW;
+    const nx = i / steps;
+    const y = getWaveformY(nx, time, centerY, amplitude);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  // Close downward
+  const trailDepth = Math.min(100, canvasH * 0.15);
+  ctx.lineTo(canvasW, centerY + trailDepth);
+  ctx.lineTo(0, centerY + trailDepth);
+  ctx.closePath();
+
+  const fadeGrad = ctx.createLinearGradient(0, centerY, 0, centerY + trailDepth);
+  fadeGrad.addColorStop(0, 'rgba(68,136,255,0.3)');
+  fadeGrad.addColorStop(0.4, 'rgba(68,136,255,0.08)');
+  fadeGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = fadeGrad;
+  ctx.fill();
+
+  // --- Reflection below (vertically flipped, low opacity) ---
+  ctx.save();
+  ctx.globalAlpha = 0.1;
+
+  const reflectionOffset = trailDepth + 10;
+
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const x = i * stepW;
+    const nx = i / steps;
+    const y = getWaveformY(nx, time, centerY, amplitude);
+    // Mirror: the distance from centerY is flipped, then shifted down
+    const ry = centerY + reflectionOffset + (centerY - y) * -1 + reflectionOffset;
+    // Simpler: reflection Y = centerY + reflectionOffset + (y - centerY)
+    // Actually: mirror around (centerY + reflectionOffset/2)
+    // Reflection = invert waveform displacement below the gap
+    const displacement = y - centerY;
+    const reflectedY = centerY + reflectionOffset - displacement;
+    if (i === 0) ctx.moveTo(x, reflectedY);
+    else ctx.lineTo(x, reflectedY);
+  }
+
+  ctx.lineWidth = 1.5;
+  // Blend between played and unplayed for reflection too
+  ctx.strokeStyle = '#334477';
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = 'rgba(68,136,255,0.15)';
+  ctx.stroke();
+
+  // Reflection fade trail (upward, since reflection is flipped)
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const x = i * stepW;
+    const nx = i / steps;
+    const y = getWaveformY(nx, time, centerY, amplitude);
+    const displacement = y - centerY;
+    const reflectedY = centerY + reflectionOffset - displacement;
+    if (i === 0) ctx.moveTo(x, reflectedY);
+    else ctx.lineTo(x, reflectedY);
+  }
+  const reflFadeDepth = trailDepth * 0.6;
+  const lastReflY = centerY + reflectionOffset;
+  ctx.lineTo(canvasW, lastReflY + reflFadeDepth);
+  ctx.lineTo(0, lastReflY + reflFadeDepth);
+  ctx.closePath();
+
+  const reflGrad = ctx.createLinearGradient(0, centerY + reflectionOffset, 0, centerY + reflectionOffset + reflFadeDepth);
+  reflGrad.addColorStop(0, 'rgba(68,136,255,0.08)');
+  reflGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = reflGrad;
+  ctx.shadowBlur = 0;
+  ctx.fill();
+
+  ctx.restore();
+
+  // --- Progress indicator: faint vertical line at current position ---
+  if (currentTrack && currentDuration > 0) {
+    ctx.beginPath();
+    ctx.moveTo(progressX, centerY - amplitude - 20);
+    ctx.lineTo(progressX, centerY + amplitude + 20);
+    ctx.strokeStyle = 'rgba(68,136,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+// === ANIMATION LOOP ===
+let lastTime = 0;
+
+function animate(timestamp) {
+  const dt = lastTime ? (timestamp - lastTime) / 1000 : 0.016;
+  lastTime = timestamp;
+
+  // Update playback progress
+  if (isPlaying && currentTrack) {
+    elapsed += dt;
+    if (elapsed >= currentDuration && currentDuration > 0) {
+      playNextTrack();
+    }
+    // Update time display
+    $timeDisplay.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+  }
+
+  // Lerp wave energy toward target
+  const targetEnergy = isPlaying ? 1 : 0;
+  waveEnergy = lerp(waveEnergy, targetEnergy, dt * 3);
+  if (Math.abs(waveEnergy - targetEnergy) < 0.001) waveEnergy = targetEnergy;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  // Draw deep background vignette
+  const vigGrad = ctx.createRadialGradient(
+    canvasW * 0.5, canvasH * 0.5, canvasH * 0.1,
+    canvasW * 0.5, canvasH * 0.5, canvasH * 0.9
+  );
+  vigGrad.addColorStop(0, 'rgba(8,12,32,0.0)');
+  vigGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+  ctx.fillStyle = vigGrad;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // Draw particles
+  drawParticles(timestamp);
+
+  // Draw waveform
+  drawWaveform(timestamp);
+
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// === KEYBOARD SUPPORT ===
+document.addEventListener('keydown', e => {
+  if (sheetOpen && e.target === $searchInput) return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowRight':
+      playNextTrack();
+      break;
+    case 'ArrowLeft':
+      playPrevTrack();
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      if (!sheetOpen) openSheet();
+      break;
+    case 'Escape':
+      if (sheetOpen) closeSheet();
+      break;
+  }
+});
+
+// Initial render
+renderBrowser();
+</script>
+</body>
+</html>

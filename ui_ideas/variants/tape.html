@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP - TAPE</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #1A1208;
+  --bg-light: #2A1F12;
+  --orange: #FF6633;
+  --brass: #8B7355;
+  --brass-light: #B8976A;
+  --cream: #D4C5A0;
+  --dark: #0D0A04;
+  --text: #D4C5A0;
+  --text-dim: #6B5D45;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  font-family: 'Helvetica Neue', 'Arial', sans-serif;
+  overflow: hidden;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== MAIN LAYOUT ===== */
+#app {
+  width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle brushed-metal texture overlay */
+#app::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(139,115,85,0.08) 0%, transparent 70%),
+    radial-gradient(ellipse at 50% 80%, rgba(0,0,0,0.3) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ===== VU METERS SECTION ===== */
+#vu-section {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  padding: 16px 24px 8px;
+  position: relative;
+  z-index: 2;
+}
+
+.vu-meter {
+  width: 140px;
+  height: 80px;
+  position: relative;
+}
+
+.vu-meter svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vu-label {
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--brass-light);
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+/* ===== REELS SECTION ===== */
+#reels-section {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  min-height: 0;
+  padding: 0 16px;
+}
+
+#reels-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 2 / 1.1;
+  max-height: 70vh;
+}
+
+#reels-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ===== HEAD BLOCK ===== */
+#head-block {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(180deg, #2A1F12, #1A1208);
+  border: 1px solid var(--brass);
+  border-radius: 6px;
+  padding: 8px 16px;
+  text-align: center;
+  cursor: pointer;
+  min-width: 120px;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.5),
+    0 1px 0 rgba(184,151,106,0.2) inset;
+  transition: border-color 200ms;
+  z-index: 3;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#head-block:hover {
+  border-color: var(--orange);
+}
+
+#head-track-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cream);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  line-height: 1.3;
+}
+
+#head-time {
+  font-size: 10px;
+  color: var(--brass-light);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+#head-spinner {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--orange);
+  border-top-color: transparent;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  animation: spin 0.8s linear infinite;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+#head-spinner.active {
+  opacity: 1;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== TRANSPORT BUTTONS ===== */
+#transport-section {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.transport-btn {
+  background: linear-gradient(180deg, #8B7355, #6B5D45);
+  border: 2px outset #B8976A;
+  color: var(--cream);
+  padding: 0;
+  font-family: 'Arial', sans-serif;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  min-height: 48px;
+  min-width: 48px;
+  width: 56px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 3px 8px rgba(0,0,0,0.5),
+    0 1px 0 rgba(184,151,106,0.3) inset;
+  transition: transform 0.05s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.transport-btn:active {
+  border-style: inset;
+  background: linear-gradient(180deg, #6B5D45, #8B7355);
+  transform: translateY(1px);
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.4),
+    0 1px 2px rgba(0,0,0,0.3) inset;
+}
+
+.transport-btn.active {
+  background: linear-gradient(180deg, #8B6030, #6B4520);
+  border-color: var(--orange);
+  box-shadow:
+    0 3px 8px rgba(0,0,0,0.5),
+    0 0 8px rgba(255,102,51,0.3);
+}
+
+.transport-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--cream);
+  pointer-events: none;
+}
+
+.transport-btn:active svg {
+  fill: var(--orange);
+}
+
+.transport-btn.active svg {
+  fill: var(--orange);
+}
+
+#btn-gear {
+  background: linear-gradient(180deg, #5A4A38, #3A2E20);
+  border: 2px outset #6B5D45;
+  font-size: 18px;
+  width: 48px;
+  margin-left: 16px;
+}
+
+#btn-gear:active {
+  border-style: inset;
+  background: linear-gradient(180deg, #3A2E20, #5A4A38);
+}
+
+/* ===== PANEL OVERLAY ===== */
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26,18,8,0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms;
+  z-index: 50;
+}
+
+.panel-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile: bottom sheet */
+.bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 85vh;
+  transform: translateY(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  border-radius: 12px 12px 0 0;
+  background: var(--bg);
+  border-top: 1px solid var(--brass);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* Tablet: right drawer */
+.side-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 380px;
+  transform: translateX(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  background: var(--bg);
+  border-left: 1px solid var(--brass);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.side-drawer.open {
+  transform: translateX(0);
+}
+
+/* Panel handle (mobile) */
+.panel-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--brass);
+  border-radius: 2px;
+  margin: 8px auto;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* Panel tabs */
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--brass);
+  flex-shrink: 0;
+  background: var(--dark);
+}
+
+.panel-tab {
+  flex: 1;
+  padding: 12px 8px;
+  font-family: 'Arial', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: color 200ms;
+}
+
+.panel-tab:hover {
+  color: var(--brass-light);
+}
+
+.panel-tab.active {
+  color: var(--orange);
+  border-bottom-color: var(--orange);
+}
+
+/* Panel content */
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  font-size: 13px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brass) var(--dark);
+}
+
+.panel-content::-webkit-scrollbar { width: 6px; }
+.panel-content::-webkit-scrollbar-track { background: var(--dark); }
+.panel-content::-webkit-scrollbar-thumb { background: var(--brass); border-radius: 3px; }
+
+/* ===== FILE BROWSER ===== */
+.browser-breadcrumb {
+  font-size: 11px;
+  color: var(--orange);
+  margin-bottom: 8px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.browser-breadcrumb span {
+  cursor: pointer;
+}
+
+.browser-breadcrumb span:hover {
+  text-decoration: underline;
+}
+
+.browser-breadcrumb .sep {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.browser-breadcrumb .sep:hover {
+  text-decoration: none;
+}
+
+.browser-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: var(--dark);
+  border: 1px solid var(--brass);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.browser-search-wrap svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.browser-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--cream);
+  font-family: 'Helvetica Neue', 'Arial', sans-serif;
+  font-size: 12px;
+  flex: 1;
+  padding: 2px 0;
+  caret-color: var(--orange);
+}
+
+.browser-search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.browser-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.browser-action-btn {
+  background: var(--bg-light);
+  border: 1px solid var(--brass);
+  color: var(--cream);
+  font-family: 'Arial', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: border-color 200ms, background 200ms;
+}
+
+.browser-action-btn:hover {
+  background: rgba(255,102,51,0.1);
+  border-color: var(--orange);
+}
+
+.browser-action-btn:active {
+  background: rgba(255,102,51,0.2);
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.file-entry {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 150ms;
+  min-height: 40px;
+  gap: 10px;
+}
+
+.file-entry:hover {
+  background: var(--bg-light);
+}
+
+.file-entry:active {
+  background: rgba(255,102,51,0.12);
+}
+
+.file-entry .file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  color: var(--brass-light);
+}
+
+.file-entry .file-icon.folder-icon {
+  color: var(--orange);
+}
+
+.file-entry .file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--cream);
+}
+
+.file-entry .file-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.file-entry.folder .file-name {
+  color: var(--orange);
+  font-weight: 600;
+}
+
+.file-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--brass-light);
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 40px;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 150ms;
+  margin-bottom: 4px;
+}
+
+.file-back:hover {
+  background: var(--bg-light);
+}
+
+.file-summary {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(139,115,85,0.2);
+}
+
+/* ===== SETTINGS ===== */
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(139,115,85,0.3);
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+  min-height: 36px;
+  cursor: pointer;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 150ms;
+}
+
+.settings-row:hover {
+  background: var(--bg-light);
+}
+
+.settings-row:active {
+  background: rgba(255,102,51,0.12);
+}
+
+.settings-label {
+  font-size: 13px;
+  color: var(--cream);
+}
+
+.settings-value {
+  font-size: 12px;
+  color: var(--orange);
+  font-weight: 600;
+}
+
+.settings-info {
+  margin-top: 4px;
+}
+
+.settings-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-size: 12px;
+}
+
+.settings-info-row .info-label {
+  color: var(--text-dim);
+}
+
+.settings-info-row .info-value {
+  color: var(--brass-light);
+}
+
+/* ===== RESPONSIVE: Mobile (<700px) ===== */
+@media (max-width: 699px) {
+  #vu-section {
+    gap: 20px;
+    padding: 8px 16px 0;
+  }
+
+  .vu-meter {
+    width: 100px;
+    height: 56px;
+  }
+
+  .vu-label {
+    font-size: 8px;
+    margin-top: 1px;
+  }
+
+  #reels-container {
+    max-height: 38vh;
+  }
+
+  #head-block {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    margin: 6px auto 0;
+    z-index: 3;
+    width: calc(100% - 32px);
+    max-width: 340px;
+  }
+
+  #head-track-name {
+    max-width: 280px;
+  }
+
+  #reels-section {
+    flex-direction: column;
+    padding: 0 8px;
+    flex: 0 1 auto;
+  }
+
+  #transport-section {
+    padding: 16px 24px 24px;
+  }
+
+  .side-drawer {
+    display: none !important;
+  }
+
+  .bottom-sheet {
+    display: flex;
+  }
+}
+
+/* ===== RESPONSIVE: Tablet+ (>=700px) ===== */
+@media (min-width: 700px) {
+  .bottom-sheet {
+    display: none !important;
+  }
+
+  .side-drawer {
+    display: flex;
+  }
+
+  #head-block {
+    min-width: 160px;
+  }
+
+  #head-track-name {
+    max-width: 200px;
+    font-size: 12px;
+  }
+
+  .vu-meter {
+    width: 160px;
+    height: 90px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- VU Meters -->
+  <div id="vu-section">
+    <div class="vu-meter">
+      <svg id="vu-left" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+        <!-- VU meter background -->
+        <defs>
+          <linearGradient id="vuBg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2A1F12"/>
+            <stop offset="100%" stop-color="#1A1208"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="196" height="106" rx="8" fill="url(#vuBg)" stroke="#8B7355" stroke-width="1.5"/>
+        <!-- Scale arc -->
+        <path d="M 30 90 A 80 80 0 0 1 170 90" fill="none" stroke="#3A2E20" stroke-width="16" stroke-linecap="butt"/>
+        <!-- Green zone -->
+        <path d="M 30 90 A 80 80 0 0 1 110 14" fill="none" stroke="rgba(80,160,80,0.25)" stroke-width="14" stroke-linecap="butt"/>
+        <!-- Yellow zone -->
+        <path d="M 110 14 A 80 80 0 0 1 148 30" fill="none" stroke="rgba(200,180,60,0.25)" stroke-width="14" stroke-linecap="butt"/>
+        <!-- Red zone -->
+        <path d="M 148 30 A 80 80 0 0 1 170 90" fill="none" stroke="rgba(200,60,60,0.25)" stroke-width="14" stroke-linecap="butt"/>
+        <!-- Scale ticks -->
+        <g class="vu-ticks" stroke="#6B5D45" stroke-width="1">
+          <line x1="34" y1="86" x2="42" y2="82"/>
+          <line x1="42" y1="66" x2="50" y2="65"/>
+          <line x1="58" y1="48" x2="64" y2="50"/>
+          <line x1="78" y1="32" x2="82" y2="38"/>
+          <line x1="100" y1="24" x2="100" y2="32"/>
+          <line x1="122" y1="32" x2="118" y2="38"/>
+          <line x1="140" y1="46" x2="136" y2="50"/>
+          <line x1="156" y1="64" x2="150" y2="65"/>
+          <line x1="166" y1="86" x2="158" y2="82"/>
+        </g>
+        <!-- Scale labels -->
+        <text x="36" y="96" font-size="7" fill="#6B5D45" font-family="Arial" text-anchor="middle">-20</text>
+        <text x="60" y="57" font-size="7" fill="#6B5D45" font-family="Arial" text-anchor="middle">-10</text>
+        <text x="100" y="20" font-size="7" fill="#6B5D45" font-family="Arial" text-anchor="middle">0</text>
+        <text x="140" y="55" font-size="7" fill="#B85050" font-family="Arial" text-anchor="middle">+3</text>
+        <text x="164" y="96" font-size="7" fill="#B85050" font-family="Arial" text-anchor="middle">+6</text>
+        <!-- VU label -->
+        <text x="100" y="104" font-size="8" fill="#8B7355" font-family="Arial" font-weight="bold" text-anchor="middle" letter-spacing="2">VU</text>
+        <!-- Needle pivot -->
+        <circle cx="100" cy="95" r="4" fill="#3A2E20" stroke="#8B7355" stroke-width="1"/>
+        <!-- Needle -->
+        <line id="vu-needle-l" x1="100" y1="95" x2="40" y2="88" stroke="#D4C5A0" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="vu-label">Left</div>
+    </div>
+    <div class="vu-meter">
+      <svg id="vu-right" viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="196" height="106" rx="8" fill="url(#vuBg)" stroke="#8B7355" stroke-width="1.5"/>
+        <path d="M 30 90 A 80 80 0 0 1 170 90" fill="none" stroke="#3A2E20" stroke-width="16" stroke-linecap="butt"/>
+        <path d="M 30 90 A 80 80 0 0 1 110 14" fill="none" stroke="rgba(80,160,80,0.25)" stroke-width="14" stroke-linecap="butt"/>
+        <path d="M 110 14 A 80 80 0 0 1 148 30" fill="none" stroke="rgba(200,180,60,0.25)" stroke-width="14" stroke-linecap="butt"/>
+        <path d="M 148 30 A 80 80 0 0 1 170 90" fill="none" stroke="rgba(200,60,60,0.25)" stroke-width="14" stroke-linecap="butt"/>
+        <g class="vu-ticks" stroke="#6B5D45" stroke-width="1">
+          <line x1="34" y1="86" x2="42" y2="82"/>
+          <line x1="42" y1="66" x2="50" y2="65"/>
+          <line x1="58" y1="48" x2="64" y2="50"/>
+          <line x1="78" y1="32" x2="82" y2="38"/>
+          <line x1="100" y1="24" x2="100" y2="32"/>
+          <line x1="122" y1="32" x2="118" y2="38"/>
+          <line x1="140" y1="46" x2="136" y2="50"/>
+          <line x1="156" y1="64" x2="150" y2="65"/>
+          <line x1="166" y1="86" x2="158" y2="82"/>
+        </g>
+        <text x="36" y="96" font-size="7" fill="#6B5D45" font-family="Arial" text-anchor="middle">-20</text>
+        <text x="60" y="57" font-size="7" fill="#6B5D45" font-family="Arial" text-anchor="middle">-10</text>
+        <text x="100" y="20" font-size="7" fill="#6B5D45" font-family="Arial" text-anchor="middle">0</text>
+        <text x="140" y="55" font-size="7" fill="#B85050" font-family="Arial" text-anchor="middle">+3</text>
+        <text x="164" y="96" font-size="7" fill="#B85050" font-family="Arial" text-anchor="middle">+6</text>
+        <text x="100" y="104" font-size="8" fill="#8B7355" font-family="Arial" font-weight="bold" text-anchor="middle" letter-spacing="2">VU</text>
+        <circle cx="100" cy="95" r="4" fill="#3A2E20" stroke="#8B7355" stroke-width="1"/>
+        <line id="vu-needle-r" x1="100" y1="95" x2="40" y2="88" stroke="#D4C5A0" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="vu-label">Right</div>
+    </div>
+  </div>
+
+  <!-- Reels -->
+  <div id="reels-section">
+    <div id="reels-container">
+      <svg id="reels-svg" viewBox="0 0 800 440" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <!-- Reel flange gradient -->
+          <radialGradient id="flangeGrad" cx="50%" cy="45%" r="50%">
+            <stop offset="0%" stop-color="#5A4A38"/>
+            <stop offset="60%" stop-color="#3A2E20"/>
+            <stop offset="100%" stop-color="#2A1F12"/>
+          </radialGradient>
+          <!-- Hub gradient -->
+          <radialGradient id="hubGrad" cx="45%" cy="40%" r="55%">
+            <stop offset="0%" stop-color="#8B7355"/>
+            <stop offset="100%" stop-color="#5A4A38"/>
+          </radialGradient>
+          <!-- Tape color -->
+          <linearGradient id="tapeGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#3A2010"/>
+            <stop offset="50%" stop-color="#4A2A14"/>
+            <stop offset="100%" stop-color="#3A2010"/>
+          </linearGradient>
+          <!-- Reel shadow filter -->
+          <filter id="reelShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.5"/>
+          </filter>
+          <!-- Head block glow -->
+          <filter id="headGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <!-- Machine surface plate -->
+        <rect x="10" y="10" width="780" height="420" rx="16" fill="none" stroke="#3A2E20" stroke-width="1" opacity="0.5"/>
+
+        <!-- Tape path (behind reels) -->
+        <path id="tape-path" d="" fill="none" stroke="url(#tapeGrad)" stroke-width="3" opacity="0.7"/>
+
+        <!-- Left Reel Group -->
+        <g id="left-reel-group" filter="url(#reelShadow)">
+          <!-- Tape wound on left reel -->
+          <circle id="left-tape" cx="220" cy="220" r="160" fill="#3A2010" opacity="0.8"/>
+          <!-- Reel flange -->
+          <circle id="left-flange" cx="220" cy="220" r="170" fill="none" stroke="#8B7355" stroke-width="4"/>
+          <circle cx="220" cy="220" r="168" fill="none" stroke="#6B5D45" stroke-width="1" opacity="0.5"/>
+          <circle cx="220" cy="220" r="172" fill="none" stroke="#B8976A" stroke-width="0.5" opacity="0.3"/>
+          <!-- Reel face -->
+          <circle cx="220" cy="220" r="60" fill="url(#flangeGrad)" stroke="#6B5D45" stroke-width="1"/>
+          <!-- Spokes -->
+          <g id="left-spokes">
+            <line x1="220" y1="160" x2="220" y2="192" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
+            <line x1="168" y1="250" x2="196" y2="236" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
+            <line x1="272" y1="250" x2="244" y2="236" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
+          </g>
+          <!-- Center hub -->
+          <circle cx="220" cy="220" r="20" fill="url(#hubGrad)" stroke="#B8976A" stroke-width="1.5"/>
+          <circle cx="220" cy="220" r="8" fill="#2A1F12" stroke="#5A4A38" stroke-width="1"/>
+          <circle cx="220" cy="220" r="3" fill="#1A1208"/>
+        </g>
+
+        <!-- Right Reel Group -->
+        <g id="right-reel-group" filter="url(#reelShadow)">
+          <!-- Tape wound on right reel -->
+          <circle id="right-tape" cx="580" cy="220" r="80" fill="#3A2010" opacity="0.8"/>
+          <!-- Reel flange -->
+          <circle id="right-flange" cx="580" cy="220" r="170" fill="none" stroke="#8B7355" stroke-width="4"/>
+          <circle cx="580" cy="220" r="168" fill="none" stroke="#6B5D45" stroke-width="1" opacity="0.5"/>
+          <circle cx="580" cy="220" r="172" fill="none" stroke="#B8976A" stroke-width="0.5" opacity="0.3"/>
+          <!-- Reel face -->
+          <circle cx="580" cy="220" r="60" fill="url(#flangeGrad)" stroke="#6B5D45" stroke-width="1"/>
+          <!-- Spokes -->
+          <g id="right-spokes">
+            <line x1="580" y1="160" x2="580" y2="192" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
+            <line x1="528" y1="250" x2="556" y2="236" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
+            <line x1="632" y1="250" x2="604" y2="236" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
+          </g>
+          <!-- Center hub -->
+          <circle cx="580" cy="220" r="20" fill="url(#hubGrad)" stroke="#B8976A" stroke-width="1.5"/>
+          <circle cx="580" cy="220" r="8" fill="#2A1F12" stroke="#5A4A38" stroke-width="1"/>
+          <circle cx="580" cy="220" r="3" fill="#1A1208"/>
+        </g>
+
+        <!-- Guide posts -->
+        <circle cx="320" cy="310" r="6" fill="#5A4A38" stroke="#8B7355" stroke-width="1.5"/>
+        <circle cx="480" cy="310" r="6" fill="#5A4A38" stroke="#8B7355" stroke-width="1.5"/>
+
+        <!-- Head assembly (between reels at bottom) -->
+        <rect x="370" y="300" width="60" height="30" rx="3" fill="#3A2E20" stroke="#8B7355" stroke-width="1"/>
+        <rect x="380" y="306" width="40" height="4" rx="1" fill="#8B7355" opacity="0.6"/>
+        <rect x="380" y="314" width="40" height="4" rx="1" fill="#8B7355" opacity="0.4"/>
+        <rect x="380" y="322" width="40" height="4" rx="1" fill="#8B7355" opacity="0.3"/>
+
+        <!-- Brand text -->
+        <text x="400" y="400" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="14" fill="#5A4A38" font-weight="700" letter-spacing="8" text-transform="uppercase">FILEAMP</text>
+        <text x="400" y="418" text-anchor="middle" font-family="'Helvetica Neue', Arial, sans-serif" font-size="10" fill="#3A2E20" letter-spacing="4">TAPE</text>
+      </svg>
+
+      <!-- Head block overlay (clickable info display) -->
+      <div id="head-block">
+        <div id="head-track-name">NO TRACK LOADED</div>
+        <div id="head-time">00:00 / 00:00 <span id="head-spinner"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transport Buttons -->
+  <div id="transport-section">
+    <button class="transport-btn" id="btn-rew" aria-label="Previous Track" title="Previous">
+      <svg viewBox="0 0 24 24"><polygon points="12,5 2,12 12,19"/><polygon points="22,5 12,12 22,19"/></svg>
+    </button>
+    <button class="transport-btn" id="btn-play" aria-label="Play/Pause" title="Play">
+      <svg id="play-icon" viewBox="0 0 24 24"><polygon points="7,4 20,12 7,20"/></svg>
+    </button>
+    <button class="transport-btn" id="btn-stop" aria-label="Stop" title="Stop">
+      <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+    </button>
+    <button class="transport-btn" id="btn-ff" aria-label="Next Track" title="Next">
+      <svg viewBox="0 0 24 24"><polygon points="2,5 12,12 2,19"/><polygon points="12,5 22,12 12,19"/></svg>
+    </button>
+    <button class="transport-btn" id="btn-gear" aria-label="Settings" title="Open Panel">&#9881;</button>
+  </div>
+
+</div>
+
+<!-- Panel Overlay -->
+<div class="panel-overlay" id="panel-overlay"></div>
+
+<!-- Bottom Sheet (mobile) -->
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="panel-handle"></div>
+  <div class="panel-tabs" id="mobile-tabs">
+    <button class="panel-tab active" data-tab="browser">BROWSER</button>
+    <button class="panel-tab" data-tab="settings">SETTINGS</button>
+  </div>
+  <div class="panel-content" id="mobile-panel-content"></div>
+</div>
+
+<!-- Side Drawer (tablet+) -->
+<div class="side-drawer" id="side-drawer">
+  <div class="panel-tabs" id="drawer-tabs">
+    <button class="panel-tab active" data-tab="browser">BROWSER</button>
+    <button class="panel-tab" data-tab="settings">SETTINGS</button>
+  </div>
+  <div class="panel-content" id="drawer-panel-content"></div>
+</div>
+
+<script>
+// ===== FILE TREE DATA =====
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ===== STATE =====
+const state = {
+  playing: false,
+  currentTrack: null,
+  elapsed: 0,
+  totalSeconds: 0,
+  reelAngle: 0,
+  vuLeftCurrent: 0,
+  vuRightCurrent: 0,
+  vuLeftTarget: 0,
+  vuRightTarget: 0,
+  panelOpen: false,
+  panelTab: 'browser',
+  panelMode: 'bottom-sheet', // 'bottom-sheet' or 'side-drawer'
+  browserPath: [FILE_TREE],
+  allTracks: [],
+  trackIndex: -1,
+  searchQuery: '',
+  settings: {
+    tapeSpeed: '7.5 ips',
+    tapeType: 'TYPE II (CrO2)',
+    noiseReduction: 'DOLBY B',
+    eq: 'FLAT',
+    channels: 'STEREO',
+    headAlign: 'AUTO',
+    reelSize: '10.5 inch',
+    motorType: 'DIRECT DRIVE',
+    vuResponse: 'STANDARD',
+    vuPeak: 'ON',
+  },
+};
+
+const settingsDef = {
+  'TAPE TRANSPORT': [
+    { key: 'tapeSpeed', label: 'Tape Speed', values: ['3.75 ips', '7.5 ips', '15 ips'] },
+    { key: 'tapeType', label: 'Tape Type', values: ['TYPE I (Fe)', 'TYPE II (CrO2)', 'TYPE IV (Metal)'] },
+    { key: 'reelSize', label: 'Reel Size', values: ['7 inch', '10.5 inch'] },
+    { key: 'motorType', label: 'Motor', values: ['DIRECT DRIVE', 'BELT DRIVE', 'CAPSTAN'] },
+  ],
+  'AUDIO PROCESSING': [
+    { key: 'noiseReduction', label: 'Noise Reduction', values: ['OFF', 'DOLBY B', 'DOLBY C', 'DBX'] },
+    { key: 'eq', label: 'Equalization', values: ['FLAT', 'NAB', 'IEC', 'AES'] },
+    { key: 'channels', label: 'Channels', values: ['MONO', 'STEREO'] },
+    { key: 'headAlign', label: 'Head Alignment', values: ['AUTO', 'MANUAL'] },
+  ],
+  'VU METERS': [
+    { key: 'vuResponse', label: 'Response', values: ['STANDARD', 'PEAK', 'AVERAGE'] },
+    { key: 'vuPeak', label: 'Peak Hold', values: ['ON', 'OFF'] },
+  ],
+};
+
+// ===== COLLECT ALL TRACKS =====
+function collectTracks(node, path) {
+  if (node.type === 'file') {
+    state.allTracks.push({ ...node, path: [...path] });
+  } else if (node.children) {
+    for (const child of node.children) {
+      collectTracks(child, [...path, node]);
+    }
+  }
+}
+collectTracks(FILE_TREE, []);
+
+// ===== DOM REFS =====
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+const leftSpokes = $('#left-spokes');
+const rightSpokes = $('#right-spokes');
+const leftTape = $('#left-tape');
+const rightTape = $('#right-tape');
+const tapePath = $('#tape-path');
+const headTrackName = $('#head-track-name');
+const headTime = $('#head-time');
+const headSpinner = $('#head-spinner');
+const headBlock = $('#head-block');
+const vuNeedleL = $('#vu-needle-l');
+const vuNeedleR = $('#vu-needle-r');
+const panelOverlay = $('#panel-overlay');
+const bottomSheet = $('#bottom-sheet');
+const sideDrawer = $('#side-drawer');
+const playIcon = $('#play-icon');
+
+// ===== HELPERS =====
+function parseDuration(str) {
+  const [m, s] = str.split(':').map(Number);
+  return m * 60 + s;
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function truncateText(text, maxLen) {
+  return text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text;
+}
+
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(getAllFiles);
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ===== REEL GEOMETRY =====
+const REEL_LEFT_CX = 220, REEL_LEFT_CY = 220;
+const REEL_RIGHT_CX = 580, REEL_RIGHT_CY = 220;
+const REEL_MIN_TAPE = 65;   // minimum tape radius (hub + a little)
+const REEL_MAX_TAPE = 160;  // maximum tape radius
+const GUIDE_LEFT_X = 320, GUIDE_LEFT_Y = 310;
+const GUIDE_RIGHT_X = 480, GUIDE_RIGHT_Y = 310;
+const HEAD_CX = 400, HEAD_CY = 315;
+
+function updateTapePath(progress) {
+  // progress: 0 = start (left full, right empty), 1 = end (left empty, right full)
+  const leftR = REEL_MAX_TAPE - progress * (REEL_MAX_TAPE - REEL_MIN_TAPE);
+  const rightR = REEL_MIN_TAPE + progress * (REEL_MAX_TAPE - REEL_MIN_TAPE);
+
+  leftTape.setAttribute('r', leftR);
+  rightTape.setAttribute('r', rightR);
+
+  // Tape path: from left reel tangent -> left guide -> head -> right guide -> right reel tangent
+  // Calculate tangent exit points from reels
+  const leftExitAngle = Math.asin((GUIDE_LEFT_Y - REEL_LEFT_CY) / Math.hypot(GUIDE_LEFT_X - REEL_LEFT_CX, GUIDE_LEFT_Y - REEL_LEFT_CY));
+  const leftExitX = REEL_LEFT_CX + leftR * Math.cos(Math.PI / 4);
+  const leftExitY = REEL_LEFT_CY + leftR * Math.sin(Math.PI / 4);
+
+  const rightExitX = REEL_RIGHT_CX - rightR * Math.cos(Math.PI / 4);
+  const rightExitY = REEL_RIGHT_CY + rightR * Math.sin(Math.PI / 4);
+
+  const path = `M ${leftExitX} ${leftExitY} `
+    + `Q ${(leftExitX + GUIDE_LEFT_X) / 2} ${Math.max(leftExitY, GUIDE_LEFT_Y) + 10}, ${GUIDE_LEFT_X} ${GUIDE_LEFT_Y} `
+    + `L ${HEAD_CX - 30} ${HEAD_CY} `
+    + `L ${HEAD_CX + 30} ${HEAD_CY} `
+    + `L ${GUIDE_RIGHT_X} ${GUIDE_RIGHT_Y} `
+    + `Q ${(rightExitX + GUIDE_RIGHT_X) / 2} ${Math.max(rightExitY, GUIDE_RIGHT_Y) + 10}, ${rightExitX} ${rightExitY}`;
+
+  tapePath.setAttribute('d', path);
+}
+
+// ===== VU METER NEEDLE GEOMETRY =====
+// Needle rotates from ~-50 deg (left/low) to ~+40 deg (right/high) around pivot at (100, 95)
+const VU_PIVOT_X = 100, VU_PIVOT_Y = 95;
+const VU_NEEDLE_LEN = 68;
+const VU_ANGLE_MIN = -70;  // degrees from vertical (far left, low level)
+const VU_ANGLE_MAX = 40;   // degrees from vertical (far right, high level)
+
+function setVuNeedle(element, value) {
+  // value: 0..1
+  const angleDeg = VU_ANGLE_MIN + value * (VU_ANGLE_MAX - VU_ANGLE_MIN);
+  const angleRad = (angleDeg - 90) * Math.PI / 180;
+  const tipX = VU_PIVOT_X + VU_NEEDLE_LEN * Math.cos(angleRad);
+  const tipY = VU_PIVOT_Y + VU_NEEDLE_LEN * Math.sin(angleRad);
+  element.setAttribute('x2', tipX);
+  element.setAttribute('y2', tipY);
+}
+
+// ===== PLAYER LOGIC =====
+function setTrack(track) {
+  state.currentTrack = track;
+  state.totalSeconds = parseDuration(track.duration);
+  state.elapsed = 0;
+  const displayName = track.name.replace('.mp3', '');
+  headTrackName.textContent = truncateText(displayName, 24);
+  headTime.innerHTML = `${formatTime(0)} / ${track.duration} <span id="head-spinner" class="${state.playing ? 'active' : ''}"></span>`;
+  state.trackIndex = state.allTracks.findIndex(t => t.name === track.name);
+  updateTapePath(0);
+}
+
+function togglePlay() {
+  if (state.playing) {
+    state.playing = false;
+    $('#btn-play').classList.remove('active');
+    playIcon.innerHTML = '<polygon points="7,4 20,12 7,20"/>';
+    document.getElementById('head-spinner')?.classList.remove('active');
+  } else {
+    if (!state.currentTrack && state.allTracks.length > 0) {
+      setTrack(state.allTracks[0]);
+    }
+    if (!state.currentTrack) return;
+    state.playing = true;
+    $('#btn-play').classList.add('active');
+    playIcon.innerHTML = '<rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/>';
+    document.getElementById('head-spinner')?.classList.add('active');
+  }
+}
+
+function stopPlayback() {
+  state.playing = false;
+  state.elapsed = 0;
+  $('#btn-play').classList.remove('active');
+  playIcon.innerHTML = '<polygon points="7,4 20,12 7,20"/>';
+  if (state.currentTrack) {
+    headTime.innerHTML = `${formatTime(0)} / ${state.currentTrack.duration} <span id="head-spinner"></span>`;
+  }
+  updateTapePath(0);
+}
+
+function playNextTrack() {
+  if (state.allTracks.length === 0) return;
+  state.trackIndex = (state.trackIndex + 1) % state.allTracks.length;
+  setTrack(state.allTracks[state.trackIndex]);
+  if (state.playing) {
+    document.getElementById('head-spinner')?.classList.add('active');
+  }
+}
+
+function playPrevTrack() {
+  if (state.allTracks.length === 0) return;
+  if (state.elapsed > 3) {
+    // Restart current track if more than 3 seconds in
+    state.elapsed = 0;
+    return;
+  }
+  state.trackIndex = (state.trackIndex - 1 + state.allTracks.length) % state.allTracks.length;
+  setTrack(state.allTracks[state.trackIndex]);
+  if (state.playing) {
+    document.getElementById('head-spinner')?.classList.add('active');
+  }
+}
+
+function playAllFromFolder(shuffle) {
+  const current = state.browserPath[state.browserPath.length - 1];
+  const files = getAllFiles(current);
+  if (files.length === 0) return;
+  const playlist = shuffle ? shuffleArray(files) : files;
+  state.allTracks = playlist.map(f => ({ ...f, path: [] }));
+  state.trackIndex = 0;
+  setTrack(state.allTracks[0]);
+  state.playing = true;
+  $('#btn-play').classList.add('active');
+  playIcon.innerHTML = '<rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/>';
+  document.getElementById('head-spinner')?.classList.add('active');
+  closePanel();
+}
+
+// ===== TRANSPORT BUTTON EVENTS =====
+$('#btn-play').addEventListener('click', togglePlay);
+$('#btn-stop').addEventListener('click', stopPlayback);
+$('#btn-ff').addEventListener('click', playNextTrack);
+$('#btn-rew').addEventListener('click', playPrevTrack);
+
+// ===== PANEL LOGIC =====
+function detectPanelMode() {
+  state.panelMode = window.innerWidth >= 700 ? 'side-drawer' : 'bottom-sheet';
+}
+
+function openPanel() {
+  detectPanelMode();
+  state.panelOpen = true;
+  panelOverlay.classList.add('open');
+
+  if (state.panelMode === 'bottom-sheet') {
+    bottomSheet.classList.add('open');
+    renderPanel($('#mobile-panel-content'));
+  } else {
+    sideDrawer.classList.add('open');
+    renderPanel($('#drawer-panel-content'));
+  }
+}
+
+function closePanel() {
+  state.panelOpen = false;
+  panelOverlay.classList.remove('open');
+  bottomSheet.classList.remove('open');
+  sideDrawer.classList.remove('open');
+}
+
+function togglePanel() {
+  if (state.panelOpen) {
+    closePanel();
+  } else {
+    openPanel();
+  }
+}
+
+$('#btn-gear').addEventListener('click', togglePanel);
+headBlock.addEventListener('click', togglePanel);
+panelOverlay.addEventListener('click', closePanel);
+
+// Tab switching
+function setupTabs(tabContainer) {
+  tabContainer.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Update both tab containers
+      $$('.panel-tab').forEach(t => t.classList.remove('active'));
+      $$(`[data-tab="${tab.dataset.tab}"]`).forEach(t => t.classList.add('active'));
+      state.panelTab = tab.dataset.tab;
+      const content = state.panelMode === 'bottom-sheet'
+        ? $('#mobile-panel-content')
+        : $('#drawer-panel-content');
+      renderPanel(content);
+    });
+  });
+}
+
+setupTabs($('#mobile-tabs'));
+setupTabs($('#drawer-tabs'));
+
+// ===== PANEL RENDERING =====
+function renderPanel(container) {
+  if (state.panelTab === 'browser') {
+    renderBrowser(container);
+  } else {
+    renderSettings(container);
+  }
+}
+
+function renderBrowser(container) {
+  const current = state.browserPath[state.browserPath.length - 1];
+  const children = current.children || [];
+
+  const q = state.searchQuery.toLowerCase();
+  let folders = children.filter(c => c.type === 'folder');
+  let files = children.filter(c => c.type === 'file');
+  if (q) {
+    folders = folders.filter(f => f.name.toLowerCase().includes(q) || getAllFiles(f).some(t => t.name.toLowerCase().includes(q)));
+    files = files.filter(f => f.name.toLowerCase().includes(q));
+  }
+
+  let html = '';
+
+  // Breadcrumb
+  html += '<div class="browser-breadcrumb">';
+  state.browserPath.forEach((node, i) => {
+    if (i > 0) html += '<span class="sep"> / </span>';
+    html += `<span data-crumb="${i}">${node.name}</span>`;
+  });
+  html += '</div>';
+
+  // Search
+  html += `<div class="browser-search-wrap">
+    <svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="15" y1="15" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input class="browser-search-input" id="panel-search" type="text" placeholder="Search files..." value="${state.searchQuery.replace(/"/g, '&quot;')}">
+  </div>`;
+
+  // Actions
+  html += `<div class="browser-actions">
+    <button class="browser-action-btn" id="btn-play-all">&#9654; Play All</button>
+    <button class="browser-action-btn" id="btn-shuffle">&#8645; Shuffle</button>
+  </div>`;
+
+  // Back button
+  if (state.browserPath.length > 1) {
+    html += `<div class="file-back" data-action="back">&#8592; Back</div>`;
+  }
+
+  // File list
+  html += '<div class="file-list">';
+
+  for (const folder of folders) {
+    const count = getAllFiles(folder).length;
+    html += `<div class="file-entry folder" data-folder="${folder.name}">
+      <span class="file-icon folder-icon">&#128193;</span>
+      <span class="file-name">${folder.name}</span>
+      <span class="file-meta">${count} track${count !== 1 ? 's' : ''}</span>
+    </div>`;
+  }
+
+  for (const file of files) {
+    const isPlaying = state.currentTrack && state.currentTrack.name === file.name;
+    html += `<div class="file-entry${isPlaying ? ' playing' : ''}" data-file="${file.name}">
+      <span class="file-icon">${isPlaying ? '&#9654;' : '&#9835;'}</span>
+      <span class="file-name" style="${isPlaying ? 'color:var(--orange);' : ''}">${file.name.replace('.mp3', '')}</span>
+      <span class="file-meta">${file.duration}</span>
+    </div>`;
+  }
+
+  html += '</div>';
+  html += `<div class="file-summary">${folders.length} folder${folders.length !== 1 ? 's' : ''}, ${files.length} file${files.length !== 1 ? 's' : ''}</div>`;
+
+  container.innerHTML = html;
+
+  // Event listeners
+  const searchInput = container.querySelector('#panel-search');
+  searchInput.addEventListener('input', e => {
+    state.searchQuery = e.target.value;
+    renderBrowser(container);
+    const newInput = container.querySelector('#panel-search');
+    if (newInput) {
+      newInput.focus();
+      newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+    }
+  });
+  if (q) {
+    searchInput.focus();
+    searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+  }
+
+  container.querySelector('#btn-play-all')?.addEventListener('click', () => playAllFromFolder(false));
+  container.querySelector('#btn-shuffle')?.addEventListener('click', () => playAllFromFolder(true));
+
+  const backEl = container.querySelector('[data-action="back"]');
+  if (backEl) {
+    backEl.addEventListener('click', () => {
+      state.browserPath.pop();
+      state.searchQuery = '';
+      renderBrowser(container);
+    });
+  }
+
+  // Breadcrumb clicks
+  container.querySelectorAll('[data-crumb]').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.crumb);
+      state.browserPath = state.browserPath.slice(0, idx + 1);
+      state.searchQuery = '';
+      renderBrowser(container);
+    });
+  });
+
+  container.querySelectorAll('[data-folder]').forEach(el => {
+    el.addEventListener('click', () => {
+      const name = el.dataset.folder;
+      const folder = children.find(c => c.name === name && c.type === 'folder');
+      if (folder) {
+        state.browserPath.push(folder);
+        state.searchQuery = '';
+        renderBrowser(container);
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-file]').forEach(el => {
+    el.addEventListener('click', () => {
+      const name = el.dataset.file;
+      const file = children.find(c => c.name === name && c.type === 'file');
+      if (file) {
+        // Build playlist from current folder
+        const currentFiles = getAllFiles(state.browserPath[state.browserPath.length - 1]);
+        state.allTracks = currentFiles.map(f => ({ ...f, path: [] }));
+        setTrack(file);
+        state.playing = true;
+        $('#btn-play').classList.add('active');
+        playIcon.innerHTML = '<rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/>';
+        document.getElementById('head-spinner')?.classList.add('active');
+        closePanel();
+      }
+    });
+  });
+}
+
+function renderSettings(container) {
+  let html = '';
+
+  for (const [section, defs] of Object.entries(settingsDef)) {
+    html += `<div class="settings-section">
+      <div class="settings-section-title">${section}</div>`;
+    for (const def of defs) {
+      html += `<div class="settings-row" data-setting="${def.key}">
+        <span class="settings-label">${def.label}</span>
+        <span class="settings-value">${state.settings[def.key]}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // System info
+  html += `<div class="settings-section">
+    <div class="settings-section-title">SYSTEM INFO</div>
+    <div class="settings-info">
+      <div class="settings-info-row"><span class="info-label">Model</span><span class="info-value">FileAMP RT-1</span></div>
+      <div class="settings-info-row"><span class="info-label">Firmware</span><span class="info-value">v2.6.0</span></div>
+      <div class="settings-info-row"><span class="info-label">Serial</span><span class="info-value">FA-RT-20260226</span></div>
+      <div class="settings-info-row"><span class="info-label">Tracks in Library</span><span class="info-value">${state.allTracks.length}</span></div>
+      <div class="settings-info-row"><span class="info-label">Head Hours</span><span class="info-value">1,247 h</span></div>
+    </div>
+  </div>`;
+
+  html += `<div style="font-size:11px; color:var(--text-dim); margin-top:12px;">Tap a setting to cycle through values.</div>`;
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('[data-setting]').forEach(row => {
+    row.addEventListener('click', () => {
+      const key = row.dataset.setting;
+      for (const defs of Object.values(settingsDef)) {
+        const def = defs.find(d => d.key === key);
+        if (def) {
+          const idx = def.values.indexOf(state.settings[key]);
+          state.settings[key] = def.values[(idx + 1) % def.values.length];
+          renderSettings(container);
+          return;
+        }
+      }
+    });
+  });
+}
+
+// ===== RESPONSIVE OBSERVER =====
+const resizeObserver = new ResizeObserver(() => {
+  const newMode = window.innerWidth >= 700 ? 'side-drawer' : 'bottom-sheet';
+  if (state.panelOpen && newMode !== state.panelMode) {
+    // Switch panel modes
+    state.panelMode = newMode;
+    if (newMode === 'side-drawer') {
+      bottomSheet.classList.remove('open');
+      sideDrawer.classList.add('open');
+      renderPanel($('#drawer-panel-content'));
+    } else {
+      sideDrawer.classList.remove('open');
+      bottomSheet.classList.add('open');
+      renderPanel($('#mobile-panel-content'));
+    }
+  }
+  state.panelMode = newMode;
+});
+resizeObserver.observe(document.body);
+
+// ===== ANIMATION LOOP =====
+let lastTime = 0;
+const VU_SMOOTHING = 0.08;
+let vuUpdateTimer = 0;
+
+function animate(timestamp) {
+  const dt = lastTime ? (timestamp - lastTime) : 0;
+  lastTime = timestamp;
+  const dtSec = dt / 1000;
+
+  // Update playback progress
+  if (state.playing && state.currentTrack) {
+    state.elapsed += dtSec;
+    if (state.elapsed >= state.totalSeconds) {
+      playNextTrack();
+    }
+
+    const progress = state.totalSeconds > 0 ? state.elapsed / state.totalSeconds : 0;
+
+    // Update head block time display
+    const spinner = document.getElementById('head-spinner');
+    headTime.innerHTML = `${formatTime(state.elapsed)} / ${state.currentTrack.duration} `;
+    const newSpinner = document.createElement('span');
+    newSpinner.id = 'head-spinner';
+    newSpinner.className = 'active';
+    headTime.appendChild(newSpinner);
+
+    // Rotate reels
+    state.reelAngle += dt * 0.06; // ~60 deg/sec
+    leftSpokes.setAttribute('transform', `rotate(${state.reelAngle} ${REEL_LEFT_CX} ${REEL_LEFT_CY})`);
+    rightSpokes.setAttribute('transform', `rotate(${state.reelAngle} ${REEL_RIGHT_CX} ${REEL_RIGHT_CY})`);
+
+    // Update tape path (reel sizes based on progress)
+    updateTapePath(progress);
+
+    // VU meter targets - vary randomly when playing
+    vuUpdateTimer += dt;
+    if (vuUpdateTimer > 80) {
+      vuUpdateTimer = 0;
+      state.vuLeftTarget = 0.3 + Math.random() * 0.5;
+      state.vuRightTarget = 0.3 + Math.random() * 0.5;
+      // Occasional peaks
+      if (Math.random() < 0.05) state.vuLeftTarget = 0.7 + Math.random() * 0.25;
+      if (Math.random() < 0.05) state.vuRightTarget = 0.7 + Math.random() * 0.25;
+    }
+  } else {
+    // Not playing - VU targets drop to 0
+    state.vuLeftTarget = 0;
+    state.vuRightTarget = 0;
+  }
+
+  // Smooth VU needles (exponential moving average)
+  state.vuLeftCurrent += (state.vuLeftTarget - state.vuLeftCurrent) * VU_SMOOTHING;
+  state.vuRightCurrent += (state.vuRightTarget - state.vuRightCurrent) * VU_SMOOTHING;
+
+  setVuNeedle(vuNeedleL, state.vuLeftCurrent);
+  setVuNeedle(vuNeedleR, state.vuRightCurrent);
+
+  requestAnimationFrame(animate);
+}
+
+// ===== INITIALIZE =====
+detectPanelMode();
+setTrack(state.allTracks[0]);
+updateTapePath(0);
+setVuNeedle(vuNeedleL, 0);
+setVuNeedle(vuNeedleR, 0);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

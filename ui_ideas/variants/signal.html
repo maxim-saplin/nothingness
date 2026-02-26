@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP :: SIGNAL</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000A00;
+  --green: #00FF44;
+  --green-dim: rgba(0,255,68,0.15);
+  --green-mid: rgba(0,255,68,0.35);
+  --green-bright: #00FF44;
+  --green-glow: 0 0 8px rgba(0,255,68,0.5);
+  --panel-bg: #001A00;
+  --border-green: rgba(0,255,68,0.2);
+  --text-dim: rgba(0,255,68,0.35);
+  --font: "Courier New", "Consolas", monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  font-family: var(--font);
+  color: var(--green);
+  overflow: hidden;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.06) 2px,
+    rgba(0,0,0,0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ---- RADAR CANVAS ---- */
+#radar-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---- OPEN PANEL INDICATOR ---- */
+.panel-trigger {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 40;
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 16px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  text-shadow: var(--green-glow);
+  opacity: 0.6;
+  transition: opacity 200ms;
+  padding: 8px;
+  min-width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.panel-trigger:hover { opacity: 1; }
+
+/* ---- STATUS BAR ---- */
+.status-bar {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  z-index: 40;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.status-bar .sig-status {
+  color: var(--green);
+  text-shadow: var(--green-glow);
+}
+
+/* ---- BEARING DISPLAY ---- */
+.bearing-display {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 40;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.time-display {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 40;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* ---- PANEL OVERLAY ---- */
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,10,0,0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms;
+  z-index: 50;
+}
+.panel-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---- MOBILE: BOTTOM SHEET ---- */
+.bottom-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 85vh;
+  transform: translateY(100%);
+  transition: transform 300ms cubic-bezier(0.32,0.72,0,1);
+  z-index: 51;
+  border-radius: 12px 12px 0 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-green);
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* ---- TABLET: LEFT DRAWER ---- */
+.side-drawer {
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: 320px;
+  transform: translateX(-100%);
+  transition: transform 300ms cubic-bezier(0.32,0.72,0,1);
+  z-index: 51;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--border-green);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+.side-drawer.open {
+  transform: translateX(0);
+}
+
+/* ---- PANEL HEADER ---- */
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-green);
+  flex-shrink: 0;
+}
+.panel-close {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--border-green);
+  padding: 8px 14px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  min-width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms, border-color 150ms;
+}
+.panel-close:hover {
+  background: rgba(0,255,68,0.08);
+  border-color: var(--green);
+}
+.panel-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--green);
+  text-shadow: var(--green-glow);
+}
+
+/* ---- PANEL TABS ---- */
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-green);
+  flex-shrink: 0;
+}
+.panel-tab {
+  flex: 1;
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 8px;
+  cursor: pointer;
+  text-align: center;
+  min-height: 48px;
+  transition: color 150ms, border-color 150ms;
+}
+.panel-tab:hover {
+  color: var(--green-mid);
+}
+.panel-tab.active {
+  color: var(--green);
+  border-bottom-color: var(--green);
+  text-shadow: var(--green-glow);
+}
+
+/* ---- PANEL BODY ---- */
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.panel-body::-webkit-scrollbar { width: 6px; }
+.panel-body::-webkit-scrollbar-track { background: var(--panel-bg); }
+.panel-body::-webkit-scrollbar-thumb { background: rgba(0,255,68,0.25); border-radius: 3px; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ---- BROWSER ---- */
+.breadcrumb {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.breadcrumb span { cursor: pointer; }
+.breadcrumb span:hover { color: var(--green); }
+.breadcrumb .sep { cursor: default; color: var(--text-dim); }
+
+.browser-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.action-btn {
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--border-green);
+  padding: 8px 12px;
+  cursor: pointer;
+  min-height: 40px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms, border-color 150ms;
+}
+.action-btn:hover {
+  background: rgba(0,255,68,0.08);
+  border-color: var(--green);
+}
+
+.search-wrap {
+  margin-bottom: 12px;
+  position: relative;
+}
+.search-input {
+  width: 100%;
+  background: rgba(0,10,0,0.8);
+  border: 1px solid var(--border-green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 10px 12px 10px 32px;
+  outline: none;
+}
+.search-input::placeholder { color: var(--text-dim); }
+.search-input:focus { border-color: var(--green); box-shadow: var(--green-glow); }
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.tree-item {
+  padding: 8px 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(0,255,68,0.06);
+}
+.tree-item:hover {
+  background: rgba(0,255,68,0.05);
+}
+.tree-icon {
+  color: var(--text-dim);
+  min-width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+.tree-folder { color: var(--green); }
+.tree-folder .tree-icon { color: var(--green-mid); }
+.tree-file { color: rgba(0,255,68,0.6); }
+.tree-file .tree-icon { color: var(--text-dim); }
+.tree-meta {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 10px;
+  flex-shrink: 0;
+  letter-spacing: 1px;
+}
+
+/* ---- SETTINGS ---- */
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,255,68,0.06);
+  cursor: pointer;
+  min-height: 44px;
+}
+.setting-row:hover {
+  background: rgba(0,255,68,0.05);
+}
+.setting-key {
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.setting-val {
+  color: var(--green);
+  font-size: 12px;
+  text-shadow: 0 0 4px rgba(0,255,68,0.3);
+  letter-spacing: 1px;
+}
+.setting-val.on {
+  color: var(--green-bright);
+  text-shadow: var(--green-glow);
+}
+.setting-val.off {
+  color: var(--text-dim);
+  text-shadow: none;
+}
+
+/* ---- NOW PLAYING (in panel) ---- */
+.now-playing-bar {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-green);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+.np-info {
+  flex: 1;
+  overflow: hidden;
+}
+.np-title {
+  color: var(--green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 1px;
+  text-shadow: var(--green-glow);
+}
+.np-artist {
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+.np-controls {
+  display: flex;
+  gap: 6px;
+}
+.np-btn {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--border-green);
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms;
+}
+.np-btn:hover {
+  background: rgba(0,255,68,0.08);
+}
+
+/* ---- RESPONSIVE ---- */
+.layout-mobile .bottom-sheet { display: flex; }
+.layout-mobile .side-drawer { display: none !important; }
+.layout-tablet .bottom-sheet { display: none !important; }
+.layout-tablet .side-drawer { display: flex; }
+</style>
+</head>
+<body class="layout-mobile">
+
+<canvas id="radar-canvas"></canvas>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <span>SIGNAL</span> //
+  <span class="sig-status" id="sig-status">STANDBY</span> //
+  <span id="sig-track-count">00 TARGETS</span>
+</div>
+
+<!-- Bearing Display -->
+<div class="bearing-display" id="bearing-display">BRG 000.0 // RNG --</div>
+
+<!-- Time Display -->
+<div class="time-display" id="time-display">--:-- / --:--</div>
+
+<!-- Panel Trigger -->
+<div class="panel-trigger" id="panel-trigger" role="button" tabindex="0" aria-label="Open panel">[+]</div>
+
+<!-- Panel Overlay -->
+<div class="panel-overlay" id="panel-overlay"></div>
+
+<!-- Bottom Sheet (Mobile) -->
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="panel-header">
+    <button class="panel-close" id="close-sheet">X</button>
+    <span class="panel-title">SIGNAL // CONTROL</span>
+    <span style="width:48px;"></span>
+  </div>
+  <div class="panel-tabs">
+    <button class="panel-tab active" data-tab="browser" data-panel="sheet">BROWSER</button>
+    <button class="panel-tab" data-tab="settings" data-panel="sheet">SETTINGS</button>
+  </div>
+  <div class="panel-body" id="sheet-body">
+    <div class="tab-content active" id="sheet-browser"></div>
+    <div class="tab-content" id="sheet-settings"></div>
+  </div>
+  <div class="now-playing-bar" id="sheet-np">
+    <div class="np-info">
+      <div class="np-title" id="sheet-np-title">NO SIGNAL</div>
+      <div class="np-artist" id="sheet-np-artist">--</div>
+    </div>
+    <div class="np-controls">
+      <button class="np-btn" id="sheet-btn-prev" aria-label="Previous">&#x23EE;</button>
+      <button class="np-btn" id="sheet-btn-play" aria-label="Play">&#x25B6;</button>
+      <button class="np-btn" id="sheet-btn-next" aria-label="Next">&#x23ED;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Side Drawer (Tablet) -->
+<div class="side-drawer" id="side-drawer">
+  <div class="panel-header">
+    <button class="panel-close" id="close-drawer">X</button>
+    <span class="panel-title">SIGNAL // CONTROL</span>
+    <span style="width:48px;"></span>
+  </div>
+  <div class="panel-tabs">
+    <button class="panel-tab active" data-tab="browser" data-panel="drawer">BROWSER</button>
+    <button class="panel-tab" data-tab="settings" data-panel="drawer">SETTINGS</button>
+  </div>
+  <div class="panel-body" id="drawer-body">
+    <div class="tab-content active" id="drawer-browser"></div>
+    <div class="tab-content" id="drawer-settings"></div>
+  </div>
+  <div class="now-playing-bar" id="drawer-np">
+    <div class="np-info">
+      <div class="np-title" id="drawer-np-title">NO SIGNAL</div>
+      <div class="np-artist" id="drawer-np-artist">--</div>
+    </div>
+    <div class="np-controls">
+      <button class="np-btn" id="drawer-btn-prev" aria-label="Previous">&#x23EE;</button>
+      <button class="np-btn" id="drawer-btn-play" aria-label="Play">&#x25B6;</button>
+      <button class="np-btn" id="drawer-btn-next" aria-label="Next">&#x23ED;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── File Tree Data ─────────────────────────────────────
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ── State ──────────────────────────────────────────────
+const state = {
+  isPlaying: false,
+  playlist: [],
+  trackIndex: -1,
+  elapsed: 0,
+  totalSeconds: 0,
+  shuffle: false,
+  repeat: false,
+  panelOpen: false,
+  activeTab: 'browser',
+  layoutMode: 'mobile', // 'mobile' or 'tablet'
+  browserPath: [FILE_TREE],
+  searchQuery: '',
+  settings: {
+    sweep_speed: '4s',
+    blip_count: 12,
+    shuffle: false,
+    repeat: false,
+    glow_intensity: 'High',
+    trail_length: 'Long',
+    scanlines: true,
+    auto_play: true,
+  },
+  // Radar blips
+  blips: [],
+  sweepAngle: 0,
+};
+
+// ── Helpers ────────────────────────────────────────────
+function parseDuration(str) {
+  const parts = str.split(':').map(Number);
+  return parts[0] * 60 + parts[1];
+}
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(getAllFiles);
+}
+function getArtist(file) {
+  function find(node, target, path) {
+    if (node === target) return path;
+    if (node.children) {
+      for (const child of node.children) {
+        const r = find(child, target, [...path, node]);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+  const chain = find(FILE_TREE, file, []);
+  if (chain && chain.length >= 2) return chain[chain.length - 1].name;
+  return '';
+}
+
+// ── Initialize Blips ───────────────────────────────────
+function initBlips(count) {
+  state.blips = [];
+  for (let i = 0; i < count; i++) {
+    state.blips.push({
+      angle: Math.random() * Math.PI * 2,
+      distance: 0.2 + Math.random() * 0.7, // 0.2-0.9 of radar radius
+      targetDistance: 0.2 + Math.random() * 0.7,
+      brightness: 0,
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+initBlips(12);
+
+// ── Canvas Radar Rendering ─────────────────────────────
+const canvas = document.getElementById('radar-canvas');
+const ctx = canvas.getContext('2d');
+let cx, cy, radarR; // center x, center y, radar radius
+let dpr = window.devicePixelRatio || 1;
+let lastTime = 0;
+const SWEEP_PERIOD = 4000; // ms per revolution
+
+function resizeCanvas() {
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = window.innerWidth / 2;
+  cy = window.innerHeight / 2;
+  radarR = Math.min(cx, cy) * 0.82;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// Normalize angle to 0..2PI
+function normAngle(a) {
+  return ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+}
+
+// Angle difference (how recently the sweep passed a blip)
+function angleBehind(sweepAngle, blipAngle) {
+  let diff = normAngle(sweepAngle - blipAngle);
+  return diff; // 0 = just passed, PI*2 = about to pass again
+}
+
+function drawRadar(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  // Full clear each frame (trail effect is drawn procedurally)
+  ctx.fillStyle = '#000A00';
+  ctx.fillRect(0, 0, w, h);
+
+  const playing = state.isPlaying;
+  const dimFactor = playing ? 1.0 : 0.3;
+
+  // Update sweep angle
+  const sweepSpeed = (Math.PI * 2) / SWEEP_PERIOD;
+  state.sweepAngle = normAngle(state.sweepAngle + sweepSpeed * dt);
+
+  // ---- Concentric rings ----
+  const ringCount = 5;
+  for (let i = 1; i <= ringCount; i++) {
+    const r = (radarR / ringCount) * i;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,255,68,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // ---- Crosshair lines ----
+  ctx.strokeStyle = 'rgba(0,255,68,0.08)';
+  ctx.lineWidth = 1;
+  // Horizontal
+  ctx.beginPath();
+  ctx.moveTo(cx - radarR, cy);
+  ctx.lineTo(cx + radarR, cy);
+  ctx.stroke();
+  // Vertical
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - radarR);
+  ctx.lineTo(cx, cy + radarR);
+  ctx.stroke();
+  // Diagonals (dimmer)
+  ctx.strokeStyle = 'rgba(0,255,68,0.04)';
+  ctx.beginPath();
+  ctx.moveTo(cx - radarR * 0.707, cy - radarR * 0.707);
+  ctx.lineTo(cx + radarR * 0.707, cy + radarR * 0.707);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + radarR * 0.707, cy - radarR * 0.707);
+  ctx.lineTo(cx - radarR * 0.707, cy + radarR * 0.707);
+  ctx.stroke();
+
+  // ---- Bearing markings (N/E/S/W) ----
+  ctx.font = '10px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const bearings = [
+    { label: '000', angle: -Math.PI / 2 },
+    { label: '090', angle: 0 },
+    { label: '180', angle: Math.PI / 2 },
+    { label: '270', angle: Math.PI },
+  ];
+  bearings.forEach(b => {
+    const bx = cx + Math.cos(b.angle) * (radarR + 18);
+    const by = cy + Math.sin(b.angle) * (radarR + 18);
+    ctx.fillStyle = 'rgba(0,255,68,0.3)';
+    ctx.fillText(b.label, bx, by);
+    // Tick marks
+    const tx1 = cx + Math.cos(b.angle) * radarR;
+    const ty1 = cy + Math.sin(b.angle) * radarR;
+    const tx2 = cx + Math.cos(b.angle) * (radarR + 8);
+    const ty2 = cy + Math.sin(b.angle) * (radarR + 8);
+    ctx.beginPath();
+    ctx.moveTo(tx1, ty1);
+    ctx.lineTo(tx2, ty2);
+    ctx.strokeStyle = 'rgba(0,255,68,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Minor tick marks every 30 degrees
+  for (let deg = 0; deg < 360; deg += 30) {
+    if (deg % 90 === 0) continue; // skip cardinal directions
+    const a = (deg - 90) * Math.PI / 180;
+    const tx1 = cx + Math.cos(a) * radarR;
+    const ty1 = cy + Math.sin(a) * radarR;
+    const tx2 = cx + Math.cos(a) * (radarR + 5);
+    const ty2 = cy + Math.sin(a) * (radarR + 5);
+    ctx.beginPath();
+    ctx.moveTo(tx1, ty1);
+    ctx.lineTo(tx2, ty2);
+    ctx.strokeStyle = 'rgba(0,255,68,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // ---- Sweep arm with fading trail ----
+  // Draw a conic trail behind the sweep arm
+  const trailSegments = 40;
+  const trailSpan = Math.PI * 0.6; // trail covers ~108 degrees behind arm
+  for (let i = 0; i < trailSegments; i++) {
+    const t = i / trailSegments;
+    const segAngle = state.sweepAngle - trailSpan * t;
+    const nextAngle = state.sweepAngle - trailSpan * (i + 1) / trailSegments;
+    const alpha = (1 - t) * 0.12 * dimFactor;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radarR, segAngle, nextAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(0,255,68,${alpha})`;
+    ctx.fill();
+  }
+
+  // Sweep arm line
+  const armX = cx + Math.cos(state.sweepAngle) * radarR;
+  const armY = cy + Math.sin(state.sweepAngle) * radarR;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(armX, armY);
+  ctx.strokeStyle = `rgba(0,255,68,${0.7 * dimFactor})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Arm glow
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(armX, armY);
+  ctx.strokeStyle = `rgba(0,255,68,${0.15 * dimFactor})`;
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // ---- Blips ----
+  if (playing) {
+    // Update blip target distances periodically
+    state.blips.forEach(blip => {
+      if (Math.random() < 0.02) {
+        blip.targetDistance = 0.15 + Math.random() * 0.75;
+      }
+      // Smooth move toward target
+      blip.distance += (blip.targetDistance - blip.distance) * 0.03;
+
+      // Calculate brightness based on sweep proximity
+      const behind = angleBehind(state.sweepAngle, blip.angle);
+      if (behind < 0.3) {
+        blip.brightness = 1.0; // just swept
+      } else {
+        // Fade over ~270 degrees
+        blip.brightness = Math.max(0, 1.0 - (behind / (Math.PI * 1.8)));
+      }
+    });
+  } else {
+    // Fading out when paused
+    state.blips.forEach(blip => {
+      blip.brightness *= 0.98;
+    });
+  }
+
+  state.blips.forEach(blip => {
+    if (blip.brightness < 0.02) return;
+    const bx = cx + Math.cos(blip.angle) * blip.distance * radarR;
+    const by = cy + Math.sin(blip.angle) * blip.distance * radarR;
+
+    // Glow
+    const glowR = blip.size * 3 * blip.brightness;
+    const grad = ctx.createRadialGradient(bx, by, 0, bx, by, glowR);
+    grad.addColorStop(0, `rgba(0,255,68,${0.6 * blip.brightness})`);
+    grad.addColorStop(1, 'rgba(0,255,68,0)');
+    ctx.beginPath();
+    ctx.arc(bx, by, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Core dot
+    ctx.beginPath();
+    ctx.arc(bx, by, blip.size * 0.7, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,255,68,${0.9 * blip.brightness})`;
+    ctx.fill();
+  });
+
+  // ---- Progress arc (outer ring) ----
+  if (state.totalSeconds > 0 && state.trackIndex >= 0) {
+    const pct = state.elapsed / state.totalSeconds;
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + pct * Math.PI * 2;
+
+    // Background arc (dim)
+    ctx.beginPath();
+    ctx.arc(cx, cy, radarR + 12, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,255,68,0.06)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Progress arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, radarR + 12, startAngle, endAngle);
+    ctx.strokeStyle = `rgba(0,255,68,${0.5 * dimFactor + 0.2})`;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // End pip
+    const pipX = cx + Math.cos(endAngle) * (radarR + 12);
+    const pipY = cy + Math.sin(endAngle) * (radarR + 12);
+    ctx.beginPath();
+    ctx.arc(pipX, pipY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,255,68,${0.7 * dimFactor + 0.15})`;
+    ctx.fill();
+  }
+
+  // ---- Center text ----
+  const centerR = radarR / ringCount; // innermost ring radius
+  if (state.trackIndex >= 0 && state.playlist.length > 0) {
+    const file = state.playlist[state.trackIndex];
+    const trackName = file.name.replace('.mp3', '');
+    const artist = getArtist(file);
+
+    // Track name
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgba(0,255,68,${0.85 * dimFactor + 0.15})`;
+    ctx.shadowColor = 'rgba(0,255,68,0.5)';
+    ctx.shadowBlur = 8;
+
+    // Truncate if too long
+    let displayName = trackName;
+    const maxWidth = centerR * 1.6;
+    while (ctx.measureText(displayName).width > maxWidth && displayName.length > 3) {
+      displayName = displayName.slice(0, -1);
+    }
+    if (displayName !== trackName) displayName += '..';
+    ctx.fillText(displayName, cx, cy - 10);
+
+    // Artist
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillStyle = `rgba(0,255,68,${0.45 * dimFactor + 0.1})`;
+    ctx.shadowBlur = 4;
+    let displayArtist = artist;
+    while (ctx.measureText(displayArtist).width > maxWidth && displayArtist.length > 3) {
+      displayArtist = displayArtist.slice(0, -1);
+    }
+    if (displayArtist !== artist) displayArtist += '..';
+    ctx.fillText(displayArtist, cx, cy + 8);
+
+    // Play/Pause indicator
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillStyle = `rgba(0,255,68,${0.3 * dimFactor + 0.1})`;
+    ctx.shadowBlur = 2;
+    ctx.fillText(state.isPlaying ? '[ TRACKING ]' : '[ PAUSED ]', cx, cy + 26);
+
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+  } else {
+    // No track
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,255,68,0.25)';
+    ctx.shadowColor = 'rgba(0,255,68,0.3)';
+    ctx.shadowBlur = 6;
+    ctx.fillText('NO SIGNAL', cx, cy - 6);
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(0,255,68,0.15)';
+    ctx.shadowBlur = 2;
+    ctx.fillText('TAP TO ACQUIRE', cx, cy + 14);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+  }
+
+  // ---- Center circle highlight ----
+  ctx.beginPath();
+  ctx.arc(cx, cy, centerR * 0.15, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,255,68,0.06)';
+  ctx.fill();
+
+  requestAnimationFrame(drawRadar);
+}
+
+// ── Playback Simulation ────────────────────────────────
+let playTimer = null;
+function startPlayTimer() {
+  stopPlayTimer();
+  playTimer = setInterval(() => {
+    if (!state.isPlaying) return;
+    state.elapsed += 0.5;
+    if (state.elapsed >= state.totalSeconds) {
+      playNextTrack();
+      return;
+    }
+    updateUI();
+  }, 500);
+}
+function stopPlayTimer() {
+  if (playTimer) { clearInterval(playTimer); playTimer = null; }
+}
+
+function setTrack(index) {
+  if (index < 0 || index >= state.playlist.length) {
+    if (state.repeat && state.playlist.length > 0) {
+      index = 0;
+    } else {
+      state.isPlaying = false;
+      state.elapsed = 0;
+      stopPlayTimer();
+      updateUI();
+      return;
+    }
+  }
+  state.trackIndex = index;
+  const file = state.playlist[index];
+  state.totalSeconds = parseDuration(file.duration);
+  state.elapsed = 0;
+  state.isPlaying = true;
+  updateUI();
+  startPlayTimer();
+}
+
+function togglePlay() {
+  if (state.playlist.length === 0) {
+    // Load all files and start
+    state.playlist = getAllFiles(FILE_TREE);
+    state.shuffle = state.settings.shuffle;
+    state.repeat = state.settings.repeat;
+    setTrack(0);
+  } else {
+    state.isPlaying = !state.isPlaying;
+    if (state.isPlaying) startPlayTimer(); else stopPlayTimer();
+    updateUI();
+  }
+}
+
+function playNextTrack() {
+  if (state.shuffle && state.playlist.length > 1) {
+    let next;
+    do { next = Math.floor(Math.random() * state.playlist.length); } while (next === state.trackIndex);
+    setTrack(next);
+  } else {
+    setTrack(state.trackIndex + 1);
+  }
+}
+
+function playPrevTrack() {
+  if (state.elapsed > 3) {
+    state.elapsed = 0;
+    updateUI();
+  } else {
+    setTrack(Math.max(0, state.trackIndex - 1));
+  }
+}
+
+// ── UI Updates ─────────────────────────────────────────
+const elSigStatus = document.getElementById('sig-status');
+const elTrackCount = document.getElementById('sig-track-count');
+const elBearing = document.getElementById('bearing-display');
+const elTimeDisplay = document.getElementById('time-display');
+
+function updateUI() {
+  // Status bar
+  if (state.isPlaying) {
+    elSigStatus.textContent = 'TRACKING';
+  } else if (state.trackIndex >= 0) {
+    elSigStatus.textContent = 'HOLD';
+  } else {
+    elSigStatus.textContent = 'STANDBY';
+  }
+  elTrackCount.textContent = String(state.playlist.length).padStart(2, '0') + ' TARGETS';
+
+  // Bearing display
+  if (state.trackIndex >= 0) {
+    const deg = ((state.sweepAngle * 180 / Math.PI + 90) % 360).toFixed(1);
+    elBearing.textContent = 'BRG ' + String(deg).padStart(5, '0') +
+      ' // TRK ' + String(state.trackIndex + 1).padStart(2, '0') + '/' +
+      String(state.playlist.length).padStart(2, '0');
+  } else {
+    elBearing.textContent = 'BRG 000.0 // RNG --';
+  }
+
+  // Time display
+  if (state.trackIndex >= 0 && state.totalSeconds > 0) {
+    elTimeDisplay.textContent = formatTime(state.elapsed) + ' / ' + formatTime(state.totalSeconds);
+  } else {
+    elTimeDisplay.textContent = '--:-- / --:--';
+  }
+
+  // Now-playing bars in panels
+  updateNowPlayingBar('sheet');
+  updateNowPlayingBar('drawer');
+}
+
+function updateNowPlayingBar(prefix) {
+  const elTitle = document.getElementById(prefix + '-np-title');
+  const elArtist = document.getElementById(prefix + '-np-artist');
+  const elPlay = document.getElementById(prefix + '-btn-play');
+  if (state.trackIndex >= 0 && state.playlist.length > 0) {
+    const file = state.playlist[state.trackIndex];
+    elTitle.textContent = file.name.replace('.mp3', '');
+    elArtist.textContent = getArtist(file) || '--';
+  } else {
+    elTitle.textContent = 'NO SIGNAL';
+    elArtist.textContent = '--';
+  }
+  elPlay.innerHTML = state.isPlaying ? '&#x23F8;' : '&#x25B6;';
+}
+
+// ── Radar Click: Play/Pause ────────────────────────────
+canvas.addEventListener('click', (e) => {
+  // Check if click is within center area
+  const dx = e.clientX - cx;
+  const dy = e.clientY - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const clickZone = radarR * 0.35;
+  if (dist < clickZone) {
+    togglePlay();
+  }
+});
+
+// ── Progress Arc Click-to-Seek ─────────────────────────
+canvas.addEventListener('click', (e) => {
+  if (state.totalSeconds <= 0) return;
+  const dx = e.clientX - cx;
+  const dy = e.clientY - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  // Only respond to clicks near the progress arc
+  if (dist > radarR + 2 && dist < radarR + 22) {
+    let angle = Math.atan2(dy, dx);
+    // Convert from atan2 to progress (starting from top, -PI/2)
+    let pct = (angle + Math.PI / 2) / (Math.PI * 2);
+    if (pct < 0) pct += 1;
+    state.elapsed = pct * state.totalSeconds;
+    updateUI();
+  }
+});
+
+// ── Panel Open/Close ───────────────────────────────────
+const overlay = document.getElementById('panel-overlay');
+const bottomSheet = document.getElementById('bottom-sheet');
+const sideDrawer = document.getElementById('side-drawer');
+
+function openPanel() {
+  state.panelOpen = true;
+  overlay.classList.add('open');
+  if (state.layoutMode === 'mobile') {
+    bottomSheet.classList.add('open');
+  } else {
+    sideDrawer.classList.add('open');
+  }
+  renderActiveTab();
+}
+
+function closePanel() {
+  state.panelOpen = false;
+  overlay.classList.remove('open');
+  bottomSheet.classList.remove('open');
+  sideDrawer.classList.remove('open');
+}
+
+document.getElementById('panel-trigger').addEventListener('click', openPanel);
+document.getElementById('panel-trigger').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(); }
+});
+overlay.addEventListener('click', closePanel);
+document.getElementById('close-sheet').addEventListener('click', closePanel);
+document.getElementById('close-drawer').addEventListener('click', closePanel);
+
+// ── Panel Tabs ─────────────────────────────────────────
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const panelType = tab.dataset.panel;
+    const tabName = tab.dataset.tab;
+    state.activeTab = tabName;
+
+    // Update tab buttons for this panel
+    const container = tab.closest('.panel-tabs');
+    container.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+
+    // Also sync the other panel's tabs
+    document.querySelectorAll('.panel-tab').forEach(t => {
+      if (t.dataset.tab === tabName) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+
+    renderActiveTab();
+  });
+});
+
+function renderActiveTab() {
+  // Show/hide tab content in both panels
+  ['sheet', 'drawer'].forEach(prefix => {
+    const browserEl = document.getElementById(prefix + '-browser');
+    const settingsEl = document.getElementById(prefix + '-settings');
+    if (state.activeTab === 'browser') {
+      browserEl.classList.add('active');
+      settingsEl.classList.remove('active');
+    } else {
+      browserEl.classList.remove('active');
+      settingsEl.classList.add('active');
+    }
+  });
+
+  if (state.activeTab === 'browser') {
+    renderBrowser('sheet-browser');
+    renderBrowser('drawer-browser');
+  } else {
+    renderSettings('sheet-settings');
+    renderSettings('drawer-settings');
+  }
+}
+
+// ── Panel Transport Controls ───────────────────────────
+['sheet', 'drawer'].forEach(prefix => {
+  document.getElementById(prefix + '-btn-play').addEventListener('click', togglePlay);
+  document.getElementById(prefix + '-btn-next').addEventListener('click', () => {
+    if (state.playlist.length > 0) playNextTrack();
+  });
+  document.getElementById(prefix + '-btn-prev').addEventListener('click', () => {
+    if (state.playlist.length > 0) playPrevTrack();
+  });
+});
+
+// ── Settings ───────────────────────────────────────────
+const settingsDef = [
+  { key: 'sweep_speed', label: 'SWEEP SPEED', values: ['2s', '4s', '6s', '8s'] },
+  { key: 'blip_count', label: 'BLIP COUNT', values: [8, 12, 16, 20] },
+  { key: 'shuffle', label: 'SHUFFLE', values: [false, true] },
+  { key: 'repeat', label: 'REPEAT', values: [false, true] },
+  { key: 'glow_intensity', label: 'GLOW INTENSITY', values: ['Low', 'Medium', 'High'] },
+  { key: 'trail_length', label: 'TRAIL LENGTH', values: ['Short', 'Medium', 'Long'] },
+  { key: 'scanlines', label: 'SCANLINES', values: [false, true] },
+  { key: 'auto_play', label: 'AUTO PLAY', values: [false, true] },
+];
+
+function renderSettings(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'font-size:11px;letter-spacing:3px;color:rgba(0,255,68,0.5);border-bottom:1px solid rgba(0,255,68,0.1);padding-bottom:8px;margin-bottom:8px;';
+  header.textContent = '// SYSTEM CONFIG';
+  container.appendChild(header);
+
+  settingsDef.forEach(def => {
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+    const keyEl = document.createElement('span');
+    keyEl.className = 'setting-key';
+    keyEl.textContent = def.label;
+    const valEl = document.createElement('span');
+    const v = state.settings[def.key];
+    if (typeof v === 'boolean') {
+      valEl.className = 'setting-val ' + (v ? 'on' : 'off');
+      valEl.textContent = v ? 'ON' : 'OFF';
+    } else {
+      valEl.className = 'setting-val';
+      valEl.textContent = String(v);
+    }
+    row.appendChild(keyEl);
+    row.appendChild(valEl);
+    row.addEventListener('click', () => {
+      const idx = def.values.indexOf(state.settings[def.key]);
+      state.settings[def.key] = def.values[(idx + 1) % def.values.length];
+      // Sync shuffle/repeat
+      state.shuffle = state.settings.shuffle;
+      state.repeat = state.settings.repeat;
+      // Sync blip count
+      if (def.key === 'blip_count') {
+        initBlips(state.settings.blip_count);
+      }
+      // Sync scanlines
+      if (def.key === 'scanlines') {
+        document.body.style.setProperty('--scanline-vis', state.settings.scanlines ? 'visible' : 'hidden');
+        const afterRule = document.querySelector('body::after');
+      }
+      renderSettings('sheet-settings');
+      renderSettings('drawer-settings');
+      updateUI();
+    });
+    container.appendChild(row);
+  });
+}
+
+// ── Browser ────────────────────────────────────────────
+function currentFolder() {
+  return state.browserPath[state.browserPath.length - 1];
+}
+
+function renderBrowser(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  // Breadcrumb
+  const bc = document.createElement('div');
+  bc.className = 'breadcrumb';
+  state.browserPath.forEach((node, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = ' > ';
+      bc.appendChild(sep);
+    }
+    const span = document.createElement('span');
+    span.textContent = node.name;
+    if (i < state.browserPath.length - 1) {
+      span.addEventListener('click', () => {
+        state.browserPath = state.browserPath.slice(0, i + 1);
+        state.searchQuery = '';
+        renderBrowser('sheet-browser');
+        renderBrowser('drawer-browser');
+      });
+    }
+    bc.appendChild(span);
+  });
+  container.appendChild(bc);
+
+  // Search
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'search-wrap';
+  const searchIcon = document.createElement('span');
+  searchIcon.className = 'search-icon';
+  searchIcon.textContent = '>';
+  const searchInput = document.createElement('input');
+  searchInput.className = 'search-input';
+  searchInput.type = 'text';
+  searchInput.placeholder = 'SEARCH TARGETS...';
+  searchInput.value = state.searchQuery;
+  searchInput.addEventListener('input', (e) => {
+    state.searchQuery = e.target.value;
+    renderBrowser('sheet-browser');
+    renderBrowser('drawer-browser');
+  });
+  searchWrap.appendChild(searchIcon);
+  searchWrap.appendChild(searchInput);
+  container.appendChild(searchWrap);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'browser-actions';
+
+  if (state.browserPath.length > 1) {
+    const backBtn = document.createElement('button');
+    backBtn.className = 'action-btn';
+    backBtn.textContent = '< BACK';
+    backBtn.addEventListener('click', () => {
+      state.browserPath.pop();
+      state.searchQuery = '';
+      renderBrowser('sheet-browser');
+      renderBrowser('drawer-browser');
+    });
+    actions.appendChild(backBtn);
+  }
+
+  const playAllBtn = document.createElement('button');
+  playAllBtn.className = 'action-btn';
+  playAllBtn.textContent = 'PLAY ALL';
+  playAllBtn.addEventListener('click', () => {
+    const files = getAllFiles(currentFolder());
+    if (files.length === 0) return;
+    state.playlist = files;
+    state.shuffle = state.settings.shuffle;
+    state.repeat = state.settings.repeat;
+    setTrack(0);
+    closePanel();
+  });
+  actions.appendChild(playAllBtn);
+
+  const shuffleBtn = document.createElement('button');
+  shuffleBtn.className = 'action-btn';
+  shuffleBtn.textContent = 'SHUFFLE';
+  shuffleBtn.addEventListener('click', () => {
+    const files = getAllFiles(currentFolder());
+    if (files.length === 0) return;
+    state.playlist = files;
+    state.shuffle = true;
+    state.repeat = state.settings.repeat;
+    setTrack(Math.floor(Math.random() * files.length));
+    closePanel();
+  });
+  actions.appendChild(shuffleBtn);
+
+  container.appendChild(actions);
+
+  // File list
+  const folder = currentFolder();
+  if (!folder.children) return;
+
+  let items = folder.children;
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase();
+    items = items.filter(item => {
+      if (item.name.toLowerCase().includes(q)) return true;
+      if (item.type === 'folder') {
+        return getAllFiles(item).some(f => f.name.toLowerCase().includes(q));
+      }
+      return false;
+    });
+  }
+
+  const list = document.createElement('div');
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'tree-item ' + (item.type === 'folder' ? 'tree-folder' : 'tree-file');
+
+    const icon = document.createElement('span');
+    icon.className = 'tree-icon';
+    icon.textContent = item.type === 'folder' ? '[+]' : ' # ';
+
+    const label = document.createElement('span');
+    label.textContent = item.name;
+
+    row.appendChild(icon);
+    row.appendChild(label);
+
+    if (item.type === 'file') {
+      const meta = document.createElement('span');
+      meta.className = 'tree-meta';
+      meta.textContent = item.duration + '  ' + item.size;
+      row.appendChild(meta);
+      row.addEventListener('click', () => {
+        const files = getAllFiles(folder);
+        const idx = files.indexOf(item);
+        state.playlist = files;
+        state.shuffle = state.settings.shuffle;
+        state.repeat = state.settings.repeat;
+        setTrack(idx >= 0 ? idx : 0);
+        closePanel();
+      });
+    } else {
+      const meta = document.createElement('span');
+      meta.className = 'tree-meta';
+      const count = getAllFiles(item).length;
+      meta.textContent = count + ' TRK' + (count !== 1 ? 'S' : '');
+      row.appendChild(meta);
+      row.addEventListener('click', () => {
+        state.browserPath.push(item);
+        state.searchQuery = '';
+        renderBrowser('sheet-browser');
+        renderBrowser('drawer-browser');
+      });
+    }
+
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
+// ── Responsive Layout (ResizeObserver) ─────────────────
+function updateLayout() {
+  const w = window.innerWidth;
+  if (w >= 700) {
+    state.layoutMode = 'tablet';
+    document.body.classList.remove('layout-mobile');
+    document.body.classList.add('layout-tablet');
+    // If panel was open in mobile, transfer to drawer
+    if (state.panelOpen) {
+      bottomSheet.classList.remove('open');
+      sideDrawer.classList.add('open');
+    }
+  } else {
+    state.layoutMode = 'mobile';
+    document.body.classList.remove('layout-tablet');
+    document.body.classList.add('layout-mobile');
+    // If panel was open in tablet, transfer to sheet
+    if (state.panelOpen) {
+      sideDrawer.classList.remove('open');
+      bottomSheet.classList.add('open');
+    }
+  }
+}
+
+const ro = new ResizeObserver(() => updateLayout());
+ro.observe(document.documentElement);
+updateLayout();
+
+// ── Keyboard Shortcuts ─────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowRight':
+      if (state.playlist.length > 0) playNextTrack();
+      break;
+    case 'ArrowLeft':
+      if (state.playlist.length > 0) playPrevTrack();
+      break;
+    case 'Escape':
+      if (state.panelOpen) closePanel();
+      break;
+    case 'Tab':
+      if (!state.panelOpen) { e.preventDefault(); openPanel(); }
+      break;
+  }
+});
+
+// ── Init ───────────────────────────────────────────────
+updateUI();
+lastTime = performance.now();
+requestAnimationFrame(drawRadar);
+</script>
+</body>
+</html>

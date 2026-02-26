@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP - SYNTHWAVE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* ========== RESET & BASE ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0D0221;
+  --pink: #FF2975;
+  --cyan: #00F0FF;
+  --violet: #F222FF;
+  --yellow: #FDE74C;
+  --surface: rgba(13,2,33,0.85);
+  --surface-border: rgba(0,240,255,0.25);
+  --glow-pink: 0 0 8px #FF2975, 0 0 20px rgba(255,41,117,0.4);
+  --glow-cyan: 0 0 8px #00F0FF, 0 0 20px rgba(0,240,255,0.4);
+  --glow-violet: 0 0 8px #F222FF, 0 0 20px rgba(242,34,255,0.4);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: #e0d0ff;
+  font-family: monospace;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* ========== APP LAYOUT ========== */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.screen { display: none; flex: 1; overflow: hidden; position: relative; }
+.screen.active { display: flex; flex-direction: column; }
+
+/* ========== NAV BAR ========== */
+nav {
+  display: flex;
+  border-top: 2px solid var(--cyan);
+  background: rgba(13,2,33,0.95);
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: rgba(0,240,255,0.5);
+  padding: 14px 8px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.3s, text-shadow 0.3s;
+  min-height: 48px;
+}
+
+nav button:hover { color: var(--cyan); text-shadow: var(--glow-cyan); }
+
+nav button.active {
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  animation: nav-pulse 2s ease-in-out infinite;
+}
+
+nav button.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 20%; right: 20%;
+  height: 2px;
+  background: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+@keyframes nav-pulse {
+  0%, 100% { text-shadow: 0 0 8px #00F0FF, 0 0 20px rgba(0,240,255,0.4); }
+  50% { text-shadow: 0 0 12px #00F0FF, 0 0 30px rgba(0,240,255,0.6), 0 0 50px rgba(0,240,255,0.2); }
+}
+
+/* ========== HOME SCREEN ========== */
+#home {
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+/* --- Perspective Grid Floor --- */
+.grid-floor-wrapper {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 55%;
+  perspective: 400px;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.grid-floor {
+  position: absolute;
+  bottom: 0; left: -50%; right: -50%;
+  height: 200%;
+  transform: rotateX(65deg);
+  transform-origin: center bottom;
+  background:
+    linear-gradient(to right, rgba(0,240,255,0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242,34,255,0.12) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: grid-scroll 4s linear infinite;
+}
+
+@keyframes grid-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+
+/* --- Sunset Circle --- */
+.sunset-wrapper {
+  position: absolute;
+  top: 3%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  width: clamp(180px, 30vw, 320px);
+  height: clamp(180px, 30vw, 320px);
+}
+
+.sunset {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(
+    to bottom,
+    #FDE74C 0%,
+    #FF2975 40%,
+    #F222FF 70%,
+    #6B0F6B 100%
+  );
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(255,41,117,0.3), 0 0 120px rgba(242,34,255,0.15);
+}
+
+.sunset-stripes {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 55%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.sunset-stripe {
+  background: var(--bg);
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* stripe sizes grow from top to bottom */
+.sunset-stripe:nth-child(1) { height: 3px; margin-bottom: 10px; }
+.sunset-stripe:nth-child(2) { height: 4px; margin-bottom: 9px; }
+.sunset-stripe:nth-child(3) { height: 5px; margin-bottom: 8px; }
+.sunset-stripe:nth-child(4) { height: 6px; margin-bottom: 7px; }
+.sunset-stripe:nth-child(5) { height: 8px; margin-bottom: 6px; }
+.sunset-stripe:nth-child(6) { height: 10px; margin-bottom: 5px; }
+.sunset-stripe:nth-child(7) { height: 12px; margin-bottom: 4px; }
+.sunset-stripe:nth-child(8) { height: 14px; }
+
+/* --- Spectrum Visualizer --- */
+.spectrum-container {
+  position: relative;
+  z-index: 10;
+  width: 90%;
+  max-width: 600px;
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+
+.spectrum-bar {
+  flex: 1;
+  max-width: 14px;
+  min-width: 4px;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.08s ease-out;
+  position: relative;
+}
+
+.spectrum-bar.pink {
+  background: linear-gradient(to top, var(--pink), #ff6ab0);
+  box-shadow: 0 0 6px var(--pink), 0 0 16px rgba(255,41,117,0.4);
+}
+
+.spectrum-bar.cyan {
+  background: linear-gradient(to top, var(--cyan), #80f8ff);
+  box-shadow: 0 0 6px var(--cyan), 0 0 16px rgba(0,240,255,0.4);
+}
+
+/* --- SVG Cassette --- */
+.cassette-wrapper {
+  position: relative;
+  z-index: 10;
+  width: clamp(200px, 55vw, 340px);
+  margin-bottom: 10px;
+}
+
+.cassette-svg {
+  width: 100%;
+  height: auto;
+}
+
+.cassette-svg .outline {
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1.5;
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  animation: cassette-draw 3s ease forwards, cassette-glow 3s ease-in-out infinite 3s;
+}
+
+.cassette-svg .outline-pink {
+  fill: none;
+  stroke: var(--pink);
+  stroke-width: 1.5;
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  animation: cassette-draw 3s 0.5s ease forwards;
+}
+
+.cassette-svg .hub {
+  fill: none;
+  stroke: var(--violet);
+  stroke-width: 1.5;
+  animation: spin 4s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes cassette-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes cassette-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(0,240,255,0.4)); }
+  50% { filter: drop-shadow(0 0 10px rgba(0,240,255,0.7)); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.hub-left { transform-origin: 90px 58px !important; }
+.hub-right { transform-origin: 210px 58px !important; }
+
+/* --- Now Playing --- */
+.now-playing {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.now-playing .track-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(10px, 2.5vw, 14px);
+  color: var(--pink);
+  text-shadow: var(--glow-pink);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 85vw;
+}
+
+.now-playing .track-artist {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--cyan);
+  text-shadow: 0 0 6px rgba(0,240,255,0.5);
+}
+
+/* --- Transport Controls --- */
+.transport {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.transport button {
+  background: none;
+  border: 1.5px solid var(--cyan);
+  border-radius: 50%;
+  width: 48px; height: 48px;
+  color: var(--cyan);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 0 6px rgba(0,240,255,0.2);
+}
+
+.transport button:hover {
+  background: rgba(0,240,255,0.1);
+  box-shadow: var(--glow-cyan);
+}
+
+.transport .play-btn {
+  width: 56px; height: 56px;
+  border-color: var(--pink);
+  color: var(--pink);
+  font-size: 22px;
+  box-shadow: 0 0 8px rgba(255,41,117,0.3);
+}
+
+.transport .play-btn:hover {
+  background: rgba(255,41,117,0.1);
+  box-shadow: var(--glow-pink);
+}
+
+.transport .play-btn.playing {
+  background: rgba(255,41,117,0.15);
+  box-shadow: var(--glow-pink);
+  animation: play-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes play-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,41,117,0.3), 0 0 20px rgba(255,41,117,0.2); }
+  50% { box-shadow: 0 0 14px rgba(255,41,117,0.5), 0 0 35px rgba(255,41,117,0.3); }
+}
+
+/* --- Progress Bar --- */
+.progress-wrapper {
+  position: relative;
+  z-index: 10;
+  width: 85%;
+  max-width: 500px;
+  margin-bottom: 14px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(0,240,255,0.15);
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: pointer;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 22px 0;
+}
+
+.progress-track-inner {
+  width: 100%;
+  height: 4px;
+  background: rgba(0,240,255,0.15);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(to right, var(--pink), var(--violet));
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255,41,117,0.5);
+  transition: width 0.3s;
+}
+
+.progress-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(0,240,255,0.5);
+  margin-top: 2px;
+  font-family: monospace;
+}
+
+/* ========== SETTINGS SCREEN ========== */
+#settings {
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.settings-header {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--violet);
+  box-shadow: 0 1px 0 rgba(242,34,255,0.3);
+}
+
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.settings-section-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--violet);
+  text-shadow: 0 0 6px rgba(242,34,255,0.5);
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid rgba(0,240,255,0.1);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  background: rgba(13,2,33,0.6);
+  transition: all 0.2s;
+  cursor: pointer;
+  min-height: 48px;
+}
+
+.setting-row:hover, .setting-row:focus-within {
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,240,255,0.15);
+  border-left: 3px solid var(--cyan);
+}
+
+.setting-label {
+  color: #c0b0e0;
+  text-shadow: 0 0 4px rgba(192,176,224,0.3);
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.setting-value {
+  color: var(--yellow);
+  font-family: monospace;
+  font-size: 13px;
+  text-shadow: 0 0 6px rgba(253,231,76,0.4);
+}
+
+/* Toggle switch */
+.toggle {
+  width: 44px; height: 24px;
+  background: rgba(0,240,255,0.15);
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s;
+  border: 1px solid rgba(0,240,255,0.3);
+  flex-shrink: 0;
+}
+
+.toggle.on {
+  background: rgba(0,240,255,0.3);
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,240,255,0.3);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #555;
+  transition: all 0.3s;
+}
+
+.toggle.on::after {
+  left: 22px;
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan);
+}
+
+/* Neon divider */
+.neon-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--pink), var(--violet), var(--cyan), transparent);
+  margin: 20px 0;
+  box-shadow: 0 0 4px rgba(255,41,117,0.3);
+}
+
+/* Select dropdown */
+.neon-select {
+  background: rgba(13,2,33,0.8);
+  border: 1px solid rgba(0,240,255,0.3);
+  color: var(--yellow);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 34px;
+}
+
+.neon-select:focus {
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+  outline: none;
+}
+
+/* ========== BROWSER SCREEN ========== */
+#browser {
+  overflow: hidden;
+  padding: 0;
+}
+
+.browser-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0,240,255,0.2);
+  flex-shrink: 0;
+}
+
+.browser-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  margin-bottom: 10px;
+}
+
+.browser-path {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--violet);
+  text-shadow: 0 0 4px rgba(242,34,255,0.3);
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(0,240,255,0.3);
+  border-radius: 4px;
+  padding: 0 10px;
+  background: rgba(13,2,33,0.6);
+  transition: all 0.2s;
+  min-height: 48px;
+}
+
+.search-bar:focus-within {
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.search-icon {
+  color: var(--cyan);
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #e0d0ff;
+  font-family: monospace;
+  font-size: 13px;
+  outline: none;
+  padding: 8px 0;
+}
+
+.search-input::placeholder {
+  color: rgba(0,240,255,0.3);
+}
+
+/* Browser action buttons */
+.browser-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.browser-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(13,2,33,0.6);
+  border: 1.5px solid var(--pink);
+  border-radius: 4px;
+  color: var(--pink);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  padding: 10px 8px;
+  cursor: pointer;
+  min-height: 42px;
+  transition: all 0.25s;
+  text-shadow: 0 0 4px rgba(255,41,117,0.4);
+  box-shadow: 0 0 6px rgba(255,41,117,0.15);
+}
+
+.browser-action-btn:hover {
+  background: rgba(255,41,117,0.1);
+  box-shadow: var(--glow-pink);
+  text-shadow: var(--glow-pink);
+}
+
+.browser-action-btn:active {
+  background: rgba(255,41,117,0.2);
+}
+
+.browser-action-btn.shuffle-btn {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  text-shadow: 0 0 4px rgba(0,240,255,0.4);
+  box-shadow: 0 0 6px rgba(0,240,255,0.15);
+}
+
+.browser-action-btn.shuffle-btn:hover {
+  background: rgba(0,240,255,0.1);
+  box-shadow: var(--glow-cyan);
+  text-shadow: var(--glow-cyan);
+}
+
+.browser-action-btn.shuffle-btn:active {
+  background: rgba(0,240,255,0.2);
+}
+
+.browser-action-btn .btn-icon {
+  font-family: monospace;
+  font-size: 14px;
+}
+
+/* File list */
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.file-list::-webkit-scrollbar { width: 6px; }
+.file-list::-webkit-scrollbar-track { background: transparent; }
+.file-list::-webkit-scrollbar-thumb { background: rgba(0,240,255,0.2); border-radius: 3px; }
+
+.file-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+  min-height: 48px;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.file-item:hover {
+  background: rgba(0,240,255,0.05);
+  border-left-color: rgba(0,240,255,0.3);
+}
+
+.file-item.selected {
+  background: rgba(0,240,255,0.08);
+  border-left-color: var(--cyan);
+  box-shadow: inset 0 0 20px rgba(0,240,255,0.03);
+}
+
+.file-item .icon {
+  width: 20px;
+  margin-right: 10px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.file-item .icon.folder { color: var(--cyan); text-shadow: 0 0 4px rgba(0,240,255,0.4); }
+.file-item .icon.file { color: var(--pink); text-shadow: 0 0 4px rgba(255,41,117,0.4); }
+.file-item .icon.back { color: var(--violet); }
+
+.file-item .name { flex: 1; color: #d0c0f0; text-shadow: 0 0 4px rgba(208,192,240,0.15); }
+.file-item .meta {
+  font-size: 11px;
+  color: rgba(253,231,76,0.5);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.file-item.playing .name {
+  color: var(--pink);
+  text-shadow: var(--glow-pink);
+}
+
+/* ========== SCROLLBAR GLOBAL ========== */
+#settings::-webkit-scrollbar { width: 6px; }
+#settings::-webkit-scrollbar-track { background: transparent; }
+#settings::-webkit-scrollbar-thumb { background: rgba(242,34,255,0.3); border-radius: 3px; }
+
+/* ========== RESPONSIVE: MOBILE ========== */
+@media (max-width: 600px) {
+  .grid-floor-wrapper { display: none; }
+  .sunset-wrapper { top: 2%; width: 140px; height: 140px; }
+  .spectrum-container { height: 80px; }
+  .cassette-wrapper { width: 180px; }
+  nav button { font-size: 9px; padding: 12px 4px; }
+  .now-playing .track-title { font-size: 9px; }
+  .transport button { width: 44px; height: 44px; }
+  .transport .play-btn { width: 50px; height: 50px; }
+  .browser-action-btn { font-size: 8px; padding: 8px 4px; min-height: 38px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ======= HOME SCREEN ======= -->
+  <div id="home" class="screen active">
+    <!-- Perspective Grid Floor -->
+    <div class="grid-floor-wrapper">
+      <div class="grid-floor"></div>
+    </div>
+
+    <!-- Sunset -->
+    <div class="sunset-wrapper">
+      <div class="sunset">
+        <div class="sunset-stripes">
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+          <div class="sunset-stripe"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spectrum Visualizer -->
+    <div class="spectrum-container" id="spectrum"></div>
+
+    <!-- SVG Cassette -->
+    <div class="cassette-wrapper">
+      <svg class="cassette-svg" viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg">
+        <!-- Main body outline -->
+        <rect class="outline" x="10" y="10" width="280" height="100" rx="8"/>
+        <!-- Inner window -->
+        <rect class="outline-pink" x="60" y="25" width="180" height="50" rx="4"/>
+        <!-- Tape reels / hubs -->
+        <circle class="hub hub-left" cx="90" cy="58" r="18"/>
+        <circle class="hub hub-right" cx="210" cy="58" r="18"/>
+        <!-- Hub inner circles -->
+        <circle class="hub hub-left" cx="90" cy="58" r="8"/>
+        <circle class="hub hub-right" cx="210" cy="58" r="8"/>
+        <!-- Tape between reels -->
+        <line class="outline" x1="108" y1="58" x2="192" y2="58" style="stroke-dasharray:4 4; animation: none;"/>
+        <!-- Bottom guides -->
+        <path class="outline" d="M70,90 L90,80 L120,85 L180,85 L210,80 L230,90" style="animation-delay:1s;"/>
+        <!-- Label area lines -->
+        <line class="outline-pink" x1="80" y1="35" x2="220" y2="35" style="animation-delay:0.8s;"/>
+        <line class="outline-pink" x1="80" y1="42" x2="220" y2="42" style="animation-delay:1s;"/>
+        <!-- FILEAMP text -->
+        <text x="150" y="53" text-anchor="middle" font-family="'Press Start 2P', monospace" font-size="6" fill="#00F0FF" opacity="0.7">FILEAMP</text>
+      </svg>
+    </div>
+
+    <!-- Now Playing -->
+    <div class="now-playing">
+      <div class="track-title" id="home-track-title">Stairway to Heaven</div>
+      <div class="track-artist" id="home-track-artist">Led Zeppelin</div>
+    </div>
+
+    <!-- Transport -->
+    <div class="transport">
+      <button onclick="prevTrack()" aria-label="Previous track">&#9198;</button>
+      <button class="play-btn" id="play-btn" onclick="togglePlay()" aria-label="Play or pause">&#9654;</button>
+      <button onclick="nextTrack()" aria-label="Next track">&#9197;</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-wrapper">
+      <div class="progress-track" onclick="seekProgress(event)">
+        <div class="progress-track-inner">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+      <div class="progress-time">
+        <span id="time-current">02:48</span>
+        <span id="time-total">08:02</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= SETTINGS SCREEN ======= -->
+  <div id="settings" class="screen">
+    <div class="settings-header">SETTINGS</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">PLAYBACK</div>
+      <div class="setting-row">
+        <span class="setting-label">Shuffle</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')" role="switch" tabindex="0" aria-label="Toggle shuffle"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Repeat</span>
+        <select class="neon-select" aria-label="Repeat mode">
+          <option>Off</option>
+          <option selected>All</option>
+          <option>One</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Crossfade</span>
+        <span class="setting-value">3s</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Gapless Playback</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')" role="switch" tabindex="0" aria-label="Toggle gapless playback"></div>
+      </div>
+    </div>
+
+    <div class="neon-divider"></div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">AUDIO</div>
+      <div class="setting-row">
+        <span class="setting-label">Equalizer</span>
+        <span class="setting-value">Synthwave</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Bass Boost</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')" role="switch" tabindex="0" aria-label="Toggle bass boost"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Normalization</span>
+        <div class="toggle" onclick="this.classList.toggle('on')" role="switch" tabindex="0" aria-label="Toggle normalization"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Output Device</span>
+        <select class="neon-select" aria-label="Output device">
+          <option>System Default</option>
+          <option>Headphones</option>
+          <option>Speakers</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="neon-divider"></div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">DISPLAY</div>
+      <div class="setting-row">
+        <span class="setting-label">Spectrum Style</span>
+        <select class="neon-select" aria-label="Spectrum style">
+          <option selected>Bars</option>
+          <option>Wave</option>
+          <option>Circle</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Grid Intensity</span>
+        <span class="setting-value">High</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Show Cassette</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')" role="switch" tabindex="0" aria-label="Toggle cassette display"></div>
+      </div>
+    </div>
+
+    <div class="neon-divider"></div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">LIBRARY</div>
+      <div class="setting-row">
+        <span class="setting-label">Scan Folders</span>
+        <span class="setting-value">/Media</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Auto-scan on Start</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')" role="switch" tabindex="0" aria-label="Toggle auto-scan"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= BROWSER SCREEN ======= -->
+  <div id="browser" class="screen">
+    <div class="browser-header">
+      <div class="browser-title">BROWSER</div>
+      <div class="browser-path" id="browser-path">/Media</div>
+      <div class="search-bar">
+        <span class="search-icon">&#128269;</span>
+        <input class="search-input" id="search-input" type="text" placeholder="Search files..." aria-label="Search files">
+      </div>
+      <div class="browser-actions">
+        <button class="browser-action-btn" onclick="playAllInFolder()" aria-label="Play all files in current folder">
+          <span class="btn-icon">&#9654;</span> PLAY ALL
+        </button>
+        <button class="browser-action-btn shuffle-btn" onclick="shuffleAllInFolder()" aria-label="Shuffle all files in current folder">
+          <span class="btn-icon">&#8645;</span> SHUFFLE
+        </button>
+      </div>
+    </div>
+    <div class="file-list" id="file-list"></div>
+  </div>
+
+  <!-- ======= NAV BAR ======= -->
+  <nav>
+    <button class="active" onclick="showScreen('home')" aria-label="Home screen">[HOME]</button>
+    <button onclick="showScreen('settings')" aria-label="Settings screen">[SETTINGS]</button>
+    <button onclick="showScreen('browser')" aria-label="Browser screen">[BROWSER]</button>
+  </nav>
+</div>
+
+<script>
+// ========== FILE TREE DATA ==========
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ========== STATE ==========
+let isPlaying = false;
+let currentTrack = { name: 'Stairway to Heaven.mp3', duration: '08:02', size: '11.2 MB' };
+let currentFolder = FILE_TREE;
+let folderStack = [];
+let spectrumBars = [];
+let spectrumValues = [];
+let animFrameId = null;
+
+// Gather all files for prev/next
+function gatherFiles(node) {
+  let files = [];
+  if (node.type === 'file') return [node];
+  if (node.children) node.children.forEach(c => files.push(...gatherFiles(c)));
+  return files;
+}
+const allFiles = gatherFiles(FILE_TREE);
+let currentTrackIndex = 0;
+
+function getArtistFromTrack(track) {
+  // Walk tree to find parent folder name
+  function find(node, parent) {
+    if (node.type === 'file' && node.name === track.name) return parent ? parent.name : '';
+    if (node.children) {
+      for (const c of node.children) {
+        const r = find(c, node);
+        if (r !== null) return r;
+      }
+    }
+    return null;
+  }
+  return find(FILE_TREE, null) || 'Unknown Artist';
+}
+
+// ========== NAVIGATION ==========
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav button').forEach((b, i) => {
+    b.classList.toggle('active', ['home','settings','browser'][i] === id);
+  });
+  if (id === 'browser') renderBrowser();
+}
+
+// ========== PLAY / PAUSE ==========
+function togglePlay() {
+  isPlaying = !isPlaying;
+  const btn = document.getElementById('play-btn');
+  btn.innerHTML = isPlaying ? '&#9646;&#9646;' : '&#9654;';
+  btn.classList.toggle('playing', isPlaying);
+
+  // Toggle hub animation
+  document.querySelectorAll('.hub').forEach(h => {
+    h.style.animationPlayState = isPlaying ? 'running' : 'paused';
+  });
+}
+
+function setTrack(track) {
+  currentTrack = track;
+  currentTrackIndex = allFiles.indexOf(track);
+  const displayName = track.name.replace('.mp3', '');
+  document.getElementById('home-track-title').textContent = displayName;
+  document.getElementById('home-track-artist').textContent = getArtistFromTrack(track);
+  document.getElementById('time-total').textContent = track.duration;
+  document.getElementById('time-current').textContent = '00:00';
+  document.getElementById('progress-fill').style.width = '0%';
+  if (!isPlaying) togglePlay();
+}
+
+function prevTrack() {
+  currentTrackIndex = (currentTrackIndex - 1 + allFiles.length) % allFiles.length;
+  setTrack(allFiles[currentTrackIndex]);
+}
+
+function nextTrack() {
+  currentTrackIndex = (currentTrackIndex + 1) % allFiles.length;
+  setTrack(allFiles[currentTrackIndex]);
+}
+
+function playAllInFolder() {
+  const files = gatherFiles(currentFolder);
+  if (files.length === 0) return;
+  // Replace global allFiles with this folder's files for prev/next navigation
+  allFiles.length = 0;
+  allFiles.push(...files);
+  currentTrackIndex = 0;
+  setTrack(allFiles[0]);
+  showScreen('home');
+}
+
+function shuffleAllInFolder() {
+  const files = gatherFiles(currentFolder);
+  if (files.length === 0) return;
+  // Fisher-Yates shuffle
+  for (let i = files.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
+  allFiles.length = 0;
+  allFiles.push(...files);
+  currentTrackIndex = 0;
+  setTrack(allFiles[0]);
+  showScreen('home');
+}
+
+function seekProgress(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  document.getElementById('progress-fill').style.width = (pct * 100) + '%';
+}
+
+// ========== SPECTRUM ==========
+function initSpectrum() {
+  const container = document.getElementById('spectrum');
+  const barCount = 32;
+  container.innerHTML = '';
+  spectrumBars = [];
+  spectrumValues = [];
+  for (let i = 0; i < barCount; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'spectrum-bar ' + (i % 2 === 0 ? 'pink' : 'cyan');
+    container.appendChild(bar);
+    spectrumBars.push(bar);
+    spectrumValues.push(0);
+  }
+}
+
+function animateSpectrum() {
+  for (let i = 0; i < spectrumValues.length; i++) {
+    const target = isPlaying ? (Math.random() * 0.7 + 0.15) : 0.03;
+    spectrumValues[i] += (target - spectrumValues[i]) * 0.18;
+    spectrumBars[i].style.height = (spectrumValues[i] * 100) + '%';
+  }
+  animFrameId = requestAnimationFrame(animateSpectrum);
+}
+
+// ========== BROWSER ==========
+function renderBrowser(filter) {
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+
+  // Path display
+  const pathParts = folderStack.map(f => f.name);
+  pathParts.push(currentFolder.name);
+  document.getElementById('browser-path').textContent = '/' + pathParts.join('/');
+
+  // Back button
+  if (folderStack.length > 0) {
+    const back = document.createElement('div');
+    back.className = 'file-item';
+    back.innerHTML = '<span class="icon back">..</span><span class="name">Back</span>';
+    back.onclick = () => {
+      currentFolder = folderStack.pop();
+      renderBrowser();
+    };
+    list.appendChild(back);
+  }
+
+  if (!currentFolder.children) return;
+
+  let items = [...currentFolder.children];
+
+  // Filter
+  if (filter) {
+    const q = filter.toLowerCase();
+    items = items.filter(item => {
+      if (item.name.toLowerCase().includes(q)) return true;
+      if (item.type === 'folder') {
+        return gatherFiles(item).some(f => f.name.toLowerCase().includes(q));
+      }
+      return false;
+    });
+  }
+
+  // Sort: folders first
+  items.sort((a, b) => {
+    if (a.type === b.type) return a.name.localeCompare(b.name);
+    return a.type === 'folder' ? -1 : 1;
+  });
+
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'file-item';
+    if (item.type === 'file' && item.name === currentTrack.name) {
+      row.classList.add('playing');
+    }
+
+    if (item.type === 'folder') {
+      row.innerHTML = `<span class="icon folder">&#128193;</span><span class="name">${item.name}</span><span class="meta">${item.children ? item.children.length + ' items' : ''}</span>`;
+      row.onclick = () => {
+        folderStack.push(currentFolder);
+        currentFolder = item;
+        document.getElementById('search-input').value = '';
+        renderBrowser();
+      };
+    } else {
+      row.innerHTML = `<span class="icon file">&#9835;</span><span class="name">${item.name}</span><span class="meta">${item.duration || ''} &middot; ${item.size || ''}</span>`;
+      row.onclick = () => {
+        setTrack(item);
+        renderBrowser();
+      };
+    }
+    list.appendChild(row);
+  });
+}
+
+// Search
+document.getElementById('search-input').addEventListener('input', function() {
+  renderBrowser(this.value);
+});
+
+// ========== RESPONSIVE: Spectrum bar count ==========
+function handleResize() {
+  // Adjust spectrum bar count based on container width
+  const container = document.getElementById('spectrum');
+  if (!container) return;
+  const w = container.offsetWidth;
+  const desiredBars = Math.max(12, Math.min(48, Math.floor(w / 14)));
+  if (desiredBars !== spectrumBars.length) {
+    const oldValues = [...spectrumValues];
+    initSpectrumWithCount(desiredBars, oldValues);
+  }
+}
+
+function initSpectrumWithCount(count, prevValues) {
+  const container = document.getElementById('spectrum');
+  container.innerHTML = '';
+  spectrumBars = [];
+  spectrumValues = [];
+  for (let i = 0; i < count; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'spectrum-bar ' + (i % 2 === 0 ? 'pink' : 'cyan');
+    container.appendChild(bar);
+    spectrumBars.push(bar);
+    spectrumValues.push(prevValues && prevValues[i] !== undefined ? prevValues[i] : 0);
+  }
+}
+
+// ========== INIT ==========
+initSpectrum();
+animateSpectrum();
+renderBrowser();
+
+// Pause hub animation initially
+document.querySelectorAll('.hub').forEach(h => {
+  h.style.animationPlayState = 'paused';
+});
+
+// ResizeObserver for responsive spectrum
+if (typeof ResizeObserver !== 'undefined') {
+  const ro = new ResizeObserver(() => handleResize());
+  ro.observe(document.getElementById('spectrum'));
+}
+
+// Simulate progress advancing
+setInterval(() => {
+  if (!isPlaying) return;
+  const fill = document.getElementById('progress-fill');
+  let w = parseFloat(fill.style.width) || 0;
+  w += 0.15;
+  if (w > 100) { w = 0; nextTrack(); }
+  fill.style.width = w + '%';
+
+  // Update time display
+  const totalParts = currentTrack.duration.split(':');
+  const totalSec = parseInt(totalParts[0]) * 60 + parseInt(totalParts[1]);
+  const curSec = Math.floor(totalSec * (w / 100));
+  const m = String(Math.floor(curSec / 60)).padStart(2, '0');
+  const s = String(curSec % 60).padStart(2, '0');
+  document.getElementById('time-current').textContent = m + ':' + s;
+}, 200);
+</script>
+</body>
+</html>

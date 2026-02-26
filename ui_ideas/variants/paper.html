@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP — PAPER</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --cream: #F5F0E8;
+  --ink: #1A1A1A;
+  --ink-light: #4A4540;
+  --ink-muted: #8A8278;
+  --ink-faint: #B8B0A4;
+  --rule: #D0C8B8;
+  --rule-light: #E0D8CC;
+  --accent: #6B5E4F;
+  --serif: Georgia, "Times New Roman", "Palatino Linotype", serif;
+  --mono: "Courier New", "Courier", monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--cream);
+  font-family: var(--serif);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* Paper texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(139,119,101,0.015) 2px,
+      rgba(139,119,101,0.015) 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 3px,
+      rgba(139,119,101,0.01) 3px,
+      rgba(139,119,101,0.01) 6px
+    ),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ─── MAIN PLAYER LAYOUT ─── */
+.player-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  overflow-y: auto;
+}
+
+.player-content {
+  max-width: 600px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* FileAMP masthead */
+.masthead {
+  font-family: var(--serif);
+  font-size: 11px;
+  font-variant: small-caps;
+  letter-spacing: 0.25em;
+  color: var(--ink-faint);
+  margin-bottom: 40px;
+  text-align: center;
+  user-select: none;
+}
+
+/* Track info - chapter heading style */
+.chapter-block {
+  text-align: center;
+  margin-bottom: 28px;
+  max-width: 100%;
+  padding: 0 12px;
+}
+
+.chapter-number {
+  font-size: 12px;
+  font-variant: small-caps;
+  letter-spacing: 0.2em;
+  color: var(--ink-muted);
+  margin-bottom: 8px;
+}
+
+.chapter-title {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: normal;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+
+.chapter-author {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-style: italic;
+  color: var(--ink-light);
+  margin-bottom: 6px;
+}
+
+.chapter-album {
+  font-size: 12px;
+  font-variant: small-caps;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted);
+}
+
+/* Decorative rule */
+.decorative-rule {
+  width: 280px;
+  max-width: 80%;
+  text-align: center;
+  color: var(--rule);
+  font-size: 14px;
+  letter-spacing: 2px;
+  margin-bottom: 28px;
+  user-select: none;
+}
+
+/* Text-art spectrum */
+.spectrum-container {
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-light);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  height: 120px;
+  margin-bottom: 28px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 0 12px;
+}
+
+.spectrum-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 12px;
+  height: 100%;
+}
+
+.spectrum-col span {
+  display: block;
+  width: 100%;
+  text-align: center;
+  line-height: 1.05;
+  transition: opacity 0.15s ease;
+}
+
+.spectrum-col .bar-char {
+  color: var(--ink-light);
+}
+
+.spectrum-col .dot-char {
+  color: var(--ink-faint);
+}
+
+/* Progress bar - text based */
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 460px;
+  margin-bottom: 24px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-muted);
+  padding: 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-time {
+  flex-shrink: 0;
+  width: 42px;
+  text-align: center;
+}
+
+.progress-track {
+  flex: 1;
+  position: relative;
+  cursor: pointer;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.progress-text {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+/* Transport controls */
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.transport-btn {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px 6px;
+  min-height: 48px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.transport-btn:hover {
+  color: var(--ink);
+}
+
+.transport-btn.active {
+  color: var(--ink);
+  font-weight: bold;
+}
+
+/* Trigger button */
+.trigger-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+  min-height: 48px;
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  z-index: 40;
+  user-select: none;
+}
+
+.trigger-btn:hover {
+  color: var(--ink);
+}
+
+/* ─── PANEL OVERLAY ─── */
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+  z-index: 50;
+}
+
+.panel-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile: bottom sheet */
+.bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 85vh;
+  transform: translateY(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  border-radius: 12px 12px 0 0;
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -4px 40px rgba(0,0,0,0.15);
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* Tablet+: side drawer */
+.side-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 400px;
+  transform: translateX(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  background: var(--cream);
+  border-left: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -4px 0 40px rgba(0,0,0,0.1);
+}
+
+.side-drawer.open {
+  transform: translateX(0);
+}
+
+/* Hide inactive panel type */
+.bottom-sheet.hidden { display: none; }
+.side-drawer.hidden { display: none; }
+
+/* Panel handle (bottom sheet) */
+.panel-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--rule);
+  border-radius: 2px;
+  margin: 10px auto 6px;
+  flex-shrink: 0;
+}
+
+.side-drawer .panel-handle { display: none; }
+
+/* Panel header */
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px 10px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  gap: 0;
+}
+
+.panel-tab {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 16px;
+  min-height: 44px;
+  transition: color 0.2s ease;
+  position: relative;
+}
+
+.panel-tab:hover {
+  color: var(--ink-light);
+}
+
+.panel-tab.active {
+  color: var(--ink);
+}
+
+.panel-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 2px;
+  height: 1px;
+  background: var(--ink);
+}
+
+.panel-tab-sep {
+  color: var(--rule);
+  font-size: 14px;
+  padding: 0 4px;
+  user-select: none;
+}
+
+.panel-close {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.panel-close:hover {
+  color: var(--ink);
+}
+
+/* Panel body */
+.panel-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel-screen {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-screen.active {
+  display: flex;
+}
+
+/* ─── BROWSER (inside panel) ─── */
+.browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--rule-light);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.browser-toolbar-btn {
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-muted);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 6px 14px;
+  min-height: 44px;
+  transition: all 0.2s ease;
+}
+
+.browser-toolbar-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+.browser-search {
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 6px 12px;
+  flex: 1;
+  min-width: 100px;
+  min-height: 44px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.browser-search:focus {
+  border-color: var(--ink-muted);
+}
+
+.browser-search::placeholder {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+.breadcrumb {
+  font-family: var(--serif);
+  font-size: 12px;
+  color: var(--ink-muted);
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--rule-light);
+  white-space: nowrap;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.breadcrumb-part {
+  cursor: pointer;
+  color: var(--ink-muted);
+  background: none;
+  border: none;
+  font-family: var(--serif);
+  font-size: 12px;
+  padding: 2px 0;
+  font-style: italic;
+}
+
+.breadcrumb-part:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.breadcrumb-sep {
+  color: var(--ink-faint);
+  margin: 0 4px;
+}
+
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 48px;
+  transition: background 0.15s ease;
+  gap: 8px;
+  border-bottom: 1px solid transparent;
+}
+
+.file-row:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+.file-row .file-icon {
+  width: 28px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.file-row .file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--serif);
+}
+
+.file-row .folder-name {
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+}
+
+.file-row .file-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.file-row.is-folder .file-name {
+  font-weight: normal;
+}
+
+.browser-status {
+  font-family: var(--serif);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-faint);
+  padding: 6px 20px;
+  border-top: 1px solid var(--rule-light);
+  flex-shrink: 0;
+}
+
+/* ─── SETTINGS (inside panel) ─── */
+.settings-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.settings-section-title {
+  font-family: var(--serif);
+  font-size: 13px;
+  font-variant: small-caps;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  margin-top: 20px;
+}
+
+.settings-section-title:first-child {
+  margin-top: 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 4px;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 14px;
+  min-height: 44px;
+  transition: background 0.15s ease;
+  border-radius: 3px;
+}
+
+.settings-row:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+.settings-row .key {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--ink-light);
+}
+
+.settings-row .dots {
+  flex: 1;
+  overflow: hidden;
+  color: var(--rule);
+  white-space: nowrap;
+  margin: 0 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.settings-row .value {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--ink);
+  font-style: italic;
+}
+
+/* ─── RESPONSIVE ─── */
+body.mobile .player-page {
+  padding: 20px 16px;
+}
+
+body.mobile .masthead {
+  margin-bottom: 24px;
+  font-size: 10px;
+}
+
+body.mobile .chapter-title {
+  font-size: 24px;
+}
+
+body.mobile .chapter-author {
+  font-size: 15px;
+}
+
+body.mobile .spectrum-container {
+  height: 80px;
+}
+
+body.mobile .spectrum-col {
+  width: 9px;
+}
+
+body.mobile .spectrum-col span {
+  font-size: 12px;
+}
+
+body.mobile .decorative-rule {
+  width: 200px;
+  margin-bottom: 20px;
+}
+
+body.mobile .progress-row {
+  font-size: 12px;
+}
+
+body.mobile .transport {
+  gap: 10px;
+}
+
+body.mobile .transport-btn {
+  font-size: 12px;
+  padding: 8px 4px;
+}
+
+body.tablet .chapter-title {
+  font-size: 30px;
+}
+
+body.desktop .chapter-title {
+  font-size: 34px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+}
+
+/* Selection color */
+::selection {
+  background: rgba(107,94,79,0.2);
+}
+</style>
+</head>
+<body>
+
+<!-- MAIN PLAYER PAGE -->
+<div class="player-page" id="player-page">
+  <div class="player-content">
+    <div class="masthead">FileAMP</div>
+
+    <div class="chapter-block">
+      <div class="chapter-number" id="chapter-number">Now Playing</div>
+      <h1 class="chapter-title" id="chapter-title">Stairway to Heaven</h1>
+      <div class="chapter-author" id="chapter-author">Led Zeppelin</div>
+      <div class="chapter-album" id="chapter-album">Rock</div>
+    </div>
+
+    <div class="decorative-rule" aria-hidden="true">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</div>
+
+    <div class="spectrum-container" id="spectrum" title="Click to toggle play/pause" role="button" tabindex="0"></div>
+
+    <div class="decorative-rule" aria-hidden="true">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</div>
+
+    <div class="progress-row">
+      <span class="progress-time" id="time-current">00:00</span>
+      <div class="progress-track" id="progress-track" role="slider" tabindex="0" aria-label="Seek">
+        <div class="progress-text" id="progress-text"></div>
+      </div>
+      <span class="progress-time" id="time-total">08:02</span>
+    </div>
+
+    <div class="transport">
+      <button class="transport-btn" id="btn-prev" title="Previous track">[ |&lt;&lt; ]</button>
+      <button class="transport-btn" id="btn-play" title="Play / Pause">[ PLAY ]</button>
+      <button class="transport-btn" id="btn-next" title="Next track">[ &gt;&gt;| ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRIGGER BUTTON -->
+<button class="trigger-btn" id="trigger-btn" title="Open panel">[&hellip;]</button>
+
+<!-- PANEL OVERLAY -->
+<div class="panel-overlay" id="panel-overlay"></div>
+
+<!-- BOTTOM SHEET (mobile) -->
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <button class="panel-tab active" data-panel="browse">Browse</button>
+    <span class="panel-tab-sep">|</span>
+    <button class="panel-tab" data-panel="settings">Settings</button>
+    <button class="panel-close" title="Close panel">&times;</button>
+  </div>
+  <div class="panel-body">
+    <div class="panel-screen active" id="bs-browse"></div>
+    <div class="panel-screen" id="bs-settings"></div>
+  </div>
+</div>
+
+<!-- SIDE DRAWER (tablet+) -->
+<div class="side-drawer" id="side-drawer">
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <button class="panel-tab active" data-panel="browse">Browse</button>
+    <span class="panel-tab-sep">|</span>
+    <button class="panel-tab" data-panel="settings">Settings</button>
+    <button class="panel-close" title="Close panel">&times;</button>
+  </div>
+  <div class="panel-body">
+    <div class="panel-screen active" id="sd-browse"></div>
+    <div class="panel-screen" id="sd-settings"></div>
+  </div>
+</div>
+
+<script>
+// ─── FILE TREE DATA ───
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ─── STATE ───
+let isPlaying = false;
+let currentTrack = { name: 'Stairway to Heaven.mp3', duration: '08:02', artist: 'Led Zeppelin', album: 'Rock' };
+let playProgress = 0;
+let lastTime = 0;
+let browserPath = [FILE_TREE];
+let searchQuery = '';
+let panelOpen = false;
+let activeTab = 'browse';
+let panelMode = 'bottom-sheet'; // or 'side-drawer'
+
+const SPECTRUM_COLS = 40;
+let spectrumData = new Array(SPECTRUM_COLS).fill(0);
+let spectrumTargets = new Array(SPECTRUM_COLS).fill(0);
+
+// ─── HELPERS ───
+function parseDuration(str) {
+  const parts = str.split(':');
+  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60).toString().padStart(2, '0');
+  const s = Math.floor(secs % 60).toString().padStart(2, '0');
+  return m + ':' + s;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(c => getAllFiles(c));
+}
+
+function findParentFolder(fileName, node, parent) {
+  if (!node) node = FILE_TREE;
+  if (!parent) parent = null;
+  if (node.type === 'file' && node.name === fileName) return parent;
+  if (node.children) {
+    for (const child of node.children) {
+      const result = findParentFolder(fileName, child, node);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
+function findGrandparentFolder(fileName) {
+  // Walk up two levels to get genre/album info
+  function search(node, parent, grandparent) {
+    if (node.type === 'file' && node.name === fileName) return { parent, grandparent };
+    if (node.children) {
+      for (const child of node.children) {
+        const result = search(child, node, parent);
+        if (result) return result;
+      }
+    }
+    return null;
+  }
+  return search(FILE_TREE, null, null);
+}
+
+const allFiles = getAllFiles(FILE_TREE);
+
+// ─── TRACK MANAGEMENT ───
+function setTrack(file) {
+  currentTrack = { name: file.name, duration: file.duration };
+  const hierarchy = findGrandparentFolder(file.name);
+  currentTrack.artist = hierarchy && hierarchy.parent ? hierarchy.parent.name : '';
+  currentTrack.album = hierarchy && hierarchy.grandparent ? hierarchy.grandparent.name : '';
+  playProgress = 0;
+
+  // Strip .mp3 extension for display
+  const displayName = file.name.replace(/\.mp3$/i, '');
+
+  document.getElementById('chapter-title').textContent = displayName;
+  document.getElementById('chapter-author').textContent = currentTrack.artist;
+  document.getElementById('chapter-album').textContent = currentTrack.album;
+  updateProgress();
+}
+
+function playNextTrack() {
+  const idx = allFiles.findIndex(f => f.name === currentTrack.name);
+  const next = allFiles[(idx + 1) % allFiles.length];
+  setTrack(next);
+}
+
+function playPrevTrack() {
+  const idx = allFiles.findIndex(f => f.name === currentTrack.name);
+  const prev = allFiles[(idx - 1 + allFiles.length) % allFiles.length];
+  setTrack(prev);
+}
+
+// ─── PLAY / PAUSE ───
+function togglePlay() {
+  isPlaying = !isPlaying;
+  document.getElementById('btn-play').textContent = isPlaying ? '[ PAUSE ]' : '[ PLAY ]';
+  document.getElementById('btn-play').classList.toggle('active', isPlaying);
+  document.getElementById('chapter-number').textContent = isPlaying ? 'Now Playing' : 'Paused';
+}
+
+document.getElementById('spectrum').addEventListener('click', togglePlay);
+document.getElementById('spectrum').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlay(); }
+});
+document.getElementById('btn-play').addEventListener('click', togglePlay);
+document.getElementById('btn-next').addEventListener('click', playNextTrack);
+document.getElementById('btn-prev').addEventListener('click', playPrevTrack);
+
+// ─── PROGRESS ───
+function renderProgressBar() {
+  const trackEl = document.getElementById('progress-track');
+  const textEl = document.getElementById('progress-text');
+  const totalWidth = trackEl.offsetWidth;
+  // Each em dash is roughly 8px at 13px font-size; approximate char count
+  const charWidth = 7.8;
+  const totalChars = Math.max(10, Math.floor(totalWidth / charWidth));
+  const filledPos = Math.round(playProgress * (totalChars - 1));
+
+  let bar = '';
+  for (let i = 0; i < totalChars; i++) {
+    if (i === filledPos) {
+      bar += '\u25CF'; // bullet
+    } else {
+      bar += '\u2500'; // em dash
+    }
+  }
+  textEl.textContent = bar;
+}
+
+function updateProgress() {
+  const total = parseDuration(currentTrack.duration);
+  const current = playProgress * total;
+  document.getElementById('time-current').textContent = formatTime(current);
+  document.getElementById('time-total').textContent = currentTrack.duration;
+  renderProgressBar();
+}
+
+document.getElementById('progress-track').addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  playProgress = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  updateProgress();
+});
+
+// ─── TEXT-ART SPECTRUM ───
+const spectrumEl = document.getElementById('spectrum');
+const barChars = ['|', '|', '|', '|', '|'];
+const dotChar = '.';
+
+function renderSpectrum() {
+  const isMobile = document.body.classList.contains('mobile');
+  const cols = isMobile ? 28 : SPECTRUM_COLS;
+  const maxRows = isMobile ? 6 : 8;
+
+  let html = '';
+  for (let c = 0; c < cols; c++) {
+    const val = Math.max(0, Math.min(1, spectrumData[c % SPECTRUM_COLS]));
+    const height = Math.round(val * maxRows);
+
+    let colHtml = '<div class="spectrum-col">';
+    for (let r = maxRows; r >= 1; r--) {
+      if (r <= height) {
+        colHtml += '<span class="bar-char">|</span>';
+      } else if (r <= height + 1 && height > 0) {
+        colHtml += '<span class="dot-char">.</span>';
+      } else {
+        colHtml += '<span>&nbsp;</span>';
+      }
+    }
+    colHtml += '</div>';
+    html += colHtml;
+  }
+  spectrumEl.innerHTML = html;
+}
+
+function updateSpectrum() {
+  if (isPlaying) {
+    // Generate new random targets periodically
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      if (Math.random() < 0.15) {
+        // Create a natural-looking waveform: higher in the middle, lower at edges
+        const center = SPECTRUM_COLS / 2;
+        const dist = Math.abs(i - center) / center;
+        const base = 0.2 + (1 - dist) * 0.3;
+        spectrumTargets[i] = Math.random() * 0.6 + base * 0.4;
+      }
+    }
+    // Smoothly approach targets
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      spectrumData[i] += (spectrumTargets[i] - spectrumData[i]) * 0.18;
+    }
+  } else {
+    // Decay when paused
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      spectrumData[i] *= 0.93;
+      spectrumTargets[i] *= 0.93;
+    }
+  }
+  renderSpectrum();
+}
+
+// ─── MAIN ANIMATION LOOP ───
+function mainLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (isPlaying) {
+    const total = parseDuration(currentTrack.duration);
+    playProgress += (dt / 1000) / total;
+    if (playProgress >= 1) {
+      playProgress = 0;
+      playNextTrack();
+    }
+    updateProgress();
+  }
+
+  updateSpectrum();
+  requestAnimationFrame(mainLoop);
+}
+
+// ─── RESPONSIVE / RESIZE OBSERVER ───
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  document.body.classList.toggle('mobile', width < 600);
+  document.body.classList.toggle('tablet', width >= 600 && width < 1025);
+  document.body.classList.toggle('desktop', width >= 1025);
+  updatePanelMode(width);
+  renderProgressBar();
+});
+ro.observe(document.body);
+
+function updatePanelMode(width) {
+  const newMode = width >= 700 ? 'side-drawer' : 'bottom-sheet';
+  if (newMode === panelMode) return;
+  panelMode = newMode;
+
+  const bs = document.getElementById('bottom-sheet');
+  const sd = document.getElementById('side-drawer');
+
+  if (panelMode === 'side-drawer') {
+    bs.classList.add('hidden');
+    bs.classList.remove('open');
+    sd.classList.remove('hidden');
+    if (panelOpen) sd.classList.add('open');
+    // Move content to side drawer
+    syncPanelContent('side-drawer');
+  } else {
+    sd.classList.add('hidden');
+    sd.classList.remove('open');
+    bs.classList.remove('hidden');
+    if (panelOpen) bs.classList.add('open');
+    syncPanelContent('bottom-sheet');
+  }
+}
+
+function syncPanelContent(mode) {
+  // Re-render browser in the active panel
+  renderBrowser();
+  renderSettings();
+  syncTabs();
+}
+
+// ─── PANEL OPEN / CLOSE ───
+const overlay = document.getElementById('panel-overlay');
+
+function openPanel() {
+  panelOpen = true;
+  overlay.classList.add('open');
+  const panel = panelMode === 'side-drawer'
+    ? document.getElementById('side-drawer')
+    : document.getElementById('bottom-sheet');
+  panel.classList.add('open');
+}
+
+function closePanel() {
+  panelOpen = false;
+  overlay.classList.remove('open');
+  document.getElementById('bottom-sheet').classList.remove('open');
+  document.getElementById('side-drawer').classList.remove('open');
+}
+
+document.getElementById('trigger-btn').addEventListener('click', () => {
+  if (panelOpen) closePanel();
+  else openPanel();
+});
+
+overlay.addEventListener('click', closePanel);
+
+// Close buttons
+document.querySelectorAll('.panel-close').forEach(btn => {
+  btn.addEventListener('click', closePanel);
+});
+
+// ─── PANEL TABS ───
+function syncTabs() {
+  document.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.panel === activeTab);
+  });
+  document.querySelectorAll('.panel-screen').forEach(screen => {
+    const id = screen.id;
+    const isBrowse = id.endsWith('-browse');
+    const isSettings = id.endsWith('-settings');
+    screen.classList.toggle('active',
+      (activeTab === 'browse' && isBrowse) ||
+      (activeTab === 'settings' && isSettings)
+    );
+  });
+}
+
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    activeTab = tab.dataset.panel;
+    syncTabs();
+  });
+});
+
+// ─── FILE BROWSER ───
+function getCurrentFolder() {
+  return browserPath[browserPath.length - 1];
+}
+
+function getActiveBrowseEl() {
+  if (panelMode === 'side-drawer') return document.getElementById('sd-browse');
+  return document.getElementById('bs-browse');
+}
+
+function getActiveSettingsEl() {
+  if (panelMode === 'side-drawer') return document.getElementById('sd-settings');
+  return document.getElementById('bs-settings');
+}
+
+function renderBrowser() {
+  const container = getActiveBrowseEl();
+  const folder = getCurrentFolder();
+  const children = folder.children || [];
+  const folders = children.filter(c => c.type === 'folder');
+  const files = children.filter(c => c.type === 'file');
+
+  const query = searchQuery.toLowerCase();
+  const filteredFolders = query ? folders.filter(f => f.name.toLowerCase().includes(query)) : folders;
+  const filteredFiles = query ? files.filter(f => f.name.toLowerCase().includes(query)) : files;
+
+  // Build breadcrumb
+  let breadcrumbHtml = '';
+  browserPath.forEach((node, i) => {
+    if (i > 0) breadcrumbHtml += '<span class="breadcrumb-sep">/</span>';
+    breadcrumbHtml += '<button class="breadcrumb-part" data-depth="' + i + '">' + escHtml(node.name) + '</button>';
+  });
+
+  // Build file list
+  let listHtml = '';
+
+  if (browserPath.length > 1) {
+    listHtml += '<div class="file-row is-folder" data-action="up">' +
+      '<span class="file-icon">..</span>' +
+      '<span class="file-name folder-name">(parent directory)</span>' +
+      '<span class="file-meta"></span>' +
+      '</div>';
+  }
+
+  filteredFolders.forEach((f, i) => {
+    const count = f.children ? f.children.length : 0;
+    listHtml += '<div class="file-row is-folder" data-action="folder" data-idx="' + i + '">' +
+      '<span class="file-icon">\u25B7</span>' +
+      '<span class="file-name folder-name">' + escHtml(f.name) + '</span>' +
+      '<span class="file-meta">' + count + ' items</span>' +
+      '</div>';
+  });
+
+  filteredFiles.forEach((f, i) => {
+    listHtml += '<div class="file-row" data-action="file" data-idx="' + i + '">' +
+      '<span class="file-icon">\u266A</span>' +
+      '<span class="file-name">' + escHtml(f.name) + '</span>' +
+      '<span class="file-meta">' + f.duration + ' \u00B7 ' + f.size + '</span>' +
+      '</div>';
+  });
+
+  if (filteredFolders.length === 0 && filteredFiles.length === 0 && query) {
+    listHtml += '<div class="file-row" style="cursor:default;color:var(--ink-faint);">' +
+      '<span class="file-icon"></span>' +
+      '<span class="file-name" style="font-style:italic;">No matches found.</span>' +
+      '<span class="file-meta"></span>' +
+      '</div>';
+  }
+
+  const statusText = folders.length + ' folder' + (folders.length !== 1 ? 's' : '') +
+    ', ' + files.length + ' file' + (files.length !== 1 ? 's' : '') +
+    (query ? ' \u2014 filtering: \u201C' + escHtml(query) + '\u201D' : '');
+
+  container.innerHTML =
+    '<div class="browser-toolbar">' +
+      '<button class="browser-toolbar-btn" id="' + (panelMode === 'side-drawer' ? 'sd' : 'bs') + '-play-all">Play All</button>' +
+      '<button class="browser-toolbar-btn" id="' + (panelMode === 'side-drawer' ? 'sd' : 'bs') + '-shuffle-all">Shuffle</button>' +
+      '<input type="text" class="browser-search" placeholder="Search\u2026" value="' + escHtml(searchQuery) + '">' +
+    '</div>' +
+    '<div class="breadcrumb">' + breadcrumbHtml + '</div>' +
+    '<div class="file-list">' + listHtml + '</div>' +
+    '<div class="browser-status">' + statusText + '</div>';
+
+  // Attach events
+  container.querySelector('.browser-search').addEventListener('input', function(e) {
+    searchQuery = e.target.value;
+    renderBrowser();
+  });
+
+  container.querySelectorAll('.breadcrumb-part').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const depth = parseInt(btn.dataset.depth);
+      browserPath = browserPath.slice(0, depth + 1);
+      searchQuery = '';
+      renderBrowser();
+    });
+  });
+
+  container.querySelectorAll('.file-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const action = row.dataset.action;
+      if (action === 'up') {
+        browserPath.pop();
+        searchQuery = '';
+        renderBrowser();
+      } else if (action === 'folder') {
+        const idx = parseInt(row.dataset.idx);
+        browserPath.push(filteredFolders[idx]);
+        searchQuery = '';
+        renderBrowser();
+      } else if (action === 'file') {
+        const idx = parseInt(row.dataset.idx);
+        const file = filteredFiles[idx];
+        setTrack(file);
+        isPlaying = true;
+        document.getElementById('btn-play').textContent = '[ PAUSE ]';
+        document.getElementById('btn-play').classList.add('active');
+        document.getElementById('chapter-number').textContent = 'Now Playing';
+        closePanel();
+      }
+    });
+  });
+
+  // Play all / Shuffle
+  const playAllBtn = container.querySelector('[id$="-play-all"]');
+  const shuffleBtn = container.querySelector('[id$="-shuffle-all"]');
+
+  if (playAllBtn) {
+    playAllBtn.addEventListener('click', () => {
+      const folderFiles = getAllFiles(getCurrentFolder());
+      if (folderFiles.length > 0) {
+        setTrack(folderFiles[0]);
+        isPlaying = true;
+        document.getElementById('btn-play').textContent = '[ PAUSE ]';
+        document.getElementById('btn-play').classList.add('active');
+        document.getElementById('chapter-number').textContent = 'Now Playing';
+        closePanel();
+      }
+    });
+  }
+
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', () => {
+      const folderFiles = getAllFiles(getCurrentFolder());
+      if (folderFiles.length > 0) {
+        for (let i = folderFiles.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [folderFiles[i], folderFiles[j]] = [folderFiles[j], folderFiles[i]];
+        }
+        setTrack(folderFiles[0]);
+        isPlaying = true;
+        document.getElementById('btn-play').textContent = '[ PAUSE ]';
+        document.getElementById('btn-play').classList.add('active');
+        document.getElementById('chapter-number').textContent = 'Now Playing';
+        closePanel();
+      }
+    });
+  }
+}
+
+// ─── SETTINGS ───
+const settingsData = [
+  { section: 'Visualiser', items: [
+    { key: 'Style', options: ['Bars', 'Wave', 'Scatter'], value: 0 },
+    { key: 'Column Count', options: ['28', '36', '40', '48'], value: 2 },
+    { key: 'Animation Speed', options: ['Slow', 'Normal', 'Fast'], value: 1 },
+  ]},
+  { section: 'Appearance', items: [
+    { key: 'Paper Tone', options: ['Cream', 'White', 'Sepia', 'Parchment'], value: 0 },
+    { key: 'Ink Density', options: ['Light', 'Normal', 'Bold'], value: 1 },
+    { key: 'Texture Overlay', options: ['On', 'Off'], value: 0 },
+  ]},
+  { section: 'Playback', items: [
+    { key: 'Shuffle', options: ['Off', 'On'], value: 0 },
+    { key: 'Repeat', options: ['Off', 'Track', 'All'], value: 0 },
+    { key: 'Gapless Playback', options: ['On', 'Off'], value: 0 },
+    { key: 'Crossfade', options: ['Off', '1s', '2s', '3s', '5s'], value: 0 },
+  ]},
+  { section: 'System', items: [
+    { key: 'Buffer Size', options: ['128 KB', '256 KB', '512 KB', '1 MB'], value: 1 },
+    { key: 'Output', options: ['Stereo', 'Mono', 'Surround'], value: 0 },
+  ]},
+];
+
+function renderSettings() {
+  const container = getActiveSettingsEl();
+  let html = '<div class="settings-content">';
+
+  settingsData.forEach((section, si) => {
+    html += '<div class="settings-section-title">' + escHtml(section.section) + '</div>';
+    section.items.forEach((item, ii) => {
+      const dots = '\u00B7'.repeat(40);
+      html += '<div class="settings-row" data-section="' + si + '" data-item="' + ii + '">' +
+        '<span class="key">' + escHtml(item.key) + '</span>' +
+        '<span class="dots">' + dots + '</span>' +
+        '<span class="value">' + escHtml(item.options[item.value]) + '</span>' +
+        '</div>';
+    });
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Cycle through options on click
+  container.querySelectorAll('.settings-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const si = parseInt(row.dataset.section);
+      const ii = parseInt(row.dataset.item);
+      const item = settingsData[si].items[ii];
+      item.value = (item.value + 1) % item.options.length;
+      row.querySelector('.value').textContent = item.options[item.value];
+    });
+  });
+}
+
+// ─── INIT ───
+function init() {
+  // Determine initial panel mode
+  const width = document.body.getBoundingClientRect().width;
+  panelMode = width >= 700 ? 'side-drawer' : 'bottom-sheet';
+
+  if (panelMode === 'side-drawer') {
+    document.getElementById('bottom-sheet').classList.add('hidden');
+    document.getElementById('side-drawer').classList.remove('hidden');
+  } else {
+    document.getElementById('side-drawer').classList.add('hidden');
+    document.getElementById('bottom-sheet').classList.remove('hidden');
+  }
+
+  renderBrowser();
+  renderSettings();
+  syncTabs();
+  renderSpectrum();
+  updateProgress();
+  requestAnimationFrame(mainLoop);
+}
+
+init();
+</script>
+</body>
+</html>

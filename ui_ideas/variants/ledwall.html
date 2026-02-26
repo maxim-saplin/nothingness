@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP - LEDWALL</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #050508;
+    --led-orange: #FF6B35;
+    --led-red: #FF3300;
+    --led-dim: #331100;
+    --led-med: #553300;
+    --led-glow: rgba(255, 107, 53, 0.35);
+    --led-glow-strong: rgba(255, 107, 53, 0.6);
+    --nav-height: 56px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--led-orange);
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: none;
+    flex-direction: column;
+  }
+  .screen.active { display: flex; }
+
+  .screen::-webkit-scrollbar { width: 6px; }
+  .screen::-webkit-scrollbar-track { background: var(--bg); }
+  .screen::-webkit-scrollbar-thumb { background: var(--led-dim); border-radius: 3px; }
+  .screen::-webkit-scrollbar-thumb:hover { background: var(--led-med); }
+
+  /* ===== NAV BAR ===== */
+  #nav-bar {
+    height: var(--nav-height);
+    min-height: var(--nav-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: #0a0a0f;
+    border-top: 2px solid var(--led-dim);
+    padding: 0 8px;
+    z-index: 100;
+  }
+
+  .nav-btn {
+    flex: 1;
+    max-width: 180px;
+    height: 40px;
+    min-height: 48px;
+    min-width: 48px;
+    background: transparent;
+    color: var(--led-med);
+    border: 2px solid var(--led-dim);
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nav-btn::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 1px dotted var(--led-dim);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+
+  .nav-btn.active {
+    color: var(--led-orange);
+    border-color: var(--led-orange);
+    text-shadow: 0 0 8px var(--led-glow);
+    box-shadow: 0 0 10px rgba(255,107,53,0.15), inset 0 0 10px rgba(255,107,53,0.05);
+  }
+  .nav-btn.active::before {
+    border-color: var(--led-orange);
+  }
+
+  .nav-btn:hover:not(.active) {
+    color: var(--led-med);
+    border-color: var(--led-med);
+  }
+
+  /* ===== HOME SCREEN ===== */
+  #home-screen {
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0;
+  }
+
+  #led-canvas-wrap {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    cursor: pointer;
+  }
+
+  #led-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  #home-controls {
+    width: 100%;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: #0a0a0f;
+    border-top: 1px solid var(--led-dim);
+    min-height: 48px;
+  }
+
+  #home-track-info {
+    flex: 1;
+    overflow: hidden;
+  }
+  #home-track-info .track-name {
+    font-size: 14px;
+    color: var(--led-orange);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #home-track-info .track-folder {
+    font-size: 11px;
+    color: var(--led-med);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .home-btn {
+    min-width: 48px;
+    min-height: 48px;
+    background: transparent;
+    border: 2px solid var(--led-dim);
+    color: var(--led-orange);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .home-btn:hover {
+    border-color: var(--led-orange);
+    box-shadow: 0 0 8px var(--led-glow);
+  }
+
+  #play-pause-btn .icon-pause { display: none; }
+  #play-pause-btn.playing .icon-play { display: none; }
+  #play-pause-btn.playing .icon-pause { display: inline; }
+
+  /* Next/Prev */
+  .home-btn.skip { font-size: 14px; }
+
+  /* ===== SETTINGS SCREEN ===== */
+  #settings-screen {
+    padding: 16px;
+  }
+
+  .settings-header {
+    font-size: 16px;
+    letter-spacing: 4px;
+    color: var(--led-orange);
+    text-shadow: 0 0 8px var(--led-glow);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--led-dim);
+  }
+
+  .settings-group {
+    margin-bottom: 20px;
+  }
+  .settings-group-title {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--led-med);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 8px;
+    border-bottom: 1px solid #111;
+    min-height: 48px;
+    gap: 12px;
+  }
+
+  .setting-key {
+    font-size: 13px;
+    color: var(--led-orange);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+
+  .setting-value {
+    font-size: 13px;
+    color: var(--led-med);
+    letter-spacing: 1px;
+    text-align: right;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .setting-toggle {
+    width: 48px;
+    height: 26px;
+    background: var(--led-dim);
+    border: 1px solid var(--led-med);
+    border-radius: 13px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .setting-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: var(--led-med);
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  .setting-toggle.on {
+    background: rgba(255,107,53,0.2);
+    border-color: var(--led-orange);
+  }
+  .setting-toggle.on::after {
+    left: 25px;
+    background: var(--led-orange);
+    box-shadow: 0 0 6px var(--led-glow);
+  }
+
+  .setting-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .setting-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    height: 6px;
+    background: var(--led-dim);
+    border-radius: 3px;
+    outline: none;
+  }
+  .setting-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--led-orange);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--led-glow);
+  }
+  .setting-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--led-orange);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .slider-val {
+    font-size: 12px;
+    color: var(--led-orange);
+    min-width: 32px;
+    text-align: right;
+  }
+
+  /* ===== BROWSER SCREEN ===== */
+  #browser-screen {
+    padding: 0;
+  }
+
+  #browser-header {
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--led-dim);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .browser-title {
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: var(--led-orange);
+    text-shadow: 0 0 8px var(--led-glow);
+    margin-bottom: 8px;
+  }
+
+  #breadcrumb {
+    font-size: 11px;
+    color: var(--led-med);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  #breadcrumb span {
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  #breadcrumb span:hover {
+    color: var(--led-orange);
+  }
+  #breadcrumb .sep {
+    color: var(--led-dim);
+    cursor: default;
+    padding: 0 2px;
+  }
+  #breadcrumb .sep:hover { color: var(--led-dim); }
+
+  #search-wrap {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  #search-input {
+    flex: 1;
+    height: 36px;
+    min-height: 48px;
+    background: #0a0a0f;
+    border: 1px solid var(--led-dim);
+    border-radius: 4px;
+    color: var(--led-orange);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    padding: 0 10px;
+    letter-spacing: 1px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search-input::placeholder {
+    color: var(--led-dim);
+  }
+  #search-input:focus {
+    border-color: var(--led-orange);
+    box-shadow: 0 0 6px rgba(255,107,53,0.15);
+  }
+
+  .browser-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .browser-action-btn {
+    height: 36px;
+    min-height: 48px;
+    min-width: 48px;
+    padding: 0 12px;
+    background: transparent;
+    border: 1px solid var(--led-dim);
+    color: var(--led-orange);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .browser-action-btn:hover {
+    border-color: var(--led-orange);
+    box-shadow: 0 0 6px var(--led-glow);
+  }
+
+  #file-list {
+    flex: 1;
+    padding: 0;
+  }
+
+  .file-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    min-height: 48px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid #0a0a0f;
+    gap: 10px;
+  }
+  .file-row:hover {
+    background: rgba(255,107,53,0.05);
+  }
+  .file-row.selected {
+    background: rgba(255,107,53,0.12);
+  }
+  .file-row .icon {
+    font-size: 14px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--led-med);
+  }
+  .file-row.folder .icon {
+    color: var(--led-orange);
+  }
+  .file-row .name {
+    flex: 1;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: var(--led-orange);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-row.file .name {
+    color: var(--led-med);
+  }
+  .file-row .meta {
+    font-size: 11px;
+    color: var(--led-dim);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+
+  .file-row.back-row .icon {
+    color: var(--led-orange);
+  }
+  .file-row.back-row .name {
+    color: var(--led-orange);
+  }
+
+  .empty-folder {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--led-dim);
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  body.mobile .nav-btn {
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+  body.mobile #home-controls {
+    padding: 6px 10px;
+  }
+  body.mobile .home-btn.skip { display: none; }
+  body.mobile .setting-slider { width: 70px; }
+
+  body.tablet .nav-btn {
+    font-size: 12px;
+  }
+
+  /* Dot-matrix section header canvas */
+  .dot-header-canvas {
+    width: 100%;
+    height: 28px;
+    display: block;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<div id="home-screen" class="screen active">
+  <div id="led-canvas-wrap">
+    <canvas id="led-canvas"></canvas>
+  </div>
+  <div id="home-controls">
+    <button class="home-btn skip" id="prev-btn" title="Previous">|&lt;</button>
+    <button class="home-btn" id="play-pause-btn" title="Play/Pause">
+      <span class="icon-play">&#9654;</span>
+      <span class="icon-pause">&#9646;&#9646;</span>
+    </button>
+    <button class="home-btn skip" id="next-btn" title="Next">&gt;|</button>
+    <div id="home-track-info">
+      <div class="track-name" id="home-track-name">No Track Loaded</div>
+      <div class="track-folder" id="home-track-folder">Browse to select a track</div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS SCREEN -->
+<div id="settings-screen" class="screen">
+  <canvas class="dot-header-canvas" id="settings-dot-header"></canvas>
+  <div style="padding: 0 16px 16px;">
+    <div class="settings-group">
+      <div class="settings-group-title">// PLAYBACK</div>
+      <div class="setting-row">
+        <span class="setting-key">Repeat</span>
+        <div class="setting-toggle on" data-setting="repeat"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Shuffle</span>
+        <div class="setting-toggle" data-setting="shuffle"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Gapless</span>
+        <div class="setting-toggle on" data-setting="gapless"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Volume</span>
+        <div class="setting-slider-wrap">
+          <input type="range" class="setting-slider" min="0" max="100" value="80" id="volume-slider">
+          <span class="slider-val" id="volume-val">80%</span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">// DISPLAY</div>
+      <div class="setting-row">
+        <span class="setting-key">LED Density</span>
+        <div class="setting-slider-wrap">
+          <input type="range" class="setting-slider" min="1" max="3" value="2" id="density-slider">
+          <span class="slider-val" id="density-val">MED</span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Glow Effect</span>
+        <div class="setting-toggle on" data-setting="glow"></div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Scroll Speed</span>
+        <div class="setting-slider-wrap">
+          <input type="range" class="setting-slider" min="1" max="5" value="3" id="speed-slider">
+          <span class="slider-val" id="speed-val">3</span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-group-title">// SYSTEM</div>
+      <div class="setting-row">
+        <span class="setting-key">Version</span>
+        <span class="setting-value">FileAMP v1.0.0-LED</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Variant</span>
+        <span class="setting-value">LEDWALL</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Tracks</span>
+        <span class="setting-value" id="total-tracks">0</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-key">Buffer Size</span>
+        <span class="setting-value">4096 samples</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BROWSER SCREEN -->
+<div id="browser-screen" class="screen">
+  <div id="browser-header">
+    <div class="browser-title">FILE BROWSER</div>
+    <div id="breadcrumb"></div>
+    <div id="search-wrap">
+      <input type="text" id="search-input" placeholder="Search...">
+    </div>
+    <div class="browser-actions">
+      <button class="browser-action-btn" id="play-all-btn">PLAY ALL</button>
+      <button class="browser-action-btn" id="shuffle-btn">SHUFFLE</button>
+    </div>
+  </div>
+  <div id="file-list"></div>
+</div>
+
+<!-- NAV BAR -->
+<div id="nav-bar">
+  <button class="nav-btn active" data-screen="home-screen">HOME</button>
+  <button class="nav-btn" data-screen="settings-screen">SETTINGS</button>
+  <button class="nav-btn" data-screen="browser-screen">BROWSER</button>
+</div>
+
+<script>
+// ===== FILE TREE =====
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ===== GLOBAL STATE =====
+const state = {
+  currentScreen: 'home-screen',
+  playing: false,
+  currentTrack: null,
+  currentTrackPath: [],
+  playlist: [],
+  playlistIndex: -1,
+  browserPath: [FILE_TREE],
+  searchQuery: '',
+  settings: {
+    repeat: true,
+    shuffle: false,
+    gapless: true,
+    glow: true,
+    volume: 80,
+    density: 2,
+    scrollSpeed: 3,
+  },
+  spectrumData: [],
+  smoothedSpectrum: [],
+  numBands: 32,
+  tickerOffset: 0,
+};
+
+// ===== HELPERS =====
+function getAllFiles(node) {
+  const files = [];
+  if (node.type === 'file') return [node];
+  if (node.children) node.children.forEach(c => files.push(...getAllFiles(c)));
+  return files;
+}
+
+function getPathForFile(node, target, path) {
+  if (node === target) return [...path, node];
+  if (node.children) {
+    for (const c of node.children) {
+      const r = getPathForFile(c, target, [...path, node]);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function countTracks() {
+  return getAllFiles(FILE_TREE).length;
+}
+
+// ===== NAVIGATION =====
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const screen = btn.dataset.screen;
+    switchScreen(screen);
+  });
+});
+
+function switchScreen(screenId) {
+  state.currentScreen = screenId;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.screen === screenId);
+  });
+  if (screenId === 'browser-screen') renderBrowser();
+  if (screenId === 'settings-screen') renderSettingsDotHeader();
+}
+
+// ===== LED CANVAS - HOME SCREEN =====
+const ledCanvas = document.getElementById('led-canvas');
+const ledCtx = ledCanvas.getContext('2d');
+
+const DOT_MATRIX_FONT = {
+  ' ': [0,0,0,0,0],
+  'A': [0x7C,0x12,0x11,0x12,0x7C],
+  'B': [0x7F,0x49,0x49,0x49,0x36],
+  'C': [0x3E,0x41,0x41,0x41,0x22],
+  'D': [0x7F,0x41,0x41,0x22,0x1C],
+  'E': [0x7F,0x49,0x49,0x49,0x41],
+  'F': [0x7F,0x09,0x09,0x09,0x01],
+  'G': [0x3E,0x41,0x49,0x49,0x7A],
+  'H': [0x7F,0x08,0x08,0x08,0x7F],
+  'I': [0x00,0x41,0x7F,0x41,0x00],
+  'J': [0x20,0x40,0x41,0x3F,0x01],
+  'K': [0x7F,0x08,0x14,0x22,0x41],
+  'L': [0x7F,0x40,0x40,0x40,0x40],
+  'M': [0x7F,0x02,0x0C,0x02,0x7F],
+  'N': [0x7F,0x04,0x08,0x10,0x7F],
+  'O': [0x3E,0x41,0x41,0x41,0x3E],
+  'P': [0x7F,0x09,0x09,0x09,0x06],
+  'Q': [0x3E,0x41,0x51,0x21,0x5E],
+  'R': [0x7F,0x09,0x19,0x29,0x46],
+  'S': [0x46,0x49,0x49,0x49,0x31],
+  'T': [0x01,0x01,0x7F,0x01,0x01],
+  'U': [0x3F,0x40,0x40,0x40,0x3F],
+  'V': [0x1F,0x20,0x40,0x20,0x1F],
+  'W': [0x3F,0x40,0x38,0x40,0x3F],
+  'X': [0x63,0x14,0x08,0x14,0x63],
+  'Y': [0x07,0x08,0x70,0x08,0x07],
+  'Z': [0x61,0x51,0x49,0x45,0x43],
+  '0': [0x3E,0x51,0x49,0x45,0x3E],
+  '1': [0x00,0x42,0x7F,0x40,0x00],
+  '2': [0x42,0x61,0x51,0x49,0x46],
+  '3': [0x21,0x41,0x45,0x4B,0x31],
+  '4': [0x18,0x14,0x12,0x7F,0x10],
+  '5': [0x27,0x45,0x45,0x45,0x39],
+  '6': [0x3C,0x4A,0x49,0x49,0x30],
+  '7': [0x01,0x71,0x09,0x05,0x03],
+  '8': [0x36,0x49,0x49,0x49,0x36],
+  '9': [0x06,0x49,0x49,0x29,0x1E],
+  '.': [0x00,0x60,0x60,0x00,0x00],
+  '-': [0x08,0x08,0x08,0x08,0x08],
+  ':': [0x00,0x36,0x36,0x00,0x00],
+  '/': [0x20,0x10,0x08,0x04,0x02],
+  '(': [0x00,0x1C,0x22,0x41,0x00],
+  ')': [0x00,0x41,0x22,0x1C,0x00],
+  '\'': [0x00,0x05,0x03,0x00,0x00],
+  ',': [0x00,0x50,0x30,0x00,0x00],
+  '!': [0x00,0x00,0x5F,0x00,0x00],
+  '?': [0x02,0x01,0x51,0x09,0x06],
+  '#': [0x14,0x7F,0x14,0x7F,0x14],
+  '+': [0x08,0x08,0x3E,0x08,0x08],
+};
+
+function getCharPixels(ch) {
+  const upper = ch.toUpperCase();
+  return DOT_MATRIX_FONT[upper] || DOT_MATRIX_FONT[' '];
+}
+
+function getTextPixelWidth(text) {
+  let w = 0;
+  for (const ch of text) {
+    w += getCharPixels(ch).length + 1;
+  }
+  return w;
+}
+
+// LED rendering parameters
+function getLedParams() {
+  const isMobile = document.body.classList.contains('mobile');
+  const densitySetting = state.settings.density;
+  let dotR, gap;
+  if (isMobile) {
+    dotR = densitySetting === 1 ? 4 : densitySetting === 2 ? 3 : 2.5;
+    gap = densitySetting === 1 ? 10 : densitySetting === 2 ? 8 : 6;
+  } else {
+    dotR = densitySetting === 1 ? 3.5 : densitySetting === 2 ? 2.5 : 2;
+    gap = densitySetting === 1 ? 9 : densitySetting === 2 ? 7 : 5;
+  }
+  return { dotR, gap };
+}
+
+// Cassette pixel-art (simplified 16x10 grid)
+const CASSETTE_PATTERN = [
+  '1111111111111111',
+  '1000000000000001',
+  '1011100001110001',
+  '1010100001010001',
+  '1011100001110001',
+  '1000000000000001',
+  '1001111111100001',
+  '1010000000010001',
+  '1100000000001001',
+  '1111111111111111',
+];
+
+function drawLedDisplay() {
+  const w = ledCanvas.width;
+  const h = ledCanvas.height;
+  ledCtx.fillStyle = '#050508';
+  ledCtx.fillRect(0, 0, w, h);
+
+  const { dotR, gap } = getLedParams();
+  const cols = Math.floor(w / gap);
+  const rows = Math.floor(h / gap);
+
+  // Layout: top section = spectrum (70%), bottom section = ticker + cassette (30%)
+  const spectrumRows = Math.floor(rows * 0.65);
+  const tickerAreaStartRow = spectrumRows + 2;
+  const cassetteRows = 10;
+  const tickerRows = 7;
+
+  // Ensure we have right number of bands
+  if (state.smoothedSpectrum.length !== cols) {
+    state.smoothedSpectrum = new Array(cols).fill(0);
+    state.spectrumData = new Array(cols).fill(0);
+  }
+
+  // Draw substrate dots (dim)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * gap + gap / 2;
+      const y = r * gap + gap / 2;
+      ledCtx.beginPath();
+      ledCtx.arc(x, y, dotR, 0, Math.PI * 2);
+      ledCtx.fillStyle = '#0e0800';
+      ledCtx.fill();
+    }
+  }
+
+  // Draw spectrum
+  const hasGlow = state.settings.glow;
+  for (let c = 0; c < cols; c++) {
+    const val = state.smoothedSpectrum[c] || 0;
+    const litDots = Math.floor(val * spectrumRows);
+    for (let r = 0; r < spectrumRows; r++) {
+      const row = spectrumRows - 1 - r;
+      const x = c * gap + gap / 2;
+      const y = row * gap + gap / 2;
+      const isLit = r < litDots;
+      if (isLit) {
+        const intensity = r / spectrumRows;
+        let color;
+        if (intensity > 0.85) {
+          color = '#FF3300'; // peak red
+        } else if (intensity > 0.65) {
+          color = '#FF6B35'; // bright orange
+        } else {
+          color = '#CC5522'; // medium orange
+        }
+        ledCtx.beginPath();
+        ledCtx.arc(x, y, dotR, 0, Math.PI * 2);
+        ledCtx.fillStyle = color;
+        ledCtx.fill();
+        if (hasGlow) {
+          ledCtx.beginPath();
+          ledCtx.arc(x, y, dotR * 1.8, 0, Math.PI * 2);
+          ledCtx.fillStyle = intensity > 0.85 ? 'rgba(255,51,0,0.15)' : 'rgba(255,107,53,0.12)';
+          ledCtx.fill();
+        }
+      } else {
+        ledCtx.beginPath();
+        ledCtx.arc(x, y, dotR, 0, Math.PI * 2);
+        ledCtx.fillStyle = '#120900';
+        ledCtx.fill();
+      }
+    }
+  }
+
+  // Separator line
+  const sepRow = spectrumRows;
+  for (let c = 0; c < cols; c++) {
+    const x = c * gap + gap / 2;
+    const y = sepRow * gap + gap / 2;
+    ledCtx.beginPath();
+    ledCtx.arc(x, y, dotR * 0.6, 0, Math.PI * 2);
+    ledCtx.fillStyle = '#331100';
+    ledCtx.fill();
+  }
+
+  // Draw cassette icon (left side of bottom area)
+  const cassetteStartCol = 2;
+  const cassetteStartRow = tickerAreaStartRow + 1;
+  const cassetteScale = Math.max(1, Math.floor(Math.min((cols * 0.25) / 16, (rows - cassetteStartRow - tickerRows - 2) / 10)));
+
+  if (state.currentTrack) {
+    for (let pr = 0; pr < CASSETTE_PATTERN.length; pr++) {
+      for (let pc = 0; pc < CASSETTE_PATTERN[pr].length; pc++) {
+        for (let sr = 0; sr < cassetteScale; sr++) {
+          for (let sc = 0; sc < cassetteScale; sc++) {
+            const col = cassetteStartCol + pc * cassetteScale + sc;
+            const row = cassetteStartRow + pr * cassetteScale + sr;
+            if (col >= cols || row >= rows) continue;
+            const x = col * gap + gap / 2;
+            const y = row * gap + gap / 2;
+            const isOn = CASSETTE_PATTERN[pr][pc] === '1';
+
+            // Animate spools (positions 3,4 and 10,11 in row 3,4)
+            let spoolAnim = false;
+            if (state.playing && (pr === 3 || pr === 4)) {
+              if ((pc >= 2 && pc <= 4) || (pc >= 9 && pc <= 11)) {
+                spoolAnim = Math.random() > 0.5;
+              }
+            }
+
+            ledCtx.beginPath();
+            ledCtx.arc(x, y, dotR, 0, Math.PI * 2);
+            if (isOn || spoolAnim) {
+              ledCtx.fillStyle = spoolAnim ? '#FF6B35' : '#CC5522';
+            } else {
+              ledCtx.fillStyle = '#1a0d00';
+            }
+            ledCtx.fill();
+          }
+        }
+      }
+    }
+  }
+
+  // Draw ticker text (scrolling track name) in the bottom portion, to right of cassette
+  const tickerStartCol = state.currentTrack ? (cassetteStartCol + 16 * cassetteScale + 2) : 2;
+  const tickerStartRow = cassetteStartRow;
+  const tickerColSpan = cols - tickerStartCol - 1;
+
+  if (state.currentTrack && tickerColSpan > 0) {
+    const tickerText = '   ' + state.currentTrack.name.replace('.mp3', '') + '   ';
+    const textPixelW = getTextPixelWidth(tickerText);
+    const scrollOffset = Math.floor(state.tickerOffset) % textPixelW;
+
+    for (let tc = 0; tc < tickerColSpan; tc++) {
+      const pixelCol = (tc + scrollOffset) % textPixelW;
+      // Find which character this pixel belongs to
+      let charIdx = 0, accumW = 0;
+      for (let i = 0; i < tickerText.length; i++) {
+        const cw = getCharPixels(tickerText[i]).length + 1;
+        if (accumW + cw > pixelCol) {
+          charIdx = i;
+          break;
+        }
+        accumW += cw;
+      }
+      const charPixels = getCharPixels(tickerText[charIdx]);
+      const colInChar = pixelCol - accumW;
+
+      for (let tr = 0; tr < Math.min(tickerRows, rows - tickerStartRow); tr++) {
+        const col = tickerStartCol + tc;
+        const row = tickerStartRow + tr;
+        if (col >= cols || row >= rows) continue;
+        const x = col * gap + gap / 2;
+        const y = row * gap + gap / 2;
+
+        let isLit = false;
+        if (colInChar >= 0 && colInChar < charPixels.length && tr < 7) {
+          isLit = (charPixels[colInChar] >> tr) & 1;
+        }
+
+        ledCtx.beginPath();
+        ledCtx.arc(x, y, dotR, 0, Math.PI * 2);
+        ledCtx.fillStyle = isLit ? '#FF6B35' : '#120900';
+        ledCtx.fill();
+
+        if (isLit && hasGlow) {
+          ledCtx.beginPath();
+          ledCtx.arc(x, y, dotR * 1.6, 0, Math.PI * 2);
+          ledCtx.fillStyle = 'rgba(255,107,53,0.1)';
+          ledCtx.fill();
+        }
+      }
+    }
+  }
+
+  // If no track, show "FILEAMP" centered
+  if (!state.currentTrack) {
+    const msg = 'FILEAMP';
+    const msgPixelW = getTextPixelWidth(msg);
+    const startCol = Math.floor((cols - msgPixelW) / 2);
+    const startRow = Math.floor((rows - 7) / 2);
+
+    let pixX = 0;
+    for (const ch of msg) {
+      const pix = getCharPixels(ch);
+      for (let pc = 0; pc < pix.length; pc++) {
+        for (let pr = 0; pr < 7; pr++) {
+          const col = startCol + pixX + pc;
+          const row = startRow + pr;
+          if (col < 0 || col >= cols || row < 0 || row >= rows) continue;
+          const x = col * gap + gap / 2;
+          const y = row * gap + gap / 2;
+          const isLit = (pix[pc] >> pr) & 1;
+
+          if (isLit) {
+            ledCtx.beginPath();
+            ledCtx.arc(x, y, dotR, 0, Math.PI * 2);
+            ledCtx.fillStyle = '#FF6B35';
+            ledCtx.fill();
+            if (hasGlow) {
+              ledCtx.beginPath();
+              ledCtx.arc(x, y, dotR * 2, 0, Math.PI * 2);
+              ledCtx.fillStyle = 'rgba(255,107,53,0.12)';
+              ledCtx.fill();
+            }
+          }
+        }
+      }
+      pixX += pix.length + 1;
+    }
+  }
+}
+
+// ===== SPECTRUM ANIMATION =====
+let animFrameId = null;
+let lastTime = 0;
+
+function updateSpectrum(time) {
+  const dt = time - lastTime;
+  lastTime = time;
+
+  const cols = state.smoothedSpectrum.length || 32;
+
+  if (state.playing) {
+    // Generate new random target data
+    for (let i = 0; i < cols; i++) {
+      // Create a frequency-like distribution (higher in the middle, lower at edges)
+      const centerBias = 1 - Math.abs(i - cols / 2) / (cols / 2) * 0.4;
+      const target = (Math.random() * 0.7 + 0.15) * centerBias;
+      state.spectrumData[i] = target;
+    }
+
+    // Smooth towards target
+    for (let i = 0; i < cols; i++) {
+      const diff = state.spectrumData[i] - state.smoothedSpectrum[i];
+      state.smoothedSpectrum[i] += diff * 0.18;
+    }
+
+    // Advance ticker
+    state.tickerOffset += state.settings.scrollSpeed * 0.06 * (dt / 16);
+  } else {
+    // Decay
+    for (let i = 0; i < cols; i++) {
+      state.smoothedSpectrum[i] *= 0.94;
+      if (state.smoothedSpectrum[i] < 0.01) state.smoothedSpectrum[i] = 0;
+    }
+  }
+
+  drawLedDisplay();
+  animFrameId = requestAnimationFrame(updateSpectrum);
+}
+
+function startAnimation() {
+  if (!animFrameId) {
+    lastTime = performance.now();
+    animFrameId = requestAnimationFrame(updateSpectrum);
+  }
+}
+
+function stopAnimation() {
+  if (animFrameId) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+}
+
+// ===== PLAY / PAUSE =====
+const playPauseBtn = document.getElementById('play-pause-btn');
+const canvasWrap = document.getElementById('led-canvas-wrap');
+
+function togglePlay() {
+  if (!state.currentTrack && state.playlist.length === 0) {
+    // Auto-load all tracks
+    state.playlist = getAllFiles(FILE_TREE);
+    state.playlistIndex = 0;
+    loadTrack(state.playlist[0]);
+  }
+  state.playing = !state.playing;
+  playPauseBtn.classList.toggle('playing', state.playing);
+}
+
+playPauseBtn.addEventListener('click', togglePlay);
+canvasWrap.addEventListener('click', (e) => {
+  if (e.target === ledCanvas) togglePlay();
+});
+
+function loadTrack(track) {
+  state.currentTrack = track;
+  state.currentTrackPath = getPathForFile(FILE_TREE, track, []) || [];
+  document.getElementById('home-track-name').textContent = track.name.replace('.mp3', '');
+  const folderPath = state.currentTrackPath.slice(0, -1).map(n => n.name).join(' / ');
+  document.getElementById('home-track-folder').textContent = folderPath || 'Unknown';
+  state.tickerOffset = 0;
+}
+
+document.getElementById('prev-btn').addEventListener('click', () => {
+  if (state.playlist.length === 0) return;
+  state.playlistIndex = (state.playlistIndex - 1 + state.playlist.length) % state.playlist.length;
+  loadTrack(state.playlist[state.playlistIndex]);
+  if (!state.playing) togglePlay();
+});
+
+document.getElementById('next-btn').addEventListener('click', () => {
+  if (state.playlist.length === 0) return;
+  state.playlistIndex = (state.playlistIndex + 1) % state.playlist.length;
+  loadTrack(state.playlist[state.playlistIndex]);
+  if (!state.playing) togglePlay();
+});
+
+// ===== SETTINGS =====
+document.querySelectorAll('.setting-toggle').forEach(toggle => {
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('on');
+    const key = toggle.dataset.setting;
+    state.settings[key] = toggle.classList.contains('on');
+  });
+});
+
+document.getElementById('volume-slider').addEventListener('input', (e) => {
+  state.settings.volume = parseInt(e.target.value);
+  document.getElementById('volume-val').textContent = e.target.value + '%';
+});
+
+document.getElementById('density-slider').addEventListener('input', (e) => {
+  state.settings.density = parseInt(e.target.value);
+  const labels = { 1: 'LOW', 2: 'MED', 3: 'HIGH' };
+  document.getElementById('density-val').textContent = labels[e.target.value] || 'MED';
+  // Force recalculation of spectrum band count
+  state.smoothedSpectrum = [];
+  state.spectrumData = [];
+});
+
+document.getElementById('speed-slider').addEventListener('input', (e) => {
+  state.settings.scrollSpeed = parseInt(e.target.value);
+  document.getElementById('speed-val').textContent = e.target.value;
+});
+
+document.getElementById('total-tracks').textContent = countTracks();
+
+// Dot-matrix header for settings
+function renderSettingsDotHeader() {
+  const canvas = document.getElementById('settings-dot-header');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = '#050508';
+  ctx.fillRect(0, 0, rect.width, rect.height);
+
+  const text = 'SETTINGS';
+  const dotSize = 2;
+  const dotGap = 5;
+  const textPxW = getTextPixelWidth(text);
+  const startX = Math.floor((rect.width / dotGap - textPxW) / 2) * dotGap + dotGap / 2;
+  const startY = Math.floor((rect.height / dotGap - 7) / 2) * dotGap + dotGap / 2;
+
+  let px = 0;
+  for (const ch of text) {
+    const pix = getCharPixels(ch);
+    for (let pc = 0; pc < pix.length; pc++) {
+      for (let pr = 0; pr < 7; pr++) {
+        const x = startX + (px + pc) * dotGap;
+        const y = startY + pr * dotGap;
+        const isLit = (pix[pc] >> pr) & 1;
+        ctx.beginPath();
+        ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+        ctx.fillStyle = isLit ? '#FF6B35' : '#120900';
+        ctx.fill();
+      }
+    }
+    px += pix.length + 1;
+  }
+}
+
+// ===== BROWSER =====
+const fileList = document.getElementById('file-list');
+const breadcrumb = document.getElementById('breadcrumb');
+const searchInput = document.getElementById('search-input');
+
+function getCurrentFolder() {
+  return state.browserPath[state.browserPath.length - 1];
+}
+
+function renderBreadcrumb() {
+  breadcrumb.innerHTML = '';
+  state.browserPath.forEach((node, i) => {
+    const span = document.createElement('span');
+    span.textContent = node.name;
+    span.addEventListener('click', () => {
+      state.browserPath = state.browserPath.slice(0, i + 1);
+      state.searchQuery = '';
+      searchInput.value = '';
+      renderBrowser();
+    });
+    breadcrumb.appendChild(span);
+    if (i < state.browserPath.length - 1) {
+      const sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = ' / ';
+      breadcrumb.appendChild(sep);
+    }
+  });
+}
+
+function renderBrowser() {
+  const folder = getCurrentFolder();
+  renderBreadcrumb();
+
+  fileList.innerHTML = '';
+  let items = folder.children || [];
+
+  // Filter by search
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase();
+    items = items.filter(item => {
+      if (item.name.toLowerCase().includes(q)) return true;
+      if (item.type === 'folder' && item.children) {
+        return getAllFiles(item).some(f => f.name.toLowerCase().includes(q));
+      }
+      return false;
+    });
+  }
+
+  // ".." back row
+  if (state.browserPath.length > 1) {
+    const backRow = document.createElement('div');
+    backRow.className = 'file-row back-row';
+    backRow.innerHTML = '<span class="icon">..</span><span class="name">[ BACK ]</span><span class="meta"></span>';
+    backRow.addEventListener('click', () => {
+      state.browserPath.pop();
+      state.searchQuery = '';
+      searchInput.value = '';
+      renderBrowser();
+    });
+    fileList.appendChild(backRow);
+  }
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-folder';
+    empty.textContent = state.searchQuery ? 'NO MATCHES FOUND' : 'EMPTY FOLDER';
+    fileList.appendChild(empty);
+    return;
+  }
+
+  // Sort: folders first, then files
+  const sorted = [...items].sort((a, b) => {
+    if (a.type === 'folder' && b.type !== 'folder') return -1;
+    if (a.type !== 'folder' && b.type === 'folder') return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  sorted.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'file-row ' + item.type;
+
+    const isPlaying = state.currentTrack === item;
+    if (isPlaying) row.classList.add('selected');
+
+    const icon = item.type === 'folder' ? '[+]' : (isPlaying && state.playing ? ' > ' : ' - ');
+    const meta = item.type === 'file' ? `${item.duration}  ${item.size}` : `${(item.children || []).length} items`;
+
+    row.innerHTML = `<span class="icon">${icon}</span><span class="name">${item.name}</span><span class="meta">${meta}</span>`;
+
+    row.addEventListener('click', () => {
+      if (item.type === 'folder') {
+        state.browserPath.push(item);
+        state.searchQuery = '';
+        searchInput.value = '';
+        renderBrowser();
+      } else {
+        // Play this file
+        const folder = getCurrentFolder();
+        state.playlist = (folder.children || []).filter(c => c.type === 'file');
+        state.playlistIndex = state.playlist.indexOf(item);
+        loadTrack(item);
+        if (!state.playing) togglePlay();
+        renderBrowser();
+      }
+    });
+
+    fileList.appendChild(row);
+  });
+}
+
+searchInput.addEventListener('input', (e) => {
+  state.searchQuery = e.target.value;
+  renderBrowser();
+});
+
+document.getElementById('play-all-btn').addEventListener('click', () => {
+  const folder = getCurrentFolder();
+  const files = getAllFiles(folder);
+  if (files.length === 0) return;
+  state.playlist = files;
+  state.playlistIndex = 0;
+  loadTrack(files[0]);
+  if (!state.playing) togglePlay();
+  switchScreen('home-screen');
+});
+
+document.getElementById('shuffle-btn').addEventListener('click', () => {
+  const folder = getCurrentFolder();
+  const files = getAllFiles(folder);
+  if (files.length === 0) return;
+  // Fisher-Yates shuffle
+  const shuffled = [...files];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  state.playlist = shuffled;
+  state.playlistIndex = 0;
+  loadTrack(shuffled[0]);
+  if (!state.playing) togglePlay();
+  switchScreen('home-screen');
+});
+
+// ===== RESPONSIVE =====
+function updateResponsiveClass() {
+  const w = window.innerWidth;
+  document.body.classList.remove('mobile', 'tablet', 'desktop');
+  if (w < 600) document.body.classList.add('mobile');
+  else if (w <= 1024) document.body.classList.add('tablet');
+  else document.body.classList.add('desktop');
+}
+
+const resizeObserver = new ResizeObserver(() => {
+  updateResponsiveClass();
+  resizeCanvas();
+  if (state.currentScreen === 'settings-screen') renderSettingsDotHeader();
+});
+resizeObserver.observe(document.body);
+
+function resizeCanvas() {
+  const wrap = document.getElementById('led-canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  ledCanvas.width = rect.width * dpr;
+  ledCanvas.height = rect.height * dpr;
+  ledCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Reset spectrum arrays for new column count
+  state.smoothedSpectrum = [];
+  state.spectrumData = [];
+}
+
+// ===== INIT =====
+updateResponsiveClass();
+resizeCanvas();
+startAnimation();
+renderBrowser();
+</script>
+</body>
+</html>

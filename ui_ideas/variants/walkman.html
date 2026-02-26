@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP - WALKMAN</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0A0A0F;
+  --silver: #C0C0C8;
+  --silver-light: #D8D8DE;
+  --silver-dark: #A0A0A8;
+  --dark-plastic: #2B2B35;
+  --blue-accent: #4488FF;
+  --button-face: #222222;
+  --lcd-green: #00FF88;
+  --lcd-green-dim: #00663A;
+  --border-shadow: #333340;
+  --lcd-bg: #1A2A1A;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  font-family: "Consolas", "Courier New", monospace;
+  overflow: hidden;
+}
+
+/* ===== DEVICE CONTAINER ===== */
+#app {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#device-wrapper {
+  position: relative;
+  width: 380px; max-width: 95vw;
+  aspect-ratio: 0.58;
+  max-height: 95vh;
+}
+
+#device {
+  width: 100%; height: 100%;
+  position: relative;
+  border-radius: 24px;
+  background: linear-gradient(165deg, var(--silver-light) 0%, var(--silver) 30%, var(--silver-dark) 100%);
+  box-shadow:
+    0 2px 0 #E0E0E6 inset,
+    0 -2px 0 #909098 inset,
+    2px 0 0 #B0B0B8 inset,
+    -2px 0 0 #B0B0B8 inset,
+    0 12px 40px rgba(0,0,0,0.7),
+    0 4px 12px rgba(0,0,0,0.5);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+/* ===== TOP LABEL STRIP ===== */
+#device-label {
+  text-align: center;
+  padding: 12px 16px 6px;
+  flex-shrink: 0;
+}
+#device-label .brand {
+  font-family: "Arial Narrow", "Helvetica Neue", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--dark-plastic);
+  opacity: 0.6;
+}
+#device-label .model {
+  font-family: "Press Start 2P", monospace;
+  font-size: 7px;
+  color: var(--blue-accent);
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+
+/* ===== CASSETTE WINDOW ===== */
+#cassette-section {
+  flex: 0 0 auto;
+  padding: 6px 16px;
+}
+
+#cassette-window {
+  width: 100%;
+  aspect-ratio: 1.65;
+  background: linear-gradient(180deg, #1E1E28 0%, #14141C 100%);
+  border-radius: 12px;
+  border: 3px solid var(--dark-plastic);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.5) inset,
+    0 1px 0 rgba(255,255,255,0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+#cassette-window::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+#cassette-svg {
+  width: 100%; height: 100%;
+  display: block;
+}
+
+/* ===== LCD DISPLAY ===== */
+#lcd-section {
+  flex: 0 0 auto;
+  padding: 6px 16px;
+}
+
+#lcd-panel {
+  background: var(--lcd-bg);
+  border: 2px solid #0D1A0D;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 4px rgba(0,0,0,0.5) inset,
+    0 1px 0 rgba(255,255,255,0.1);
+  padding: 6px 8px;
+  display: flex; flex-direction: column; gap: 3px;
+  min-height: 58px;
+}
+
+#lcd-track {
+  font-family: "Press Start 2P", monospace;
+  font-size: 7px;
+  color: var(--lcd-green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  text-shadow: 0 0 6px rgba(0,255,136,0.5);
+}
+
+#lcd-time {
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  color: var(--lcd-green-dim);
+  text-shadow: 0 0 4px rgba(0,255,136,0.3);
+}
+
+#lcd-spectrum {
+  display: flex;
+  gap: 2px;
+  height: 16px;
+  align-items: flex-end;
+  margin-top: 2px;
+}
+
+.lcd-bar {
+  flex: 1;
+  background: var(--lcd-green);
+  min-width: 3px;
+  border-radius: 1px 1px 0 0;
+  transition: height 0.08s linear;
+  box-shadow: 0 0 3px rgba(0,255,136,0.4);
+}
+
+/* ===== STATUS INDICATOR ===== */
+#status-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 1px;
+}
+#status-icon {
+  font-family: "Press Start 2P", monospace;
+  font-size: 6px;
+  color: var(--lcd-green);
+  text-shadow: 0 0 6px rgba(0,255,136,0.5);
+}
+
+/* ===== TRANSPORT BUTTONS ===== */
+#transport-section {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  padding: 8px 16px 10px;
+  gap: 8px;
+}
+
+#transport-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.transport-btn {
+  width: 60px; height: 48px;
+  min-width: 48px; min-height: 48px;
+  background: linear-gradient(180deg, #2A2A2A 0%, var(--button-face) 30%, #1A1A1A 100%);
+  border: 1px solid #3A3A3A;
+  border-radius: 6px;
+  box-shadow:
+    0 3px 6px rgba(0,0,0,0.6),
+    0 1px 0 rgba(255,255,255,0.08) inset;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 0.05s, box-shadow 0.05s;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.transport-btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.4),
+    0 1px 3px rgba(0,0,0,0.3) inset;
+}
+
+.transport-btn svg {
+  width: 20px; height: 20px;
+  fill: #888;
+  pointer-events: none;
+}
+
+.transport-btn:active svg { fill: var(--blue-accent); }
+.transport-btn.active svg { fill: var(--blue-accent); }
+
+/* MENU button row */
+#menu-row {
+  display: flex; justify-content: center; gap: 8px;
+}
+
+.menu-btn {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #333 0%, #262626 100%);
+  border: 1px solid #444;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05) inset;
+  font-family: "Arial Narrow", "Helvetica Neue", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #999;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.05s, box-shadow 0.05s;
+}
+.menu-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3) inset;
+}
+
+/* ===== BOTTOM DEVICE TRIM ===== */
+#device-bottom {
+  flex-shrink: 0;
+  height: 14px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.08));
+  border-radius: 0 0 24px 24px;
+}
+
+/* ===== TUI OVERLAY ===== */
+#tui-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 10;
+  display: none;
+  flex-direction: column;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+#tui-overlay.visible {
+  display: flex;
+}
+
+#tui-tabs {
+  display: flex;
+  background: #111;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.tui-tab {
+  flex: 1;
+  padding: 10px 4px;
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  min-height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tui-tab:hover { color: #999; }
+.tui-tab.active {
+  color: var(--lcd-green);
+  border-bottom-color: var(--lcd-green);
+  text-shadow: 0 0 8px rgba(0,255,136,0.4);
+}
+
+#tui-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  font-family: "Consolas", monospace;
+  font-size: 11px;
+  color: #AAAAAA;
+  scrollbar-width: thin;
+  scrollbar-color: #333 #111;
+}
+
+#tui-content::-webkit-scrollbar { width: 6px; }
+#tui-content::-webkit-scrollbar-track { background: #111; }
+#tui-content::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* ===== SETTINGS TUI ===== */
+.tui-box {
+  border: 1px solid #444;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.tui-box-title {
+  color: var(--lcd-green);
+  margin-bottom: 6px;
+  font-size: 10px;
+  text-shadow: 0 0 6px rgba(0,255,136,0.3);
+}
+.tui-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  color: #888;
+  font-size: 10px;
+}
+.tui-row .tui-val { color: var(--blue-accent); }
+.tui-row.clickable {
+  cursor: pointer;
+  min-height: 28px;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tui-row.clickable:hover { background: rgba(68,136,255,0.1); }
+.tui-row.clickable:active .tui-val { color: var(--lcd-green); }
+.tui-cursor {
+  display: inline-block;
+  width: 6px; height: 11px;
+  background: var(--lcd-green);
+  animation: blink-cursor 1s step-end infinite;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ===== FILE BROWSER TUI ===== */
+.dir-header {
+  color: var(--lcd-green);
+  margin-bottom: 4px;
+  font-size: 10px;
+  word-break: break-all;
+  text-shadow: 0 0 6px rgba(0,255,136,0.3);
+}
+.dir-separator {
+  color: #444;
+  margin: 4px 0;
+  font-size: 10px;
+}
+.dir-entry {
+  display: flex;
+  padding: 3px 0;
+  cursor: pointer;
+  font-size: 10px;
+  min-height: 28px;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.dir-entry:hover { background: rgba(68,136,255,0.1); }
+.dir-entry .dir-tag {
+  color: var(--blue-accent);
+  width: 50px;
+  flex-shrink: 0;
+  font-weight: bold;
+}
+.dir-entry .dir-size {
+  color: #666;
+  width: 80px;
+  text-align: right;
+  flex-shrink: 0;
+  font-size: 9px;
+}
+.dir-entry .dir-name {
+  flex: 1;
+  color: #CCC;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dir-entry .dir-name.folder-name { color: var(--blue-accent); }
+.dir-entry .dir-name.file-name { color: #AAA; }
+.dir-summary {
+  color: #666;
+  margin-top: 6px;
+  font-size: 9px;
+}
+.dir-back {
+  color: var(--lcd-green);
+  cursor: pointer;
+  padding: 4px 0;
+  min-height: 28px;
+  display: flex; align-items: center;
+  font-size: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.dir-back:hover { text-decoration: underline; }
+
+/* Search bar */
+.dir-search-wrap {
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: var(--lcd-green);
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.dir-search-wrap .dir-search-prompt {
+  white-space: nowrap;
+  text-shadow: 0 0 6px rgba(0,255,136,0.3);
+}
+.dir-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--lcd-green);
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  flex: 1;
+  padding: 2px 0;
+  caret-color: var(--lcd-green);
+  text-shadow: 0 0 6px rgba(0,255,136,0.3);
+}
+.dir-search-input::placeholder { color: #336644; }
+
+/* Browser action buttons */
+.dir-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.dir-action-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: var(--lcd-green);
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-shadow: 0 0 6px rgba(0,255,136,0.3);
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.dir-action-btn:hover { background: rgba(0,255,136,0.08); border-color: var(--lcd-green); }
+.dir-action-btn:active { background: rgba(0,255,136,0.15); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 440px) {
+  #device-wrapper {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  #device {
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #tui-overlay { border-radius: 0; }
+  #device-bottom { border-radius: 0; }
+}
+
+@media (min-width: 768px) {
+  #device-wrapper {
+    width: 380px;
+  }
+}
+
+@media (min-height: 800px) and (min-width: 441px) {
+  #cassette-section { padding: 10px 16px; }
+  #lcd-section { padding: 8px 16px; }
+  #transport-section { padding: 12px 16px 14px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="device-wrapper">
+    <div id="device">
+
+      <!-- Top label -->
+      <div id="device-label">
+        <div class="brand">FileAMP</div>
+        <div class="model">WALKMAN</div>
+      </div>
+
+      <!-- Cassette window -->
+      <div id="cassette-section">
+        <div id="cassette-window">
+          <svg id="cassette-svg" viewBox="0 0 320 194" xmlns="http://www.w3.org/2000/svg">
+            <!-- Cassette body outline -->
+            <rect x="20" y="12" width="280" height="170" rx="10" ry="10" fill="#1A1A24" stroke="#3A3A48" stroke-width="1.5"/>
+            <!-- Label area -->
+            <rect x="50" y="24" width="220" height="60" rx="4" ry="4" fill="#2A2A38" stroke="#444" stroke-width="0.5"/>
+            <text x="160" y="50" text-anchor="middle" font-family="'Arial Narrow', sans-serif" font-size="8" fill="#666" letter-spacing="3">NOW PLAYING</text>
+            <text id="cassette-label" x="160" y="68" text-anchor="middle" font-family="'Press Start 2P', monospace" font-size="6" fill="#4488FF"></text>
+
+            <!-- Tape window (transparent area) -->
+            <rect x="55" y="92" width="210" height="55" rx="6" ry="6" fill="rgba(10,10,20,0.6)" stroke="#3A3A48" stroke-width="1"/>
+
+            <!-- Left reel hub -->
+            <circle id="reel-left" cx="110" cy="119" r="22" fill="none" stroke="#555" stroke-width="1.5"/>
+            <circle cx="110" cy="119" r="8" fill="#2A2A34" stroke="#555" stroke-width="1"/>
+            <circle cx="110" cy="119" r="3" fill="#1A1A24"/>
+            <!-- Left reel spokes -->
+            <g id="spokes-left" transform-origin="110 119">
+              <line x1="110" y1="100" x2="110" y2="108" stroke="#444" stroke-width="1.5"/>
+              <line x1="91" y1="108" x2="97" y2="114" stroke="#444" stroke-width="1.5"/>
+              <line x1="91" y1="130" x2="97" y2="124" stroke="#444" stroke-width="1.5"/>
+              <line x1="110" y1="138" x2="110" y2="130" stroke="#444" stroke-width="1.5"/>
+              <line x1="129" y1="130" x2="123" y2="124" stroke="#444" stroke-width="1.5"/>
+              <line x1="129" y1="108" x2="123" y2="114" stroke="#444" stroke-width="1.5"/>
+            </g>
+
+            <!-- Right reel hub -->
+            <circle id="reel-right" cx="210" cy="119" r="22" fill="none" stroke="#555" stroke-width="1.5"/>
+            <circle cx="210" cy="119" r="8" fill="#2A2A34" stroke="#555" stroke-width="1"/>
+            <circle cx="210" cy="119" r="3" fill="#1A1A24"/>
+            <!-- Right reel spokes -->
+            <g id="spokes-right" transform-origin="210 119">
+              <line x1="210" y1="100" x2="210" y2="108" stroke="#444" stroke-width="1.5"/>
+              <line x1="191" y1="108" x2="197" y2="114" stroke="#444" stroke-width="1.5"/>
+              <line x1="191" y1="130" x2="197" y2="124" stroke="#444" stroke-width="1.5"/>
+              <line x1="210" y1="138" x2="210" y2="130" stroke="#444" stroke-width="1.5"/>
+              <line x1="229" y1="130" x2="223" y2="124" stroke="#444" stroke-width="1.5"/>
+              <line x1="229" y1="108" x2="223" y2="114" stroke="#444" stroke-width="1.5"/>
+            </g>
+
+            <!-- Tape path -->
+            <path id="tape-path" d="M 88 119 Q 88 140, 110 145 L 160 150 L 210 145 Q 232 140, 232 119"
+                  fill="none" stroke="#3A2A1A" stroke-width="2" opacity="0.5"/>
+
+            <!-- Guide rollers -->
+            <circle cx="75" cy="119" r="3" fill="#3A3A48" stroke="#555" stroke-width="0.5"/>
+            <circle cx="245" cy="119" r="3" fill="#3A3A48" stroke="#555" stroke-width="0.5"/>
+            <!-- Head area -->
+            <rect x="148" y="148" width="24" height="14" rx="2" ry="2" fill="#2A2A34" stroke="#444" stroke-width="0.5"/>
+
+            <!-- Screw holes -->
+            <circle cx="36" cy="28" r="4" fill="#14141C" stroke="#3A3A48" stroke-width="0.5"/>
+            <circle cx="284" cy="28" r="4" fill="#14141C" stroke="#3A3A48" stroke-width="0.5"/>
+            <circle cx="36" cy="166" r="4" fill="#14141C" stroke="#3A3A48" stroke-width="0.5"/>
+            <circle cx="284" cy="166" r="4" fill="#14141C" stroke="#3A3A48" stroke-width="0.5"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- LCD Display -->
+      <div id="lcd-section">
+        <div id="lcd-panel">
+          <div id="lcd-track">NO TRACK LOADED</div>
+          <div id="status-row">
+            <span id="status-icon">&#9632; STOP</span>
+            <span id="lcd-time">00:00 / 00:00</span>
+          </div>
+          <div id="lcd-spectrum"></div>
+        </div>
+      </div>
+
+      <!-- Transport buttons -->
+      <div id="transport-section">
+        <div id="transport-buttons">
+          <button class="transport-btn" id="btn-rew" aria-label="Rewind" title="Rewind">
+            <svg viewBox="0 0 24 24"><polygon points="12,5 2,12 12,19"/><polygon points="22,5 12,12 22,19"/></svg>
+          </button>
+          <button class="transport-btn" id="btn-play" aria-label="Play" title="Play">
+            <svg viewBox="0 0 24 24"><polygon points="6,4 20,12 6,20"/></svg>
+          </button>
+          <button class="transport-btn" id="btn-stop" aria-label="Stop" title="Stop">
+            <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg>
+          </button>
+          <button class="transport-btn" id="btn-ff" aria-label="Fast Forward" title="Fast Forward">
+            <svg viewBox="0 0 24 24"><polygon points="2,5 12,12 2,19"/><polygon points="12,5 22,12 12,19"/></svg>
+          </button>
+        </div>
+        <div id="menu-row">
+          <button class="menu-btn" id="btn-menu">MENU</button>
+        </div>
+      </div>
+
+      <div id="device-bottom"></div>
+
+      <!-- TUI Overlay -->
+      <div id="tui-overlay">
+        <div id="tui-tabs">
+          <button class="tui-tab active" data-tab="player">PLAYER</button>
+          <button class="tui-tab" data-tab="files">FILES</button>
+          <button class="tui-tab" data-tab="settings">SETTINGS</button>
+        </div>
+        <div id="tui-content"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== FILE TREE DATA =====
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ===== STATE =====
+const state = {
+  playing: false,
+  currentTrack: null,
+  currentFolder: null,
+  elapsed: 0,
+  totalSeconds: 0,
+  reelAngle: 0,
+  spectrum: new Array(16).fill(0),
+  spectrumTarget: new Array(16).fill(0),
+  tuiOpen: false,
+  tuiTab: 'player',
+  browserPath: [FILE_TREE],
+  allTracks: [],
+  trackIndex: -1,
+  searchQuery: '',
+  settings: {
+    decoder: 'SOFTWARE',
+    sampleRate: '44100 Hz',
+    bitDepth: '16-bit',
+    channels: 'Stereo',
+    bufferSize: '4096',
+    lcdMode: 'GREEN MONO',
+    spectrumBars: '16',
+    refreshRate: '60 fps',
+    scrollSpeed: 'NORMAL',
+    motorSpeed: '4.75 cm/s',
+    reelAnimation: 'ON',
+    autoStop: 'ON',
+    ffRewSpeed: '8x',
+  },
+};
+
+// Settings definitions with cycleable values
+const settingsDef = {
+  'AUDIO ENGINE': [
+    { key: 'decoder', label: 'Decoder', values: ['SOFTWARE', 'HARDWARE', 'HYBRID'] },
+    { key: 'sampleRate', label: 'Sample Rate', values: ['22050 Hz', '44100 Hz', '48000 Hz', '96000 Hz'] },
+    { key: 'bitDepth', label: 'Bit Depth', values: ['8-bit', '16-bit', '24-bit'] },
+    { key: 'channels', label: 'Channels', values: ['Mono', 'Stereo'] },
+    { key: 'bufferSize', label: 'Buffer Size', values: ['1024', '2048', '4096', '8192'] },
+  ],
+  'DISPLAY': [
+    { key: 'lcdMode', label: 'LCD Mode', values: ['GREEN MONO', 'AMBER MONO', 'BLUE MONO', 'WHITE'] },
+    { key: 'spectrumBars', label: 'Spectrum Bars', values: ['8', '12', '16', '24'] },
+    { key: 'refreshRate', label: 'Refresh Rate', values: ['30 fps', '60 fps'] },
+    { key: 'scrollSpeed', label: 'Scroll Speed', values: ['SLOW', 'NORMAL', 'FAST'] },
+  ],
+  'TRANSPORT': [
+    { key: 'motorSpeed', label: 'Motor Speed', values: ['1.875 cm/s', '4.75 cm/s', '9.5 cm/s'] },
+    { key: 'reelAnimation', label: 'Reel Animation', values: ['ON', 'OFF'] },
+    { key: 'autoStop', label: 'Auto-Stop', values: ['ON', 'OFF'] },
+    { key: 'ffRewSpeed', label: 'FF/REW Speed', values: ['4x', '8x', '16x'] },
+  ],
+};
+
+// Collect all tracks for playlist navigation
+function collectTracks(node, path) {
+  if (node.type === 'file') {
+    state.allTracks.push({ ...node, path: [...path] });
+  } else if (node.children) {
+    for (const child of node.children) {
+      collectTracks(child, [...path, node]);
+    }
+  }
+}
+collectTracks(FILE_TREE, []);
+
+// ===== DOM REFS =====
+const $ = s => document.querySelector(s);
+const spokesLeft = $('#spokes-left');
+const spokesRight = $('#spokes-right');
+const lcdTrack = $('#lcd-track');
+const lcdTime = $('#lcd-time');
+const statusIcon = $('#status-icon');
+const cassetteLabel = $('#cassette-label');
+const spectrumContainer = $('#lcd-spectrum');
+const tuiOverlay = $('#tui-overlay');
+const tuiContent = $('#tui-content');
+
+// Build spectrum bars
+for (let i = 0; i < 16; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'lcd-bar';
+  bar.style.height = '1px';
+  spectrumContainer.appendChild(bar);
+}
+const spectrumBars = spectrumContainer.querySelectorAll('.lcd-bar');
+
+// ===== HELPERS =====
+function parseDuration(str) {
+  const [m, s] = str.split(':').map(Number);
+  return m * 60 + s;
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function truncateText(text, maxLen) {
+  return text.length > maxLen ? text.slice(0, maxLen - 2) + '..' : text;
+}
+
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(getAllFiles);
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function playAllFromFolder(shuffle) {
+  const current = state.browserPath[state.browserPath.length - 1];
+  const files = getAllFiles(current);
+  if (files.length === 0) return;
+  const playlist = shuffle ? shuffleArray(files) : files;
+  state.allTracks = playlist.map((f, i) => ({ ...f, path: [] }));
+  state.trackIndex = 0;
+  loadTrack(state.allTracks[0]);
+  play();
+  // Close overlay
+  state.tuiOpen = false;
+  tuiOverlay.classList.remove('visible');
+}
+
+// ===== PLAYER LOGIC =====
+function loadTrack(track) {
+  state.currentTrack = track;
+  state.totalSeconds = parseDuration(track.duration);
+  state.elapsed = 0;
+  const displayName = track.name.replace('.mp3', '');
+  lcdTrack.textContent = truncateText(displayName, 28);
+  cassetteLabel.textContent = truncateText(displayName, 30);
+  lcdTime.textContent = `${formatTime(0)} / ${track.duration}`;
+  state.trackIndex = state.allTracks.findIndex(t => t.name === track.name);
+}
+
+function play() {
+  if (!state.currentTrack) {
+    // Load first track
+    if (state.allTracks.length > 0) {
+      loadTrack(state.allTracks[0]);
+    } else return;
+  }
+  state.playing = true;
+  statusIcon.textContent = '\u25B6 PLAY';
+  $('#btn-play').classList.add('active');
+}
+
+function stop() {
+  state.playing = false;
+  state.elapsed = 0;
+  statusIcon.textContent = '\u25A0 STOP';
+  $('#btn-play').classList.remove('active');
+  if (state.currentTrack) {
+    lcdTime.textContent = `${formatTime(0)} / ${state.currentTrack.duration}`;
+  }
+}
+
+function nextTrack() {
+  if (state.allTracks.length === 0) return;
+  state.trackIndex = (state.trackIndex + 1) % state.allTracks.length;
+  loadTrack(state.allTracks[state.trackIndex]);
+  if (state.playing) play();
+}
+
+function prevTrack() {
+  if (state.allTracks.length === 0) return;
+  state.trackIndex = (state.trackIndex - 1 + state.allTracks.length) % state.allTracks.length;
+  loadTrack(state.allTracks[state.trackIndex]);
+  if (state.playing) play();
+}
+
+// ===== TRANSPORT BUTTON EVENTS =====
+$('#btn-play').addEventListener('click', () => {
+  if (state.playing) {
+    state.playing = false;
+    statusIcon.textContent = '\u2759\u2759 PAUSE';
+    $('#btn-play').classList.remove('active');
+  } else {
+    play();
+  }
+});
+
+$('#btn-stop').addEventListener('click', stop);
+$('#btn-ff').addEventListener('click', nextTrack);
+$('#btn-rew').addEventListener('click', prevTrack);
+
+// ===== MENU / TUI =====
+$('#btn-menu').addEventListener('click', () => {
+  state.tuiOpen = !state.tuiOpen;
+  tuiOverlay.classList.toggle('visible', state.tuiOpen);
+  if (state.tuiOpen) {
+    renderTUI();
+  }
+});
+
+document.querySelectorAll('.tui-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tui-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    state.tuiTab = tab.dataset.tab;
+    renderTUI();
+  });
+});
+
+// ===== TUI RENDERING =====
+function renderTUI() {
+  switch (state.tuiTab) {
+    case 'player': renderPlayerTUI(); break;
+    case 'files': renderFileBrowser(); break;
+    case 'settings': renderSettings(); break;
+  }
+}
+
+function renderPlayerTUI() {
+  const track = state.currentTrack;
+  const trackName = track ? track.name : '(none)';
+  const statusText = state.playing ? 'PLAYING' : 'STOPPED';
+  tuiContent.innerHTML = `
+    <div style="text-align:center; color:var(--lcd-green); margin-bottom:10px; font-size:10px; text-shadow:0 0 6px rgba(0,255,136,0.3);">
+      [BACK TO PLAYER]
+    </div>
+    <div class="tui-box">
+      <div class="tui-box-title">+ NOW PLAYING</div>
+      <div class="tui-row"><span>Track:</span><span class="tui-val">${trackName}</span></div>
+      <div class="tui-row"><span>Status:</span><span class="tui-val">${statusText}</span></div>
+      <div class="tui-row"><span>Time:</span><span class="tui-val">${formatTime(state.elapsed)} / ${track ? track.duration : '00:00'}</span></div>
+      <div class="tui-row"><span>Duration:</span><span class="tui-val">${track ? track.duration : '--:--'}</span></div>
+      <div class="tui-row"><span>Size:</span><span class="tui-val">${track ? track.size : '-- MB'}</span></div>
+    </div>
+    <div class="tui-box">
+      <div class="tui-box-title">+ PLAYLIST</div>
+      <div style="color:#666; font-size:9px;">${state.allTracks.length} tracks loaded</div>
+      <div style="color:#666; font-size:9px;">Track ${state.trackIndex + 1} of ${state.allTracks.length}</div>
+    </div>
+    <div style="color:#555; font-size:9px; margin-top:8px;">Press MENU to return<span class="tui-cursor"></span></div>
+  `;
+  tuiContent.querySelector('div').addEventListener('click', () => {
+    state.tuiOpen = false;
+    tuiOverlay.classList.remove('visible');
+  });
+}
+
+function renderFileBrowser() {
+  const current = state.browserPath[state.browserPath.length - 1];
+  const pathStr = 'C:\\' + state.browserPath.map(n => n.name).join('\\');
+  const children = current.children || [];
+
+  // Filter by search query
+  const q = state.searchQuery.toLowerCase();
+  let folders = children.filter(c => c.type === 'folder');
+  let files = children.filter(c => c.type === 'file');
+  if (q) {
+    folders = folders.filter(f => f.name.toLowerCase().includes(q) || getAllFiles(f).some(t => t.name.toLowerCase().includes(q)));
+    files = files.filter(f => f.name.toLowerCase().includes(q));
+  }
+  const folderCount = folders.length;
+  const fileCount = files.length;
+
+  let html = `<div class="dir-header">Directory of ${pathStr}</div>`;
+
+  // Search bar
+  html += `<div class="dir-search-wrap"><span class="dir-search-prompt">C:\\&gt; SEARCH:&nbsp;</span><input class="dir-search-input" id="browser-search" type="text" placeholder="type to filter..." value="${state.searchQuery.replace(/"/g, '&quot;')}"></div>`;
+
+  // Action buttons
+  html += `<div class="dir-actions"><button class="dir-action-btn" id="btn-play-all">[PLAY ALL]</button><button class="dir-action-btn" id="btn-shuffle">[SHUFFLE]</button></div>`;
+
+  html += `<div class="dir-separator">${'\u2500'.repeat(36)}</div>`;
+
+  if (state.browserPath.length > 1) {
+    html += `<div class="dir-back" data-action="back">[..] Parent Directory</div>`;
+  }
+
+  for (const folder of folders) {
+    html += `
+      <div class="dir-entry" data-folder="${folder.name}">
+        <span class="dir-tag">&lt;DIR&gt;</span>
+        <span class="dir-name folder-name">${folder.name}</span>
+        <span class="dir-size"></span>
+      </div>`;
+  }
+
+  for (const file of files) {
+    html += `
+      <div class="dir-entry" data-file="${file.name}">
+        <span class="dir-tag"></span>
+        <span class="dir-name file-name">${file.name}</span>
+        <span class="dir-size">${file.size}</span>
+      </div>`;
+  }
+
+  html += `<div class="dir-separator">${'\u2500'.repeat(36)}</div>`;
+  html += `<div class="dir-summary">${folderCount} folder(s) ${fileCount} file(s)</div>`;
+
+  tuiContent.innerHTML = html;
+
+  // Search input handler
+  const searchInput = document.getElementById('browser-search');
+  searchInput.addEventListener('input', (e) => {
+    state.searchQuery = e.target.value;
+    renderFileBrowser();
+    // Re-focus and restore cursor position
+    const newInput = document.getElementById('browser-search');
+    if (newInput) {
+      newInput.focus();
+      newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+    }
+  });
+  // Auto-focus search on render if there's already a query
+  if (q) {
+    searchInput.focus();
+    searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+  }
+
+  // Play All button
+  document.getElementById('btn-play-all').addEventListener('click', () => playAllFromFolder(false));
+  // Shuffle button
+  document.getElementById('btn-shuffle').addEventListener('click', () => playAllFromFolder(true));
+
+  // Event listeners
+  const backEl = tuiContent.querySelector('[data-action="back"]');
+  if (backEl) {
+    backEl.addEventListener('click', () => {
+      state.browserPath.pop();
+      state.searchQuery = '';
+      renderFileBrowser();
+    });
+  }
+
+  tuiContent.querySelectorAll('[data-folder]').forEach(el => {
+    el.addEventListener('click', () => {
+      const name = el.dataset.folder;
+      const folder = children.find(c => c.name === name && c.type === 'folder');
+      if (folder) {
+        state.browserPath.push(folder);
+        state.searchQuery = '';
+        renderFileBrowser();
+      }
+    });
+  });
+
+  tuiContent.querySelectorAll('[data-file]').forEach(el => {
+    el.addEventListener('click', () => {
+      const name = el.dataset.file;
+      const file = children.find(c => c.name === name && c.type === 'file');
+      if (file) {
+        loadTrack(file);
+        play();
+        // Switch to player tab
+        state.tuiTab = 'player';
+        document.querySelectorAll('.tui-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-tab="player"]').classList.add('active');
+        // Close overlay
+        state.tuiOpen = false;
+        tuiOverlay.classList.remove('visible');
+      }
+    });
+  });
+}
+
+function renderSettings() {
+  let html = `
+    <div class="tui-box">
+      <div class="tui-box-title">+ SERVICE MENU v1.04</div>
+      <div style="color:#555; font-size:9px; margin-bottom:8px;">FileAMP WALKMAN - Diagnostic Mode</div>
+    </div>`;
+
+  for (const [section, defs] of Object.entries(settingsDef)) {
+    html += `<div class="tui-box"><div class="tui-box-title">+ ${section}</div>`;
+    for (const def of defs) {
+      html += `<div class="tui-row clickable" data-setting="${def.key}"><span>${def.label}</span><span class="tui-val">${state.settings[def.key]}</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `
+    <div class="tui-box">
+      <div class="tui-box-title">+ SYSTEM INFO</div>
+      <div class="tui-row"><span>Firmware</span><span class="tui-val">v2.6.0</span></div>
+      <div class="tui-row"><span>Model</span><span class="tui-val">WM-F1AMP</span></div>
+      <div class="tui-row"><span>Serial</span><span class="tui-val">FA-20260226</span></div>
+      <div class="tui-row"><span>Total Tracks</span><span class="tui-val">${state.allTracks.length}</span></div>
+    </div>
+    <div style="color:#555; font-size:9px; margin-top:8px;">Click a setting to cycle its value<span class="tui-cursor"></span></div>`;
+
+  tuiContent.innerHTML = html;
+
+  // Attach click handlers to cycle setting values
+  tuiContent.querySelectorAll('[data-setting]').forEach(row => {
+    row.addEventListener('click', () => {
+      const key = row.dataset.setting;
+      // Find the definition
+      for (const defs of Object.values(settingsDef)) {
+        const def = defs.find(d => d.key === key);
+        if (def) {
+          const idx = def.values.indexOf(state.settings[key]);
+          state.settings[key] = def.values[(idx + 1) % def.values.length];
+          renderSettings();
+          return;
+        }
+      }
+    });
+  });
+}
+
+// ===== ANIMATION LOOP =====
+let lastFrameTime = 0;
+const SPECTRUM_SMOOTHING = 0.15;
+
+function animate(timestamp) {
+  const dt = lastFrameTime ? (timestamp - lastFrameTime) / 1000 : 0;
+  lastFrameTime = timestamp;
+
+  // Update elapsed time
+  if (state.playing && state.currentTrack) {
+    state.elapsed += dt;
+    if (state.elapsed >= state.totalSeconds) {
+      nextTrack();
+    }
+    lcdTime.textContent = `${formatTime(state.elapsed)} / ${state.currentTrack.duration}`;
+  }
+
+  // Spin reels
+  if (state.playing) {
+    state.reelAngle += dt * 120; // degrees per second
+    spokesLeft.setAttribute('transform', `rotate(${state.reelAngle} 110 119)`);
+    spokesRight.setAttribute('transform', `rotate(${state.reelAngle} 210 119)`);
+  }
+
+  // Spectrum
+  if (state.playing) {
+    for (let i = 0; i < 16; i++) {
+      if (Math.random() < 0.3) {
+        state.spectrumTarget[i] = Math.random() * 100;
+      }
+      state.spectrum[i] += (state.spectrumTarget[i] - state.spectrum[i]) * SPECTRUM_SMOOTHING;
+      const h = Math.max(1, state.spectrum[i] * 0.16);
+      spectrumBars[i].style.height = h + 'px';
+    }
+  } else {
+    for (let i = 0; i < 16; i++) {
+      state.spectrum[i] *= 0.9;
+      const h = Math.max(1, state.spectrum[i] * 0.16);
+      spectrumBars[i].style.height = h + 'px';
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// ===== RESPONSIVE =====
+const ro = new ResizeObserver(() => {
+  // Could adapt content here if needed; CSS handles most responsiveness
+});
+ro.observe(document.getElementById('device-wrapper'));
+
+// ===== INITIAL STATE =====
+// Load a default track
+loadTrack(state.allTracks[0]);
+</script>
+</body>
+</html>

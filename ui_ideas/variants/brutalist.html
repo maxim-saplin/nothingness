@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP — BRUTALIST</title>
+<style>
+/* MINIMAL CSS - only what we absolutely need for layout and the spectrum */
+body {
+  font-family: "Times New Roman", Times, serif;
+  background: #FFF;
+  color: #000;
+  margin: 8px;
+  overflow-x: hidden;
+}
+
+a { color: #0000EE; }
+a:visited { color: #551A8B; }
+
+/* Blink animation for "Now Playing" */
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.blink { animation: blink 1s step-end infinite; }
+
+/* Marquee animation */
+@keyframes marquee-scroll {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.marquee-container {
+  overflow: hidden;
+  white-space: nowrap;
+  width: 100%;
+  background: #FFF;
+}
+.marquee-text {
+  display: inline-block;
+  animation: marquee-scroll 15s linear infinite;
+}
+
+/* Spectrum cell sizing */
+.spectrum-cell {
+  width: 16px;
+  height: 8px;
+  background: #FFF;
+  transition: background 0.1s;
+}
+.spectrum-cell.on {
+  background: #000;
+}
+
+/* Progress bar seek area */
+.progress-seek {
+  cursor: pointer;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+  letter-spacing: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 8px 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── PANEL OVERLAY ─── */
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms;
+  z-index: 50;
+}
+.panel-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile: bottom sheet as fieldset */
+.bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 85vh;
+  transform: translateY(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  background: #FFF;
+  border-top: 2px outset #888;
+  overflow-y: auto;
+  padding: 0;
+}
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* Tablet+: side drawer as fieldset */
+.side-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 450px;
+  transform: translateX(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  background: #FFF;
+  border-left: 2px outset #888;
+  overflow-y: auto;
+  padding: 0;
+}
+.side-drawer.open {
+  transform: translateX(0);
+}
+
+.bottom-sheet.hidden, .side-drawer.hidden { display: none; }
+
+/* Panel close button area */
+.panel-top-bar {
+  padding: 4px 8px;
+  text-align: right;
+  border-bottom: 1px solid #808080;
+}
+
+/* File browser list */
+.file-list-ul {
+  list-style-type: disc;
+  padding-left: 30px;
+  margin: 0;
+}
+.file-list-ul li {
+  padding: 4px 0;
+  cursor: pointer;
+  min-height: 36px;
+  display: list-item;
+}
+.file-list-ul li:hover {
+  background: #FFFFCC;
+}
+
+/* Search input - default browser styling */
+.browser-search-input {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 14px;
+  width: 100%;
+  padding: 2px 4px;
+  margin: 4px 0;
+}
+
+/* Settings table */
+.settings-table td {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+.settings-table select {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 14px;
+}
+
+/* Transport buttons - ensure min touch target but keep default styling */
+.transport-btn {
+  min-height: 44px;
+  min-width: 44px;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Responsive */
+@media (max-width: 699px) {
+  .side-drawer { display: none !important; }
+  .spectrum-cell { width: 12px; height: 6px; }
+}
+@media (min-width: 700px) {
+  .bottom-sheet { display: none !important; }
+}
+</style>
+</head>
+<body>
+<font face="Times New Roman">
+
+<!-- MARQUEE -->
+<div class="marquee-container">
+  <span class="marquee-text"><b>*** Welcome to FileAMP - The Best MP3 Player on the World Wide Web! ***</b></span>
+</div>
+
+<hr>
+
+<center>
+  <h1>FileAMP</h1>
+  <font size="2"><i>v2.0 - Freeware - <u>Download Now!</u></i></font>
+  <br>
+  <h4 class="blink" id="now-playing-blink"><span id="status-text">Now Playing</span></h4>
+</center>
+
+<hr>
+
+<!-- TRACK INFO TABLE -->
+<table border="1" cellpadding="4" cellspacing="0" width="100%" id="track-table">
+  <tr>
+    <td width="80"><b>Track:</b></td>
+    <td id="info-track">Stairway to Heaven.mp3</td>
+  </tr>
+  <tr>
+    <td><b>Artist:</b></td>
+    <td id="info-artist">Led Zeppelin</td>
+  </tr>
+  <tr>
+    <td><b>Duration:</b></td>
+    <td id="info-duration">08:02</td>
+  </tr>
+  <tr>
+    <td><b>Status:</b></td>
+    <td id="info-status">Stopped</td>
+  </tr>
+</table>
+
+<hr>
+
+<center>
+  <h4>Spectrum Analyzer</h4>
+</center>
+
+<!-- SPECTRUM AS TABLE -->
+<table border="0" cellpadding="0" cellspacing="1" width="100%" id="spectrum-table">
+  <!-- Built by JS -->
+</table>
+
+<hr>
+
+<!-- TRANSPORT CONTROLS -->
+<center>
+  <button class="transport-btn" id="btn-prev" title="Previous">&lt;&lt; Prev</button>
+  &nbsp;
+  <button class="transport-btn" id="btn-play" title="Play">&#9654; PLAY</button>
+  &nbsp;
+  <button class="transport-btn" id="btn-stop" title="Stop">&#9632; STOP</button>
+  &nbsp;
+  <button class="transport-btn" id="btn-next" title="Next">Next &gt;&gt;</button>
+</center>
+
+<hr>
+
+<!-- PROGRESS BAR -->
+<center>
+  <div class="progress-seek" id="progress-seek" title="Click to seek">
+    <tt id="progress-bar">[--------------------] 0%</tt>
+  </div>
+  <font size="3"><tt id="progress-time">00:00 / 08:02</tt></font>
+</center>
+
+<hr>
+
+<!-- NAVIGATION LINKS -->
+<center>
+  <font size="3">
+    <a href="#" id="link-browse" onclick="return false;">[ Browse Files ]</a>
+    &nbsp;|&nbsp;
+    <a href="#" id="link-settings" onclick="return false;">[ Settings ]</a>
+  </font>
+</center>
+
+<hr>
+
+<!-- UNDER CONSTRUCTION -->
+<center>
+  <font size="4"><b>&#128679; Under Construction &#128679;</b></font>
+  <br><br>
+  <font size="2"><i>This page is best viewed with <u>Netscape Navigator 3.0</u> at 800x600 resolution.</i></font>
+  <br><br>
+  <img src="" width="0" height="0" alt="">
+  <font size="2">You are visitor #<b id="visitor-count">00004872</b></font>
+  <br><br>
+  <font size="1" color="#808080">&copy; 1996 FileAMP. All rights reserved. | <a href="#">Guestbook</a> | <a href="#">Webring</a> | <a href="#">Email Webmaster</a></font>
+</center>
+
+<br>
+
+</font>
+
+<!-- PANEL OVERLAY -->
+<div class="panel-overlay" id="panel-overlay"></div>
+
+<!-- BOTTOM SHEET (mobile <700px) -->
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="panel-top-bar">
+    <button onclick="closePanel()">[ X Close ]</button>
+  </div>
+  <div style="padding:8px;">
+    <center>
+      <a href="#" class="panel-tab-link" data-panel="browse" onclick="return false;"><b>[ Browse Files ]</b></a>
+      &nbsp;|&nbsp;
+      <a href="#" class="panel-tab-link" data-panel="settings" onclick="return false;"><b>[ Settings ]</b></a>
+    </center>
+    <hr>
+    <div id="bs-panel-content"></div>
+  </div>
+</div>
+
+<!-- SIDE DRAWER (tablet >=700px) -->
+<div class="side-drawer" id="side-drawer">
+  <div class="panel-top-bar">
+    <button onclick="closePanel()">[ X Close ]</button>
+  </div>
+  <div style="padding:8px;">
+    <center>
+      <a href="#" class="panel-tab-link" data-panel="browse" onclick="return false;"><b>[ Browse Files ]</b></a>
+      &nbsp;|&nbsp;
+      <a href="#" class="panel-tab-link" data-panel="settings" onclick="return false;"><b>[ Settings ]</b></a>
+    </center>
+    <hr>
+    <div id="sd-panel-content"></div>
+  </div>
+</div>
+
+<script>
+// ─── FILE TREE DATA ───
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ─── STATE ───
+let isPlaying = false;
+let currentTrack = { name: 'Stairway to Heaven.mp3', duration: '08:02', artist: 'Led Zeppelin', album: 'Rock' };
+let playProgress = 0;
+let lastTime = 0;
+let browserPath = [FILE_TREE];
+let searchQuery = '';
+let panelOpen = false;
+let activeTab = 'browse';
+let panelMode = 'bottom-sheet';
+
+const SPECTRUM_ROWS = 10;
+const SPECTRUM_COLS = 20;
+let spectrumGrid = [];
+for (let r = 0; r < SPECTRUM_ROWS; r++) {
+  spectrumGrid[r] = new Array(SPECTRUM_COLS).fill(false);
+}
+let spectrumHeights = new Array(SPECTRUM_COLS).fill(0);
+let spectrumTargets = new Array(SPECTRUM_COLS).fill(0);
+
+// ─── HELPERS ───
+function parseDuration(str) {
+  const parts = str.split(':');
+  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60).toString().padStart(2, '0');
+  const s = Math.floor(secs % 60).toString().padStart(2, '0');
+  return m + ':' + s;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(c => getAllFiles(c));
+}
+
+function findGrandparentFolder(fileName) {
+  function search(node, parent, grandparent) {
+    if (node.type === 'file' && node.name === fileName) return { parent, grandparent };
+    if (node.children) {
+      for (const child of node.children) {
+        const result = search(child, node, parent);
+        if (result) return result;
+      }
+    }
+    return null;
+  }
+  return search(FILE_TREE, null, null);
+}
+
+const allFiles = getAllFiles(FILE_TREE);
+
+// ─── SPECTRUM TABLE BUILD ───
+function buildSpectrumTable() {
+  const table = document.getElementById('spectrum-table');
+  let html = '';
+  for (let r = 0; r < SPECTRUM_ROWS; r++) {
+    html += '<tr>';
+    for (let c = 0; c < SPECTRUM_COLS; c++) {
+      html += '<td class="spectrum-cell" id="sc-' + r + '-' + c + '">&nbsp;</td>';
+    }
+    html += '</tr>';
+  }
+  table.innerHTML = html;
+}
+
+function updateSpectrumDisplay() {
+  for (let c = 0; c < SPECTRUM_COLS; c++) {
+    const height = Math.round(spectrumHeights[c] * SPECTRUM_ROWS);
+    for (let r = 0; r < SPECTRUM_ROWS; r++) {
+      const cell = document.getElementById('sc-' + r + '-' + c);
+      if (cell) {
+        // Row 0 is top, so (SPECTRUM_ROWS - 1 - r) is the level from bottom
+        const level = SPECTRUM_ROWS - 1 - r;
+        if (level < height) {
+          cell.classList.add('on');
+        } else {
+          cell.classList.remove('on');
+        }
+      }
+    }
+  }
+}
+
+function updateSpectrumData() {
+  if (isPlaying) {
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      if (Math.random() < 0.2) {
+        const center = SPECTRUM_COLS / 2;
+        const dist = Math.abs(i - center) / center;
+        const base = 0.3 + (1 - dist) * 0.3;
+        spectrumTargets[i] = Math.random() * 0.5 + base * 0.5;
+      }
+    }
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      spectrumHeights[i] += (spectrumTargets[i] - spectrumHeights[i]) * 0.2;
+    }
+  } else {
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      spectrumHeights[i] *= 0.9;
+      spectrumTargets[i] *= 0.9;
+    }
+  }
+  updateSpectrumDisplay();
+}
+
+// ─── TRACK MANAGEMENT ───
+function setTrack(file) {
+  currentTrack = { name: file.name, duration: file.duration };
+  const hierarchy = findGrandparentFolder(file.name);
+  currentTrack.artist = hierarchy && hierarchy.parent ? hierarchy.parent.name : 'Unknown';
+  currentTrack.album = hierarchy && hierarchy.grandparent ? hierarchy.grandparent.name : '';
+  playProgress = 0;
+
+  document.getElementById('info-track').textContent = file.name;
+  document.getElementById('info-artist').textContent = currentTrack.artist;
+  document.getElementById('info-duration').textContent = file.duration;
+  updateStatusDisplay();
+  updateProgress();
+}
+
+function playNextTrack() {
+  const idx = allFiles.findIndex(f => f.name === currentTrack.name);
+  const next = allFiles[(idx + 1) % allFiles.length];
+  setTrack(next);
+}
+
+function playPrevTrack() {
+  const idx = allFiles.findIndex(f => f.name === currentTrack.name);
+  const prev = allFiles[(idx - 1 + allFiles.length) % allFiles.length];
+  setTrack(prev);
+}
+
+// ─── PLAY / PAUSE / STOP ───
+function updateStatusDisplay() {
+  const statusEl = document.getElementById('info-status');
+  const statusText = document.getElementById('status-text');
+  const blinkEl = document.getElementById('now-playing-blink');
+  if (isPlaying) {
+    statusEl.innerHTML = '<font color="green"><b>Playing</b></font>';
+    statusText.textContent = 'Now Playing';
+    blinkEl.classList.add('blink');
+    document.getElementById('btn-play').innerHTML = '&#9646;&#9646; PAUSE';
+  } else {
+    if (playProgress > 0) {
+      statusEl.textContent = 'Paused';
+      statusText.textContent = 'Paused';
+    } else {
+      statusEl.textContent = 'Stopped';
+      statusText.textContent = 'Stopped';
+    }
+    blinkEl.classList.remove('blink');
+    document.getElementById('btn-play').innerHTML = '&#9654; PLAY';
+  }
+}
+
+function togglePlay() {
+  isPlaying = !isPlaying;
+  updateStatusDisplay();
+}
+
+function stopPlayback() {
+  isPlaying = false;
+  playProgress = 0;
+  updateStatusDisplay();
+  updateProgress();
+}
+
+document.getElementById('btn-play').addEventListener('click', togglePlay);
+document.getElementById('btn-stop').addEventListener('click', stopPlayback);
+document.getElementById('btn-next').addEventListener('click', function() {
+  playNextTrack();
+  if (!isPlaying) {
+    isPlaying = true;
+    updateStatusDisplay();
+  }
+});
+document.getElementById('btn-prev').addEventListener('click', function() {
+  playPrevTrack();
+  if (!isPlaying) {
+    isPlaying = true;
+    updateStatusDisplay();
+  }
+});
+
+// ─── PROGRESS BAR ───
+function updateProgress() {
+  const total = parseDuration(currentTrack.duration);
+  const current = playProgress * total;
+  const pct = Math.round(playProgress * 100);
+
+  // Build text-art bar: [===========----------] 32%
+  const barWidth = 30;
+  const filled = Math.round(playProgress * barWidth);
+  let bar = '[';
+  for (let i = 0; i < barWidth; i++) {
+    bar += i < filled ? '=' : '-';
+  }
+  bar += '] ' + pct + '%';
+
+  document.getElementById('progress-bar').textContent = bar;
+  document.getElementById('progress-time').textContent = formatTime(current) + ' / ' + currentTrack.duration;
+}
+
+// Seek on click
+document.getElementById('progress-seek').addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  playProgress = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  updateProgress();
+});
+
+// ─── MAIN ANIMATION LOOP ───
+function mainLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (isPlaying) {
+    const total = parseDuration(currentTrack.duration);
+    playProgress += (dt / 1000) / total;
+    if (playProgress >= 1) {
+      playProgress = 0;
+      playNextTrack();
+    }
+    updateProgress();
+  }
+
+  updateSpectrumData();
+  requestAnimationFrame(mainLoop);
+}
+
+// ─── PANEL SYSTEM ───
+const overlay = document.getElementById('panel-overlay');
+
+function getActivePanelContentEl() {
+  if (panelMode === 'side-drawer') return document.getElementById('sd-panel-content');
+  return document.getElementById('bs-panel-content');
+}
+
+function openPanel(tab) {
+  if (tab) activeTab = tab;
+  panelOpen = true;
+  overlay.classList.add('open');
+  const panel = panelMode === 'side-drawer'
+    ? document.getElementById('side-drawer')
+    : document.getElementById('bottom-sheet');
+  panel.classList.add('open');
+  renderPanelContent();
+  syncTabLinks();
+}
+
+function closePanel() {
+  panelOpen = false;
+  overlay.classList.remove('open');
+  document.getElementById('bottom-sheet').classList.remove('open');
+  document.getElementById('side-drawer').classList.remove('open');
+}
+
+overlay.addEventListener('click', closePanel);
+
+// Tab links inside panels
+document.querySelectorAll('.panel-tab-link').forEach(function(link) {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    activeTab = this.dataset.panel;
+    renderPanelContent();
+    syncTabLinks();
+  });
+});
+
+function syncTabLinks() {
+  document.querySelectorAll('.panel-tab-link').forEach(function(link) {
+    if (link.dataset.panel === activeTab) {
+      link.style.fontWeight = 'bold';
+      link.style.color = '#000';
+    } else {
+      link.style.fontWeight = 'normal';
+      link.style.color = '#0000EE';
+    }
+  });
+}
+
+// Nav links on main page
+document.getElementById('link-browse').addEventListener('click', function(e) {
+  e.preventDefault();
+  openPanel('browse');
+});
+document.getElementById('link-settings').addEventListener('click', function(e) {
+  e.preventDefault();
+  openPanel('settings');
+});
+
+function renderPanelContent() {
+  if (activeTab === 'browse') {
+    renderBrowser();
+  } else {
+    renderSettings();
+  }
+}
+
+// ─── FILE BROWSER ───
+function getCurrentFolder() {
+  return browserPath[browserPath.length - 1];
+}
+
+function renderBrowser() {
+  const container = getActivePanelContentEl();
+  const folder = getCurrentFolder();
+  const children = folder.children || [];
+  const folders = children.filter(c => c.type === 'folder');
+  const files = children.filter(c => c.type === 'file');
+
+  const query = searchQuery.toLowerCase();
+  const filteredFolders = query ? folders.filter(f => f.name.toLowerCase().includes(query)) : folders;
+  const filteredFiles = query ? files.filter(f => f.name.toLowerCase().includes(query)) : files;
+
+  // Build breadcrumbs
+  let breadcrumb = '';
+  browserPath.forEach(function(node, i) {
+    if (i > 0) breadcrumb += ' / ';
+    breadcrumb += '<a href="#" class="breadcrumb-link" data-depth="' + i + '" onclick="return false;">' + escHtml(node.name) + '</a>';
+  });
+
+  // Build file list
+  let listHtml = '';
+
+  if (browserPath.length > 1) {
+    listHtml += '<li class="file-item" data-action="up"><b>[UP]</b> .. Parent Directory</li>';
+  }
+
+  filteredFolders.forEach(function(f, i) {
+    const count = f.children ? f.children.length : 0;
+    listHtml += '<li class="file-item" data-action="folder" data-idx="' + i + '"><b>[DIR]</b> ' + escHtml(f.name) + ' <font size="2" color="#808080">(' + count + ' items)</font></li>';
+  });
+
+  filteredFiles.forEach(function(f, i) {
+    listHtml += '<li class="file-item" data-action="file" data-idx="' + i + '">' + escHtml(f.name) + ' - <font size="2" color="#808080">' + f.duration + ' - ' + f.size + '</font></li>';
+  });
+
+  if (filteredFolders.length === 0 && filteredFiles.length === 0 && query) {
+    listHtml += '<li><i>No matches found.</i></li>';
+  }
+
+  const totalFolders = folders.length;
+  const totalFiles = files.length;
+
+  let html = '<fieldset>';
+  html += '<legend><b>File Browser</b></legend>';
+  html += '<p><font size="2">Location: ' + breadcrumb + '</font></p>';
+  html += '<input type="text" class="browser-search-input" placeholder="Search files..." value="' + escHtml(searchQuery) + '">';
+  html += '<hr>';
+  html += '<ul class="file-list-ul">' + listHtml + '</ul>';
+  html += '<hr>';
+  html += '<font size="2"><i>' + totalFolders + ' folder(s), ' + totalFiles + ' file(s)</i></font>';
+  html += '</fieldset>';
+
+  container.innerHTML = html;
+
+  // Attach events
+  container.querySelector('.browser-search-input').addEventListener('input', function(e) {
+    searchQuery = e.target.value;
+    renderBrowser();
+  });
+
+  container.querySelectorAll('.breadcrumb-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const depth = parseInt(this.dataset.depth);
+      browserPath = browserPath.slice(0, depth + 1);
+      searchQuery = '';
+      renderBrowser();
+    });
+  });
+
+  container.querySelectorAll('.file-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      const action = this.dataset.action;
+      if (action === 'up') {
+        browserPath.pop();
+        searchQuery = '';
+        renderBrowser();
+      } else if (action === 'folder') {
+        const idx = parseInt(this.dataset.idx);
+        browserPath.push(filteredFolders[idx]);
+        searchQuery = '';
+        renderBrowser();
+      } else if (action === 'file') {
+        const idx = parseInt(this.dataset.idx);
+        const file = filteredFiles[idx];
+        setTrack(file);
+        isPlaying = true;
+        updateStatusDisplay();
+        closePanel();
+      }
+    });
+  });
+}
+
+// ─── SETTINGS ───
+const settingsData = [
+  { section: 'Visualiser', items: [
+    { key: 'Style', options: ['Bars', 'Wave', 'Scatter'], value: 0 },
+    { key: 'Column Count', options: ['16', '20', '24', '32'], value: 1 },
+    { key: 'Animation Speed', options: ['Slow', 'Normal', 'Fast'], value: 1 },
+  ]},
+  { section: 'Appearance', items: [
+    { key: 'Theme', options: ['Brutalist', 'GeoCities', 'Angelfire', 'Tripod'], value: 0 },
+    { key: 'Font Size', options: ['Small', 'Normal', 'Large'], value: 1 },
+    { key: 'Blink Text', options: ['On', 'Off'], value: 0 },
+  ]},
+  { section: 'Playback', items: [
+    { key: 'Shuffle', options: ['Off', 'On'], value: 0 },
+    { key: 'Repeat', options: ['Off', 'Track', 'All'], value: 0 },
+    { key: 'Gapless Playback', options: ['On', 'Off'], value: 0 },
+    { key: 'Crossfade', options: ['Off', '1s', '2s', '3s', '5s'], value: 0 },
+  ]},
+  { section: 'System', items: [
+    { key: 'Buffer Size', options: ['128 KB', '256 KB', '512 KB', '1 MB'], value: 1 },
+    { key: 'Output', options: ['Stereo', 'Mono', 'Surround'], value: 0 },
+    { key: 'Sample Rate', options: ['22050 Hz', '44100 Hz', '48000 Hz'], value: 1 },
+  ]},
+];
+
+function renderSettings() {
+  const container = getActivePanelContentEl();
+  let html = '';
+
+  settingsData.forEach(function(section, si) {
+    html += '<fieldset>';
+    html += '<legend><b>' + escHtml(section.section) + '</b></legend>';
+    html += '<table border="1" cellpadding="4" cellspacing="0" width="100%" class="settings-table">';
+    section.items.forEach(function(item, ii) {
+      html += '<tr>';
+      html += '<td width="40%"><b>' + escHtml(item.key) + '</b></td>';
+      html += '<td>';
+      html += '<select data-section="' + si + '" data-item="' + ii + '">';
+      item.options.forEach(function(opt, oi) {
+        html += '<option value="' + oi + '"' + (oi === item.value ? ' selected' : '') + '>' + escHtml(opt) + '</option>';
+      });
+      html += '</select>';
+      html += '</td>';
+      html += '</tr>';
+    });
+    html += '</table>';
+    html += '</fieldset>';
+    html += '<br>';
+  });
+
+  container.innerHTML = html;
+
+  // Attach change events
+  container.querySelectorAll('select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      const si = parseInt(this.dataset.section);
+      const ii = parseInt(this.dataset.item);
+      settingsData[si].items[ii].value = parseInt(this.value);
+    });
+  });
+}
+
+// ─── RESPONSIVE ───
+const ro = new ResizeObserver(function(entries) {
+  const width = entries[0].contentRect.width;
+  updatePanelMode(width);
+});
+ro.observe(document.body);
+
+function updatePanelMode(width) {
+  const newMode = width >= 700 ? 'side-drawer' : 'bottom-sheet';
+  if (newMode === panelMode) return;
+  panelMode = newMode;
+
+  const bs = document.getElementById('bottom-sheet');
+  const sd = document.getElementById('side-drawer');
+
+  if (panelMode === 'side-drawer') {
+    bs.classList.add('hidden');
+    bs.classList.remove('open');
+    sd.classList.remove('hidden');
+    if (panelOpen) {
+      sd.classList.add('open');
+      renderPanelContent();
+      syncTabLinks();
+    }
+  } else {
+    sd.classList.add('hidden');
+    sd.classList.remove('open');
+    bs.classList.remove('hidden');
+    if (panelOpen) {
+      bs.classList.add('open');
+      renderPanelContent();
+      syncTabLinks();
+    }
+  }
+}
+
+// ─── VISITOR COUNTER ───
+function animateVisitorCounter() {
+  const el = document.getElementById('visitor-count');
+  let count = 4872;
+  setInterval(function() {
+    if (Math.random() < 0.3) {
+      count++;
+      el.textContent = count.toString().padStart(8, '0');
+    }
+  }, 5000);
+}
+
+// ─── INIT ───
+function init() {
+  const width = document.body.getBoundingClientRect().width;
+  panelMode = width >= 700 ? 'side-drawer' : 'bottom-sheet';
+
+  if (panelMode === 'side-drawer') {
+    document.getElementById('bottom-sheet').classList.add('hidden');
+    document.getElementById('side-drawer').classList.remove('hidden');
+  } else {
+    document.getElementById('side-drawer').classList.add('hidden');
+    document.getElementById('bottom-sheet').classList.remove('hidden');
+  }
+
+  buildSpectrumTable();
+  updateStatusDisplay();
+  updateProgress();
+  animateVisitorCounter();
+  requestAnimationFrame(mainLoop);
+}
+
+init();
+</script>
+</body>
+</html>

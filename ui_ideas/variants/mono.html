@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileAMP — MONO</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --black: #000;
+  --white: #FFF;
+  --gray: #888;
+  --grid: #333;
+  --font: "SF Mono", "Cascadia Code", "Fira Code", "Courier New", monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--black);
+  font-family: var(--font);
+  color: var(--white);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ═══════════════════════════════════════════
+   PROGRESS LINE — viewport bottom edge
+   ═══════════════════════════════════════════ */
+#progress-line {
+  position: fixed;
+  bottom: 0; left: 0;
+  height: 1px;
+  width: 0%;
+  background: var(--white);
+  z-index: 200;
+  pointer-events: none;
+  transition: none;
+}
+
+#progress-hitzone {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 16px;
+  z-index: 199;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════
+   TRIGGERS — top left corner
+   ═══════════════════════════════════════════ */
+.triggers {
+  position: fixed;
+  top: 12px; left: 12px;
+  display: flex; gap: 8px;
+  z-index: 60;
+}
+
+.trigger-btn {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--gray);
+  background: none;
+  border: 1px solid var(--grid);
+  padding: 4px 8px;
+  cursor: pointer;
+  line-height: 1;
+  min-height: 28px;
+  min-width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms, border-color 150ms;
+}
+
+.trigger-btn:hover,
+.trigger-btn.active {
+  color: var(--white);
+  border-color: var(--white);
+}
+
+/* ═══════════════════════════════════════════
+   MAIN CONTENT — 3-column grid (tablet+)
+   ═══════════════════════════════════════════ */
+.main-content {
+  width: 100%; height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  margin-left: 0;
+  transition: margin-left 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.main-content.pushed {
+  margin-left: 320px;
+}
+
+/* Tablet 3-column grid */
+@media (min-width: 700px) {
+  .main-content {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   GRID COLUMNS
+   ═══════════════════════════════════════════ */
+.col {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+}
+
+@media (min-width: 700px) {
+  .col {
+    border-right: 1px solid var(--grid);
+    padding: 24px;
+  }
+  .col:last-child {
+    border-right: none;
+  }
+  .col-meta {
+    border-right: 1px solid var(--grid);
+  }
+}
+
+/* Column header labels */
+.col-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--grid);
+  margin-bottom: 16px;
+  line-height: 1;
+}
+
+@media (min-width: 700px) {
+  .col-label {
+    margin-bottom: 24px;
+  }
+}
+
+/* Ensure metadata column clears the trigger buttons */
+.col-meta {
+  padding-top: 48px;
+}
+
+@media (max-width: 699px) {
+  .col-meta {
+    padding-top: 44px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   METADATA COLUMN
+   ═══════════════════════════════════════════ */
+.meta-track {
+  font-size: clamp(18px, 3vw, 28px);
+  color: var(--white);
+  line-height: 1.2;
+  word-break: break-word;
+  margin-bottom: 6px;
+}
+
+.meta-artist {
+  font-size: clamp(12px, 1.8vw, 16px);
+  color: var(--gray);
+  line-height: 1.3;
+  margin-bottom: 16px;
+}
+
+.meta-info {
+  font-size: 11px;
+  color: var(--grid);
+  line-height: 1.8;
+}
+
+.meta-info span {
+  color: var(--gray);
+}
+
+.transport {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 16px;
+  flex-wrap: wrap;
+}
+
+.transport-btn {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--gray);
+  background: none;
+  border: 1px solid var(--grid);
+  padding: 6px 12px;
+  cursor: pointer;
+  min-height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 100ms, border-color 100ms;
+  line-height: 1;
+}
+
+.transport-btn:hover {
+  color: var(--white);
+  border-color: var(--white);
+}
+
+.transport-btn.active {
+  color: var(--white);
+  border-color: var(--white);
+}
+
+.meta-time {
+  font-size: 11px;
+  color: var(--grid);
+  margin-top: 8px;
+}
+
+.meta-time span {
+  color: var(--gray);
+}
+
+/* ═══════════════════════════════════════════
+   SPECTRUM COLUMN
+   ═══════════════════════════════════════════ */
+.spectrum-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding-bottom: 8px;
+  cursor: pointer;
+  min-height: 100px;
+}
+
+.spectrum-bar {
+  flex: 1;
+  max-width: 24px;
+  min-width: 4px;
+  background: var(--white);
+  transition: height 80ms linear;
+}
+
+.spectrum-bar.paused {
+  background: var(--gray);
+}
+
+/* ═══════════════════════════════════════════
+   QUEUE COLUMN
+   ═══════════════════════════════════════════ */
+.queue-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.queue-item {
+  font-size: 11px;
+  color: var(--gray);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--grid);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  transition: color 100ms;
+  line-height: 1.4;
+}
+
+.queue-item:first-child {
+  border-top: 1px solid var(--grid);
+}
+
+.queue-item:hover {
+  color: var(--white);
+}
+
+.queue-item.active {
+  color: var(--white);
+}
+
+.queue-item .q-num {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: right;
+  color: var(--grid);
+  font-size: 10px;
+}
+
+.queue-item.active .q-num {
+  color: var(--gray);
+}
+
+.queue-item .q-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-item .q-dur {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--grid);
+}
+
+.queue-item.active .q-dur {
+  color: var(--gray);
+}
+
+.queue-item .q-arrow {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  font-size: 10px;
+}
+
+/* ═══════════════════════════════════════════
+   MOBILE LAYOUT (<700px) — single column stack
+   ═══════════════════════════════════════════ */
+@media (max-width: 699px) {
+  .main-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto auto;
+    overflow-y: auto;
+  }
+
+  .main-content.pushed {
+    margin-left: 0;
+  }
+
+  .col {
+    padding: 12px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--grid);
+  }
+
+  .col:last-child {
+    border-bottom: none;
+  }
+
+  .col-spectrum {
+    min-height: 120px;
+    max-height: 160px;
+  }
+
+  .col-queue {
+    max-height: 180px;
+  }
+
+  .col-label {
+    margin-bottom: 8px;
+  }
+
+  .transport {
+    padding-top: 8px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   PUSH-DRAWER (tablet >=700px)
+   ═══════════════════════════════════════════ */
+.push-drawer {
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: 320px;
+  transform: translateX(-100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  background: var(--black);
+  border-right: 1px solid var(--grid);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.push-drawer.open {
+  transform: translateX(0);
+}
+
+/* ═══════════════════════════════════════════
+   BOTTOM SHEET (mobile <700px)
+   ═══════════════════════════════════════════ */
+.panel-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms;
+  z-index: 50;
+}
+
+.panel-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bottom-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 85vh;
+  transform: translateY(100%);
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 51;
+  border-radius: 12px 12px 0 0;
+  background: var(--black);
+  border-top: 1px solid var(--grid);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* ═══════════════════════════════════════════
+   PANEL CONTENT (shared between drawer/sheet)
+   ═══════════════════════════════════════════ */
+.panel-header {
+  display: flex;
+  border-bottom: 1px solid var(--grid);
+  flex-shrink: 0;
+}
+
+.panel-tab {
+  flex: 1;
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--grid);
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 12px 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: color 150ms, border-color 150ms;
+}
+
+.panel-tab:hover {
+  color: var(--gray);
+}
+
+.panel-tab.active {
+  color: var(--white);
+  border-bottom-color: var(--white);
+}
+
+.panel-close {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--grid);
+  background: none;
+  border: none;
+  border-left: 1px solid var(--grid);
+  padding: 12px;
+  cursor: pointer;
+  transition: color 100ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+}
+
+.panel-close:hover {
+  color: var(--white);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.panel-section {
+  display: none;
+}
+
+.panel-section.active {
+  display: block;
+}
+
+/* ═══════════════════════════════════════════
+   BROWSER PANEL
+   ═══════════════════════════════════════════ */
+.browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--grid);
+  flex-shrink: 0;
+}
+
+.browser-toolbar-btn {
+  font-family: var(--font);
+  font-size: 10px;
+  background: none;
+  border: 1px solid var(--grid);
+  color: var(--gray);
+  padding: 4px 8px;
+  cursor: pointer;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 100ms, border-color 100ms;
+}
+
+.browser-toolbar-btn:hover {
+  color: var(--white);
+  border-color: var(--white);
+}
+
+.browser-search {
+  font-family: var(--font);
+  font-size: 11px;
+  background: var(--black);
+  border: 1px solid var(--grid);
+  color: var(--white);
+  padding: 4px 8px;
+  flex: 1;
+  min-width: 60px;
+  min-height: 32px;
+  outline: none;
+}
+
+.browser-search:focus {
+  border-color: var(--white);
+}
+
+.browser-search::placeholder {
+  color: var(--grid);
+}
+
+.breadcrumb {
+  font-size: 10px;
+  color: var(--gray);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--grid);
+  white-space: nowrap;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.breadcrumb-part {
+  font-family: var(--font);
+  font-size: 10px;
+  background: none;
+  border: none;
+  color: var(--gray);
+  cursor: pointer;
+  padding: 0;
+}
+
+.breadcrumb-part:hover {
+  color: var(--white);
+}
+
+.breadcrumb-sep {
+  color: var(--grid);
+  margin: 0 4px;
+}
+
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.file-row {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--grid);
+  cursor: pointer;
+  color: var(--gray);
+  min-height: 36px;
+  transition: color 100ms, background 100ms;
+}
+
+.file-row:hover,
+.file-row.focused {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.file-icon {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--grid);
+  width: 32px;
+}
+
+.file-row:hover .file-icon,
+.file-row.focused .file-icon {
+  color: var(--gray);
+}
+
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-meta {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--grid);
+  white-space: nowrap;
+}
+
+.browser-status {
+  font-size: 10px;
+  color: var(--grid);
+  padding: 6px 12px;
+  border-top: 1px solid var(--grid);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS PANEL
+   ═══════════════════════════════════════════ */
+.settings-group {
+  margin-bottom: 0;
+}
+
+.settings-group-title {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--grid);
+  padding: 10px 12px 4px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--grid);
+  color: var(--gray);
+  transition: color 100ms, background 100ms;
+}
+
+.settings-row:hover {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-row .key {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.settings-row .dots {
+  flex: 1;
+  overflow: hidden;
+  color: var(--grid);
+  white-space: nowrap;
+  margin: 0 6px;
+  opacity: 0.3;
+}
+
+.settings-row .value {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--white);
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR — minimal
+   ═══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: var(--black); }
+::-webkit-scrollbar-thumb { background: var(--grid); }
+::-webkit-scrollbar-thumb:hover { background: var(--gray); }
+
+/* ═══════════════════════════════════════════
+   KEYBOARD FOCUS INDICATOR
+   ═══════════════════════════════════════════ */
+.kb-hint {
+  position: fixed;
+  bottom: 8px; right: 12px;
+  font-size: 9px;
+  color: var(--grid);
+  z-index: 60;
+  pointer-events: none;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 699px) {
+  .kb-hint { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Progress line at viewport bottom -->
+<div id="progress-line"></div>
+<div id="progress-hitzone"></div>
+
+<!-- Trigger buttons -->
+<div class="triggers">
+  <button class="trigger-btn" id="trigger-b" title="Browser [B]">B</button>
+  <button class="trigger-btn" id="trigger-s" title="Settings [S]">S</button>
+</div>
+
+<!-- Keyboard hint -->
+<div class="kb-hint">B browser &middot; S settings &middot; j/k nav &middot; space play</div>
+
+<!-- ═══════════════════════════════════════════
+     MAIN 3-COLUMN CONTENT
+     ═══════════════════════════════════════════ -->
+<div class="main-content" id="main-content">
+
+  <!-- METADATA -->
+  <div class="col col-meta">
+    <div class="col-label">Metadata</div>
+    <div class="meta-track" id="meta-track">Stairway to Heaven</div>
+    <div class="meta-artist" id="meta-artist">Led Zeppelin</div>
+    <div class="meta-info">
+      Duration <span id="meta-duration">08:02</span><br>
+      Format <span>MP3 320kbps</span><br>
+      Size <span id="meta-size">11.2 MB</span>
+    </div>
+    <div class="meta-time">
+      <span id="time-current">00:00</span> / <span id="time-total">08:02</span>
+    </div>
+    <div class="transport">
+      <button class="transport-btn" id="btn-prev">[&lt;&lt;]</button>
+      <button class="transport-btn" id="btn-play">[PLAY]</button>
+      <button class="transport-btn" id="btn-stop">[STOP]</button>
+      <button class="transport-btn" id="btn-next">[&gt;&gt;]</button>
+    </div>
+  </div>
+
+  <!-- SPECTRUM -->
+  <div class="col col-spectrum">
+    <div class="col-label">Spectrum</div>
+    <div class="spectrum-wrap" id="spectrum-wrap"></div>
+  </div>
+
+  <!-- QUEUE -->
+  <div class="col col-queue">
+    <div class="col-label">Queue</div>
+    <div class="queue-list" id="queue-list"></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PANEL OVERLAY (mobile only)
+     ═══════════════════════════════════════════ -->
+<div class="panel-overlay" id="panel-overlay"></div>
+
+<!-- ═══════════════════════════════════════════
+     PUSH-DRAWER (tablet >=700px)
+     ═══════════════════════════════════════════ -->
+<div class="push-drawer" id="push-drawer">
+  <div class="panel-header">
+    <button class="panel-tab active" data-panel-tab="browser">Browser</button>
+    <button class="panel-tab" data-panel-tab="settings">Settings</button>
+    <button class="panel-close" id="drawer-close">ESC</button>
+  </div>
+  <div class="panel-body">
+    <div class="panel-section active" id="drawer-browser">
+      <div class="browser-toolbar">
+        <button class="browser-toolbar-btn" id="d-btn-play-all">[PLAY ALL]</button>
+        <button class="browser-toolbar-btn" id="d-btn-shuffle">[SHUFFLE]</button>
+        <input type="text" class="browser-search" id="d-browser-search" placeholder="search...">
+      </div>
+      <div class="breadcrumb" id="d-breadcrumb"></div>
+      <div class="file-list" id="d-file-list"></div>
+      <div class="browser-status" id="d-browser-status"></div>
+    </div>
+    <div class="panel-section" id="drawer-settings"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     BOTTOM SHEET (mobile <700px)
+     ═══════════════════════════════════════════ -->
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="panel-header">
+    <button class="panel-tab active" data-panel-tab="browser">Browser</button>
+    <button class="panel-tab" data-panel-tab="settings">Settings</button>
+    <button class="panel-close" id="sheet-close">ESC</button>
+  </div>
+  <div class="panel-body">
+    <div class="panel-section active" id="sheet-browser">
+      <div class="browser-toolbar">
+        <button class="browser-toolbar-btn" id="s-btn-play-all">[PLAY ALL]</button>
+        <button class="browser-toolbar-btn" id="s-btn-shuffle">[SHUFFLE]</button>
+        <input type="text" class="browser-search" id="s-browser-search" placeholder="search...">
+      </div>
+      <div class="breadcrumb" id="s-breadcrumb"></div>
+      <div class="file-list" id="s-file-list"></div>
+      <div class="browser-status" id="s-browser-status"></div>
+    </div>
+    <div class="panel-section" id="sheet-settings"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// FILE TREE DATA
+// ═══════════════════════════════════════════
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let isPlaying = false;
+let playProgress = 0;
+let currentTrack = { name: 'Stairway to Heaven.mp3', duration: '08:02', artist: 'Led Zeppelin', size: '11.2 MB' };
+let queue = [];
+let queueIndex = 0;
+let panelOpen = false;
+let panelTab = 'browser'; // 'browser' | 'settings'
+let isTablet = window.innerWidth >= 700;
+let browserPath = [FILE_TREE];
+let searchQuery = '';
+let focusedFileIndex = -1;
+let focusedQueueIndex = -1;
+const NUM_BARS = 16;
+let spectrumData = new Array(NUM_BARS).fill(0);
+let spectrumTargets = new Array(NUM_BARS).fill(0);
+
+// ═══════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════
+function parseDuration(str) {
+  const parts = str.split(':');
+  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60).toString().padStart(2, '0');
+  const s = Math.floor(secs % 60).toString().padStart(2, '0');
+  return m + ':' + s;
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getAllFiles(node) {
+  if (node.type === 'file') return [node];
+  if (!node.children) return [];
+  return node.children.flatMap(c => getAllFiles(c));
+}
+
+function findParentFolder(fileName) {
+  function search(node, parent) {
+    if (node.type === 'file' && node.name === fileName) return parent;
+    if (node.children) {
+      for (const child of node.children) {
+        const result = search(child, node);
+        if (result) return result;
+      }
+    }
+    return null;
+  }
+  return search(FILE_TREE, null);
+}
+
+const allFiles = getAllFiles(FILE_TREE);
+
+// ═══════════════════════════════════════════
+// RESPONSIVE
+// ═══════════════════════════════════════════
+function checkResponsive() {
+  const wasTablet = isTablet;
+  isTablet = window.innerWidth >= 700;
+
+  if (wasTablet !== isTablet && panelOpen) {
+    // Close panel when switching breakpoints
+    closePanel();
+  }
+}
+
+const ro = new ResizeObserver(() => checkResponsive());
+ro.observe(document.body);
+
+// ═══════════════════════════════════════════
+// TRACK & QUEUE MANAGEMENT
+// ═══════════════════════════════════════════
+function buildQueueFromFolder(file) {
+  const parent = findParentFolder(file.name);
+  if (parent && parent.children) {
+    queue = parent.children.filter(c => c.type === 'file');
+  } else {
+    queue = allFiles;
+  }
+  queueIndex = queue.findIndex(f => f.name === file.name);
+  if (queueIndex < 0) queueIndex = 0;
+  renderQueue();
+}
+
+function setTrack(file) {
+  const parent = findParentFolder(file.name);
+  currentTrack = {
+    name: file.name,
+    duration: file.duration,
+    artist: parent ? parent.name : '',
+    size: file.size || ''
+  };
+  playProgress = 0;
+
+  document.getElementById('meta-track').textContent = file.name.replace(/\.mp3$/i, '');
+  document.getElementById('meta-artist').textContent = currentTrack.artist;
+  document.getElementById('meta-duration').textContent = file.duration;
+  document.getElementById('meta-size').textContent = currentTrack.size;
+  document.getElementById('time-total').textContent = file.duration;
+  updateProgressDisplay();
+  renderQueue();
+}
+
+function playNextTrack() {
+  if (queue.length === 0) return;
+  queueIndex = (queueIndex + 1) % queue.length;
+  setTrack(queue[queueIndex]);
+}
+
+function playPrevTrack() {
+  if (queue.length === 0) return;
+  queueIndex = (queueIndex - 1 + queue.length) % queue.length;
+  setTrack(queue[queueIndex]);
+}
+
+function togglePlay() {
+  isPlaying = !isPlaying;
+  document.getElementById('btn-play').textContent = isPlaying ? '[PAUSE]' : '[PLAY]';
+  document.getElementById('btn-play').classList.toggle('active', isPlaying);
+}
+
+// ═══════════════════════════════════════════
+// PROGRESS
+// ═══════════════════════════════════════════
+function updateProgressDisplay() {
+  const total = parseDuration(currentTrack.duration);
+  const current = playProgress * total;
+  document.getElementById('time-current').textContent = formatTime(current);
+  document.getElementById('progress-line').style.width = (playProgress * 100) + '%';
+}
+
+document.getElementById('progress-hitzone').addEventListener('click', (e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  playProgress = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  updateProgressDisplay();
+});
+
+// ═══════════════════════════════════════════
+// SPECTRUM VISUALIZATION
+// ═══════════════════════════════════════════
+const spectrumWrap = document.getElementById('spectrum-wrap');
+
+// Create bar elements
+for (let i = 0; i < NUM_BARS; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'spectrum-bar';
+  bar.style.height = '2px';
+  spectrumWrap.appendChild(bar);
+}
+
+const spectrumBars = spectrumWrap.querySelectorAll('.spectrum-bar');
+
+spectrumWrap.addEventListener('click', togglePlay);
+
+function updateSpectrum() {
+  if (isPlaying) {
+    for (let i = 0; i < NUM_BARS; i++) {
+      // Bass-heavy distribution
+      const bassBias = i < 4 ? 0.35 : (i < 8 ? 0.2 : 0.08);
+      spectrumTargets[i] = Math.random() * 0.65 + bassBias;
+    }
+  } else {
+    for (let i = 0; i < NUM_BARS; i++) {
+      spectrumTargets[i] = 0.03 + Math.random() * 0.05;
+    }
+  }
+}
+
+function renderSpectrum() {
+  const maxH = spectrumWrap.clientHeight - 10;
+  for (let i = 0; i < NUM_BARS; i++) {
+    // Smooth interpolation
+    spectrumData[i] += (spectrumTargets[i] - spectrumData[i]) * 0.18;
+    const h = Math.max(2, spectrumData[i] * maxH);
+    spectrumBars[i].style.height = h + 'px';
+
+    if (isPlaying) {
+      spectrumBars[i].classList.remove('paused');
+    } else {
+      spectrumBars[i].classList.add('paused');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// QUEUE RENDERING
+// ═══════════════════════════════════════════
+const queueListEl = document.getElementById('queue-list');
+
+function renderQueue() {
+  let html = '';
+  queue.forEach((file, i) => {
+    const isCurrent = file.name === currentTrack.name;
+    html += '<div class="queue-item' + (isCurrent ? ' active' : '') + '" data-queue-idx="' + i + '">' +
+      '<span class="q-num">' + (i + 1) + '</span>' +
+      '<span class="q-name">' + escHtml(file.name.replace(/\.mp3$/i, '')) + '</span>' +
+      '<span class="q-dur">' + file.duration + '</span>' +
+      '<span class="q-arrow">' + (isCurrent ? '\u2190' : '') + '</span>' +
+      '</div>';
+  });
+  queueListEl.innerHTML = html;
+
+  queueListEl.querySelectorAll('.queue-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const idx = parseInt(item.dataset.queueIdx);
+      queueIndex = idx;
+      setTrack(queue[idx]);
+      if (!isPlaying) togglePlay();
+    });
+  });
+}
+
+// ═══════════════════════════════════════════
+// TRANSPORT BUTTONS
+// ═══════════════════════════════════════════
+document.getElementById('btn-play').addEventListener('click', togglePlay);
+
+document.getElementById('btn-stop').addEventListener('click', () => {
+  isPlaying = false;
+  playProgress = 0;
+  document.getElementById('btn-play').textContent = '[PLAY]';
+  document.getElementById('btn-play').classList.remove('active');
+  updateProgressDisplay();
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  playNextTrack();
+  if (!isPlaying) togglePlay();
+});
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+  playPrevTrack();
+  if (!isPlaying) togglePlay();
+});
+
+// ═══════════════════════════════════════════
+// PANEL OPEN / CLOSE
+// ═══════════════════════════════════════════
+function openPanel(tab) {
+  panelOpen = true;
+  panelTab = tab || 'browser';
+
+  if (isTablet) {
+    document.getElementById('push-drawer').classList.add('open');
+    document.getElementById('main-content').classList.add('pushed');
+  } else {
+    document.getElementById('panel-overlay').classList.add('open');
+    document.getElementById('bottom-sheet').classList.add('open');
+  }
+
+  updatePanelTabs();
+  updatePanelContent();
+  updateTriggerButtons();
+}
+
+function closePanel() {
+  panelOpen = false;
+
+  document.getElementById('push-drawer').classList.remove('open');
+  document.getElementById('main-content').classList.remove('pushed');
+  document.getElementById('panel-overlay').classList.remove('open');
+  document.getElementById('bottom-sheet').classList.remove('open');
+  updateTriggerButtons();
+  focusedFileIndex = -1;
+}
+
+function updateTriggerButtons() {
+  document.getElementById('trigger-b').classList.toggle('active', panelOpen && panelTab === 'browser');
+  document.getElementById('trigger-s').classList.toggle('active', panelOpen && panelTab === 'settings');
+}
+
+function updatePanelTabs() {
+  // Update tabs in both drawer and sheet
+  document.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.panelTab === panelTab);
+  });
+}
+
+function updatePanelContent() {
+  // Show correct section in both drawer and sheet
+  const containers = ['drawer', 'sheet'];
+  containers.forEach(c => {
+    const browserSec = document.getElementById(c + '-browser');
+    const settingsSec = document.getElementById(c + '-settings');
+    if (browserSec) browserSec.classList.toggle('active', panelTab === 'browser');
+    if (settingsSec) settingsSec.classList.toggle('active', panelTab === 'settings');
+  });
+
+  if (panelTab === 'browser') {
+    renderBrowser();
+  } else {
+    renderSettings();
+  }
+}
+
+// Trigger buttons
+document.getElementById('trigger-b').addEventListener('click', () => {
+  if (panelOpen && panelTab === 'browser') {
+    closePanel();
+  } else {
+    openPanel('browser');
+  }
+});
+
+document.getElementById('trigger-s').addEventListener('click', () => {
+  if (panelOpen && panelTab === 'settings') {
+    closePanel();
+  } else {
+    openPanel('settings');
+  }
+});
+
+// Close buttons
+document.getElementById('drawer-close').addEventListener('click', closePanel);
+document.getElementById('sheet-close').addEventListener('click', closePanel);
+document.getElementById('panel-overlay').addEventListener('click', closePanel);
+
+// Panel tabs
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    panelTab = tab.dataset.panelTab;
+    updatePanelTabs();
+    updatePanelContent();
+    updateTriggerButtons();
+  });
+});
+
+// ═══════════════════════════════════════════
+// BROWSER
+// ═══════════════════════════════════════════
+function getCurrentFolder() {
+  return browserPath[browserPath.length - 1];
+}
+
+function getActivePrefix() {
+  return isTablet ? 'd' : 's';
+}
+
+function renderBreadcrumb() {
+  const prefix = getActivePrefix();
+  const el = document.getElementById(prefix + '-breadcrumb');
+  if (!el) return;
+
+  let html = '';
+  browserPath.forEach((node, i) => {
+    if (i > 0) html += '<span class="breadcrumb-sep">&gt;</span>';
+    html += '<button class="breadcrumb-part" data-depth="' + i + '">' + escHtml(node.name) + '</button>';
+  });
+  el.innerHTML = html;
+
+  el.querySelectorAll('.breadcrumb-part').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const depth = parseInt(btn.dataset.depth);
+      browserPath = browserPath.slice(0, depth + 1);
+      searchQuery = '';
+      const searchEl = document.getElementById(prefix + '-browser-search');
+      if (searchEl) searchEl.value = '';
+      focusedFileIndex = -1;
+      renderBrowser();
+    });
+  });
+}
+
+function renderBrowser() {
+  const prefix = getActivePrefix();
+  const fileListEl = document.getElementById(prefix + '-file-list');
+  const statusEl = document.getElementById(prefix + '-browser-status');
+  if (!fileListEl) return;
+
+  const folder = getCurrentFolder();
+  const children = folder.children || [];
+  const folders = children.filter(c => c.type === 'folder');
+  const files = children.filter(c => c.type === 'file');
+
+  const query = searchQuery.toLowerCase();
+  const filteredFolders = query ? folders.filter(f => f.name.toLowerCase().includes(query)) : folders;
+  const filteredFiles = query ? files.filter(f => f.name.toLowerCase().includes(query)) : files;
+
+  let html = '';
+  let rowIdx = 0;
+
+  // ".." to go up
+  if (browserPath.length > 1) {
+    html += '<div class="file-row' + (focusedFileIndex === rowIdx ? ' focused' : '') + '" data-action="up" data-row="' + rowIdx + '">' +
+      '<span class="file-icon">[..]</span>' +
+      '<span class="file-name">..</span>' +
+      '<span class="file-meta"></span>' +
+      '</div>';
+    rowIdx++;
+  }
+
+  filteredFolders.forEach((f, i) => {
+    const count = f.children ? f.children.length : 0;
+    html += '<div class="file-row' + (focusedFileIndex === rowIdx ? ' focused' : '') + '" data-action="folder" data-idx="' + i + '" data-row="' + rowIdx + '">' +
+      '<span class="file-icon">[DIR]</span>' +
+      '<span class="file-name">' + escHtml(f.name) + '</span>' +
+      '<span class="file-meta">' + count + ' items</span>' +
+      '</div>';
+    rowIdx++;
+  });
+
+  filteredFiles.forEach((f, i) => {
+    html += '<div class="file-row' + (focusedFileIndex === rowIdx ? ' focused' : '') + '" data-action="file" data-idx="' + i + '" data-row="' + rowIdx + '">' +
+      '<span class="file-icon">[MP3]</span>' +
+      '<span class="file-name">' + escHtml(f.name) + '</span>' +
+      '<span class="file-meta">' + f.duration + '  ' + f.size + '</span>' +
+      '</div>';
+    rowIdx++;
+  });
+
+  if (filteredFolders.length === 0 && filteredFiles.length === 0 && query) {
+    html += '<div class="file-row" style="cursor:default;color:var(--grid);">' +
+      '<span class="file-icon"></span>' +
+      '<span class="file-name">No matches.</span>' +
+      '<span class="file-meta"></span>' +
+      '</div>';
+  }
+
+  fileListEl.innerHTML = html;
+
+  if (statusEl) {
+    statusEl.textContent = filteredFolders.length + ' folder(s), ' + filteredFiles.length + ' file(s)' +
+      (query ? ' | "' + query + '"' : '');
+  }
+
+  renderBreadcrumb();
+
+  // Store row count for keyboard nav
+  fileListEl._rowCount = rowIdx;
+  fileListEl._filteredFolders = filteredFolders;
+  fileListEl._filteredFiles = filteredFiles;
+
+  // Attach click events
+  fileListEl.querySelectorAll('.file-row').forEach(row => {
+    row.addEventListener('click', () => handleFileRowClick(row, filteredFolders, filteredFiles));
+  });
+}
+
+function handleFileRowClick(row, filteredFolders, filteredFiles) {
+  const action = row.dataset.action;
+  const prefix = getActivePrefix();
+
+  if (action === 'up') {
+    browserPath.pop();
+    searchQuery = '';
+    const searchEl = document.getElementById(prefix + '-browser-search');
+    if (searchEl) searchEl.value = '';
+    focusedFileIndex = -1;
+    renderBrowser();
+  } else if (action === 'folder') {
+    const idx = parseInt(row.dataset.idx);
+    browserPath.push(filteredFolders[idx]);
+    searchQuery = '';
+    const searchEl = document.getElementById(prefix + '-browser-search');
+    if (searchEl) searchEl.value = '';
+    focusedFileIndex = -1;
+    renderBrowser();
+  } else if (action === 'file') {
+    const idx = parseInt(row.dataset.idx);
+    const file = filteredFiles[idx];
+    setTrack(file);
+    buildQueueFromFolder(file);
+    if (!isPlaying) togglePlay();
+    closePanel();
+  }
+}
+
+// Browser search - wired for both prefixes
+['d', 's'].forEach(prefix => {
+  const searchEl = document.getElementById(prefix + '-browser-search');
+  if (searchEl) {
+    searchEl.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      focusedFileIndex = -1;
+      renderBrowser();
+    });
+  }
+});
+
+// Play All / Shuffle - wired for both prefixes
+['d', 's'].forEach(prefix => {
+  const playAllEl = document.getElementById(prefix + '-btn-play-all');
+  const shuffleEl = document.getElementById(prefix + '-btn-shuffle');
+
+  if (playAllEl) {
+    playAllEl.addEventListener('click', () => {
+      const folder = getCurrentFolder();
+      const files = getAllFiles(folder);
+      if (files.length > 0) {
+        queue = files.slice();
+        queueIndex = 0;
+        setTrack(queue[0]);
+        if (!isPlaying) togglePlay();
+        renderQueue();
+        closePanel();
+      }
+    });
+  }
+
+  if (shuffleEl) {
+    shuffleEl.addEventListener('click', () => {
+      const folder = getCurrentFolder();
+      const files = getAllFiles(folder);
+      if (files.length > 0) {
+        // Fisher-Yates shuffle
+        for (let i = files.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [files[i], files[j]] = [files[j], files[i]];
+        }
+        queue = files;
+        queueIndex = 0;
+        setTrack(queue[0]);
+        if (!isPlaying) togglePlay();
+        renderQueue();
+        closePanel();
+      }
+    });
+  }
+});
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+const settingsData = [
+  { group: 'Audio', items: [
+    { key: 'Output Mode', options: ['Stereo', 'Mono', 'Surround'], idx: 0 },
+    { key: 'Sample Rate', options: ['44.1kHz', '48kHz', '96kHz', '192kHz'], idx: 0 },
+    { key: 'Bit Depth', options: ['16-bit', '24-bit', '32-bit'], idx: 0 },
+    { key: 'Dither', options: ['Off', 'TPDF', 'Noise Shape'], idx: 0 },
+    { key: 'ReplayGain', options: ['Off', 'Track', 'Album'], idx: 0 },
+  ]},
+  { group: 'Playback', items: [
+    { key: 'Shuffle', options: ['Off', 'On'], idx: 0 },
+    { key: 'Repeat', options: ['Off', 'Track', 'All'], idx: 0 },
+    { key: 'Gapless', options: ['On', 'Off'], idx: 0 },
+    { key: 'Crossfade', options: ['Off', '1s', '2s', '3s', '5s'], idx: 0 },
+  ]},
+  { group: 'Display', items: [
+    { key: 'Spectrum Bars', options: ['16', '12', '8', '24'], idx: 0 },
+    { key: 'Animation', options: ['Smooth', 'Stepped', 'Off'], idx: 0 },
+  ]},
+  { group: 'System', items: [
+    { key: 'Buffer Size', options: ['128KB', '256KB', '512KB', '1MB'], idx: 1 },
+    { key: 'Decode Thread', options: ['Auto', '1', '2', '4'], idx: 0 },
+  ]},
+];
+
+function renderSettings() {
+  ['drawer-settings', 'sheet-settings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    let html = '';
+    settingsData.forEach(group => {
+      html += '<div class="settings-group">';
+      html += '<div class="settings-group-title">' + group.group + '</div>';
+      group.items.forEach(item => {
+        html += '<div class="settings-row" data-setting-key="' + escHtml(item.key) + '">' +
+          '<span class="key">' + escHtml(item.key) + '</span>' +
+          '<span class="dots">' + '.'.repeat(40) + '</span>' +
+          '<span class="value">' + escHtml(item.options[item.idx]) + '</span>' +
+          '</div>';
+      });
+      html += '</div>';
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll('.settings-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const settingKey = row.dataset.settingKey;
+        // Find the item in settingsData
+        for (const group of settingsData) {
+          for (const item of group.items) {
+            if (item.key === settingKey) {
+              item.idx = (item.idx + 1) % item.options.length;
+              // Update all matching rows in both panels
+              document.querySelectorAll('.settings-row[data-setting-key="' + CSS.escape(settingKey) + '"] .value').forEach(v => {
+                v.textContent = item.options[item.idx];
+              });
+              break;
+            }
+          }
+        }
+      });
+    });
+  });
+}
+
+// ═══════════════════════════════════════════
+// KEYBOARD NAVIGATION
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  const tag = e.target.tagName.toLowerCase();
+  const isInput = tag === 'input' || tag === 'textarea';
+
+  // Escape always closes panel
+  if (e.key === 'Escape') {
+    if (panelOpen) {
+      closePanel();
+      e.preventDefault();
+    }
+    return;
+  }
+
+  // Space toggles play/pause (unless in input)
+  if (e.key === ' ' && !isInput) {
+    e.preventDefault();
+    togglePlay();
+    return;
+  }
+
+  // B / S keys open panels (unless in input)
+  if (!isInput) {
+    if (e.key === 'b' || e.key === 'B') {
+      e.preventDefault();
+      if (panelOpen && panelTab === 'browser') {
+        closePanel();
+      } else {
+        openPanel('browser');
+      }
+      return;
+    }
+
+    if (e.key === 's' || e.key === 'S') {
+      e.preventDefault();
+      if (panelOpen && panelTab === 'settings') {
+        closePanel();
+      } else {
+        openPanel('settings');
+      }
+      return;
+    }
+
+    // j/k navigation in file browser or queue
+    if (e.key === 'j' || e.key === 'k') {
+      e.preventDefault();
+
+      if (panelOpen && panelTab === 'browser') {
+        // Navigate file list
+        const prefix = getActivePrefix();
+        const fileListEl = document.getElementById(prefix + '-file-list');
+        if (!fileListEl) return;
+        const rowCount = fileListEl._rowCount || 0;
+        if (rowCount === 0) return;
+
+        if (e.key === 'j') {
+          focusedFileIndex = Math.min(focusedFileIndex + 1, rowCount - 1);
+        } else {
+          focusedFileIndex = Math.max(focusedFileIndex - 1, 0);
+        }
+        renderBrowser();
+
+        // Scroll into view
+        const focused = fileListEl.querySelector('.file-row.focused');
+        if (focused) focused.scrollIntoView({ block: 'nearest' });
+      } else if (!panelOpen) {
+        // Navigate queue
+        if (queue.length === 0) return;
+        if (e.key === 'j') {
+          focusedQueueIndex = Math.min(focusedQueueIndex + 1, queue.length - 1);
+        } else {
+          focusedQueueIndex = Math.max(focusedQueueIndex - 1, 0);
+        }
+        highlightQueueItem();
+      }
+      return;
+    }
+
+    // Enter to select
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      if (panelOpen && panelTab === 'browser') {
+        const prefix = getActivePrefix();
+        const fileListEl = document.getElementById(prefix + '-file-list');
+        if (!fileListEl) return;
+        const focused = fileListEl.querySelector('.file-row.focused');
+        if (focused) {
+          handleFileRowClick(focused, fileListEl._filteredFolders || [], fileListEl._filteredFiles || []);
+        }
+      } else if (!panelOpen && focusedQueueIndex >= 0 && focusedQueueIndex < queue.length) {
+        queueIndex = focusedQueueIndex;
+        setTrack(queue[queueIndex]);
+        if (!isPlaying) togglePlay();
+        focusedQueueIndex = -1;
+      }
+      return;
+    }
+  }
+});
+
+function highlightQueueItem() {
+  queueListEl.querySelectorAll('.queue-item').forEach((item, i) => {
+    if (i === focusedQueueIndex) {
+      item.style.outline = '1px solid #FFF';
+      item.style.outlineOffset = '-1px';
+      item.scrollIntoView({ block: 'nearest' });
+    } else {
+      item.style.outline = '';
+      item.style.outlineOffset = '';
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+// MAIN ANIMATION LOOP
+// ═══════════════════════════════════════════
+let lastTime = 0;
+let spectrumTimer = 0;
+
+function mainLoop(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (isPlaying) {
+    const total = parseDuration(currentTrack.duration);
+    playProgress += (dt / 1000) / total;
+    if (playProgress >= 1) {
+      playProgress = 0;
+      playNextTrack();
+    }
+    updateProgressDisplay();
+  }
+
+  // Update spectrum targets periodically
+  spectrumTimer += dt;
+  if (spectrumTimer > 100) {
+    updateSpectrum();
+    spectrumTimer = 0;
+  }
+
+  // Render spectrum every frame (smooth interpolation)
+  renderSpectrum();
+
+  requestAnimationFrame(mainLoop);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+buildQueueFromFolder(currentTrack);
+renderQueue();
+updateProgressDisplay();
+renderSettings();
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>

@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP - VOID</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ===================== MAIN VOID SCREEN ===================== */
+#void-screen{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  z-index:1;
+  cursor:default;
+}
+
+.track-display{
+  text-align:center;
+  padding:0 24px;
+  max-width:100%;
+}
+
+.track-name{
+  font-size:clamp(20px, 5vw, 36px);
+  font-weight:300;
+  letter-spacing:0.05em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:90vw;
+  display:inline-block;
+}
+
+.track-name.playing{
+  animation:pulse 4s ease-in-out infinite;
+}
+
+@keyframes pulse{
+  0%,100%{opacity:1}
+  50%{opacity:0.7}
+}
+
+.cursor-blink{
+  display:inline-block;
+  font-weight:100;
+  animation:blink 1s step-end infinite;
+  margin-left:2px;
+  opacity:0.8;
+}
+
+@keyframes blink{
+  0%,100%{opacity:0.8}
+  50%{opacity:0}
+}
+
+.artist-name{
+  font-size:clamp(11px, 2.5vw, 14px);
+  font-weight:300;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  opacity:0.4;
+  margin-top:12px;
+}
+
+.time-display{
+  position:fixed;
+  bottom:20px;
+  left:0;right:0;
+  text-align:center;
+  font-size:11px;
+  font-weight:300;
+  letter-spacing:0.1em;
+  opacity:0.25;
+  pointer-events:none;
+  z-index:2;
+}
+
+/* ===================== PROGRESS LINE ===================== */
+#progress-line{
+  position:fixed;
+  bottom:0;left:0;
+  width:0%;height:1px;
+  background:#FFF;
+  z-index:10;
+  transition:none;
+  cursor:pointer;
+  pointer-events:auto;
+}
+
+/* Invisible hit area for the progress line */
+#progress-hit{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:16px;
+  z-index:11;
+  cursor:pointer;
+}
+
+/* ===================== SWIPE-UP HINT ===================== */
+.swipe-hint{
+  position:fixed;
+  bottom:8px;
+  left:50%;
+  transform:translateX(-50%);
+  width:24px;height:2px;
+  background:rgba(255,255,255,0.15);
+  border-radius:1px;
+  z-index:12;
+  pointer-events:none;
+  transition:opacity 0.3s;
+}
+
+/* ===================== PANEL OVERLAY ===================== */
+.panel-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.5);
+  backdrop-filter:brightness(0.3);
+  -webkit-backdrop-filter:brightness(0.3);
+  opacity:0;pointer-events:none;
+  transition:opacity 300ms;
+  z-index:50;
+}
+.panel-overlay.open{opacity:1;pointer-events:auto}
+
+/* ===================== BOTTOM SHEET ===================== */
+.bottom-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  height:85vh;
+  transform:translateY(100%);
+  transition:transform 300ms cubic-bezier(0.32,0.72,0,1);
+  z-index:51;
+  border-radius:12px 12px 0 0;
+  background:#111;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.bottom-sheet.open{transform:translateY(0)}
+
+/* Drag handle */
+.sheet-handle{
+  display:flex;justify-content:center;
+  padding:12px 0 8px;
+  flex-shrink:0;
+  cursor:grab;
+}
+.sheet-handle-bar{
+  width:40px;height:3px;
+  background:rgba(255,255,255,0.3);
+  border-radius:2px;
+}
+
+/* Tab bar */
+.sheet-tabs{
+  display:flex;
+  border-bottom:1px solid rgba(255,255,255,0.1);
+  flex-shrink:0;
+}
+.sheet-tab{
+  flex:1;
+  padding:12px 0;
+  text-align:center;
+  font-size:11px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.35);
+  background:none;border:none;
+  cursor:pointer;
+  font-family:inherit;
+  position:relative;
+  transition:color 0.2s;
+  min-height:44px;
+  display:flex;align-items:center;justify-content:center;
+}
+.sheet-tab:hover{color:rgba(255,255,255,0.6)}
+.sheet-tab.active{color:#FFF}
+.sheet-tab.active::after{
+  content:'';
+  position:absolute;bottom:-1px;left:20%;right:20%;
+  height:1px;background:#FFF;
+}
+
+/* Tab content */
+.tab-content{
+  display:none;
+  flex:1;
+  overflow:hidden;
+  flex-direction:column;
+}
+.tab-content.active{display:flex}
+
+/* ===================== BROWSER TAB ===================== */
+.browser-header{
+  display:flex;gap:8px;
+  padding:12px 16px;
+  flex-shrink:0;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.breadcrumbs{
+  display:flex;
+  gap:4px;
+  align-items:center;
+  font-size:12px;
+  color:rgba(255,255,255,0.4);
+  padding:0 16px 8px;
+  flex-shrink:0;
+  flex-wrap:wrap;
+  min-height:0;
+}
+.breadcrumb{
+  cursor:pointer;
+  padding:2px 4px;
+  border-radius:2px;
+  transition:color 0.2s;
+}
+.breadcrumb:hover{color:#FFF}
+.breadcrumb.current{color:rgba(255,255,255,0.7)}
+.breadcrumb-sep{opacity:0.3}
+
+.search-box{
+  flex:1;min-width:140px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px;
+  padding:8px 12px;
+  color:#FFF;
+  font-family:inherit;font-size:13px;
+  min-height:40px;
+  outline:none;
+}
+.search-box:focus{
+  border-color:rgba(255,255,255,0.3);
+}
+.search-box::placeholder{color:rgba(255,255,255,0.25)}
+
+.btn-void{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.6);
+  font-family:inherit;font-size:11px;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:8px 14px;
+  border-radius:4px;cursor:pointer;
+  transition:all 0.2s;
+  min-height:40px;
+}
+.btn-void:hover{
+  border-color:rgba(255,255,255,0.4);
+  color:#FFF;
+}
+
+.file-list{
+  flex:1;overflow-y:auto;
+  padding:0 16px 16px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.file-list::-webkit-scrollbar{width:4px}
+.file-list::-webkit-scrollbar-track{background:transparent}
+.file-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.file-item{
+  display:flex;align-items:center;
+  padding:10px 8px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  cursor:pointer;
+  border-radius:4px;
+  transition:background 0.15s;
+  min-height:44px;
+  gap:10px;
+}
+.file-item:hover{background:rgba(255,255,255,0.06)}
+.file-item:last-child{border-bottom:none}
+
+.file-icon{
+  font-size:14px;
+  opacity:0.4;
+  flex-shrink:0;
+  width:20px;text-align:center;
+}
+.file-info{flex:1;min-width:0}
+.file-name{
+  font-size:13px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.file-meta{
+  font-size:11px;
+  color:rgba(255,255,255,0.3);
+  margin-top:2px;
+}
+.file-item.playing-now .file-name{color:#FFF}
+.file-item.playing-now .file-icon{opacity:1}
+.file-item.highlight .file-name{color:#FFF}
+
+/* ===================== SETTINGS TAB ===================== */
+.settings-scroll{
+  flex:1;overflow-y:auto;
+  padding:16px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.settings-scroll::-webkit-scrollbar{width:4px}
+.settings-scroll::-webkit-scrollbar-track{background:transparent}
+.settings-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.setting-group{margin-bottom:20px}
+.setting-group-title{
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  margin-bottom:8px;
+  padding-bottom:6px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.setting-row{
+  display:flex;justify-content:space-between;
+  align-items:center;
+  padding:10px 4px;
+  cursor:pointer;
+  min-height:44px;
+  border-radius:4px;
+  transition:background 0.15s;
+}
+.setting-row:hover{background:rgba(255,255,255,0.04)}
+.setting-label{
+  font-size:13px;
+  color:rgba(255,255,255,0.7);
+}
+.setting-value{
+  font-size:13px;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:0.5px;
+}
+.setting-value.active-val{color:#FFF}
+
+.settings-footer{
+  text-align:center;
+  font-size:10px;
+  letter-spacing:1px;
+  color:rgba(255,255,255,0.15);
+  padding:20px 0;
+}
+
+/* ===================== RESPONSIVE (ResizeObserver classes) ===================== */
+body.mobile .track-name{
+  font-size:clamp(18px, 6vw, 28px);
+}
+body.mobile .browser-header{
+  flex-wrap:wrap;
+}
+body.mobile .btn-void{
+  font-size:10px;
+  padding:6px 10px;
+}
+
+body.desktop .track-display{
+  max-width:800px;
+}
+body.desktop .bottom-sheet{
+  max-width:700px;
+  left:50%;
+  transform:translateX(-50%) translateY(100%);
+}
+body.desktop .bottom-sheet.open{
+  transform:translateX(-50%) translateY(0);
+}
+body.desktop .panel-overlay{
+  backdrop-filter:brightness(0.3) blur(2px);
+  -webkit-backdrop-filter:brightness(0.3) blur(2px);
+}
+
+/* ===================== STATE INDICATOR ===================== */
+.play-state-indicator{
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  font-size:48px;
+  opacity:0;
+  pointer-events:none;
+  z-index:5;
+  transition:opacity 0.15s;
+}
+.play-state-indicator.flash{
+  opacity:0.3;
+  transition:none;
+}
+</style>
+</head>
+<body>
+
+<!-- VOID MAIN SCREEN -->
+<div id="void-screen">
+  <div class="track-display">
+    <span class="track-name" id="trackName">VOID</span><span class="cursor-blink">|</span>
+    <div class="artist-name" id="artistName">tap to begin</div>
+  </div>
+</div>
+
+<!-- Time display -->
+<div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+
+<!-- Progress line -->
+<div id="progress-line"></div>
+<div id="progress-hit"></div>
+
+<!-- Swipe up hint -->
+<div class="swipe-hint" id="swipeHint"></div>
+
+<!-- Play/pause flash indicator -->
+<div class="play-state-indicator" id="playStateIndicator"></div>
+
+<!-- Panel overlay -->
+<div class="panel-overlay" id="panelOverlay"></div>
+
+<!-- Bottom sheet -->
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="sheet-handle" id="sheetHandle">
+    <div class="sheet-handle-bar"></div>
+  </div>
+
+  <div class="sheet-tabs">
+    <button class="sheet-tab active" data-tab="browser">BROWSER</button>
+    <button class="sheet-tab" data-tab="settings">SETTINGS</button>
+  </div>
+
+  <!-- BROWSER TAB -->
+  <div class="tab-content active" id="tab-browser">
+    <div class="browser-header">
+      <input type="text" class="search-box" id="searchInput" placeholder="Search...">
+      <button class="btn-void" id="btnPlayAll">PLAY ALL</button>
+      <button class="btn-void" id="btnShuffle">SHUFFLE</button>
+    </div>
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-scroll">
+
+      <div class="setting-group">
+        <div class="setting-group-title">Playback</div>
+        <div class="setting-row" data-setting="shuffle" data-options="Off,On">
+          <span class="setting-label">Shuffle</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="repeat" data-options="Off,All,One">
+          <span class="setting-label">Repeat</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="gapless" data-options="Off,On">
+          <span class="setting-label">Gapless Playback</span>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" data-setting="crossfade" data-options="0s,2s,4s,6s,8s">
+          <span class="setting-label">Crossfade</span>
+          <span class="setting-value">0s</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Audio</div>
+        <div class="setting-row" data-setting="output" data-options="System Default,Headphones,External DAC">
+          <span class="setting-label">Output Device</span>
+          <span class="setting-value">System Default</span>
+        </div>
+        <div class="setting-row" data-setting="equalizer" data-options="Off,On">
+          <span class="setting-label">Equalizer</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="replaygain" data-options="Off,Track,Album">
+          <span class="setting-label">ReplayGain</span>
+          <span class="setting-value active-val">Album</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Library</div>
+        <div class="setting-row" data-setting="scan" data-options="Off,On">
+          <span class="setting-label">Scan on Startup</span>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" style="cursor:default">
+          <span class="setting-label">Media Folder</span>
+          <span class="setting-value">/Media/MP3 Collection</span>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        FileAMP v1.0 &mdash; VOID Edition
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// === FILE TREE DATA ===
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// === STATE ===
+let isPlaying = false;
+let currentTrack = null;
+let currentArtist = '';
+let currentDuration = 0;
+let elapsed = 0;
+let playlist = [];
+let playlistIndex = -1;
+let sheetOpen = false;
+let currentFolder = FILE_TREE;
+let navStack = [];
+
+// === DOM REFS ===
+const $trackName = document.getElementById('trackName');
+const $artistName = document.getElementById('artistName');
+const $timeDisplay = document.getElementById('timeDisplay');
+const $progressLine = document.getElementById('progress-line');
+const $progressHit = document.getElementById('progress-hit');
+const $panelOverlay = document.getElementById('panelOverlay');
+const $bottomSheet = document.getElementById('bottomSheet');
+const $voidScreen = document.getElementById('void-screen');
+const $indicator = document.getElementById('playStateIndicator');
+const $swipeHint = document.getElementById('swipeHint');
+const $searchInput = document.getElementById('searchInput');
+const $fileList = document.getElementById('fileList');
+const $breadcrumbs = document.getElementById('breadcrumbs');
+
+// === HELPERS ===
+function parseDuration(str) {
+  const p = str.split(':').map(Number);
+  return p[0] * 60 + p[1];
+}
+
+function formatTime(sec) {
+  const m = Math.floor(Math.max(0, sec) / 60);
+  const s = Math.floor(Math.max(0, sec) % 60);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+// === COLLECT ALL FILES ===
+function collectFiles(node, path) {
+  const cur = [...path, node.name];
+  let files = [];
+  if (node.type === 'file') {
+    files.push({ name: node.name, duration: node.duration, size: node.size, path: cur });
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      files = files.concat(collectFiles(child, cur));
+    }
+  }
+  return files;
+}
+
+const allFiles = collectFiles(FILE_TREE, []);
+
+function getArtist(file) {
+  // Artist is at depth 4: Media > MP3 Collection > Genre > Artist > file
+  if (file.path.length >= 4) return file.path[file.path.length - 2];
+  if (file.path.length >= 3) return file.path[file.path.length - 2];
+  return '';
+}
+
+// === PLAYBACK ===
+function setTrack(file) {
+  currentTrack = file;
+  currentArtist = getArtist(file);
+  currentDuration = parseDuration(file.duration);
+  elapsed = 0;
+  isPlaying = true;
+  updateDisplay();
+}
+
+function togglePlay() {
+  if (!currentTrack && allFiles.length > 0) {
+    playlist = [...allFiles];
+    playlistIndex = 0;
+    setTrack(playlist[0]);
+    return;
+  }
+  isPlaying = !isPlaying;
+  updateDisplay();
+  flashIndicator(isPlaying ? '\u25B6' : '\u2759\u2759');
+}
+
+function playNextTrack() {
+  if (playlist.length === 0) return;
+  playlistIndex = (playlistIndex + 1) % playlist.length;
+  setTrack(playlist[playlistIndex]);
+}
+
+function playPrevTrack() {
+  if (playlist.length === 0) return;
+  if (elapsed > 3) {
+    elapsed = 0;
+    return;
+  }
+  playlistIndex = (playlistIndex - 1 + playlist.length) % playlist.length;
+  setTrack(playlist[playlistIndex]);
+}
+
+function updateDisplay() {
+  const name = currentTrack ? currentTrack.name.replace('.mp3', '') : 'VOID';
+  $trackName.textContent = name;
+  $trackName.classList.toggle('playing', isPlaying);
+  $artistName.textContent = currentTrack ? currentArtist : 'tap to begin';
+  if (currentTrack) {
+    $timeDisplay.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+    $timeDisplay.style.opacity = '0.25';
+  } else {
+    $timeDisplay.style.opacity = '0';
+  }
+}
+
+function flashIndicator(symbol) {
+  $indicator.textContent = symbol;
+  $indicator.classList.add('flash');
+  setTimeout(() => { $indicator.classList.remove('flash'); }, 300);
+}
+
+// === MAIN SCREEN GESTURES ===
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+let gestureHandled = false;
+
+$voidScreen.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = Date.now();
+  gestureHandled = false;
+}, { passive: true });
+
+$voidScreen.addEventListener('touchend', e => {
+  if (gestureHandled) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchStartTime;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  // Swipe up from bottom edge = open panel
+  if (touchStartY > window.innerHeight - 60 && dy < -50 && absDy > absDx) {
+    openSheet();
+    return;
+  }
+
+  // Horizontal swipe = prev/next
+  if (absDx > 50 && absDx > absDy * 1.5 && dt < 500) {
+    if (dx < 0) playNextTrack();
+    else playPrevTrack();
+    return;
+  }
+
+  // Tap = play/pause
+  if (absDx < 15 && absDy < 15 && dt < 300) {
+    togglePlay();
+  }
+}, { passive: true });
+
+// Mouse click for desktop tap-to-play
+$voidScreen.addEventListener('click', e => {
+  // Only handle if no touch events (desktop)
+  if ('ontouchstart' in window) return;
+  togglePlay();
+});
+
+// === SWIPE UP DETECTION (bottom edge, also for mouse) ===
+let mouseDownY = 0;
+document.addEventListener('mousedown', e => {
+  if (e.clientY > window.innerHeight - 60) {
+    mouseDownY = e.clientY;
+  }
+});
+document.addEventListener('mouseup', e => {
+  if (mouseDownY > 0 && !sheetOpen) {
+    const dy = e.clientY - mouseDownY;
+    if (dy < -40) {
+      openSheet();
+    }
+  }
+  mouseDownY = 0;
+});
+
+// === PROGRESS SEEK ===
+$progressHit.addEventListener('click', e => {
+  if (currentDuration === 0) return;
+  const pct = e.clientX / window.innerWidth;
+  elapsed = pct * currentDuration;
+  e.stopPropagation();
+});
+
+// === BOTTOM SHEET ===
+function openSheet() {
+  sheetOpen = true;
+  $panelOverlay.classList.add('open');
+  $bottomSheet.classList.add('open');
+  $swipeHint.style.opacity = '0';
+  renderBrowser();
+}
+
+function closeSheet() {
+  sheetOpen = false;
+  $panelOverlay.classList.remove('open');
+  $bottomSheet.classList.remove('open');
+  setTimeout(() => { $swipeHint.style.opacity = ''; }, 300);
+}
+
+$panelOverlay.addEventListener('click', closeSheet);
+
+// Sheet handle double-click to close
+$bottomSheet.querySelector('.sheet-handle').addEventListener('dblclick', closeSheet);
+
+// === TABS ===
+document.querySelectorAll('.sheet-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sheet-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// === BROWSER: FOLDER NAVIGATION ===
+function navigateTo(folder, pushStack) {
+  if (pushStack && currentFolder !== folder) {
+    navStack.push(currentFolder);
+  }
+  currentFolder = folder;
+  $searchInput.value = '';
+  renderBrowser();
+}
+
+function navigateUp() {
+  if (navStack.length > 0) {
+    currentFolder = navStack.pop();
+    $searchInput.value = '';
+    renderBrowser();
+  }
+}
+
+function navigateToDepth(depth) {
+  // Rebuild path from FILE_TREE
+  const fullPath = getPathToFolder(currentFolder);
+  if (depth < fullPath.length) {
+    navStack = fullPath.slice(0, depth);
+    currentFolder = fullPath[depth];
+    $searchInput.value = '';
+    renderBrowser();
+  }
+}
+
+function getPathToFolder(target) {
+  // BFS to find path from root to target
+  const path = [];
+  function find(node) {
+    path.push(node);
+    if (node === target) return true;
+    if (node.children) {
+      for (const child of node.children) {
+        if (find(child)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  find(FILE_TREE);
+  return path;
+}
+
+function renderBrowser() {
+  const searchTerm = $searchInput.value.toLowerCase().trim();
+
+  // Breadcrumbs
+  const pathFolders = getPathToFolder(currentFolder);
+  $breadcrumbs.innerHTML = '';
+  pathFolders.forEach((f, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = '/';
+      $breadcrumbs.appendChild(sep);
+    }
+    const bc = document.createElement('span');
+    bc.className = 'breadcrumb' + (i === pathFolders.length - 1 ? ' current' : '');
+    bc.textContent = f.name;
+    if (i < pathFolders.length - 1) {
+      bc.addEventListener('click', () => navigateToDepth(i));
+    }
+    $breadcrumbs.appendChild(bc);
+  });
+
+  // File list
+  $fileList.innerHTML = '';
+
+  let items = [];
+  if (searchTerm) {
+    // Search all files
+    items = allFiles.filter(f => f.name.toLowerCase().includes(searchTerm));
+    renderSearchResults(items, searchTerm);
+    return;
+  }
+
+  if (!currentFolder.children) return;
+
+  // Back button if not root
+  if (navStack.length > 0) {
+    const back = document.createElement('div');
+    back.className = 'file-item';
+    back.innerHTML = '<span class="file-icon">\u2190</span><div class="file-info"><div class="file-name">..</div></div>';
+    back.addEventListener('click', navigateUp);
+    $fileList.appendChild(back);
+  }
+
+  // Sort: folders first, then files
+  const sorted = [...currentFolder.children].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  for (const item of sorted) {
+    const el = document.createElement('div');
+    el.className = 'file-item';
+
+    if (currentTrack && item.type === 'file' && item.name === currentTrack.name) {
+      el.classList.add('playing-now');
+    }
+
+    if (item.type === 'folder') {
+      const count = collectFiles(item, []).length;
+      el.innerHTML = `<span class="file-icon">\u25B8</span><div class="file-info"><div class="file-name">${esc(item.name)}</div><div class="file-meta">${count} track${count !== 1 ? 's' : ''}</div></div>`;
+      el.addEventListener('click', () => navigateTo(item, true));
+    } else {
+      el.innerHTML = `<span class="file-icon">${currentTrack && item.name === currentTrack.name ? '\u25B6' : '\u266A'}</span><div class="file-info"><div class="file-name">${esc(item.name.replace('.mp3', ''))}</div><div class="file-meta">${item.duration} &middot; ${item.size}</div></div>`;
+      el.addEventListener('click', () => {
+        // Build playlist from current folder
+        const files = currentFolder.children
+          .filter(c => c.type === 'file')
+          .map(c => {
+            const p = getPathToFolder(currentFolder).map(f => f.name);
+            return { name: c.name, duration: c.duration, size: c.size, path: [...p, c.name] };
+          });
+        playlist = files;
+        playlistIndex = files.findIndex(f => f.name === item.name);
+        if (playlistIndex < 0) playlistIndex = 0;
+        setTrack(playlist[playlistIndex]);
+        renderBrowser();
+      });
+    }
+
+    $fileList.appendChild(el);
+  }
+}
+
+function renderSearchResults(results, term) {
+  $fileList.innerHTML = '';
+  if (results.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:40px 0;color:rgba(255,255,255,0.25);font-size:13px';
+    empty.textContent = 'No results';
+    $fileList.appendChild(empty);
+    return;
+  }
+
+  for (const file of results) {
+    const el = document.createElement('div');
+    el.className = 'file-item';
+    if (currentTrack && file.name === currentTrack.name) {
+      el.classList.add('playing-now');
+    }
+
+    const artist = getArtist(file);
+    el.innerHTML = `<span class="file-icon">${currentTrack && file.name === currentTrack.name ? '\u25B6' : '\u266A'}</span><div class="file-info"><div class="file-name">${esc(file.name.replace('.mp3', ''))}</div><div class="file-meta">${artist} &middot; ${file.duration}</div></div>`;
+    el.addEventListener('click', () => {
+      playlist = [...results];
+      playlistIndex = results.indexOf(file);
+      setTrack(file);
+      renderBrowser();
+    });
+    $fileList.appendChild(el);
+  }
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+$searchInput.addEventListener('input', renderBrowser);
+
+// === PLAY ALL / SHUFFLE ===
+document.getElementById('btnPlayAll').addEventListener('click', () => {
+  const files = collectFiles(currentFolder, getPathToFolder(currentFolder).map(f => f.name).slice(0, -1));
+  if (files.length === 0) return;
+  playlist = files;
+  playlistIndex = 0;
+  setTrack(playlist[0]);
+  closeSheet();
+});
+
+document.getElementById('btnShuffle').addEventListener('click', () => {
+  const files = collectFiles(currentFolder, getPathToFolder(currentFolder).map(f => f.name).slice(0, -1));
+  if (files.length === 0) return;
+  // Fisher-Yates shuffle
+  for (let i = files.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
+  playlist = files;
+  playlistIndex = 0;
+  setTrack(playlist[0]);
+  closeSheet();
+});
+
+// === SETTINGS: CLICK-TO-CYCLE ===
+document.querySelectorAll('.setting-row[data-options]').forEach(row => {
+  row.addEventListener('click', () => {
+    const options = row.dataset.options.split(',');
+    const valEl = row.querySelector('.setting-value');
+    const current = valEl.textContent.trim();
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    valEl.textContent = next;
+    // Highlight non-default values
+    valEl.classList.toggle('active-val', next !== options[0]);
+  });
+});
+
+// === ANIMATION LOOP ===
+let lastTime = 0;
+
+function animate(timestamp) {
+  const dt = lastTime ? (timestamp - lastTime) / 1000 : 0.016;
+  lastTime = timestamp;
+
+  if (isPlaying && currentTrack) {
+    elapsed += dt;
+    if (elapsed >= currentDuration && currentDuration > 0) {
+      playNextTrack();
+    }
+  }
+
+  // Update progress line
+  const pct = currentDuration > 0 ? (elapsed / currentDuration * 100) : 0;
+  $progressLine.style.width = pct + '%';
+
+  // Update time display
+  if (currentTrack) {
+    $timeDisplay.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+  }
+
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// === RESIZE OBSERVER ===
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  document.body.classList.toggle('mobile', width < 600);
+  document.body.classList.toggle('tablet', width >= 600 && width < 1025);
+  document.body.classList.toggle('desktop', width >= 1025);
+});
+ro.observe(document.body);
+
+// === KEYBOARD SUPPORT ===
+document.addEventListener('keydown', e => {
+  if (sheetOpen && e.target === $searchInput) return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowRight':
+      playNextTrack();
+      break;
+    case 'ArrowLeft':
+      playPrevTrack();
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      if (!sheetOpen) openSheet();
+      break;
+    case 'Escape':
+      if (sheetOpen) closeSheet();
+      break;
+  }
+});
+
+// Initial render
+renderBrowser();
+</script>
+</body>
+</html>
