@@ -85,9 +85,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # Install only the required platform; Gradle/Flutter will install and
-          # reuse the matching NDK/CMake into the cached SDK directory.
-          packages: "platforms;android-33"
+          # Pre-install NDK and CMake so Gradle doesn't download them mid-build.
+          packages: |
+            platforms;android-33
+            ndk;27.0.12077973
+            cmake;3.22.1
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -109,6 +111,7 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.caching=true -Dorg.gradle.vfs.watch=false"
         run: flutter build apk --release
+        timeout-minutes: 30
 
       - name: Rename APK
         id: rename_apk
