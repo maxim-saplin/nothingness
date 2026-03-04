@@ -49,6 +49,46 @@ BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts
    ```
    Save as `ISOLATE=isolates/<id>`
 
+## WSL2 + Host Emulator Notes
+
+When Flutter runs in WSL2 but the emulator runs on Windows host:
+
+1. Start host ADB server:
+   ```bash
+   "/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe" -a start-server
+   ```
+2. Bridge Flutter to host ADB:
+   ```bash
+   HOST_IP=$(ip route | awk '/default/ {print $3; exit}')
+   ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 flutter run -d emulator-5554 --debug
+   ```
+3. If `flutter run` appears stuck, remember it is interactive by default. Use `--no-resident` for launch-only mode.
+
+### Fallback: Manual VM Service Attach (WSL2)
+
+Use this when app is running on emulator but Flutter tool cannot attach.
+
+```bash
+ADB="/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+
+# 1) Read latest VM service URL from device logs.
+URL=$($ADB -s emulator-5554 logcat -d | \
+  grep "The Dart VM service is listening on" | tail -n1 | \
+  sed -E 's/.*(http:\/\/127\.0\.0\.1:[0-9]+\/[A-Za-z0-9_\-]+=\/).*/\1/')
+
+PORT=$(echo "$URL" | sed -E 's#http://127\.0\.0\.1:([0-9]+)/.*#\1#')
+AUTH=$(echo "$URL" | sed -E 's#http://127\.0\.0\.1:[0-9]+/([^/]+)/#\1#')
+
+# 2) Forward with host adb.exe and call via WSL gateway IP (not localhost).
+$ADB -s emulator-5554 forward tcp:49111 tcp:${PORT}
+GW=$(ip route | awk '/default/ {print $3; exit}')
+BASE="http://${GW}:49111/${AUTH}/"
+
+# 3) Continue normal extension flow.
+ISOLATE=$(curl -s "${BASE}getVM" | python3 -c 'import sys,json; vm=json.load(sys.stdin)["result"]; print([i for i in vm["isolates"] if i["name"]=="main"][0]["id"])')
+curl -s "${BASE}ext.nothingness.getPlaybackState?isolateId=${ISOLATE}"
+```
+
 ## Reading State
 
 ```bash

@@ -20,6 +20,18 @@ This is a Flutter media controller application. Consult the relevant skills in `
 2. **Run validation**: Always run `flutter analyze` after Dart changes
 3. **Reference docs**: Point to existing documentation rather than re-explaining
 
+## WSL2 + Host Emulator
+
+Use this workflow when code runs in WSL2 but the Android emulator runs on the Windows host.
+
+1. Start host ADB server (Windows side):
+	- `"/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe" -a start-server`
+2. Run Flutter from WSL with ADB bridge + emulator ABI override:
+	- `HOST_IP=$(ip route | awk '/default/ {print $3; exit}')`
+	- `ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554`
+3. If you want launch-only (non-interactive terminal):
+	- `ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --no-resident`
+
 ## Temp Files
 
 Store at local .tmp/ folder
