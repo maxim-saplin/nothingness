@@ -89,5 +89,11 @@ abstract class AudioTransport {
 
   /// Enable or disable spectrum capture.
   void setCaptureEnabled(bool enabled);
+
+  /// Suspend periodic timers to save battery while backgrounded.
+  void suspendTimers() {}
+
+  /// Resume periodic timers when returning to foreground.
+  void resumeTimers() {}
 }
 

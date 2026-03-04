@@ -164,6 +164,22 @@ class PlaybackController {
     await _emitSongInfo(force: true);
   }
 
+  /// Suspend periodic timers to save battery while the app is backgrounded.
+  void suspendTimers() {
+    _positionTimer?.cancel();
+    _positionTimer = null;
+    _transport.suspendTimers();
+  }
+
+  /// Resume periodic timers when returning to foreground.
+  void resumeTimers() {
+    _positionTimer ??= Timer.periodic(
+      const Duration(milliseconds: 300),
+      (_) => _emitSongInfo(),
+    );
+    _transport.resumeTimers();
+  }
+
   Future<void> dispose() async {
     _positionTimer?.cancel();
     await _transportEventSub?.cancel();

@@ -258,6 +258,24 @@ class AudioPlayerProvider extends ChangeNotifier {
       ? _androidHandler!.customAction('disableShuffle')
       : _controller!.disableShuffle();
 
+  /// Suspend periodic timers to save battery while the app is backgrounded.
+  void suspendTimers() {
+    if (_isAndroid) {
+      _androidHandler?.suspendTimers();
+    } else {
+      _controller?.suspendTimers();
+    }
+  }
+
+  /// Resume periodic timers when returning to foreground.
+  void resumeTimers() {
+    if (_isAndroid) {
+      _androidHandler?.resumeTimers();
+    } else {
+      _controller?.resumeTimers();
+    }
+  }
+
   void setCaptureEnabled(bool enabled) {
     if (_isAndroid) {
       _captureEnabled = enabled;

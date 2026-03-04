@@ -113,6 +113,16 @@ class MockAudioTransport implements AudioTransport {
     // No-op for mock
   }
 
+  @override
+  void suspendTimers() {
+    // No-op for mock
+  }
+
+  @override
+  void resumeTimers() {
+    // No-op for mock
+  }
+
   // Test helpers
 
   /// Simulate track ending naturally

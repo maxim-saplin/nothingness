@@ -33,12 +33,10 @@ Future<void> main() async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
         androidNotificationChannelName: 'Audio playback',
-        // Keep the foreground service alive while paused.
-        //
-        // Some devices will otherwise stop the service after being paused in the
-        // background, which can invalidate the player/audio session. The user
-        // then returns to the app and "Play" appears to do nothing.
-        androidStopForegroundOnPause: false,
+        // Allow foreground service to stop when paused so the wake lock
+        // and notification are released, saving battery.  The service is
+        // re-promoted when playback resumes.
+        androidStopForegroundOnPause: true,
       ),
     );
   }

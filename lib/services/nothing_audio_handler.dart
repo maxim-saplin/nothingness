@@ -49,6 +49,16 @@ class NothingAudioHandler extends BaseAudioHandler
     _transport.setCaptureEnabled(enabled);
   }
 
+  /// Suspend periodic timers to save battery while backgrounded.
+  void suspendTimers() {
+    _controller.suspendTimers();
+  }
+
+  /// Resume periodic timers when returning to foreground.
+  void resumeTimers() {
+    _controller.resumeTimers();
+  }
+
   /// Forward spectrum settings to the underlying transport.
   void updateSpectrumSettings(SpectrumSettings settings) {
     _transport.updateSpectrumSettings(settings);

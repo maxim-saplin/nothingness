@@ -122,6 +122,25 @@ class SoLoudTransport implements AudioTransport {
     }
   }
 
+  @override
+  void suspendTimers() {
+    _positionTimer?.cancel();
+    _positionTimer = null;
+    // Release the audio session so the AudioMix wake lock is freed.
+    AudioSession.instance.then((s) => s.setActive(false));
+  }
+
+  @override
+  void resumeTimers() {
+    if (_positionTimer != null) return;
+    _positionTimer = Timer.periodic(
+      const Duration(milliseconds: 300),
+      (_) => _checkTrackEnded(),
+    );
+    // Re-activate the audio session for playback readiness.
+    AudioSession.instance.then((s) => s.setActive(true));
+  }
+
   Future<void> _startSpectrum() async {
     if (!_captureEnabled) return;
     await _spectrumProvider?.start();

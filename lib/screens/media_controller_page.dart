@@ -95,14 +95,17 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       // _checkPermissions will call _attachSpectrumSource after checking permissions
       _checkPermissions();
       _syncSongInfoSource(_settings);
+      final player = context.read<AudioPlayerProvider>();
+      player.resumeTimers();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      // App backgrounded: stop spectrum processing to save battery
+      // App backgrounded: stop spectrum processing and timers to save battery
       _isAppInBackground = true;
       _spectrumSubscription?.cancel();
       _songInfoTimer?.cancel();
       final player = context.read<AudioPlayerProvider>();
       player.setCaptureEnabled(false);
+      player.suspendTimers();
     }
   }
 

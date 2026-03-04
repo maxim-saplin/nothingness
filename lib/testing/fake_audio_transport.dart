@@ -101,6 +101,12 @@ class FakeAudioTransport implements AudioTransport {
   @override
   void setCaptureEnabled(bool enabled) {}
 
+  @override
+  void suspendTimers() {}
+
+  @override
+  void resumeTimers() {}
+
   bool get isPlaying => _playing;
   String? get currentPath => _currentPath;
 
