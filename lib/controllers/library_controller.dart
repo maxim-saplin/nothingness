@@ -15,6 +15,7 @@ import '../services/logging_service.dart';
 import '../services/android_media_store_freshness.dart';
 import '../services/media_store_freshness.dart';
 import '../services/metadata_extractor.dart';
+import '../services/platform_channels.dart';
 
 // Static function for isolate execution
 Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
@@ -34,6 +35,12 @@ Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
 }
 
 class LibraryController extends ChangeNotifier {
+  static const List<Duration> _defaultFolderRescanReloadDelays = <Duration>[
+    Duration(milliseconds: 250),
+    Duration(milliseconds: 500),
+    Duration(milliseconds: 900),
+  ];
+
   LibraryController({
     required this.libraryBrowser,
     required this.libraryService,
@@ -42,6 +49,9 @@ class LibraryController extends ChangeNotifier {
     OnAudioQuery? audioQuery,
     Future<List<LibrarySong>> Function()? androidSongLoader,
     Future<List<String>> Function()? androidRootsLoader,
+    Future<bool> Function(String path)? androidFolderRescan,
+    Future<void> Function(Duration duration)? waitForFolderRescan,
+    List<Duration>? folderRescanReloadDelays,
   }) : _audioQuery = audioQuery ?? OnAudioQuery(),
        _mediaStoreFreshness =
            mediaStoreFreshness ??
@@ -50,7 +60,14 @@ class LibraryController extends ChangeNotifier {
                : NoopMediaStoreFreshness()),
        _isAndroidOverride = isAndroidOverride,
        _androidSongLoader = androidSongLoader,
-       _androidRootsLoader = androidRootsLoader;
+       _androidRootsLoader = androidRootsLoader,
+       _androidFolderRescan =
+           androidFolderRescan ?? PlatformChannels().rescanFolder,
+       _waitForFolderRescan =
+           waitForFolderRescan ??
+           ((duration) => Future<void>.delayed(duration)),
+       _folderRescanReloadDelays =
+           folderRescanReloadDelays ?? _defaultFolderRescanReloadDelays;
 
   final LibraryBrowser libraryBrowser;
   final LibraryService libraryService;
@@ -59,6 +76,9 @@ class LibraryController extends ChangeNotifier {
   final bool? _isAndroidOverride;
   final Future<List<LibrarySong>> Function()? _androidSongLoader;
   final Future<List<String>> Function()? _androidRootsLoader;
+  final Future<bool> Function(String path) _androidFolderRescan;
+  final Future<void> Function(Duration duration) _waitForFolderRescan;
+  final List<Duration> _folderRescanReloadDelays;
 
   bool isLoading = false;
   bool isScanning = false;
@@ -77,6 +97,7 @@ class LibraryController extends ChangeNotifier {
   bool _disposed = false;
 
   bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
+  bool get isAndroid => _isAndroid;
 
   Future<void> init() async {
     if (_isAndroid) {
@@ -216,7 +237,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> loadRoot() async {
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _loadAndroidRoot();
     }
   }
@@ -227,7 +248,7 @@ class LibraryController extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      if (Platform.isAndroid) {
+      if (_isAndroid) {
         await _ensureAndroidSongsLoaded();
         var listing = await libraryBrowser.buildVirtualListing(
           basePath: path,
@@ -278,7 +299,7 @@ class LibraryController extends ChangeNotifier {
   Future<void> navigateUp() async {
     if (currentPath == null) return;
 
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       final smartEntries = androidSmartRootSections
           .expand((s) => s.entries)
           .toSet();
@@ -304,7 +325,7 @@ class LibraryController extends ChangeNotifier {
   Future<List<AudioTrack>> tracksForCurrentPath() async {
     if (currentPath == null) return [];
 
-    if (Platform.isAndroid) {
+    if (_isAndroid) {
       await _ensureAndroidSongsLoaded();
 
       // If the current listing already has tracks (e.g., from filesystem fallback), reuse it.
@@ -316,7 +337,9 @@ class LibraryController extends ChangeNotifier {
 
       final extractor = createMetadataExtractor();
       final filtered = <AudioTrack>[];
-      for (final song in _androidSongs.where((song) => song.path.startsWith(currentPath!))) {
+      for (final song in _androidSongs.where(
+        (song) => song.path.startsWith(currentPath!),
+      )) {
         try {
           final track = await extractor.extractMetadata(song.path);
           filtered.add(track);
@@ -334,28 +357,100 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> refreshLibrary() async {
-    if (!Platform.isAndroid || !hasPermission) return;
+    await runRefreshLibraryFlow();
+  }
+
+  Future<void> repairCurrentFolderListing() async {
+    if (!_isAndroid || !hasPermission) return;
+
+    final path = currentPath;
+    if (path == null || isScanning) return;
 
     isScanning = true;
     error = null;
     _safeNotifyListeners();
 
     try {
-      // Clear cache
+      final initialSignature = _currentListingSignature(path);
+      final started = await _androidFolderRescan(path);
+      if (!started) {
+        LoggingService().log(
+          tag: 'Library',
+          message: 'Folder rescan request failed for $path',
+          level: LogLevel.error,
+        );
+        error = 'Could not repair this folder listing. Try again in a moment.';
+        return;
+      }
+
+      var latestSignature = initialSignature;
+      for (final delay in _folderRescanReloadDelays) {
+        await _waitForFolderRescan(delay);
+        await runRefreshLibraryFlow(
+          manageScanningState: false,
+          pathToReload: path,
+        );
+
+        final refreshedSignature = _currentListingSignature(path);
+        if (refreshedSignature != initialSignature ||
+            refreshedSignature != latestSignature) {
+          break;
+        }
+        latestSignature = refreshedSignature;
+      }
+    } catch (e) {
+      LoggingService().log(
+        tag: 'Library',
+        message: 'Failed to repair folder listing for $path: $e',
+        level: LogLevel.error,
+      );
+      error = 'Failed to repair this folder listing: $e';
+    } finally {
+      isScanning = false;
+      _safeNotifyListeners();
+    }
+  }
+
+  @visibleForTesting
+  Future<void> runRefreshLibraryFlow({
+    bool manageScanningState = true,
+    String? pathToReload,
+  }) async {
+    await _refreshLibraryImpl(
+      manageScanningState: manageScanningState,
+      pathToReload: pathToReload,
+    );
+  }
+
+  Future<void> _refreshLibraryImpl({
+    required bool manageScanningState,
+    String? pathToReload,
+  }) async {
+    if (!_isAndroid || !hasPermission) return;
+
+    if (manageScanningState) {
+      isScanning = true;
+      error = null;
+      _safeNotifyListeners();
+    }
+
+    try {
       _androidSongs = [];
-      // Reload songs
       await _ensureAndroidSongsLoaded();
-      // Reload current folder if we have one
-      if (currentPath != null) {
-        await loadFolder(currentPath!);
+
+      final reloadPath = pathToReload ?? currentPath;
+      if (reloadPath != null) {
+        await loadFolder(reloadPath);
       } else {
         await loadRoot();
       }
     } catch (e) {
       error = 'Failed to refresh library: $e';
     } finally {
-      isScanning = false;
-      _safeNotifyListeners();
+      if (manageScanningState) {
+        isScanning = false;
+        _safeNotifyListeners();
+      }
     }
   }
 
@@ -439,10 +534,8 @@ class LibraryController extends ChangeNotifier {
           maxEntriesPerDevice: 5,
         );
 
-        final smartEntries = androidSmartRootSections
-            .expand((s) => s.entries)
-            .toList()
-          ..sort();
+        final smartEntries =
+            androidSmartRootSections.expand((s) => s.entries).toList()..sort();
 
         if (smartEntries.isEmpty) {
           // Smart roots produced no entries (e.g., songs under device root or
@@ -549,6 +642,16 @@ class LibraryController extends ChangeNotifier {
     currentPath = null;
     folders = [];
     tracks = [];
+  }
+
+  String _currentListingSignature(String expectedPath) {
+    if (currentPath != expectedPath) {
+      return 'path=${currentPath ?? ''}';
+    }
+
+    final folderPaths = folders.map((folder) => folder.path).toList()..sort();
+    final trackPaths = tracks.map((track) => track.path).toList()..sort();
+    return '$expectedPath|folders=${folderPaths.join(',')}|tracks=${trackPaths.join(',')}';
   }
 
   void _safeNotifyListeners() {
