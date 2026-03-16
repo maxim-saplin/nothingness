@@ -12,9 +12,11 @@ class PlaylistStore {
     HiveInterface? hive,
     Future<void> Function()? hiveInitializer,
     Future<Box<dynamic>> Function(HiveInterface)? boxOpener,
+    Random? random,
   })  : _hive = hive ?? Hive,
         _initHive = hiveInitializer ?? Hive.initFlutter,
-        _openBox = boxOpener ?? ((hive) => hive.openBox<dynamic>(_boxName));
+        _openBox = boxOpener ?? ((hive) => hive.openBox<dynamic>(_boxName)),
+        _random = random ?? Random();
 
   static const String _boxName = 'playlistBox';
   static const String _queueKey = 'queue';
@@ -25,7 +27,7 @@ class PlaylistStore {
   final HiveInterface _hive;
   final Future<void> Function() _initHive;
   final Future<Box<dynamic>> Function(HiveInterface) _openBox;
-  final Random _random = Random();
+  final Random _random;
 
   final ValueNotifier<List<AudioTrack>> queueNotifier =
       ValueNotifier<List<AudioTrack>>(<AudioTrack>[]);
@@ -152,8 +154,8 @@ class PlaylistStore {
   Future<void> reshuffle({required int keepBaseIndex}) async {
     if (_baseQueue.isEmpty) return;
     shuffleNotifier.value = true;
-    _playOrder = _buildShuffledOrder(startBaseIndex: keepBaseIndex);
-    currentOrderIndexNotifier.value = 0;
+    _playOrder = _buildReshuffledOrder(keepBaseIndex: keepBaseIndex);
+    currentOrderIndexNotifier.value = orderIndexForBase(keepBaseIndex) ?? 0;
     _notifyQueue();
     await _persistState();
   }
@@ -182,6 +184,12 @@ class PlaylistStore {
     final order = List<int>.generate(_baseQueue.length, (i) => i);
     order.shuffle(_random);
     _ensureTrackIsFirst(order, _clampBaseIndex(startBaseIndex));
+    return List<int>.unmodifiable(order);
+  }
+
+  List<int> _buildReshuffledOrder({required int keepBaseIndex}) {
+    final order = List<int>.generate(_baseQueue.length, (i) => i);
+    order.shuffle(_random);
     return List<int>.unmodifiable(order);
   }
 

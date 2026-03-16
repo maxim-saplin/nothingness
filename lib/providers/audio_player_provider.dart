@@ -204,7 +204,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   Future<void> previous() async {
     if (_isAndroid) {
-      await _androidHandler!.skipToPrevious();
+      await _androidHandler!.customAction('previous');
       return;
     }
     await _controller!.previous();

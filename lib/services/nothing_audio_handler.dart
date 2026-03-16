@@ -286,6 +286,9 @@ class NothingAudioHandler extends BaseAudioHandler
         if (idx == null) return null;
         await _controller.playFromQueueIndex(idx);
         return null;
+      case 'previous':
+        await _controller.previous();
+        return null;
     }
 
     return super.customAction(name, extras);
