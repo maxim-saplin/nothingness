@@ -24,10 +24,19 @@ Set:
 
 ```bash
 BASE="http://127.0.0.1:<PORT>/<AUTH>=/"
-ISOLATE=$(curl -s "${BASE}getVM" | python3 -c 'import sys,json; vm=json.load(sys.stdin)["result"]; print([i for i in vm["isolates"] if i["name"]=="main"][0]["id"])')
+ISOLATE=$(python3 - <<'PY'
+import json
+import urllib.request
+
+base = "http://127.0.0.1:<PORT>/<AUTH>=/"
+with urllib.request.urlopen(base + 'getVM') as resp:
+	vm = json.load(resp)["result"]
+print([i for i in vm["isolates"] if i["name"] == "main"][0]["id"])
+PY
+)
 ```
 
-If `curl` is unavailable, use `python3 urllib.request` for the same endpoints.
+The shipped helper script uses `python3 urllib.request`, so it no longer depends on `curl`.
 
 ## WSL2 + Host Emulator
 
@@ -48,7 +57,21 @@ ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emul
 ## Driving Shortcuts
 
 ```bash
-e(){ curl -s "${BASE}ext.nothingness.$1?isolateId=${ISOLATE}${2:+&$2}"; }
+e(){ python3 - "$BASE" "$ISOLATE" "$1" "${2:-}" <<'PY'
+import json
+import sys
+import urllib.parse
+import urllib.request
+
+base, isolate, name, extra = sys.argv[1:5]
+params = {'isolateId': isolate}
+if extra:
+	for key, value in urllib.parse.parse_qsl(extra, keep_blank_values=True):
+		params[key] = value
+with urllib.request.urlopen(f"{base}ext.nothingness.{name}?" + urllib.parse.urlencode(params)) as resp:
+	print(resp.read().decode())
+PY
+}
 
 # State
 e getPlaybackState
@@ -78,19 +101,23 @@ e tapByKey "key=test.playPause"
 - Symptom: state shows `queueLen/queueLength = 0`.
 - Fix: set queue with real files from `/sdcard/Music`.
 
-3. `Permissions Required` overlay blocks panel actions:
+3. SoLoud cannot load shared-storage file on emulator:
+- Symptom: logcat shows `SoLoudFileNotFoundException` for `/sdcard/...` even though the file exists.
+- Fix: push the file to `/data/local/tmp`, then copy it into the app sandbox with `run-as com.saplin.nothingness cp ... files/...`, and queue `/data/user/0/com.saplin.nothingness/files/<name>`.
+
+4. `Permissions Required` overlay blocks panel actions:
 - Fix path A: tap in-app `Grant Permissions`.
 - Fix path B: grant on device and reopen app.
 
-4. Cannot tap Shuffle (or another panel control):
+5. Cannot tap Shuffle (or another panel control):
 - First open library panel (handle tap or swipe up).
 - If key tap fails, use adb UIAutomator dump and tap by bounds for visible text.
 
-5. `tapByKey` returns not found:
+6. `tapByKey` returns not found:
 - Cause: production widget has no `ValueKey<String>`.
 - Fix: drive via panel open + text/bounds tap, not key tap.
 
-6. Action path ambiguity (UI vs extension):
+7. Action path ambiguity (UI vs extension):
 - Verify with before/after state around one action.
 - Prefer single-action runs with immediate state readback.
 

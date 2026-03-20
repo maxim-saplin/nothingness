@@ -70,7 +70,7 @@ From the flutter run output, extract:
 ### 2b. Helper script (optional)
 
 The helper script avoids manual isolate lookups and URL-encodes `setQueue` paths.
-Requires `curl` and `python3`.
+Requires `python3`.
 
 ```bash
 chmod +x .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh
@@ -86,12 +86,16 @@ BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts
 ### 3. Get the isolate ID
 
 ```bash
-curl -s "${BASE}/getVM" | python3 -c "
-import sys, json
-vm = json.load(sys.stdin)
-iso = [i for i in vm['result']['isolates'] if i['name']=='main'][0]
+python3 - <<'PY'
+import json
+import urllib.request
+
+with urllib.request.urlopen(f"${BASE}/getVM") as resp:
+  vm = json.load(resp)
+
+iso = [i for i in vm['result']['isolates'] if i['name'] == 'main'][0]
 print(iso['id'])
-"
+PY
 ```
 
 ### 4. Call extensions
@@ -127,8 +131,8 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/a.m
 | `getWidgetTree` | `depth` (optional, line limit) | `{tree: "..."}` | Full element tree as text. Primary UI inspection tool. |
 | `getSemantics` | — | `{semantics: "..."}` | Semantics tree (requires accessibility enabled). |
 | `tapByKey` | `key` (ValueKey string) | `{tapped: "key"}` | Find widget by `ValueKey<String>` and invoke its tap callback. |
-| `getSettings` | — | Full settings JSON | Read all app settings (spectrum, screen type, decoder, etc.). |
-| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported: `androidSoloudDecoder`, `fullScreen`, `debugLayout`, `useFilenameForMetadata`. |
+| `getSettings` | — | Full settings JSON | Read current app settings, including screen and spectrum configuration. |
+| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported: `fullScreen`, `debugLayout`, `useFilenameForMetadata`. |
 
 ### Playback Shortcuts
 
@@ -179,21 +183,26 @@ An agent can verify the SoLoud spectrum fix end-to-end without any user interact
 flutter run -d emulator-5554 --debug &
 # 2. Parse BASE and ISOLATE from output (see above)
 
-# 3. Check SoLoud decoder is enabled
-curl -s "${BASE}/ext.nothingness.getSettings?isolateId=${ISOLATE}" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['androidSoloudDecoder'])"
-
-# 4. Load tracks
+# 3. Load tracks
 curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/Music/track1.mp3,/sdcard/Music/track2.mp3"
 
-# 5. Start playback
+# 4. Start playback
 curl -s "${BASE}/ext.nothingness.play?isolateId=${ISOLATE}"
 
-# 6. Wait and check spectrum
+# 5. Wait and check spectrum
 sleep 2
 curl -s "${BASE}/ext.nothingness.getPlaybackState?isolateId=${ISOLATE}" \
   | python3 -c "import sys,json; s=json.load(sys.stdin)['result']; print(f'playing={s[\"isPlaying\"]} spectrum={s[\"spectrumNonZero\"]}')"
 # Expected: playing=True spectrum=True
+```
+
+If the emulator reports `SoLoudFileNotFoundException` for shared-storage paths like `/sdcard/...`, stage the file into the app sandbox instead:
+
+```bash
+adb push track.wav /data/local/tmp/track.wav
+adb shell 'run-as com.saplin.nothingness mkdir -p files && run-as com.saplin.nothingness cp /data/local/tmp/track.wav files/track.wav'
+
+curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/data/user/0/com.saplin.nothingness/files/track.wav"
 ```
 
 ## Extending

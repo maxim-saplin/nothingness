@@ -31,6 +31,8 @@ class MockAudioTransport implements AudioTransport {
   final List<String> playCalls = [];
   final List<String> pauseCalls = [];
   final List<Duration> seekCalls = [];
+  int suspendTimerCalls = 0;
+  int resumeTimerCalls = 0;
   
   @override
   Stream<TransportEvent> get eventStream => _eventController.stream;
@@ -115,12 +117,12 @@ class MockAudioTransport implements AudioTransport {
 
   @override
   void suspendTimers() {
-    // No-op for mock
+    suspendTimerCalls += 1;
   }
 
   @override
   void resumeTimers() {
-    // No-op for mock
+    resumeTimerCalls += 1;
   }
 
   // Test helpers
@@ -159,5 +161,7 @@ class MockAudioTransport implements AudioTransport {
     playCalls.clear();
     pauseCalls.clear();
     seekCalls.clear();
+    suspendTimerCalls = 0;
+    resumeTimerCalls = 0;
   }
 }
