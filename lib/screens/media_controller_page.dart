@@ -247,6 +247,15 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       _hasAudioPermission = audioPermission;
     });
 
+    // On Android 13+ (API 33) the media notification served by audio_service
+    // is silently dropped unless POST_NOTIFICATIONS is granted. Request once
+    // on startup so lock-screen / shade controls work without the user having
+    // to dig through Settings. The plugin is idempotent — no dialog after the
+    // first decision.
+    if (!await Permission.notification.isGranted) {
+      await Permission.notification.request();
+    }
+
     _attachSpectrumSource(_settings);
   }
 
@@ -269,6 +278,7 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       Permission.storage,
       Permission.audio,
       Permission.microphone,
+      Permission.notification,
     ].request();
 
     // Also call platform channel request for legacy/specific handling if needed

@@ -295,7 +295,7 @@ class SoLoudTransport implements AudioTransport {
     await session.setActive(true);
 
     if (_currentHandle == null) {
-      _currentHandle = await _soloud.play(_currentSource!, paused: false);
+      _currentHandle = _soloud.play(_currentSource!, paused: false);
     } else {
       _soloud.setPause(_currentHandle!, false);
     }

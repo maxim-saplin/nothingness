@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/audio_track.dart';
@@ -63,6 +64,23 @@ class NothingAudioHandler extends BaseAudioHandler
   void updateSpectrumSettings(SpectrumSettings settings) {
     _transport.updateSpectrumSettings(settings);
   }
+
+  /// Diagnostics snapshot of the wrapped [PlaybackController].
+  ///
+  /// Includes the audio-event ring buffer used to diagnose interruption /
+  /// device-route issues.
+  Map<String, Object?> diagnosticsSnapshot() =>
+      _controller.diagnosticsSnapshot();
+
+  /// Audio-event ring buffer from the wrapped [PlaybackController].
+  List<String> audioEvents() => _controller.audioEvents();
+
+  /// Test seam: simulate an audio interruption event in the controller.
+  void debugSimulateInterruption(AudioInterruptionEvent event) =>
+      _controller.debugSimulateInterruption(event);
+
+  /// Test seam: simulate an audio-becoming-noisy event in the controller.
+  void debugSimulateBecomingNoisy() => _controller.debugSimulateBecomingNoisy();
 
   Duration _lastPosition = Duration.zero;
 

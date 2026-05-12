@@ -3,10 +3,11 @@
 This document details audio stack choices, data paths, and behaviors for playback-driven and microphone-driven spectrum visualization. It complements the high-level overview.
 
 ## Goals & Rationale
-- Clean separation of concerns: `PlaybackController` handles business logic (user intent, queue, error recovery), `AudioTransport` provides thin native player control.
-- Single transport: SoLoud on all platforms. No backend toggle needed. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
+- Clean separation of concerns: `PlaybackController` handles business logic (user intent, queue, error recovery, audio focus / route handling), `AudioTransport` provides thin native player control.
+- Single transport: SoLoud (`flutter_soloud` 4.x) on all platforms. No backend toggle needed. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
 - Spectrum comes from SoLoud's built-in FFT, with microphone capture as an Android fallback.
 - User intent tracking via `PlayIntent` enum prevents race conditions between pause and auto-skip.
+- Audio focus events (`audio_session`) are handled in `PlaybackController` only — the transport stays intent-blind. Phone calls pause and auto-resume; headphones/BT disconnect (becoming noisy) pauses without auto-resume.
 
 ## Core Components
 - **`AudioPlayerProvider`**: `ChangeNotifier` that wraps a `PlaybackController` and surfaces state (song info, playing, queue, shuffle, spectrum data) without prop drilling.
@@ -17,6 +18,8 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - **Deterministic missing-file handling**: Centralized in a bounded scan loop (`_playWithAutoAdvance`) so missing/known-failed tracks are always marked red and skipped consistently across tap/Next/Previous/natural advance.
   - **`isNotFound` tracking**: Backend-agnostic tracking of failed track paths (moved from platform-specific implementations).
   - **SongInfo emission**: Consolidates song info updates from transport position/duration.
+  - **Audio focus / route handling**: Subscribes to `AudioSession.interruptionEventStream`, `becomingNoisyEventStream`, and `devicesChangedEventStream`. Pauses on focus loss, auto-resumes on focus regain, and treats becoming-noisy as an explicit user pause (no auto-resume). See [Audio Focus & Interruption](#audio-focus--interruption) below.
+  - **Audio-event diagnostics ring buffer**: Bounded 300-entry log of interruption / route / load / end / error events, exposed via `diagnosticsSnapshot()['audioEvents']` and `audioEvents()` for in-app and VM-service inspection.
 - **`AudioTransport` (interface)**: Thin abstraction over platform-specific players. Provides minimal interface:
   - Load audio files (`load(String path)`)
   - Play/pause/seek control
@@ -49,6 +52,70 @@ flowchart LR
 - On pause: `PlaybackController` sets `userIntent = PlayIntent.pause`, transport pauses playback and stops spectrum capture to reduce CPU; resume restarts capture. Error recovery respects `userIntent` - if paused, errors don't trigger auto-skip.
 - On completion: Transport emits `TransportEndedEvent`; `PlaybackController` checks `userIntent` and advances to next track if `userIntent == play`, otherwise stops.
 - On error / missing file: missing/known-failed tracks are marked `isNotFound` and skipped consistently across tap/Next/Previous/natural advance. `TransportErrorEvent` is used to mark pending-load failures safely (no second skip chain); the `load()` catch path drives the skip. Optional preflight: `PlaybackController(preflightFileExists: true)` (default) checks `File(path).exists()` for filesystem paths and skips immediately if missing (skips `content://` URIs).
+
+## Audio Focus & Interruption
+
+`PlaybackController.init()` subscribes to three streams from `package:audio_session`. All handling lives in the controller; the transport is intent-blind.
+
+```mermaid
+flowchart LR
+  OS[Android AudioManager / iOS AVAudioSession] -->|focus change| ASPlugin[audio_session plugin]
+  ASPlugin --> InterStream[interruptionEventStream]
+  ASPlugin --> NoisyStream[becomingNoisyEventStream]
+  ASPlugin --> DevicesStream[devicesChangedEventStream]
+  InterStream --> Ctrl[PlaybackController._onInterruption]
+  NoisyStream --> Ctrl2[PlaybackController._onBecomingNoisy]
+  DevicesStream --> Ctrl3[PlaybackController._onDevicesChanged]
+  Ctrl --> Transport[SoLoudTransport.pause / play]
+  Ctrl2 --> Transport
+  Ctrl3 -.->|log only| Ring[(audioEvents ring buffer)]
+```
+
+### Behavior
+
+| Event | Begin/end | Action |
+|---|---|---|
+| Interruption — `pause` / `unknown` | begin | If playing: pause transport, set `_pausedByInterruption=true`, **preserve** `_userIntent=play` |
+| Interruption — `pause` | end | If `_pausedByInterruption` and intent is still play: resume transport |
+| Interruption — `unknown` | end | Permanent focus loss ended — do **not** auto-resume |
+| Interruption — `duck` | begin/end | No-op (music apps keep playing, OS handles ducking volume) |
+| Becoming noisy | — | Pause transport, flip `_userIntent` to **pause** (no auto-resume on later focus regain) |
+| Devices added/removed | — | Log to ring buffer only; no playback action |
+
+This implementation fixes the long-standing "phone call doesn't pause playback" bug on Android — previously `audio_session` would publish the event but no code subscribed to it.
+
+### Diagnostics ring buffer
+
+`PlaybackController._audioEvents` is a bounded list (cap 300) of timestamped ISO-8601 lines. Sources:
+
+- `interruption begin=… type=…`
+- `becomingNoisy`
+- `devicesChanged added=… removed=…`
+- `transportLoaded path=…`
+- `transportEnded path=…`
+- `transportError path=…`
+
+Exposed via:
+
+- `controller.audioEvents()` (Dart)
+- `diagnosticsSnapshot()['audioEvents']` (Dart)
+- `ext.nothingness.getAudioEvents` / `ext.nothingness.getDiagnostics` (VM service)
+- In-app **Logs** screen, when **Settings → DIAGNOSTICS → Audio Diagnostics** is enabled (`SettingsService.audioDiagnosticsOverlayNotifier`)
+
+The ring buffer is the primary instrument for diagnosing route-change bugs (`devicesChanged`) that only reproduce on real Bluetooth / automotive hardware.
+
+### Test seams
+
+Two debug-only methods drive the handlers directly:
+
+- `controller.debugSimulateInterruption(AudioInterruptionEvent(begin, type))`
+- `controller.debugSimulateBecomingNoisy()`
+
+Both are routed through:
+
+- Unit tests (`test/services/playback_controller_interruption_test.dart`)
+- Integration tests (`integration_test/audio_interruption_test.dart`, via `TestHarness.simulateInterruption` / `simulateBecomingNoisy`)
+- VM service extensions: `ext.nothingness.simulateInterruption?phase=begin|end&kind=pause|duck|unknown`, `ext.nothingness.simulateNoisy`
 
 ## Microphone Pipeline (Android Only, fallback)
 ```mermaid
@@ -98,7 +165,7 @@ flowchart LR
 - Possible enhancement: normalize FFT window size to match bar count more tightly.
 
 ## Android Equalizer
-**Scope**: Android EQ is currently disabled. The previous implementation relied on `android.media.audiofx.Equalizer` attached to a just_audio session id, which is no longer available with the SoLoud backend. A SoLoud filter-based EQ (`SoLoud.addGlobalFilter()`) is planned as a follow-up.
+**Scope**: Android EQ is currently disabled. The previous implementation relied on `android.media.audiofx.Equalizer` attached to an external player's session id, which is not exposed by SoLoud. A SoLoud filter-based EQ (`SoLoud.addGlobalFilter()`) is planned as a follow-up.
 
 ## References
 - High-level overview: [overview.md](overview.md)

@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
@@ -317,6 +318,38 @@ class AudioPlayerProvider extends ChangeNotifier {
       _controller?.scanFolder(rootPath) ?? Future.value(const <AudioTrack>[]);
   Future<int> playlistSizeBytes() =>
       _controller?.playlistSizeBytes() ?? Future.value(0);
+
+  /// Diagnostics snapshot of the playback controller (audio events, queue,
+  /// recent logs). Returns null if no controller is reachable from this
+  /// provider (very early init).
+  Map<String, Object?>? diagnosticsSnapshot() {
+    if (_isAndroid) return _androidHandler?.diagnosticsSnapshot();
+    return _controller?.diagnosticsSnapshot();
+  }
+
+  /// Audio-event ring buffer for diagnosing interruption / route issues.
+  List<String> audioEvents() {
+    if (_isAndroid) return _androidHandler?.audioEvents() ?? const <String>[];
+    return _controller?.audioEvents() ?? const <String>[];
+  }
+
+  /// Test seam: simulate an audio interruption event in the controller.
+  void debugSimulateInterruption(AudioInterruptionEvent event) {
+    if (_isAndroid) {
+      _androidHandler?.debugSimulateInterruption(event);
+    } else {
+      _controller?.debugSimulateInterruption(event);
+    }
+  }
+
+  /// Test seam: simulate an audio-becoming-noisy event in the controller.
+  void debugSimulateBecomingNoisy() {
+    if (_isAndroid) {
+      _androidHandler?.debugSimulateBecomingNoisy();
+    } else {
+      _controller?.debugSimulateBecomingNoisy();
+    }
+  }
 
   Map<String, Object?> _encodeTrack(AudioTrack t) {
     return <String, Object?>{

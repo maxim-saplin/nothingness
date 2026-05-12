@@ -416,6 +416,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
 
+                      const SizedBox(height: 16),
+                      ValueListenableBuilder<bool>(
+                        valueListenable:
+                            _settingsService.audioDiagnosticsOverlayNotifier,
+                        builder: (context, enabled, _) {
+                          return _buildOptionTile(
+                            title: 'Audio Diagnostics',
+                            subtitle: enabled
+                                ? 'Audio events panel visible in Logs'
+                                : 'Off',
+                            child: SwitchListTile(
+                              title: const Text(
+                                'Show audio events in Logs',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              value: enabled,
+                              onChanged: (v) => _settingsService
+                                  .setAudioDiagnosticsOverlay(v),
+                              activeTrackColor: const Color(0xFF00FF88),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          );
+                        },
+                      ),
+
                       const SizedBox(height: 32),
                     ],
                   ),

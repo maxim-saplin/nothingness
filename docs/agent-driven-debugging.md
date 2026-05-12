@@ -62,6 +62,27 @@ The output contains the observatory URL:
 A Dart VM Service on sdk gphone64 arm64 is available at: http://127.0.0.1:PORT/AUTH=/
 ```
 
+#### 1a. (Android) Prepare device — runtime permissions + sandbox audio files
+
+Fresh-installed Android builds stop at the in-app `Permissions Required` overlay until the user taps `Grant Permissions` and approves the OS dialog. SoLoud also can't open shared-storage paths like `/sdcard/...` on emulators (raises `SoLoudFileNotFoundException`) — files have to live under the app's private dir.
+
+The `agent_prepare.sh` helper handles both, is idempotent, and works pre- or post-launch:
+
+```bash
+# Grant all runtime perms only
+.claude/skills/agent-emulator-debugging/scripts/agent_prepare.sh -d emulator-5554
+
+# Grant perms + stage one or more host audio files into the app sandbox
+.claude/skills/agent-emulator-debugging/scripts/agent_prepare.sh \
+  -d emulator-5554 \
+  --stage .tmp/test_tone.wav \
+  --stage /path/to/another.mp3
+```
+
+After staging `foo.wav`, queue it as `/data/user/0/com.saplin.nothingness/files/foo.wav`.
+
+Permissions granted: `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`. The script uses `adb shell pm grant`, which requires no UI interaction.
+
 ### 2. Extract the base URL
 
 From the flutter run output, extract:
@@ -132,7 +153,7 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/a.m
 | `getSemantics` | — | `{semantics: "..."}` | Semantics tree (requires accessibility enabled). |
 | `tapByKey` | `key` (ValueKey string) | `{tapped: "key"}` | Find widget by `ValueKey<String>` and invoke its tap callback. |
 | `getSettings` | — | Full settings JSON | Read current app settings, including screen and spectrum configuration. |
-| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported: `fullScreen`, `debugLayout`, `useFilenameForMetadata`. |
+| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported: `fullScreen`, `debugLayout`, `useFilenameForMetadata`, `audioDiagnosticsOverlay`. |
 
 ### Playback Shortcuts
 
@@ -144,6 +165,15 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/a.m
 | `next` | — | `{ok: true}` | Skip to next track. |
 | `prev` | — | `{ok: true}` | Skip to previous track. |
 | `setQueue` | `paths` (comma-separated), `startIndex` (optional) | `{queued: N}` | Load tracks into queue and start at given index. |
+
+### Audio Diagnostics
+
+| Extension | Params | Returns | Purpose |
+|---|---|---|---|
+| `getDiagnostics` | — | `{snapshot: {...}}` | Full `PlaybackController.diagnosticsSnapshot()` (queue state, last error, recent logs, **audioEvents** ring buffer). |
+| `getAudioEvents` | — | `{audioEvents: [...]}` | Just the audio-event ring buffer (timestamped lines for interruption / noisy / devicesChanged / load / ended / error). |
+| `simulateInterruption` | `phase=begin\|end`, `kind=pause\|duck\|unknown` | `{phase, kind}` | Drive `PlaybackController._onInterruption` directly. Equivalent to a real OS audio focus event. |
+| `simulateNoisy` | — | `{simulated: "noisy"}` | Drive `PlaybackController._onBecomingNoisy` directly (headphones/BT yanked). |
 
 ### Response Format
 
@@ -173,6 +203,60 @@ To use `tapByKey` with the real app, add `ValueKey<String>` to production widget
 | `test.queueItem.<index>` | Queue list item at index | `main_test.dart` only |
 
 For the real app, use `getWidgetTree` to discover the widget hierarchy and add `ValueKey`s to production widgets as needed.
+
+## Example: Audio Interruption (Bug #1) Verification
+
+Verify the phone-call-pause path end-to-end without placing a real call:
+
+```bash
+# 1. Set queue + start playback
+curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/data/user/0/com.saplin.nothingness/files/t1.mp3,/data/user/0/com.saplin.nothingness/files/t2.mp3"
+curl -s "${BASE}/ext.nothingness.play?isolateId=${ISOLATE}"
+
+# 2. Simulate incoming call (transient focus loss)
+curl -s "${BASE}/ext.nothingness.simulateInterruption?isolateId=${ISOLATE}&phase=begin&kind=pause"
+curl -s "${BASE}/ext.nothingness.getPlaybackState?isolateId=${ISOLATE}" \
+  | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(f'playing={r[\"isPlaying\"]}')"
+# Expected: playing=False
+
+# 3. Simulate call end (focus regain)
+curl -s "${BASE}/ext.nothingness.simulateInterruption?isolateId=${ISOLATE}&phase=end&kind=pause"
+curl -s "${BASE}/ext.nothingness.getPlaybackState?isolateId=${ISOLATE}" \
+  | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(f'playing={r[\"isPlaying\"]}')"
+# Expected: playing=True
+
+# 4. Simulate headphones/BT unplug
+curl -s "${BASE}/ext.nothingness.simulateNoisy?isolateId=${ISOLATE}"
+# Expected: playing=False, userIntent=pause (no auto-resume on later focus regain)
+
+# 5. Inspect the audio-event ring buffer
+curl -s "${BASE}/ext.nothingness.getAudioEvents?isolateId=${ISOLATE}" | python3 -m json.tool
+```
+
+The OS-level focus subscription itself is harder to fake; verify it independently with:
+
+```bash
+adb shell dumpsys audio | grep -A2 "Audio Focus stack"
+```
+
+The entry should show `pack: com.saplin.nothingness` with `client: ...audio_session.AudioManagerSingleton...` — that's the listener `PlaybackController` is subscribed to via `audio_session`.
+
+## Example: Real-Device BT Route Diagnostics (Bug #2 / #3)
+
+For "spectrum dies / no car audio" reports, the user drives with the diagnostics overlay on; we read the audio-event log afterwards.
+
+```bash
+# 1. Enable the in-app overlay (also accessible via Settings → DIAGNOSTICS)
+curl -s "${BASE}/ext.nothingness.setSetting?isolateId=${ISOLATE}&name=audioDiagnosticsOverlay&value=true"
+
+# 2. User drives, plugs in / out of BT, hits the problem, opens Logs in app.
+
+# 3. Pull the full diagnostics blob for analysis
+curl -s "${BASE}/ext.nothingness.getDiagnostics?isolateId=${ISOLATE}" \
+  | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['result']['snapshot']['audioEvents'], indent=2))"
+```
+
+Look for `devicesChanged added=…` / `removed=…` lines around the moment audio went silent — that's the route swap the follow-up fix has to handle.
 
 ## Example: SoLoud Spectrum Fix Verification
 

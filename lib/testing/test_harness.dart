@@ -1,3 +1,5 @@
+import 'package:audio_session/audio_session.dart';
+
 import '../models/audio_track.dart';
 import '../services/playback_controller.dart';
 import 'fake_audio_transport.dart';
@@ -46,6 +48,24 @@ class TestHarness {
 
   void emitEnded() {
     transport.emitEnded();
+  }
+
+  /// Drive an audio interruption event through the controller.
+  void simulateInterruption({required bool begin, required AudioInterruptionType type}) {
+    final c = controller;
+    if (c == null) {
+      throw StateError('TestHarness.controller is not initialized');
+    }
+    c.debugSimulateInterruption(AudioInterruptionEvent(begin, type));
+  }
+
+  /// Drive a "becoming noisy" event through the controller.
+  void simulateBecomingNoisy() {
+    final c = controller;
+    if (c == null) {
+      throw StateError('TestHarness.controller is not initialized');
+    }
+    c.debugSimulateBecomingNoisy();
   }
 
   void reset() {

@@ -16,6 +16,10 @@ These tests are **target-specific**. If you use VSCode’s Testing pane and your
   - Tap missing track → marked not found → advances to next playable
   - Next/prev/natural-advance never land on known-missing
   - All-missing stops cleanly with a clear UI state
+- Audio focus / interruption flow (`integration_test/audio_interruption_test.dart`):
+  - Phone-call-style interruption pauses, focus regain auto-resumes
+  - Becoming noisy (headphones/BT yanked) pauses without auto-resume
+  - Queue is still navigable mid-interruption
 - On-device diagnostics output to logcat (grep-friendly).
 
 ## Platform matrix (Android vs macOS)
@@ -34,11 +38,11 @@ These tests are **target-specific**. If you use VSCode’s Testing pane and your
   - Android: Android SDK + emulator (via Android Studio) + `adb` available on your PATH
   - macOS: Xcode + desktop tooling required for Flutter macOS builds
 
-If you are validating the **SoLoud backend on Android**:
-- Enable **Settings → SoLoud Decoder** and restart the app (backend selection happens at startup).
-- Ensure the APK bundles SoLoud native libs; otherwise the toggle auto-disables.
-- Check for probe failures in logcat:
-  - `adb logcat -v time | grep -i 'SoLoudTransport\|flutter_soloud\|dlopen failed'`
+SoLoud is the only audio backend on Android (and macOS); there is no toggle. If the native libs fail to load, check logcat:
+
+```bash
+adb logcat -v time | grep -i 'SoLoudTransport\|flutter_soloud\|dlopen failed'
+```
 
 Optional but recommended:
 
@@ -66,6 +70,7 @@ flutter run -d <deviceId> -t lib/main_test.dart
 
 ```bash
 flutter test -d <deviceId> integration_test/missing_track_consistency_test.dart
+flutter test -d <deviceId> integration_test/audio_interruption_test.dart
 ```
 
 ### Concrete examples
@@ -75,6 +80,7 @@ flutter test -d <deviceId> integration_test/missing_track_consistency_test.dart
 ```bash
 flutter run -d emulator-5554 -t lib/main_test.dart
 flutter test -d emulator-5554 integration_test/missing_track_consistency_test.dart
+flutter test -d emulator-5554 integration_test/audio_interruption_test.dart
 ```
 
 - macOS:
@@ -82,6 +88,7 @@ flutter test -d emulator-5554 integration_test/missing_track_consistency_test.da
 ```bash
 flutter run -d macos -t lib/main_test.dart
 flutter test -d macos integration_test/missing_track_consistency_test.dart
+flutter test -d macos integration_test/audio_interruption_test.dart
 ```
 
 ## Diagnostics: logcat output + artifacts (Android)

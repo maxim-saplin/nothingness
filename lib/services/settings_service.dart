@@ -21,6 +21,7 @@ class SettingsService {
   static const String _fullScreenKey = 'full_screen';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
   static const String _eqSettingsKey = 'eq_settings';
+  static const String _audioDiagnosticsOverlayKey = 'audio_diagnostics_overlay';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -35,6 +36,7 @@ class SettingsService {
   static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
   static const bool defaultEqEnabled = false;
+  static const bool defaultAudioDiagnosticsOverlay = false;
 
   /// Light scrim drawn behind dark OEM status-bar icons on automotive displays.
   static const Color automotiveStatusBarScrimLight = Color(0xFFE8E8E8);
@@ -61,6 +63,9 @@ class SettingsService {
     defaultScreenConfig,
   );
   final ValueNotifier<bool> debugLayoutNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> audioDiagnosticsOverlayNotifier = ValueNotifier(
+    defaultAudioDiagnosticsOverlay,
+  );
 
   /// Heuristic: low-DPI (< 2.0) + wide (>= 1600 logical) = automotive / IVI.
   ///
@@ -197,7 +202,19 @@ class SettingsService {
         prefs.getBool(_useFilenameForMetadataKey) ?? defaultUseFilenameForMetadata;
     useFilenameForMetadataNotifier.value = useFilenameForMetadata;
 
+    // 6. Load Audio Diagnostics Overlay flag
+    audioDiagnosticsOverlayNotifier.value =
+        prefs.getBool(_audioDiagnosticsOverlayKey) ??
+            defaultAudioDiagnosticsOverlay;
+
     return settings;
+  }
+
+  /// Sets the audio diagnostics overlay flag.
+  Future<void> setAudioDiagnosticsOverlay(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_audioDiagnosticsOverlayKey, enable);
+    audioDiagnosticsOverlayNotifier.value = enable;
   }
 
   /// Saves the spectrum settings to persistence.

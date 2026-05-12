@@ -14,6 +14,20 @@ Always use real app entrypoint: `lib/main.dart` (never `main_test.dart`).
 flutter run -d emulator-5554 --debug
 ```
 
+After install, **prepare the device** so the first-launch UI doesn't stall on permission dialogs and SoLoud has a playable file in its sandbox:
+
+```bash
+.claude/skills/agent-emulator-debugging/scripts/agent_prepare.sh \
+  -d emulator-5554 \
+  --stage .tmp/test_tone.wav   # optional, repeatable
+```
+
+This grants `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`, and (optionally) copies host audio files into `/data/user/0/com.saplin.nothingness/files/`. The script is idempotent — run it any time the app is reinstalled. After staging `foo.mp3`, queue it via:
+
+```
+ext.nothingness.setQueue?paths=/data/user/0/com.saplin.nothingness/files/foo.mp3
+```
+
 From stdout, capture VM URL:
 
 ```text
@@ -87,6 +101,14 @@ e prev
 # Queue
 e setQueue "paths=/sdcard/Music/a.mp3,/sdcard/Music/b.mp3&startIndex=0"
 
+# Audio diagnostics (Bug #1 / #2 / #3 instrumentation)
+e getAudioEvents
+e getDiagnostics
+e simulateInterruption "phase=begin&kind=pause"
+e simulateInterruption "phase=end&kind=pause"
+e simulateNoisy
+e setSetting "name=audioDiagnosticsOverlay&value=true"
+
 # Key tap (only if widget has ValueKey<String>)
 e tapByKey "key=test.playPause"
 ```
@@ -103,11 +125,11 @@ e tapByKey "key=test.playPause"
 
 3. SoLoud cannot load shared-storage file on emulator:
 - Symptom: logcat shows `SoLoudFileNotFoundException` for `/sdcard/...` even though the file exists.
-- Fix: push the file to `/data/local/tmp`, then copy it into the app sandbox with `run-as com.saplin.nothingness cp ... files/...`, and queue `/data/user/0/com.saplin.nothingness/files/<name>`.
+- Fix: use `agent_prepare.sh --stage <host_file>` (preferred), or manually push to `/data/local/tmp` and `run-as com.saplin.nothingness cp ... files/...`, then queue `/data/user/0/com.saplin.nothingness/files/<name>`.
 
 4. `Permissions Required` overlay blocks panel actions:
-- Fix path A: tap in-app `Grant Permissions`.
-- Fix path B: grant on device and reopen app.
+- Fix path A (preferred): run `agent_prepare.sh -d <device>` — grants all runtime permissions in one shot, no in-app UI needed.
+- Fix path B: tap in-app `Grant Permissions` and approve OS dialogs.
 
 5. Cannot tap Shuffle (or another panel control):
 - First open library panel (handle tap or swipe up).

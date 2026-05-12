@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -60,8 +61,26 @@ class AgentService {
     developer.registerExtension('ext.nothingness.prev', _prev);
     developer.registerExtension('ext.nothingness.setQueue', _setQueue);
 
+    // --- Audio diagnostics ---
+    developer.registerExtension(
+      'ext.nothingness.getDiagnostics',
+      _getDiagnostics,
+    );
+    developer.registerExtension(
+      'ext.nothingness.getAudioEvents',
+      _getAudioEvents,
+    );
+    developer.registerExtension(
+      'ext.nothingness.simulateInterruption',
+      _simulateInterruption,
+    );
+    developer.registerExtension(
+      'ext.nothingness.simulateNoisy',
+      _simulateNoisy,
+    );
+
     _registered = true;
-    debugPrint('[AgentService] registered 11 VM service extensions');
+    debugPrint('[AgentService] registered 15 VM service extensions');
   }
 
   // ---------------------------------------------------------------------------
@@ -161,6 +180,8 @@ class AgentService {
         s.debugLayoutNotifier.value = value == 'true';
       case 'useFilenameForMetadata':
         await s.setUseFilenameForMetadata(value == 'true');
+      case 'audioDiagnosticsOverlay':
+        await s.setAudioDiagnosticsOverlay(value == 'true');
       default:
         return _error('unknown setting: $name');
     }
@@ -269,6 +290,67 @@ class AgentService {
 
     await p.setQueue(tracks, startIndex: startIndex);
     return _ok({'queued': tracks.length, 'startIndex': startIndex});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Audio diagnostics
+  // ---------------------------------------------------------------------------
+
+  static Future<developer.ServiceExtensionResponse> _getDiagnostics(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final p = _provider;
+    if (p == null) return _error('provider not registered');
+    final snap = p.diagnosticsSnapshot();
+    if (snap == null) return _ok({'snapshot': null});
+    return _ok({'snapshot': snap});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _getAudioEvents(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final p = _provider;
+    if (p == null) return _error('provider not registered');
+    return _ok({'audioEvents': p.audioEvents()});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _simulateInterruption(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final p = _provider;
+    if (p == null) return _error('provider not registered');
+
+    final phase = params['phase'] ?? 'begin';
+    final kind = params['kind'] ?? 'pause';
+    final begin = phase == 'begin';
+
+    final AudioInterruptionType type;
+    switch (kind) {
+      case 'pause':
+        type = AudioInterruptionType.pause;
+      case 'duck':
+        type = AudioInterruptionType.duck;
+      case 'unknown':
+        type = AudioInterruptionType.unknown;
+      default:
+        return _error('unknown kind "$kind" (expected pause|duck|unknown)');
+    }
+
+    p.debugSimulateInterruption(AudioInterruptionEvent(begin, type));
+    return _ok({'phase': phase, 'kind': kind});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _simulateNoisy(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final p = _provider;
+    if (p == null) return _error('provider not registered');
+    p.debugSimulateBecomingNoisy();
+    return _ok({'simulated': 'noisy'});
   }
 
   // ---------------------------------------------------------------------------

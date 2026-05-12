@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
@@ -77,7 +78,15 @@ class PlaybackController {
   DateTime? _endedAtQueueTailAt;
 
   StreamSubscription<TransportEvent>? _transportEventSub;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
+  StreamSubscription<void>? _noisySub;
+  StreamSubscription<AudioDevicesChangedEvent>? _devicesSub;
+  bool _pausedByInterruption = false;
   Timer? _positionTimer;
+
+  // Audio event ring buffer for diagnosing route changes / interruptions.
+  final List<String> _audioEvents = <String>[];
+  static const int _audioEventsCap = 300;
 
   // Wrapper notifier that includes isNotFound flags
   final ValueNotifier<List<AudioTrack>> queueNotifier = ValueNotifier(const []);
@@ -129,6 +138,22 @@ class PlaybackController {
     // Listen to transport events
     _transportEventSub = _transport.eventStream.listen(_handleTransportEvent);
     _log('Initialized: subscribed to transport events');
+
+    // Subscribe to audio focus / interruption events. The transport already
+    // configured the AudioSession before this point.
+    try {
+      final session = await AudioSession.instance;
+      _interruptionSub = session.interruptionEventStream.listen(_onInterruption);
+      _noisySub = session.becomingNoisyEventStream.listen(
+        (_) => _onBecomingNoisy(),
+      );
+      _devicesSub = session.devicesChangedEventStream.listen(_onDevicesChanged);
+      _log('Initialized: subscribed to audio session events');
+    } catch (e) {
+      // AudioSession is unavailable in some test/host environments. Treat as
+      // a no-op rather than failing init.
+      _log('AudioSession unavailable: $e');
+    }
 
     // Listen to playlist changes and update queue with isNotFound flags
     _playlist.queueNotifier.addListener(_updateQueueWithNotFoundFlags);
@@ -184,6 +209,9 @@ class PlaybackController {
   Future<void> dispose() async {
     _positionTimer?.cancel();
     await _transportEventSub?.cancel();
+    await _interruptionSub?.cancel();
+    await _noisySub?.cancel();
+    await _devicesSub?.cancel();
     _playlist.queueNotifier.removeListener(_updateQueueWithNotFoundFlags);
     _playlist.currentOrderIndexNotifier.removeListener(_onIndexChanged);
     _playlist.shuffleNotifier.removeListener(_onShuffleChanged);
@@ -199,6 +227,95 @@ class PlaybackController {
   void _onShuffleChanged() {
     _updateQueueWithNotFoundFlags();
   }
+
+  void _logAudioEvent(String tag, [Map<String, Object?>? data]) {
+    final ts = DateTime.now().toIso8601String();
+    final dataStr = (data == null || data.isEmpty)
+        ? ''
+        : ' ${data.entries.map((e) => '${e.key}=${e.value}').join(' ')}';
+    _audioEvents.add('$ts $tag$dataStr');
+    if (_audioEvents.length > _audioEventsCap) {
+      _audioEvents.removeRange(0, _audioEvents.length - _audioEventsCap);
+    }
+  }
+
+  void _onInterruption(AudioInterruptionEvent event) {
+    _logAudioEvent(
+      'interruption',
+      {'begin': event.begin, 'type': event.type.name},
+    );
+
+    if (event.begin) {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          // Music apps keep playing; OS attenuates volume.
+          return;
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          if (isPlayingNotifier.value) {
+            _pausedByInterruption = true;
+            // Do not flip _userIntent — the user still wants to play.
+            unawaited(_transport.pause());
+            isPlayingNotifier.value = false;
+          }
+      }
+      return;
+    }
+
+    // event.begin == false (interruption ended)
+    switch (event.type) {
+      case AudioInterruptionType.duck:
+        return;
+      case AudioInterruptionType.pause:
+        if (_pausedByInterruption && _userIntent == PlayIntent.play) {
+          _pausedByInterruption = false;
+          unawaited(_transport.play());
+          isPlayingNotifier.value = true;
+        } else {
+          _pausedByInterruption = false;
+        }
+      case AudioInterruptionType.unknown:
+        // Permanent focus loss ended: do not auto-resume.
+        _pausedByInterruption = false;
+    }
+  }
+
+  void _onBecomingNoisy() {
+    _logAudioEvent('becomingNoisy');
+    // Headphones unplugged / BT disconnected mid-playback. Treat as explicit
+    // user pause per Android guidance — never auto-resume.
+    _pausedByInterruption = false;
+    _userIntent = PlayIntent.pause;
+    if (isPlayingNotifier.value) {
+      unawaited(_transport.pause());
+      isPlayingNotifier.value = false;
+    }
+  }
+
+  void _onDevicesChanged(AudioDevicesChangedEvent event) {
+    final added = event.devicesAdded
+        .where((d) => d.isOutput)
+        .map((d) => '${d.type.name}:${d.name}')
+        .toList(growable: false);
+    final removed = event.devicesRemoved
+        .where((d) => d.isOutput)
+        .map((d) => '${d.type.name}:${d.name}')
+        .toList(growable: false);
+    if (added.isEmpty && removed.isEmpty) return;
+    _logAudioEvent(
+      'devicesChanged',
+      {'added': added.join(','), 'removed': removed.join(',')},
+    );
+  }
+
+  /// Debug-only seam to drive [_onInterruption] from tests and the
+  /// `ext.nothingness.simulateInterruption` VM service extension.
+  void debugSimulateInterruption(AudioInterruptionEvent event) =>
+      _onInterruption(event);
+
+  /// Debug-only seam to drive [_onBecomingNoisy] from tests and the
+  /// `ext.nothingness.simulateNoisy` VM service extension.
+  void debugSimulateBecomingNoisy() => _onBecomingNoisy();
 
   void _handleTransportEvent(TransportEvent event) {
     switch (event) {
@@ -219,6 +336,7 @@ class PlaybackController {
 
   void _handleTrackError(String? path) {
     if (path == null) return;
+    _logAudioEvent('transportError', {'path': path});
 
     // We only act on errors we can confidently attribute to the track currently
     // being loaded. Real transports can emit late/spurious errors for the
@@ -250,6 +368,7 @@ class PlaybackController {
   }
 
   void _handleTrackEnded(String? path) {
+    _logAudioEvent('transportEnded', {'path': path ?? ''});
     // Advance to next track if user wants to play
     if (_userIntent == PlayIntent.play) {
       _skipToNext();
@@ -260,6 +379,7 @@ class PlaybackController {
 
   void _onTrackLoaded(String? path) {
     if (path == null) return;
+    _logAudioEvent('transportLoaded', {'path': path});
     // Clear pending load path since load succeeded
     if (_pendingLoadPath == path) {
       _log('OnLoaded: clearing pending for path=$path');
@@ -847,6 +967,12 @@ class PlaybackController {
         'at': _lastErrorAt?.toIso8601String(),
       },
       'recentLogs': recentLogs(),
+      'audioEvents': List<String>.unmodifiable(_audioEvents),
     };
   }
+
+  /// Returns the audio-event ring buffer (interruption / route / load / error).
+  ///
+  /// Intended for emulator + on-device diagnostics.
+  List<String> audioEvents() => List<String>.unmodifiable(_audioEvents);
 }
