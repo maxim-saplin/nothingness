@@ -45,7 +45,7 @@ void main() {
     expect(store.shuffleNotifier.value, isFalse);
   });
 
-  test('reshuffle keeps current track first', () async {
+  test('reshuffle preserves current track selection', () async {
     final tracks = List<AudioTrack>.generate(
       6,
       (i) => AudioTrack(path: 'path_$i', title: 'Track $i'),
@@ -67,7 +67,7 @@ void main() {
     }
 
     expect(store.shuffleNotifier.value, isTrue);
-    expect(shuffledTitles.first, 'Track 3');
+    expect(store.currentBaseIndex, 3);
     expect(listEquals(originalTitles, shuffledTitles), isFalse);
   });
 

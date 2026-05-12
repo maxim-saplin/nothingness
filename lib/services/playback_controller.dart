@@ -74,6 +74,7 @@ class PlaybackController {
   String? _lastErrorReason;
   String? _lastErrorMessage;
   DateTime? _lastErrorAt;
+  DateTime? _endedAtQueueTailAt;
 
   StreamSubscription<TransportEvent>? _transportEventSub;
   Timer? _positionTimer;
@@ -279,6 +280,7 @@ class PlaybackController {
       await playFromQueueIndex(nextIdx, isAutoSkip: true, direction: 1);
     } else {
       // End of queue
+      _endedAtQueueTailAt = DateTime.now();
       isPlayingNotifier.value = false;
       await _transport.pause();
       _log('SkipToNext: end of queue, paused');
@@ -358,6 +360,33 @@ class PlaybackController {
     // Get current playback position
     try {
       final position = await _transport.position;
+
+      // If we're at the queue tail in an ended-like state, restart the
+      // current last track instead of stepping back to avoid an unexpected
+      // jump to last-1 after natural completion.
+      final isTail = currentIdx == _playlist.length - 1;
+      final isEndedLikeState =
+          !isPlayingNotifier.value || position == Duration.zero;
+      final endedTailRecently =
+          isTail &&
+          _endedAtQueueTailAt != null &&
+          DateTime.now().difference(_endedAtQueueTailAt!) <
+              const Duration(seconds: 5);
+
+      if (isTail && (isEndedLikeState || endedTailRecently)) {
+        await seek(Duration.zero);
+        try {
+          await _transport.play();
+          isPlayingNotifier.value = true;
+          _emitSongInfo();
+        } catch (e) {
+          // Some transports cannot resume from a naturally-ended source.
+          // Reload the same tail track instead of stepping to previous.
+          _log('TailRestartPlayFailed: $e; reloading current index');
+          await playFromQueueIndex(currentIdx, isAutoSkip: true, direction: 1);
+        }
+        return;
+      }
       const threshold = Duration(seconds: 3);
 
       if (position > threshold) {
@@ -377,6 +406,18 @@ class PlaybackController {
         }
       }
     } catch (e) {
+      final isTail = currentIdx == _playlist.length - 1;
+      if (isTail) {
+        // Some backends can throw while querying position right after end.
+        // In this tail-ended state, restart/reload the current track instead
+        // of stepping back to last-1.
+        _log(
+          'Position unavailable at queue tail in previous(): $e; reloading current tail track',
+        );
+        await playFromQueueIndex(currentIdx, isAutoSkip: true, direction: 1);
+        return;
+      }
+
       // Position unavailable: fall back to previous song behavior
       _log('Error getting position in previous(): $e');
       final prevIdx = _playlist.previousOrderIndex();
@@ -425,6 +466,11 @@ class PlaybackController {
     // opt out via respectPauseIntent.
     if (!respectPauseIntent) {
       _userIntent = PlayIntent.play;
+    }
+
+    // Leaving the tail track clears the queue-end latch.
+    if (orderIndex != _playlist.length - 1) {
+      _endedAtQueueTailAt = null;
     }
 
     await _playWithAutoAdvance(
@@ -625,6 +671,7 @@ class PlaybackController {
       startBaseIndex: startIndex,
       enableShuffle: shuffle,
     );
+    _endedAtQueueTailAt = null;
 
     _updateQueueWithNotFoundFlags();
 
@@ -665,10 +712,13 @@ class PlaybackController {
     await _playlist.reshuffle(keepBaseIndex: currentBaseIndex);
     _updateQueueWithNotFoundFlags();
 
-    // Only start playback if we were already playing
+    // If we were playing, keep playback running without reloading the track.
     if (wasPlaying) {
-      final idx = _playlist.currentOrderIndexNotifier.value ?? 0;
-      await playFromQueueIndex(idx, isAutoSkip: true);
+      if (!isPlayingNotifier.value) {
+        await _transport.play();
+        isPlayingNotifier.value = true;
+      }
+      _emitSongInfo();
     }
   }
 
@@ -679,10 +729,13 @@ class PlaybackController {
     await _playlist.disableShuffle(keepBaseIndex: baseIndex);
     _updateQueueWithNotFoundFlags();
 
-    // Only start playback if we were already playing
+    // If we were playing, keep playback running without reloading the track.
     if (wasPlaying) {
-      final idx = _playlist.orderIndexForBase(baseIndex) ?? baseIndex;
-      await playFromQueueIndex(idx, isAutoSkip: true);
+      if (!isPlayingNotifier.value) {
+        await _transport.play();
+        isPlayingNotifier.value = true;
+      }
+      _emitSongInfo();
     }
   }
 

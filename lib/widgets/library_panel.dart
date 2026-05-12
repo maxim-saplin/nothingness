@@ -16,10 +16,12 @@ class LibraryPanel extends StatefulWidget {
     super.key,
     required this.onClose,
     required this.isOpen,
+    this.controller,
   });
 
   final VoidCallback onClose;
   final bool isOpen;
+  final LibraryController? controller;
 
   @override
   State<LibraryPanel> createState() => _LibraryPanelState();
@@ -27,18 +29,22 @@ class LibraryPanel extends StatefulWidget {
 
 class _LibraryPanelState extends State<LibraryPanel> {
   late final LibraryController _controller;
+  late final bool _ownsController;
   bool _didInitWhenOpened = false;
   TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
-    _controller = LibraryController(
-      libraryBrowser: LibraryBrowser(
-        supportedExtensions: AudioPlayerProvider.supportedExtensions,
-      ),
-      libraryService: LibraryService(),
-    );
+    _ownsController = widget.controller == null;
+    _controller =
+        widget.controller ??
+        LibraryController(
+          libraryBrowser: LibraryBrowser(
+            supportedExtensions: AudioPlayerProvider.supportedExtensions,
+          ),
+          libraryService: LibraryService(),
+        );
   }
 
   @override
@@ -54,7 +60,9 @@ class _LibraryPanelState extends State<LibraryPanel> {
   void dispose() {
     _tabController?.removeListener(_handleTabChange);
     _tabController = null;
-    _controller.dispose();
+    if (_ownsController) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
@@ -90,7 +98,7 @@ class _LibraryPanelState extends State<LibraryPanel> {
           value: _controller,
           child: Consumer<LibraryController>(
             builder: (context, controller, _) {
-              if (Platform.isAndroid && !controller.hasPermission) {
+              if (controller.isAndroid && !controller.hasPermission) {
                 return Column(
                   children: [
                     _buildHeader(),
@@ -314,8 +322,8 @@ class _LibraryPanelState extends State<LibraryPanel> {
                         isNotFound
                             ? '(Not found) ${track.title}'
                             : (track.artist.isNotEmpty
-                                ? '${track.artist} - ${track.title}'
-                                : track.title),
+                                  ? '${track.artist} - ${track.title}'
+                                  : track.title),
                         style: TextStyle(
                           color: isActive ? Colors.white : Colors.white70,
                           fontWeight: isActive
@@ -372,7 +380,9 @@ class _LibraryPanelState extends State<LibraryPanel> {
                 const SizedBox(width: 10),
               if (controller.currentPath != null)
                 TextButton.icon(
-                  onPressed: () => _playAll(context),
+                  onPressed: controller.isScanning
+                      ? null
+                      : () => _playAll(context),
                   icon: const Icon(
                     Icons.queue_music_rounded,
                     color: Color(0xFF00FF88),
@@ -383,9 +393,31 @@ class _LibraryPanelState extends State<LibraryPanel> {
                   ),
                 ),
               const Spacer(),
+              if (controller.currentPath != null && controller.isAndroid) ...[
+                Tooltip(
+                  message: 'Rescan this folder and reload the listing',
+                  child: TextButton.icon(
+                    key: const Key('library-repair-folder-button'),
+                    onPressed: controller.isScanning
+                        ? null
+                        : controller.repairCurrentFolderListing,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Color(0xFF00FF88),
+                    ),
+                    label: const Text(
+                      'Repair list',
+                      style: TextStyle(color: Color(0xFF00FF88)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               if (controller.currentPath != null)
                 IconButton(
-                  onPressed: controller.navigateUp,
+                  onPressed: controller.isScanning
+                      ? null
+                      : controller.navigateUp,
                   icon: const Icon(Icons.arrow_upward, color: Colors.white70),
                   tooltip: 'Up',
                 ),
@@ -407,7 +439,7 @@ class _LibraryPanelState extends State<LibraryPanel> {
           else if (controller.error != null)
             _emptyState('Cannot open folder', controller.error!)
           else if (controller.currentPath == null)
-            Platform.isAndroid
+            controller.isAndroid
                 ? _buildAndroidSmartRoots(controller)
                 : (roots.isEmpty
                       ? _emptyState(
@@ -594,7 +626,7 @@ class _LibraryPanelState extends State<LibraryPanel> {
     final player = context.read<AudioPlayerProvider>();
     List<AudioTrack> tracks = [];
 
-    if (Platform.isAndroid) {
+    if (controller.isAndroid) {
       // Prefer the current listing (which may include filesystem fallback entries)
       if (controller.tracks.isNotEmpty) {
         tracks = List<AudioTrack>.from(controller.tracks);

@@ -204,7 +204,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   Future<void> previous() async {
     if (_isAndroid) {
-      await _androidHandler!.skipToPrevious();
+      await _androidHandler!.customAction('previous');
       return;
     }
     await _controller!.previous();
@@ -261,7 +261,11 @@ class AudioPlayerProvider extends ChangeNotifier {
   /// Suspend periodic timers to save battery while the app is backgrounded.
   void suspendTimers() {
     if (_isAndroid) {
-      _androidHandler?.suspendTimers();
+      // On Android, the audio handler remains responsible for background
+      // playback. Suspending the transport here deactivates the audio session
+      // and freezes position/session updates right when remote media controls
+      // are expected to wake playback back up.
+      return;
     } else {
       _controller?.suspendTimers();
     }
@@ -270,7 +274,9 @@ class AudioPlayerProvider extends ChangeNotifier {
   /// Resume periodic timers when returning to foreground.
   void resumeTimers() {
     if (_isAndroid) {
-      _androidHandler?.resumeTimers();
+      // See suspendTimers(): Android background playback should not depend on
+      // the UI resuming before transport/session bookkeeping is restored.
+      return;
     } else {
       _controller?.resumeTimers();
     }

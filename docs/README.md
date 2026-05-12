@@ -7,7 +7,7 @@ Welcome to the documentation for the Nothingness project.
 - **Architecture**
   - [System Overview](architecture/overview.md) - High-level system design and components.
   - [Audio Playback & Spectrum](architecture/audio-playback-spectrum.md) - In-depth audio pipeline and visualization flows.
-  - [Library Browsing](architecture/library-browsing.md) - MediaStore-driven folder navigation architecture.
+  - [Library Browsing](architecture/library-browsing.md) - MediaStore-driven folder navigation architecture, including the Android folder repair flow.
   - [UI Scaling](architecture/ui-scaling.md) - Implementation details of the global UI scaling solution.
   - [Skins](architecture/skins.md) - Visual skins and layouts.
 

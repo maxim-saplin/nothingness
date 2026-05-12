@@ -10,9 +10,15 @@ import '../models/spectrum_settings.dart';
 
 class PlatformChannels {
   static const _mediaChannel = MethodChannel('com.saplin.nothingness/media');
-  static const _spectrumChannel = EventChannel('com.saplin.nothingness/spectrum');
-  static const _mediaStoreChannel = MethodChannel('com.saplin.nothingness/mediastore');
-  static const _mediaStoreEvents = EventChannel('com.saplin.nothingness/mediastore');
+  static const _spectrumChannel = EventChannel(
+    'com.saplin.nothingness/spectrum',
+  );
+  static const _mediaStoreChannel = MethodChannel(
+    'com.saplin.nothingness/mediastore',
+  );
+  static const _mediaStoreEvents = EventChannel(
+    'com.saplin.nothingness/mediastore/events',
+  );
 
   static final bool isAndroid = Platform.isAndroid;
 
@@ -25,7 +31,10 @@ class PlatformChannels {
   Future<bool> isNotificationAccessGranted() async {
     if (!isAndroid) return false;
     try {
-      return await _mediaChannel.invokeMethod<bool>('isNotificationAccessGranted') ?? false;
+      return await _mediaChannel.invokeMethod<bool>(
+            'isNotificationAccessGranted',
+          ) ??
+          false;
     } catch (e) {
       debugPrint('Error checking notification access: $e');
       return false;
@@ -36,7 +45,8 @@ class PlatformChannels {
   Future<bool> hasAudioPermission() async {
     if (!isAndroid) return false;
     try {
-      return await _mediaChannel.invokeMethod<bool>('hasAudioPermission') ?? false;
+      return await _mediaChannel.invokeMethod<bool>('hasAudioPermission') ??
+          false;
     } catch (e) {
       debugPrint('Error checking audio permission: $e');
       return false;
@@ -77,7 +87,9 @@ class PlatformChannels {
   Future<SongInfo?> getSongInfo() async {
     if (!isAndroid) return null;
     try {
-      final result = await _mediaChannel.invokeMethod<Map<dynamic, dynamic>>('getSongInfo');
+      final result = await _mediaChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'getSongInfo',
+      );
       if (result != null) {
         return SongInfo.fromMap(result);
       }
@@ -119,7 +131,10 @@ class PlatformChannels {
   Future<void> updateSpectrumSettings(SpectrumSettings settings) async {
     if (!isAndroid) return;
     try {
-      await _mediaChannel.invokeMethod('updateSpectrumSettings', settings.toJson());
+      await _mediaChannel.invokeMethod(
+        'updateSpectrumSettings',
+        settings.toJson(),
+      );
     } catch (e) {
       debugPrint('Error updating spectrum settings: $e');
     }
@@ -128,9 +143,10 @@ class PlatformChannels {
   Future<void> setEqualizerSessionId(int? sessionId) async {
     if (!isAndroid) return;
     try {
-      await _mediaChannel.invokeMethod('setEqualizerSessionId', <String, Object?>{
-        'sessionId': sessionId,
-      });
+      await _mediaChannel.invokeMethod(
+        'setEqualizerSessionId',
+        <String, Object?>{'sessionId': sessionId},
+      );
     } catch (e) {
       debugPrint('Error setting EQ session id: $e');
     }
@@ -139,7 +155,10 @@ class PlatformChannels {
   Future<void> updateEqualizerSettings(EqSettings settings) async {
     if (!isAndroid) return;
     try {
-      await _mediaChannel.invokeMethod('setEqualizerSettings', settings.toJson());
+      await _mediaChannel.invokeMethod(
+        'setEqualizerSettings',
+        settings.toJson(),
+      );
     } catch (e) {
       debugPrint('Error updating EQ settings: $e');
     }
@@ -147,33 +166,58 @@ class PlatformChannels {
 
   // Stream for spectrum data
   Stream<List<double>> spectrumStream({int? sessionId}) {
-    return _spectrumChannel.receiveBroadcastStream(sessionId).map((data) {
-      if (data is List) {
-        return data.map((e) => (e as num).toDouble()).toList();
-      }
-      return <double>[];
-    }).handleError((error) {
-      debugPrint('Spectrum stream error: $error');
-    });
+    return _spectrumChannel
+        .receiveBroadcastStream(sessionId)
+        .map((data) {
+          if (data is List) {
+            return data.map((e) => (e as num).toDouble()).toList();
+          }
+          return <double>[];
+        })
+        .handleError((error) {
+          debugPrint('Spectrum stream error: $error');
+        });
   }
 
   /// Android 11+ MediaStore version string. Returns null if unavailable.
   Future<String?> getMediaStoreVersion() async {
     if (!isAndroid) return null;
     try {
-      return await _mediaStoreChannel.invokeMethod<String>('getMediaStoreVersion');
+      return await _mediaStoreChannel.invokeMethod<String>(
+        'getMediaStoreVersion',
+      );
     } catch (e) {
       debugPrint('Error getting MediaStore version: $e');
       return null;
     }
   }
 
+  /// Requests a direct-file MediaStore rescan for the given Android folder.
+  ///
+  /// Returns true once the native side has issued scan requests. This does not
+  /// guarantee MediaStore propagation has completed yet.
+  Future<bool> rescanFolder(String path) async {
+    if (!isAndroid || path.isEmpty) return false;
+    try {
+      return await _mediaStoreChannel.invokeMethod<bool>(
+            'rescanFolder',
+            <String, Object?>{'path': path},
+          ) ??
+          false;
+    } catch (e) {
+      debugPrint('Error rescanning MediaStore folder $path: $e');
+      return false;
+    }
+  }
+
   /// Stream that emits when MediaStore reports changes (ContentObserver).
   Stream<void> mediaStoreChanges() {
     if (!isAndroid) return const Stream<void>.empty();
-    return _mediaStoreEvents.receiveBroadcastStream().map((_) => null).handleError((error) {
-      debugPrint('MediaStore stream error: $error');
-    });
+    return _mediaStoreEvents
+        .receiveBroadcastStream()
+        .map((_) => null)
+        .handleError((error) {
+          debugPrint('MediaStore stream error: $error');
+        });
   }
 }
-

@@ -4,6 +4,7 @@ import android.Manifest
 import android.database.ContentObserver
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaScannerConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -17,6 +18,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : AudioServiceActivity() {
     
@@ -25,6 +27,7 @@ class MainActivity : AudioServiceActivity() {
         private const val MEDIA_CHANNEL = "com.saplin.nothingness/media"
         private const val SPECTRUM_CHANNEL = "com.saplin.nothingness/spectrum"
         private const val MEDIASTORE_CHANNEL = "com.saplin.nothingness/mediastore"
+        private const val MEDIASTORE_EVENTS_CHANNEL = "com.saplin.nothingness/mediastore/events"
         private const val PERMISSION_REQUEST_CODE = 1001
     }
     
@@ -145,11 +148,15 @@ class MainActivity : AudioServiceActivity() {
                         result.success(null)
                     }
                 }
+                "rescanFolder" -> {
+                    val folderPath = call.argument<String>("path")
+                    result.success(rescanFolder(folderPath))
+                }
                 else -> result.notImplemented()
             }
         }
 
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL).setStreamHandler(
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_EVENTS_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     mediaStoreEventSink = events
@@ -245,6 +252,45 @@ class MainActivity : AudioServiceActivity() {
             Log.w(TAG, "Failed to unregister MediaStore observer", e)
         } finally {
             mediaStoreObserver = null
+        }
+    }
+
+    private fun rescanFolder(folderPath: String?): Boolean {
+        if (folderPath.isNullOrBlank()) {
+            Log.w(TAG, "rescanFolder called without a path")
+            return false
+        }
+
+        return try {
+            val directory = File(folderPath)
+            if (!directory.exists() || !directory.isDirectory) {
+                Log.w(TAG, "rescanFolder target is not a directory: $folderPath")
+                return false
+            }
+
+            val filePaths = directory.listFiles()
+                ?.filter { it.isFile }
+                ?.map { it.absolutePath }
+                ?.toTypedArray()
+                ?: emptyArray()
+
+            if (filePaths.isNotEmpty()) {
+                MediaScannerConnection.scanFile(
+                    applicationContext,
+                    filePaths,
+                    null,
+                    null,
+                )
+            }
+
+            Log.d(
+                TAG,
+                "Issued MediaScanner scan requests for ${filePaths.size} file(s) in $folderPath",
+            )
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to rescan folder $folderPath", e)
+            false
         }
     }
     

@@ -117,21 +117,25 @@ void main() {
       final h = TestHarness.instance;
       h.setExistsMap(<String, bool>{
         '/a.mp3': true,
+        '/pre.mp3': true,
         '/missing.mp3': false,
         '/b.mp3': true,
+        '/tail.mp3': true,
       });
 
       await h.setQueue([
+        const AudioTrack(path: '/pre.mp3', title: 'pre'),
         const AudioTrack(path: '/a.mp3', title: 'a'),
         const AudioTrack(path: '/missing.mp3', title: 'missing'),
         const AudioTrack(path: '/b.mp3', title: 'b'),
-      ], startIndex: 2);
+        const AudioTrack(path: '/tail.mp3', title: 'tail'),
+      ], startIndex: 3);
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(TestKeys.prev));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('idx=0'), findsOneWidget);
+      expect(find.textContaining('idx=1'), findsOneWidget);
     });
 
     testWidgets('natural end → advances and skips missing', (tester) async {

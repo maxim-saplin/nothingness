@@ -1,142 +1,132 @@
 ---
 name: agent-emulator-debugging
-description: How to drive the real app in debug mode on an emulator via VM service extensions for runtime verification and interaction. Use when verifying fixes, checking UI state, or driving the app on a device.
+description: Efficient app-driving workflow for the real Flutter app on emulator via VM service extensions, including common blocker recovery.
 ---
-# Agent-Driven Emulator Debugging
+# Agent App Driving
 
-**Always use the real app entrypoint (`main.dart`).** Never use `main_test.dart` — that is exclusively for `integration_test/` deterministic test automation with fake transport.
+Use this skill to drive the real app quickly, inspect runtime state, and unblock UI/action dead-ends.
 
-## When to Use
-When you need to verify runtime behavior on an emulator/device — e.g. confirming a fix works, checking UI state, or driving the app through a scenario without user interaction.
+Always use real app entrypoint: `lib/main.dart` (never `main_test.dart`).
 
-## Setup (one-time per session)
-
-1. **Launch the real app in debug mode:**
-   ```bash
-   flutter run -d emulator-5554 --debug
-   ```
-
-2. **Parse observatory URL from stdout** — look for:
-   ```
-   A Dart VM Service on ... is available at: http://127.0.0.1:<PORT>/<AUTH>=/
-   ```
-   Save as `BASE=http://127.0.0.1:<PORT>/<AUTH>=`
-
-2b. **Helper script (optional):**
-
-The helper script avoids manual isolate lookups and URL-encodes `setQueue` paths.
-Requires `curl` and `python3`.
+## Fast Setup
 
 ```bash
-chmod +x .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh
-
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh state
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh set-queue \
-   --paths /sdcard/Music/track1.mp3,/sdcard/Music/track2.mp3 \
-   --start-index 0
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh play
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh widget-tree --depth 20
+flutter run -d emulator-5554 --debug
 ```
 
-3. **Get isolate ID:**
-   ```bash
-   curl -s "${BASE}/getVM" | python3 -c "
-   import sys, json
-   vm = json.load(sys.stdin)
-   iso = [i for i in vm['result']['isolates'] if i['name']=='main'][0]
-   print(iso['id'])
-   "
-   ```
-   Save as `ISOLATE=isolates/<id>`
+From stdout, capture VM URL:
 
-## WSL2 + Host Emulator Notes
+```text
+http://127.0.0.1:<PORT>/<AUTH>=/
+```
 
-When Flutter runs in WSL2 but the emulator runs on Windows host:
-
-1. Start host ADB server:
-   ```bash
-   "/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe" -a start-server
-   ```
-2. Bridge Flutter to host ADB:
-   ```bash
-   HOST_IP=$(ip route | awk '/default/ {print $3; exit}')
-   ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 flutter run -d emulator-5554 --debug
-   ```
-3. If `flutter run` appears stuck, remember it is interactive by default. Use `--no-resident` for launch-only mode.
-
-### Fallback: Manual VM Service Attach (WSL2)
-
-Use this when app is running on emulator but Flutter tool cannot attach.
+Set:
 
 ```bash
-ADB="/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+BASE="http://127.0.0.1:<PORT>/<AUTH>=/"
+ISOLATE=$(python3 - <<'PY'
+import json
+import urllib.request
 
-# 1) Read latest VM service URL from device logs.
-URL=$($ADB -s emulator-5554 logcat -d | \
-  grep "The Dart VM service is listening on" | tail -n1 | \
-  sed -E 's/.*(http:\/\/127\.0\.0\.1:[0-9]+\/[A-Za-z0-9_\-]+=\/).*/\1/')
-
-PORT=$(echo "$URL" | sed -E 's#http://127\.0\.0\.1:([0-9]+)/.*#\1#')
-AUTH=$(echo "$URL" | sed -E 's#http://127\.0\.0\.1:[0-9]+/([^/]+)/#\1#')
-
-# 2) Forward with host adb.exe and call via WSL gateway IP (not localhost).
-$ADB -s emulator-5554 forward tcp:49111 tcp:${PORT}
-GW=$(ip route | awk '/default/ {print $3; exit}')
-BASE="http://${GW}:49111/${AUTH}/"
-
-# 3) Continue normal extension flow.
-ISOLATE=$(curl -s "${BASE}getVM" | python3 -c 'import sys,json; vm=json.load(sys.stdin)["result"]; print([i for i in vm["isolates"] if i["name"]=="main"][0]["id"])')
-curl -s "${BASE}ext.nothingness.getPlaybackState?isolateId=${ISOLATE}"
+base = "http://127.0.0.1:<PORT>/<AUTH>=/"
+with urllib.request.urlopen(base + 'getVM') as resp:
+	vm = json.load(resp)["result"]
+print([i for i in vm["isolates"] if i["name"] == "main"][0]["id"])
+PY
+)
 ```
 
-## Reading State
+The shipped helper script uses `python3 urllib.request`, so it no longer depends on `curl`.
+
+## WSL2 + Host Emulator
+
+When Flutter runs in WSL2 and emulator runs on Windows host:
 
 ```bash
-# Full playback state (playing, queue, current track, spectrum)
-curl -s "${BASE}/ext.nothingness.getPlaybackState?isolateId=${ISOLATE}"
-
-# App settings (decoder, screen type, spectrum config)
-curl -s "${BASE}/ext.nothingness.getSettings?isolateId=${ISOLATE}"
-
-# Widget tree (primary UI inspection — no screenshots needed)
-curl -s "${BASE}/ext.nothingness.getWidgetTree?isolateId=${ISOLATE}&depth=50"
+"/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe" -a start-server
+HOST_IP=$(ip route | awk '/default/ {print $3; exit}')
+ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --debug
 ```
 
-## Triggering Actions
+If launch-only is needed:
 
 ```bash
-# Playback controls
-curl -s "${BASE}/ext.nothingness.play?isolateId=${ISOLATE}"
-curl -s "${BASE}/ext.nothingness.pause?isolateId=${ISOLATE}"
-curl -s "${BASE}/ext.nothingness.next?isolateId=${ISOLATE}"
-curl -s "${BASE}/ext.nothingness.prev?isolateId=${ISOLATE}"
-
-# Load a queue
-curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/path/a.mp3,/path/b.mp3&startIndex=0"
-
-# Tap any widget by ValueKey<String>
-curl -s "${BASE}/ext.nothingness.tapByKey?isolateId=${ISOLATE}&key=test.playPause"
-
-# Change a setting
-curl -s "${BASE}/ext.nothingness.setSetting?isolateId=${ISOLATE}&name=debugLayout&value=true"
+ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --no-resident
 ```
 
-## Verification Pattern
+## Driving Shortcuts
 
-For any fix or feature, follow this pattern:
+```bash
+e(){ python3 - "$BASE" "$ISOLATE" "$1" "${2:-}" <<'PY'
+import json
+import sys
+import urllib.parse
+import urllib.request
 
-1. **Read initial state** via `getPlaybackState` / `getSettings`
-2. **Set up preconditions** via `setQueue`, `setSetting`, etc.
-3. **Trigger the action** via `play`, `tapByKey`, etc.
-4. **Assert on result** by reading state again and checking JSON fields
-5. **Inspect UI if needed** via `getWidgetTree`
+base, isolate, name, extra = sys.argv[1:5]
+params = {'isolateId': isolate}
+if extra:
+	for key, value in urllib.parse.parse_qsl(extra, keep_blank_values=True):
+		params[key] = value
+with urllib.request.urlopen(f"{base}ext.nothingness.{name}?" + urllib.parse.urlencode(params)) as resp:
+	print(resp.read().decode())
+PY
+}
 
-## Key Rules
+# State
+e getPlaybackState
+e getSettings
+e getWidgetTree "depth=40"
 
-- **Always use `main.dart`** — never `main_test.dart` (that is for `integration_test/` only).
-- All responses are JSON-RPC 2.0 — parse `result` for success, `error` for failures.
-- `getWidgetTree` is the primary UI inspector. Use `depth=N` to limit output lines.
-- Real audio files must be on the device. Push with `adb push <file> /sdcard/Music/` if needed.
-- Extensions only exist in debug builds — never in release.
-- Observatory URL changes every launch — always re-parse it.
-- Full reference: `docs/agent-driven-debugging.md`
+# Playback
+e play
+e pause
+e next
+e prev
+
+# Queue
+e setQueue "paths=/sdcard/Music/a.mp3,/sdcard/Music/b.mp3&startIndex=0"
+
+# Key tap (only if widget has ValueKey<String>)
+e tapByKey "key=test.playPause"
+```
+
+## Common Blockers (Fast Recovery)
+
+1. App installs fail with signature mismatch:
+- Symptom: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+- Fix: uninstall existing package, then run again.
+
+2. Queue is empty after reinstall:
+- Symptom: state shows `queueLen/queueLength = 0`.
+- Fix: set queue with real files from `/sdcard/Music`.
+
+3. SoLoud cannot load shared-storage file on emulator:
+- Symptom: logcat shows `SoLoudFileNotFoundException` for `/sdcard/...` even though the file exists.
+- Fix: push the file to `/data/local/tmp`, then copy it into the app sandbox with `run-as com.saplin.nothingness cp ... files/...`, and queue `/data/user/0/com.saplin.nothingness/files/<name>`.
+
+4. `Permissions Required` overlay blocks panel actions:
+- Fix path A: tap in-app `Grant Permissions`.
+- Fix path B: grant on device and reopen app.
+
+5. Cannot tap Shuffle (or another panel control):
+- First open library panel (handle tap or swipe up).
+- If key tap fails, use adb UIAutomator dump and tap by bounds for visible text.
+
+6. `tapByKey` returns not found:
+- Cause: production widget has no `ValueKey<String>`.
+- Fix: drive via panel open + text/bounds tap, not key tap.
+
+7. Action path ambiguity (UI vs extension):
+- Verify with before/after state around one action.
+- Prefer single-action runs with immediate state readback.
+
+## Minimal Drive Loop
+
+1. Read baseline (`getPlaybackState`).
+2. Apply precondition (queue/panel/permission).
+3. Trigger one action.
+4. Read state immediately.
+5. Assert only required fields (index, isPlaying, title, position).
+
+Reference: `docs/agent-driven-debugging.md`

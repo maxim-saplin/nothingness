@@ -92,13 +92,15 @@ class _MediaControllerPageState extends State<MediaControllerPage>
       // App resumed: restore spectrum processing and refresh permissions
       _isAppInBackground = false;
       _platformChannels.refreshSessions();
-      // _checkPermissions will call _attachSpectrumSource after checking permissions
-      _checkPermissions();
       _syncSongInfoSource(_settings);
+      // Re-attach immediately for player-mode spectrum. This avoids waiting on
+      // asynchronous permission checks, which are only required for mic mode.
+      _attachSpectrumSource(_settings);
+      // Keep permission state fresh; this also re-attaches once resolved.
+      _checkPermissions();
       final player = context.read<AudioPlayerProvider>();
       player.resumeTimers();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    } else if (state == AppLifecycleState.paused) {
       // App backgrounded: stop spectrum processing and timers to save battery
       _isAppInBackground = true;
       _spectrumSubscription?.cancel();
