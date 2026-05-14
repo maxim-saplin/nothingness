@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
 import '../models/eq_settings.dart';
 import '../models/spectrum_settings.dart';
+import '../models/theme_id.dart';
+import '../models/theme_variant.dart';
 import 'platform_channels.dart';
 
 class SettingsService {
@@ -22,6 +25,12 @@ class SettingsService {
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
   static const String _eqSettingsKey = 'eq_settings';
   static const String _audioDiagnosticsOverlayKey = 'audio_diagnostics_overlay';
+  static const String _themeIdKey = 'theme_id';
+  static const String _themeVariantKey = 'theme_variant';
+  static const String _operatingModeKey = 'operating_mode';
+  static const String _smartFoldersPresentationKey = 'smart_folders_presentation';
+  static const String _immersiveKey = 'immersive';
+  static const String _transportVisibleKey = 'transport_visible';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -30,13 +39,18 @@ class SettingsService {
       SpectrumColorScheme.classic;
   static const BarStyle defaultBarStyle = BarStyle.segmented;
   static const DecaySpeed defaultDecaySpeed = DecaySpeed.medium;
-  static const AudioSourceMode defaultAudioSource = AudioSourceMode.player;
   static const double defaultUiScale = -1.0; // -1.0 indicates "auto" / not set
   static const bool defaultFullScreen = false;
   static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
   static const bool defaultEqEnabled = false;
   static const bool defaultAudioDiagnosticsOverlay = false;
+  static const ThemeId defaultThemeId = ThemeId.void_;
+  static const ThemeVariant defaultThemeVariant = ThemeVariant.system;
+  static const OperatingMode defaultOperatingMode = OperatingMode.own;
+  static const bool defaultSmartFoldersPresentation = true;
+  static const bool defaultImmersive = false;
+  static const bool defaultTransportVisible = true;
 
   /// Light scrim drawn behind dark OEM status-bar icons on automotive displays.
   static const Color automotiveStatusBarScrimLight = Color(0xFFE8E8E8);
@@ -66,6 +80,33 @@ class SettingsService {
   final ValueNotifier<bool> audioDiagnosticsOverlayNotifier = ValueNotifier(
     defaultAudioDiagnosticsOverlay,
   );
+  final ValueNotifier<ThemeId> themeIdNotifier = ValueNotifier(defaultThemeId);
+  final ValueNotifier<ThemeVariant> themeVariantNotifier = ValueNotifier(
+    defaultThemeVariant,
+  );
+  final ValueNotifier<OperatingMode> operatingModeNotifier = ValueNotifier(
+    defaultOperatingMode,
+  );
+
+  /// Whether the library surfaces should present "smart" friendly labels for
+  /// Android storage roots (Internal, USB, SD card, …) instead of raw paths.
+  /// P5 owns the helper that reads this notifier; P4 only exposes the toggle.
+  final ValueNotifier<bool> smartFoldersPresentationNotifier = ValueNotifier(
+    defaultSmartFoldersPresentation,
+  );
+
+  /// Immersive mode for the Void chrome: hides the browser, crumb, transport
+  /// row, settings glyph and progress hairline so the hero fills the screen.
+  /// Driven by the LOOK row in `VoidSettingsSheet`; replaces the previous
+  /// drag-down gesture so it doesn't fight with hero swipe-to-skip.
+  final ValueNotifier<bool> immersiveNotifier = ValueNotifier(defaultImmersive);
+
+  /// Whether the prev / play-pause / next transport strip is rendered above
+  /// the crumb. When false, the slot collapses and the browser extends down
+  /// to the crumb. Hero gestures (tap / swipe) and the seek hairline at the
+  /// bottom of the screen continue to work regardless.
+  final ValueNotifier<bool> transportVisibleNotifier =
+      ValueNotifier(defaultTransportVisible);
 
   /// Heuristic: low-DPI (< 2.0) + wide (>= 1600 logical) = automotive / IVI.
   ///
@@ -207,7 +248,82 @@ class SettingsService {
         prefs.getBool(_audioDiagnosticsOverlayKey) ??
             defaultAudioDiagnosticsOverlay;
 
+    // 6b. Load Smart Folders Presentation toggle (P4 wires the toggle; P5
+    //     consumes it from the smart-roots labelling helper).
+    smartFoldersPresentationNotifier.value =
+        prefs.getBool(_smartFoldersPresentationKey) ??
+            defaultSmartFoldersPresentation;
+
+    // 6c. Load Immersive toggle (Void chrome hides browser/crumb/transport
+    //     when true). Defaults off on fresh install.
+    immersiveNotifier.value = prefs.getBool(_immersiveKey) ?? defaultImmersive;
+
+    // 6d. Load Transport-visible toggle (LOOK row collapses the prev/play/
+    //     next strip without flipping immersive). Defaults on.
+    transportVisibleNotifier.value =
+        prefs.getBool(_transportVisibleKey) ?? defaultTransportVisible;
+
+    // 7. Load Theme id + variant.
+    themeIdNotifier.value = ThemeId.fromStorageKey(prefs.getString(_themeIdKey));
+    themeVariantNotifier.value =
+        ThemeVariant.fromStorageKey(prefs.getString(_themeVariantKey));
+
+    // 8. Load Operating Mode (with one-shot migration from legacy
+    //    spectrum_settings.audioSource — runs only when the new key is
+    //    absent; subsequent loads are idempotent).
+    if (prefs.containsKey(_operatingModeKey)) {
+      operatingModeNotifier.value =
+          OperatingMode.fromStorageKey(prefs.getString(_operatingModeKey));
+    } else {
+      OperatingMode mode = defaultOperatingMode;
+      if (jsonString != null) {
+        try {
+          final json = jsonDecode(jsonString) as Map<String, dynamic>;
+          final legacy = json['audioSource'] as String?;
+          if (legacy != null) {
+            mode = legacy == 'microphone'
+                ? OperatingMode.background
+                : OperatingMode.own;
+            // Strip the legacy field from the persisted JSON so the
+            // migration cannot run twice.
+            json.remove('audioSource');
+            await prefs.setString(_settingsKey, jsonEncode(json));
+            debugPrint(
+              '[Settings] Migrated audioSource=$legacy -> '
+              'operatingMode=${mode.name}',
+            );
+          }
+        } catch (_) {
+          // Corrupted legacy JSON — keep default and let the new key win
+          // on next save.
+        }
+      }
+      await prefs.setString(_operatingModeKey, mode.storageKey);
+      operatingModeNotifier.value = mode;
+    }
+
     return settings;
+  }
+
+  /// Persists the active theme id.
+  Future<void> saveThemeId(ThemeId id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeIdKey, id.storageKey);
+    themeIdNotifier.value = id;
+  }
+
+  /// Persists the active theme variant (dark / light / system).
+  Future<void> saveThemeVariant(ThemeVariant variant) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeVariantKey, variant.storageKey);
+    themeVariantNotifier.value = variant;
+  }
+
+  /// Persists the operating mode (own / background).
+  Future<void> saveOperatingMode(OperatingMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_operatingModeKey, mode.storageKey);
+    operatingModeNotifier.value = mode;
   }
 
   /// Sets the audio diagnostics overlay flag.
@@ -215,6 +331,28 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_audioDiagnosticsOverlayKey, enable);
     audioDiagnosticsOverlayNotifier.value = enable;
+  }
+
+  /// Sets the smart-folders presentation toggle. When true, library surfaces
+  /// show friendly labels for Android storage roots. Owned by P5.
+  Future<void> setSmartFoldersPresentation(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_smartFoldersPresentationKey, enable);
+    smartFoldersPresentationNotifier.value = enable;
+  }
+
+  /// Sets the Void-chrome immersive toggle. Persists across launches.
+  Future<void> setImmersive(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_immersiveKey, enable);
+    immersiveNotifier.value = enable;
+  }
+
+  /// Sets whether the transport strip is rendered above the crumb.
+  Future<void> setTransportVisible(bool enable) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_transportVisibleKey, enable);
+    transportVisibleNotifier.value = enable;
   }
 
   /// Saves the spectrum settings to persistence.

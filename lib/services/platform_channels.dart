@@ -127,6 +127,35 @@ class PlatformChannels {
     }
   }
 
+  /// Dispatches a media-key event to whichever external `MediaSession` is
+  /// currently active. Used in background mode so the app's transport buttons
+  /// control the foreign player (Spotify, YT Music, ...).
+  ///
+  /// Expected [keyCode] values mirror `android.view.KeyEvent`:
+  /// `KEYCODE_MEDIA_PLAY_PAUSE` (85), `KEYCODE_MEDIA_NEXT` (87),
+  /// `KEYCODE_MEDIA_PREVIOUS` (88). Other values are forwarded as-is.
+  ///
+  /// Native side tries the `NotificationListenerService` active-controller path
+  /// first; falls back to `AudioManager.dispatchMediaKeyEvent` if that fails or
+  /// the listener is not granted. No-op (warning-logged) on iOS / desktop.
+  Future<void> dispatchExternalMediaKey(int keyCode) async {
+    if (!isAndroid) return;
+    try {
+      await _mediaChannel.invokeMethod(
+        'dispatchExternalMediaKey',
+        <String, Object?>{'keyCode': keyCode},
+      );
+    } catch (e) {
+      debugPrint('Error dispatchExternalMediaKey: $e');
+    }
+  }
+
+  // Android KeyEvent codes used in background mode. Mirrored as Dart constants
+  // so callers don't reach into a platform-specific package.
+  static const int keyCodeMediaPlayPause = 85;
+  static const int keyCodeMediaNext = 87;
+  static const int keyCodeMediaPrevious = 88;
+
   // Update spectrum settings on native side
   Future<void> updateSpectrumSettings(SpectrumSettings settings) async {
     if (!isAndroid) return;

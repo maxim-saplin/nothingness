@@ -44,21 +44,12 @@ enum DecaySpeed {
   const DecaySpeed(this.value, this.label);
 }
 
-enum AudioSourceMode {
-  player('Player'),
-  microphone('Microphone');
-
-  final String label;
-  const AudioSourceMode(this.label);
-}
-
 class SpectrumSettings {
   final double noiseGateDb;
   final BarCount barCount;
   final SpectrumColorScheme colorScheme;
   final BarStyle barStyle;
   final DecaySpeed decaySpeed;
-  final AudioSourceMode audioSource;
 
   const SpectrumSettings({
     this.noiseGateDb = SettingsService.defaultNoiseGateDb,
@@ -66,7 +57,6 @@ class SpectrumSettings {
     this.colorScheme = SettingsService.defaultColorScheme,
     this.barStyle = SettingsService.defaultBarStyle,
     this.decaySpeed = SettingsService.defaultDecaySpeed,
-    this.audioSource = SettingsService.defaultAudioSource,
   });
 
   SpectrumSettings copyWith({
@@ -75,7 +65,6 @@ class SpectrumSettings {
     SpectrumColorScheme? colorScheme,
     BarStyle? barStyle,
     DecaySpeed? decaySpeed,
-    AudioSourceMode? audioSource,
   }) {
     return SpectrumSettings(
       noiseGateDb: noiseGateDb ?? this.noiseGateDb,
@@ -83,7 +72,6 @@ class SpectrumSettings {
       colorScheme: colorScheme ?? this.colorScheme,
       barStyle: barStyle ?? this.barStyle,
       decaySpeed: decaySpeed ?? this.decaySpeed,
-      audioSource: audioSource ?? this.audioSource,
     );
   }
 
@@ -94,7 +82,6 @@ class SpectrumSettings {
       'colorScheme': colorScheme.name,
       'barStyle': barStyle.name,
       'decaySpeed': decaySpeed.value,
-      'audioSource': audioSource.name,
     };
   }
 
@@ -120,10 +107,6 @@ class SpectrumSettings {
       decaySpeed: DecaySpeed.values.firstWhere(
         (d) => d.value == json['decaySpeed'],
         orElse: () => SettingsService.defaultDecaySpeed,
-      ),
-      audioSource: AudioSourceMode.values.firstWhere(
-        (mode) => mode.name == json['audioSource'],
-        orElse: () => SettingsService.defaultAudioSource,
       ),
     );
   }

@@ -118,7 +118,12 @@ void main() {
       );
     });
 
-    test('flood case (>max entries) falls back to device root', () {
+    test('flood case (>max entries) drops the device entirely', () {
+      // Under the music-only contract (B-001) we never fall back to the
+      // device root when the smart-roots heuristic produces no usable
+      // entries — that fallback used to flow into a filesystem listing of
+      // every top-level Android folder (Alarms / Android / Notifications /
+      // Ringtones), which violates "music player, not file explorer".
       final roots = const ['/storage/emulated/0'];
       final songs = const [
         LibrarySong(path: '/storage/emulated/0/A/1.mp3', title: '1'),
@@ -135,7 +140,7 @@ void main() {
         maxEntriesPerDevice: 5,
       );
 
-      expect(sections.single.entries, ['/storage/emulated/0']);
+      expect(sections, isEmpty);
     });
 
     test('redundancy removal: do not list parent+child', () {

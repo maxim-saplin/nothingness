@@ -45,6 +45,18 @@ class PlaybackController {
   final ValueNotifier<SongInfo?> songInfoNotifier = ValueNotifier(null);
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
 
+  // One-shot state. When set, the controller is playing a track outside the
+  // queue. On natural end (or repeat-one), the queue is restored and advanced
+  // to `_queueIndexAtOneShotStart + 1`. Explicit prev/next clears the flag and
+  // resumes normal queue navigation.
+  bool _oneShot = false;
+  int? _queueIndexAtOneShotStart;
+  AudioTrack? _oneShotTrack;
+  bool _oneShotRepeatOne = false;
+  final ValueNotifier<bool> isOneShotNotifier = ValueNotifier(false);
+  bool get isOneShot => _oneShot;
+  AudioTrack? get oneShotTrack => _oneShotTrack;
+
   // Track paths of files that failed to load (backend-agnostic)
   final Set<String> _failedTrackPaths = <String>{};
 
@@ -369,6 +381,17 @@ class PlaybackController {
 
   void _handleTrackEnded(String? path) {
     _logAudioEvent('transportEnded', {'path': path ?? ''});
+
+    // One-shot: either loop in place (repeat-one) or restore the queue.
+    if (_oneShot) {
+      if (_oneShotRepeatOne) {
+        unawaited(_restartOneShot());
+        return;
+      }
+      unawaited(_finishOneShot(manual: false));
+      return;
+    }
+
     // Advance to next track if user wants to play
     if (_userIntent == PlayIntent.play) {
       _skipToNext();
@@ -457,6 +480,12 @@ class PlaybackController {
 
   Future<void> next() async {
     _userIntent = PlayIntent.play; // Navigation implies play intent
+    // Explicit user navigation during a one-shot exits the one-shot and
+    // continues from the current queue index (no auto-advance to start+1).
+    if (_oneShot) {
+      await _finishOneShot(manual: true);
+      return;
+    }
     final nextIdx = _playlist.nextOrderIndex();
     if (nextIdx != null) {
       await playFromQueueIndex(nextIdx, isAutoSkip: true, direction: 1);
@@ -465,6 +494,10 @@ class PlaybackController {
 
   Future<void> previous() async {
     _userIntent = PlayIntent.play; // Navigation implies play intent
+    if (_oneShot) {
+      await _finishOneShot(manual: true, backward: true);
+      return;
+    }
 
     // Check if there's a current track loaded
     final currentIdx = _playlist.currentOrderIndexNotifier.value;
@@ -773,6 +806,127 @@ class PlaybackController {
     _emitSongInfo();
   }
 
+  /// Plays [track] standalone without mutating the queue. On natural end the
+  /// previous queue is restored and advanced to the slot *after* the one we
+  /// started from (or the controller stops if that would step past the tail
+  /// and repeat-all is off). Explicit prev/next exits the one-shot.
+  ///
+  /// When [repeatOne] is true, the one-shot loops in place on natural end.
+  Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
+    final op = ++_opGeneration;
+
+    // Capture queue position to restore later. Index may be null when the
+    // queue is empty / nothing was playing — _finishOneShot handles that.
+    _queueIndexAtOneShotStart = _playlist.currentOrderIndexNotifier.value;
+    _oneShotTrack = track;
+    _oneShotRepeatOne = repeatOne;
+    _oneShot = true;
+    isOneShotNotifier.value = true;
+    _userIntent = PlayIntent.play;
+    _endedAtQueueTailAt = null;
+    _pendingLoadPath = track.path;
+    _log('OneShot start: path=${track.path} resumeAt=$_queueIndexAtOneShotStart');
+
+    isPlayingNotifier.value = true;
+    try {
+      await _transport.load(track.path, title: track.title, artist: track.artist);
+      if (op != _opGeneration) return;
+      _pendingLoadPath = null;
+      await _transport.play();
+      if (op != _opGeneration) return;
+      _emitOneShotSongInfo();
+    } catch (e) {
+      _log('OneShot load failed: $e');
+      _pendingLoadPath = null;
+      // Abort the one-shot and fall back to the queue at the captured index.
+      _oneShot = false;
+      _oneShotTrack = null;
+      _oneShotRepeatOne = false;
+      isOneShotNotifier.value = false;
+      isPlayingNotifier.value = false;
+      await _transport.pause();
+      _emitSongInfo(force: true);
+    }
+  }
+
+  Future<void> _restartOneShot() async {
+    final track = _oneShotTrack;
+    if (track == null) {
+      _oneShot = false;
+      isOneShotNotifier.value = false;
+      return;
+    }
+    final op = ++_opGeneration;
+    _pendingLoadPath = track.path;
+    try {
+      await _transport.load(track.path, title: track.title, artist: track.artist);
+      if (op != _opGeneration) return;
+      _pendingLoadPath = null;
+      await _transport.play();
+      _emitOneShotSongInfo();
+    } catch (e) {
+      _log('OneShot restart failed: $e');
+      _pendingLoadPath = null;
+      await _finishOneShot(manual: false);
+    }
+  }
+
+  Future<void> _finishOneShot({required bool manual, bool backward = false}) async {
+    final resumeAt = _queueIndexAtOneShotStart;
+    _oneShot = false;
+    _oneShotTrack = null;
+    _oneShotRepeatOne = false;
+    _queueIndexAtOneShotStart = null;
+    isOneShotNotifier.value = false;
+
+    if (_playlist.length == 0 || resumeAt == null) {
+      isPlayingNotifier.value = false;
+      _userIntent = PlayIntent.pause;
+      await _transport.pause();
+      _emitSongInfo(force: true);
+      return;
+    }
+
+    if (manual) {
+      // Explicit prev/next during one-shot: step from the captured queue
+      // position, mirroring normal queue navigation.
+      final int target;
+      if (backward) {
+        target = (resumeAt - 1).clamp(0, _playlist.length - 1).toInt();
+      } else {
+        target = (resumeAt + 1).clamp(0, _playlist.length - 1).toInt();
+      }
+      await playFromQueueIndex(target, isAutoSkip: true,
+          direction: backward ? -1 : 1);
+      return;
+    }
+
+    // Natural end: advance to resumeAt + 1. If that steps past the tail,
+    // stop (consistent with normal queue tail behaviour without repeat-all).
+    final next = resumeAt + 1;
+    if (next >= _playlist.length) {
+      isPlayingNotifier.value = false;
+      _userIntent = PlayIntent.pause;
+      await _transport.pause();
+      _emitSongInfo(force: true);
+      return;
+    }
+    await playFromQueueIndex(next, isAutoSkip: true, direction: 1);
+  }
+
+  Future<void> _emitOneShotSongInfo() async {
+    final track = _oneShotTrack;
+    if (track == null) return;
+    final position = await _transport.position;
+    final duration = await _transport.duration;
+    songInfoNotifier.value = SongInfo(
+      track: track,
+      isPlaying: isPlayingNotifier.value,
+      position: position.inMilliseconds,
+      duration: duration.inMilliseconds,
+    );
+  }
+
   Future<void> setQueue(
     List<AudioTrack> tracks, {
     int startIndex = 0,
@@ -860,6 +1014,10 @@ class PlaybackController {
   }
 
   Future<void> _emitSongInfo({bool force = false}) async {
+    if (_oneShot) {
+      await _emitOneShotSongInfo();
+      return;
+    }
     final idx = _playlist.currentOrderIndexNotifier.value;
     final track = idx == null ? null : _playlist.trackForOrderIndex(idx);
 

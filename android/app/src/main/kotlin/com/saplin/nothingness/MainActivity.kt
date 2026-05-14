@@ -2,15 +2,19 @@ package com.saplin.nothingness
 
 import android.Manifest
 import android.database.ContentObserver
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.media.MediaScannerConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
+import android.view.KeyEvent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -81,6 +85,14 @@ class MainActivity : AudioServiceActivity() {
                 "previous" -> {
                     MediaSessionService.getInstance()?.previous()
                     result.success(null)
+                }
+                "dispatchExternalMediaKey" -> {
+                    val keyCode = (call.argument<Number>("keyCode"))?.toInt()
+                    if (keyCode == null) {
+                        result.error("INVALID", "keyCode required", null)
+                    } else {
+                        result.success(dispatchExternalMediaKey(keyCode))
+                    }
                 }
                 "seekTo" -> {
                     val position = call.argument<Long>("position") ?: 0L
@@ -294,6 +306,35 @@ class MainActivity : AudioServiceActivity() {
         }
     }
     
+    /// Dispatch a media-button key event to whichever external session is
+    /// currently active. Preferred path: the NotificationListenerService that
+    /// already holds the active MediaController (single permission, already
+    /// requested for `getSongInfo`). Falls back to AudioManager broadcast for
+    /// older vendor stacks or when the listener has not connected yet. Returns
+    /// `true` if any path accepted the dispatch.
+    private fun dispatchExternalMediaKey(keyCode: Int): Boolean {
+        val listenerDispatched = try {
+            MediaSessionService.getInstance()?.dispatchMediaButtonEvent(keyCode) == true
+        } catch (e: Exception) {
+            Log.w(TAG, "dispatchExternalMediaKey listener path failed", e)
+            false
+        }
+        if (listenerDispatched) return true
+
+        return try {
+            val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val now = SystemClock.uptimeMillis()
+            val down = KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0)
+            val up = KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0)
+            am.dispatchMediaKeyEvent(down)
+            am.dispatchMediaKeyEvent(up)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "dispatchExternalMediaKey AudioManager fallback failed", e)
+            false
+        }
+    }
+
     private fun isNotificationAccessGranted(): Boolean {
         val enabledListeners = Settings.Secure.getString(
             contentResolver,

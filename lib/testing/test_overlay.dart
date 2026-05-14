@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/audio_track.dart';
 import '../providers/audio_player_provider.dart';
+import '../theme/app_palette.dart';
 import 'playback_diagnostics.dart';
 import 'test_harness.dart';
 
@@ -144,6 +145,10 @@ class _QueueList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final player = context.read<AudioPlayerProvider>();
+    final palette = Theme.of(context).extension<AppPalette>();
+    // Test overlay is only mounted from main_test.dart, which always wraps
+    // the app in a themed MaterialApp; the fallback is purely defensive.
+    final activeColor = palette?.accent ?? Colors.greenAccent;
     return ListView.builder(
       itemCount: queue.length,
       itemBuilder: (context, index) {
@@ -160,7 +165,7 @@ class _QueueList extends StatelessWidget {
                 : (isActive ? Icons.play_arrow_rounded : Icons.music_note),
             color: isNotFound
                 ? Colors.redAccent
-                : (isActive ? const Color(0xFF00FF88) : Colors.white54),
+                : (isActive ? activeColor : Colors.white54),
           ),
           title: Text(
             title,

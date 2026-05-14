@@ -1,11 +1,19 @@
+import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../controllers/library_controller.dart';
 import '../models/audio_track.dart';
+import '../models/operating_mode.dart';
+import '../models/screen_config.dart';
+import '../models/theme_variant.dart';
 import '../providers/audio_player_provider.dart';
 import '../services/settings_service.dart';
 
@@ -34,6 +42,17 @@ class AgentService {
   AgentService._();
 
   static AudioPlayerProvider? _provider;
+  static LibraryController? _libraryController;
+  static Future<void> Function()? _settingsOpener;
+  static String? Function()? _routerScreenLookup;
+  static bool Function()? _immersiveLookup;
+  static GlobalKey<NavigatorState>? _navigatorKey;
+
+  /// Ring buffer of layout-overflow events captured from
+  /// [FlutterError.onError]. Exposed via `getOverflowReports`.
+  static final Queue<Map<String, Object?>> _overflowReports =
+      Queue<Map<String, Object?>>();
+  static const int _maxOverflowReports = 64;
 
   static bool _registered = false;
 
@@ -42,6 +61,7 @@ class AgentService {
     if (!kDebugMode || _registered) return;
 
     _provider = provider;
+    _installOverflowHook();
 
     // --- Generic primitives ---
     developer.registerExtension('ext.nothingness.getWidgetTree', _getWidgetTree);
@@ -79,8 +99,126 @@ class AgentService {
       _simulateNoisy,
     );
 
+    // --- P-A inspection surface ---
+    developer.registerExtension(
+      'ext.nothingness.getRouterState',
+      _getRouterState,
+    );
+    developer.registerExtension(
+      'ext.nothingness.getLibraryState',
+      _getLibraryState,
+    );
+    developer.registerExtension(
+      'ext.nothingness.navigateVoid',
+      _navigateVoid,
+    );
+    developer.registerExtension(
+      'ext.nothingness.navigateVoidUp',
+      _navigateVoidUp,
+    );
+    developer.registerExtension(
+      'ext.nothingness.openSettingsSheet',
+      _openSettingsSheet,
+    );
+    developer.registerExtension(
+      'ext.nothingness.closeSettingsSheet',
+      _closeSettingsSheet,
+    );
+    developer.registerExtension(
+      'ext.nothingness.playTrackByPath',
+      _playTrackByPath,
+    );
+    developer.registerExtension(
+      'ext.nothingness.setPreference',
+      _setPreference,
+    );
+    developer.registerExtension(
+      'ext.nothingness.clearPreference',
+      _clearPreference,
+    );
+    developer.registerExtension(
+      'ext.nothingness.requestLibraryPermission',
+      _requestLibraryPermission,
+    );
+    developer.registerExtension(
+      'ext.nothingness.getOverflowReports',
+      _getOverflowReports,
+    );
+
     _registered = true;
-    debugPrint('[AgentService] registered 15 VM service extensions');
+    debugPrint('[AgentService] registered 26 VM service extensions');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Registry hooks — called by app code to inject references the agent needs.
+  // ---------------------------------------------------------------------------
+
+  /// Register the [LibraryController] owned by the active Void screen.
+  /// VoidScreen.initState calls this; dispose() passes null.
+  static void registerLibraryController(LibraryController? controller) {
+    if (!kDebugMode) return;
+    _libraryController = controller;
+  }
+
+  /// Register a closure that opens the settings surface appropriate for the
+  /// currently active home screen (Void sheet vs. legacy settings page).
+  /// MediaControllerPage owns this — it knows which screen is mounted.
+  static void registerSettingsOpener(Future<void> Function()? opener) {
+    if (!kDebugMode) return;
+    _settingsOpener = opener;
+  }
+
+  /// Register a closure that returns the currently active home-screen name
+  /// (`spectrum` / `polo` / `dot` / `void`). Called by MediaControllerPage and
+  /// kept stable across screen transitions.
+  static void registerScreenLookup(String? Function()? lookup) {
+    if (!kDebugMode) return;
+    _routerScreenLookup = lookup;
+  }
+
+  /// Register a closure that returns whether the current home screen is in an
+  /// immersive (full-bleed) state. Only Void exposes a meaningful value;
+  /// other screens leave this null and `getRouterState` reports `false`.
+  static void registerImmersiveLookup(bool Function()? lookup) {
+    if (!kDebugMode) return;
+    _immersiveLookup = lookup;
+  }
+
+  /// Register the [NavigatorState] key used to push/pop routes (for closing
+  /// the settings sheet from RPC, among other things).
+  static void registerNavigatorKey(GlobalKey<NavigatorState>? key) {
+    if (!kDebugMode) return;
+    _navigatorKey = key;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Overflow capture
+  // ---------------------------------------------------------------------------
+
+  static void _installOverflowHook() {
+    final previous = FlutterError.onError;
+    FlutterError.onError = (FlutterErrorDetails details) {
+      final summary = details.summary.toString();
+      final ex = details.exception.toString();
+      final isOverflow = summary.contains('overflow') ||
+          summary.contains('OVERFLOWED') ||
+          ex.contains('overflow') ||
+          ex.contains('OVERFLOWED');
+      if (isOverflow) {
+        if (_overflowReports.length >= _maxOverflowReports) {
+          _overflowReports.removeFirst();
+        }
+        _overflowReports.addLast({
+          'when': DateTime.now().toIso8601String(),
+          'summary': summary,
+          'exception': ex,
+          'library': details.library,
+        });
+      }
+      // Always forward to the existing chain (preserves Flutter's red-screen
+      // and the previous handler, e.g. Crashlytics).
+      previous?.call(details);
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -156,9 +294,9 @@ class AgentService {
         'colorScheme': s.settingsNotifier.value.colorScheme.name,
         'barStyle': s.settingsNotifier.value.barStyle.name,
         'decaySpeed': s.settingsNotifier.value.decaySpeed.name,
-        'audioSource': s.settingsNotifier.value.audioSource.name,
         'noiseGateDb': s.settingsNotifier.value.noiseGateDb,
       },
+      'operatingMode': s.operatingModeNotifier.value.name,
     });
   }
 
@@ -182,6 +320,60 @@ class AgentService {
         await s.setUseFilenameForMetadata(value == 'true');
       case 'audioDiagnosticsOverlay':
         await s.setAudioDiagnosticsOverlay(value == 'true');
+      case 'screen':
+        final ScreenConfig cfg;
+        switch (value) {
+          case 'spectrum':
+            cfg = const SpectrumScreenConfig();
+          case 'polo':
+            cfg = const PoloScreenConfig();
+          case 'dot':
+            cfg = const DotScreenConfig();
+          case 'void':
+          case 'void_':
+            cfg = const VoidScreenConfig();
+          default:
+            return _error(
+              'unknown screen value "$value" (expected spectrum|polo|dot|void)',
+            );
+        }
+        await s.saveScreenConfig(cfg);
+      case 'themeVariant':
+        final ThemeVariant v;
+        switch (value) {
+          case 'dark':
+            v = ThemeVariant.dark;
+          case 'light':
+            v = ThemeVariant.light;
+          case 'system':
+            v = ThemeVariant.system;
+          default:
+            return _error(
+              'unknown themeVariant value "$value" (expected dark|light|system)',
+            );
+        }
+        await s.saveThemeVariant(v);
+      case 'operatingMode':
+        final OperatingMode m;
+        switch (value) {
+          case 'own':
+            m = OperatingMode.own;
+          case 'background':
+            m = OperatingMode.background;
+          default:
+            return _error(
+              'unknown operatingMode value "$value" (expected own|background)',
+            );
+        }
+        await s.saveOperatingMode(m);
+      case 'uiScale':
+        final parsed = double.tryParse(value);
+        if (parsed == null) {
+          return _error('uiScale value "$value" is not a double');
+        }
+        await s.saveUiScale(parsed);
+      case 'immersive':
+        await s.setImmersive(value == 'true');
       default:
         return _error('unknown setting: $name');
     }
@@ -402,7 +594,7 @@ class AgentService {
       void visitChildren(Element el) {
         if (tried) return;
         final w = el.widget;
-        if (w is InkWell && w.onTap != null) {
+        if (w is InkResponse && w.onTap != null) {
           w.onTap!();
           tried = true;
           return;
@@ -412,7 +604,7 @@ class AgentService {
       element.visitAncestorElements((ancestor) {
         if (tried) return false;
         final w = ancestor.widget;
-        if (w is InkWell && w.onTap != null) {
+        if (w is InkResponse && w.onTap != null) {
           w.onTap!();
           tried = true;
           return false;
@@ -449,5 +641,223 @@ class AgentService {
       developer.ServiceExtensionResponse.extensionError,
       message,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // P-A inspection surface — router / library / settings / overflow.
+  // ---------------------------------------------------------------------------
+
+  static Future<developer.ServiceExtensionResponse> _getRouterState(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final s = SettingsService();
+    final screen = _routerScreenLookup?.call() ??
+        s.screenConfigNotifier.value.type.name;
+    final immersive = _immersiveLookup?.call() ?? false;
+    return _ok({
+      'screen': screen,
+      'themeId': s.themeIdNotifier.value.storageKey,
+      'themeVariant': s.themeVariantNotifier.value.name,
+      'operatingMode': s.operatingModeNotifier.value.name,
+      'immersive': immersive,
+      'fullScreen': s.fullScreenNotifier.value,
+    });
+  }
+
+  static Future<developer.ServiceExtensionResponse> _getLibraryState(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final c = _libraryController;
+    if (c == null) {
+      return _ok({
+        'registered': false,
+        'message': 'no LibraryController registered (mount Void to register)',
+      });
+    }
+    return _ok({
+      'registered': true,
+      'isAndroid': c.isAndroid,
+      'hasPermission': c.hasPermission,
+      'isLoading': c.isLoading,
+      'isScanning': c.isScanning,
+      'error': c.error,
+      'currentPath': c.currentPath,
+      'folders': c.folders
+          .map((f) => {'path': f.path, 'name': f.name})
+          .toList(growable: false),
+      'tracks': c.tracks
+          .map((t) => {
+                'path': t.path,
+                'title': t.title,
+                'artist': t.artist,
+              })
+          .toList(growable: false),
+      'smartRoots': c.androidSmartRootSections
+          .map((s) => {
+                'deviceRoot': s.deviceRoot,
+                'entries': s.entries,
+              })
+          .toList(growable: false),
+    });
+  }
+
+  static Future<developer.ServiceExtensionResponse> _navigateVoid(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final path = params['path'];
+    if (path == null || path.isEmpty) {
+      return _error('path parameter required');
+    }
+    final c = _libraryController;
+    if (c == null) return _error('library controller not registered');
+    await c.loadFolder(path);
+    return _ok({
+      'currentPath': c.currentPath,
+      'folders': c.folders.length,
+      'tracks': c.tracks.length,
+      'error': c.error,
+    });
+  }
+
+  static Future<developer.ServiceExtensionResponse> _navigateVoidUp(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final c = _libraryController;
+    if (c == null) return _error('library controller not registered');
+    await c.navigateUp();
+    return _ok({
+      'currentPath': c.currentPath,
+      'folders': c.folders.length,
+      'tracks': c.tracks.length,
+    });
+  }
+
+  static Future<developer.ServiceExtensionResponse> _openSettingsSheet(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final opener = _settingsOpener;
+    if (opener == null) return _error('no settings opener registered');
+    await opener();
+    return _ok({'opened': true});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _closeSettingsSheet(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final nav = _navigatorKey?.currentState;
+    if (nav == null) return _error('navigator key not registered');
+    final popped = await nav.maybePop();
+    return _ok({'closed': popped});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _playTrackByPath(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final path = params['path'];
+    if (path == null || path.isEmpty) return _error('path parameter required');
+    final p = _provider;
+    if (p == null) return _error('provider not registered');
+
+    final track = AudioTrack(
+      path: path,
+      title: path.split('/').last,
+    );
+    await p.playOneShot(track);
+    return _ok({'ok': true, 'path': path});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _setPreference(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final key = params['key'];
+    final value = params['value'];
+    final type = (params['type'] ?? 'string').toLowerCase();
+    if (key == null || value == null) {
+      return _error('key and value parameters required');
+    }
+    final prefs = await SharedPreferences.getInstance();
+    switch (type) {
+      case 'bool':
+        await prefs.setBool(key, value == 'true');
+      case 'int':
+        final v = int.tryParse(value);
+        if (v == null) return _error('value "$value" is not an int');
+        await prefs.setInt(key, v);
+      case 'double':
+        final v = double.tryParse(value);
+        if (v == null) return _error('value "$value" is not a double');
+        await prefs.setDouble(key, v);
+      case 'string':
+        await prefs.setString(key, value);
+      case 'stringlist':
+        await prefs.setStringList(key, value.split(','));
+      default:
+        return _error('unknown type "$type"');
+    }
+    return _ok({'set': key, 'value': value, 'type': type});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _clearPreference(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final key = params['key'];
+    if (key == null || key.isEmpty) return _error('key parameter required');
+    final prefs = await SharedPreferences.getInstance();
+    if (key == '*') {
+      await prefs.clear();
+      return _ok({'cleared': '*'});
+    }
+    await prefs.remove(key);
+    return _ok({'cleared': key});
+  }
+
+  static Future<developer.ServiceExtensionResponse> _requestLibraryPermission(
+    String method,
+    Map<String, String> params,
+  ) async {
+    try {
+      final results = await [
+        Permission.storage,
+        Permission.audio,
+        Permission.microphone,
+      ].request();
+      final granted = (results[Permission.storage]?.isGranted ?? false) ||
+          (results[Permission.audio]?.isGranted ?? false);
+      // Also drive the controller so its state updates.
+      final c = _libraryController;
+      if (c != null) {
+        await c.requestPermission();
+      }
+      return _ok({
+        'granted': granted,
+        'storage': results[Permission.storage]?.name,
+        'audio': results[Permission.audio]?.name,
+        'microphone': results[Permission.microphone]?.name,
+      });
+    } catch (e) {
+      return _error('requestLibraryPermission failed: $e');
+    }
+  }
+
+  static Future<developer.ServiceExtensionResponse> _getOverflowReports(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final clear = (params['clear'] ?? 'false') == 'true';
+    final reports = _overflowReports
+        .toList(growable: false)
+        .map<Map<String, Object?>>((r) => Map<String, Object?>.from(r))
+        .toList(growable: false);
+    if (clear) _overflowReports.clear();
+    return _ok({'reports': reports, 'count': reports.length});
   }
 }

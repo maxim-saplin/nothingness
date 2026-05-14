@@ -24,7 +24,6 @@ class AudioPlayerProvider extends ChangeNotifier {
   final bool? _isAndroidOverride;
 
   bool _captureEnabled = true;
-  SpectrumSettings _settings = const SpectrumSettings();
   StreamSubscription<List<MediaItem>>? _androidQueueSub;
   StreamSubscription<MediaItem?>? _androidMediaItemSub;
   StreamSubscription<PlaybackState>? _androidPlaybackStateSub;
@@ -35,6 +34,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   List<AudioTrack> _queue = [];
   int? _currentIndex;
   bool _shuffle = false;
+  bool _isOneShot = false;
   List<double> _spectrumData = List.filled(32, 0.0);
 
   // Stream subscriptions
@@ -42,12 +42,15 @@ class AudioPlayerProvider extends ChangeNotifier {
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
 
+  VoidCallback? _oneShotListener;
+
   // Getters
   SongInfo? get songInfo => _songInfo;
   bool get isPlaying => _isPlaying;
   List<AudioTrack> get queue => _queue;
   int? get currentIndex => _currentIndex;
   bool get shuffle => _shuffle;
+  bool get isOneShot => _isOneShot;
   List<double> get spectrumData => _spectrumData;
   Stream<List<double>> get spectrumStream =>
       _transport?.spectrumStream ?? _spectrumController.stream;
@@ -119,11 +122,20 @@ class AudioPlayerProvider extends ChangeNotifier {
       controller.currentIndexNotifier.addListener(_onCurrentIndexChanged);
       controller.shuffleNotifier.addListener(_onShuffleChanged);
 
+      // Mirror the controller's one-shot flag so the UI marker stays in sync
+      // when the controller naturally clears the flag (natural end / abort).
+      _oneShotListener = () {
+        _isOneShot = controller.isOneShotNotifier.value;
+        notifyListeners();
+      };
+      controller.isOneShotNotifier.addListener(_oneShotListener!);
+
       _songInfo = controller.songInfoNotifier.value;
       _isPlaying = controller.isPlayingNotifier.value;
       _queue = controller.queueNotifier.value;
       _currentIndex = controller.currentIndexNotifier.value;
       _shuffle = controller.shuffleNotifier.value;
+      _isOneShot = controller.isOneShotNotifier.value;
 
       _spectrumSubscription = transport.spectrumStream.listen((data) {
         _spectrumData = data;
@@ -145,6 +157,10 @@ class AudioPlayerProvider extends ChangeNotifier {
         controller.queueNotifier.removeListener(_onQueueChanged);
         controller.currentIndexNotifier.removeListener(_onCurrentIndexChanged);
         controller.shuffleNotifier.removeListener(_onShuffleChanged);
+        final oneShotListener = _oneShotListener;
+        if (oneShotListener != null) {
+          controller.isOneShotNotifier.removeListener(oneShotListener);
+        }
       }
     }
 
@@ -252,6 +268,30 @@ class AudioPlayerProvider extends ChangeNotifier {
       ? _androidHandler!.customAction('playFromQueueIndex', orderIndex)
       : _controller!.playFromQueueIndex(orderIndex);
 
+  /// Play [track] as a one-shot — preserves the current queue and resumes at
+  /// `queueIndex + 1` on natural end (unless [repeatOne] is true, in which
+  /// case the one-shot loops in place).
+  ///
+  /// Pass-through to [PlaybackController.playOneShot]. The UI marker
+  /// [isOneShot] flips immediately and clears via the controller's
+  /// [PlaybackController.isOneShotNotifier] when the one-shot ends.
+  Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
+    if (_isAndroid) {
+      // One-shot on Android is not wired through the AudioHandler yet; this
+      // path is reserved for the P3 background-mode integration. Until then,
+      // fall back to a plain queue replacement so the UI still works in tests.
+      // The Android handler has no `isOneShotNotifier` to mirror, so leave
+      // `_isOneShot` false to avoid a stuck marker.
+      await setQueue(<AudioTrack>[track], startIndex: 0);
+      return;
+    }
+    // Optimistic flip — the controller will also set its notifier, and our
+    // listener mirrors it back. This makes the UI marker reflect immediately.
+    _isOneShot = true;
+    notifyListeners();
+    await _controller!.playOneShot(track, repeatOne: repeatOne);
+  }
+
   Future<void> shuffleQueue() => _isAndroid
       ? _androidHandler!.customAction('shuffleQueue')
       : _controller!.shuffleQueue();
@@ -302,7 +342,6 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   void updateSpectrumSettings(SpectrumSettings settings) {
-    _settings = settings;
     if (_isAndroid) {
       _androidHandler?.updateSpectrumSettings(settings);
       _platformChannels.updateSpectrumSettings(settings);
@@ -384,7 +423,6 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   void _maybeStartAndroidSpectrum() {
     if (!_captureEnabled) return;
-    if (_settings.audioSource != AudioSourceMode.player) return;
 
     _spectrumSubscription?.cancel();
     _spectrumSubscription = _androidHandler!.spectrumStream.listen((data) {
