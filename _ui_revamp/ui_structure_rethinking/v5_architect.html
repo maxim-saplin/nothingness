@@ -1,0 +1,1881 @@
+<!--
+  Persona: The Information Architect
+  Core belief: A user who cannot name the screen they are on is a user who is lost — every page must be labelled, located on a map, and reachable through one persistent index.
+  Key structural moves:
+    1. Five named, top-level PAGES (NOW PLAYING / LIBRARY / SEARCH / QUEUE / SETTINGS) reached through a single persistent labelled tab bar — no modes, no hidden sheets, no gestures-as-navigation.
+    2. Every page has the same three-row chrome: page label header, status/breadcrumb sub-row, sectioned body. Position in the hierarchy is always shown, never inferred.
+    3. The Library uses small-caps section headers (FOLDERS / FILES) inside each folder view, and the Queue is promoted to a first-class page so "what plays next" is a destination, not a state.
+  Trade-offs accepted: Heavy persistent chrome (header + sub-header + footer tab bar) eats vertical pixels and feels formal rather than immersive — the Void main view here is a labelled NOW PLAYING page with status rails, not the edge-to-edge meditative canvas the original Void mock favours. Speed-to-content is sacrificed for legibility-of-place.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP — Architect Edition</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  font-size:13px;
+}
+
+button{font-family:inherit;background:none;border:none;color:inherit;cursor:pointer}
+input{font-family:inherit}
+
+/* ===================== APP SHELL ===================== */
+#app{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+}
+
+/* ----- top header (page label + global status) ----- */
+.page-header{
+  flex-shrink:0;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  background:#000;
+  display:flex;flex-direction:column;
+}
+
+.header-row-1{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px 6px;
+  min-height:36px;
+}
+.app-mark{
+  font-size:9px;
+  letter-spacing:4px;
+  color:rgba(255,255,255,0.25);
+  text-transform:uppercase;
+}
+.app-clock{
+  font-size:10px;
+  letter-spacing:2px;
+  color:rgba(255,255,255,0.25);
+}
+
+.header-row-2{
+  display:flex;align-items:baseline;justify-content:space-between;
+  padding:0 16px 10px;
+  gap:12px;
+}
+.page-title{
+  font-size:18px;
+  font-weight:300;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:#FFF;
+}
+.page-subtitle{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  text-align:right;
+  max-width:60%;
+}
+
+/* ----- sub-header: breadcrumbs / status rail ----- */
+.sub-header{
+  flex-shrink:0;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  padding:8px 16px;
+  display:flex;align-items:center;
+  gap:6px;
+  font-size:11px;
+  color:rgba(255,255,255,0.4);
+  min-height:32px;
+  flex-wrap:wrap;
+}
+.crumb-label{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.25);
+  margin-right:4px;
+}
+.breadcrumb{
+  cursor:pointer;
+  padding:2px 4px;
+  border-radius:2px;
+  transition:color 0.15s;
+  color:rgba(255,255,255,0.4);
+}
+.breadcrumb:hover{color:#FFF}
+.breadcrumb.current{color:rgba(255,255,255,0.85);cursor:default}
+.breadcrumb-sep{opacity:0.3;padding:0 1px}
+
+/* ----- body / page content area ----- */
+.page-body{
+  flex:1;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+
+.page{
+  flex:1;
+  display:none;
+  flex-direction:column;
+  overflow:hidden;
+}
+.page.active{display:flex}
+
+/* ----- footer: persistent labelled nav ----- */
+.global-nav{
+  flex-shrink:0;
+  display:flex;
+  border-top:1px solid rgba(255,255,255,0.1);
+  background:#000;
+}
+.nav-tab{
+  flex:1;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:8px 4px 10px;
+  gap:3px;
+  min-height:60px;
+  color:rgba(255,255,255,0.35);
+  transition:color 0.15s, background 0.15s;
+  position:relative;
+  border-right:1px solid rgba(255,255,255,0.04);
+}
+.nav-tab:last-child{border-right:none}
+.nav-tab:hover{color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.02)}
+.nav-tab.active{color:#FFF}
+.nav-tab.active::before{
+  content:'';
+  position:absolute;top:0;left:10%;right:10%;
+  height:1px;background:#FFF;
+}
+.nav-glyph{
+  font-size:13px;
+  font-weight:300;
+  letter-spacing:0.05em;
+  opacity:0.7;
+}
+.nav-tab.active .nav-glyph{opacity:1}
+.nav-label{
+  font-size:8px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  font-weight:400;
+}
+.nav-badge{
+  position:absolute;
+  top:6px;right:18%;
+  min-width:14px;height:14px;
+  padding:0 4px;
+  border:1px solid rgba(255,255,255,0.4);
+  border-radius:7px;
+  font-size:8px;
+  line-height:12px;
+  text-align:center;
+  color:rgba(255,255,255,0.7);
+  display:none;
+}
+.nav-badge.visible{display:block}
+
+/* ===================== SECTION LABEL (used everywhere) ===================== */
+.section-label{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  padding:14px 16px 6px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.section-label .count{
+  color:rgba(255,255,255,0.25);
+  letter-spacing:2px;
+}
+
+/* ===================== NOW PLAYING PAGE ===================== */
+#page-now{
+  position:relative;
+}
+
+.now-canvas{
+  flex:1;
+  display:flex;flex-direction:column;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+
+.now-track-section{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:48px 24px 24px;
+  text-align:center;
+}
+.now-track-label{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.25);
+  margin-bottom:18px;
+}
+.now-track-name{
+  font-size:clamp(20px, 5vw, 30px);
+  font-weight:300;
+  letter-spacing:0.05em;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+}
+.now-track-name.playing{animation:pulse 4s ease-in-out infinite}
+.now-track-name .cursor-blink{
+  display:inline-block;
+  font-weight:100;
+  margin-left:2px;
+  animation:blink 1s step-end infinite;
+  opacity:0.8;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
+@keyframes blink{0%,100%{opacity:0.8}50%{opacity:0}}
+
+.now-track-folder{
+  font-size:10px;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  margin-top:14px;
+}
+
+.now-time-row{
+  display:flex;justify-content:space-between;
+  padding:10px 16px 4px;
+  font-size:11px;
+  letter-spacing:0.1em;
+  color:rgba(255,255,255,0.4);
+}
+
+.now-progress-rail{
+  position:relative;
+  height:1px;
+  margin:0 16px;
+  background:rgba(255,255,255,0.1);
+  cursor:pointer;
+}
+.now-progress-fill{
+  position:absolute;top:0;left:0;
+  height:100%;
+  width:0%;
+  background:#FFF;
+}
+.now-progress-hit{
+  position:absolute;
+  top:-10px;left:0;right:0;
+  height:22px;
+  cursor:pointer;
+}
+
+.now-controls{
+  display:flex;justify-content:center;align-items:center;
+  gap:24px;
+  padding:24px 16px 12px;
+}
+.ctrl-btn{
+  width:48px;height:48px;
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:24px;
+  color:rgba(255,255,255,0.7);
+  font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;
+}
+.ctrl-btn:hover{
+  border-color:rgba(255,255,255,0.5);
+  color:#FFF;
+}
+.ctrl-btn.primary{
+  width:60px;height:60px;
+  border-radius:30px;
+  border-color:rgba(255,255,255,0.4);
+  color:#FFF;
+  font-size:18px;
+}
+.ctrl-btn.primary:hover{
+  border-color:#FFF;
+  background:rgba(255,255,255,0.04);
+}
+
+.now-meta-grid{
+  margin:16px;
+  border:1px solid rgba(255,255,255,0.06);
+}
+.meta-row{
+  display:flex;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  padding:8px 12px;
+  align-items:center;
+  min-height:34px;
+}
+.meta-row:last-child{border-bottom:none}
+.meta-key{
+  flex:0 0 38%;
+  font-size:9px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+}
+.meta-val{
+  flex:1;
+  font-size:12px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.meta-val.dim{color:rgba(255,255,255,0.4)}
+
+/* ===================== LIBRARY PAGE ===================== */
+.library-toolbar{
+  display:flex;
+  gap:8px;
+  padding:10px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.btn-architect{
+  flex:1;
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.7);
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  padding:8px 10px;
+  border-radius:2px;
+  min-height:36px;
+  transition:all 0.15s;
+}
+.btn-architect:hover{
+  border-color:rgba(255,255,255,0.5);
+  color:#FFF;
+}
+
+.list-region{
+  flex:1;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.list-region::-webkit-scrollbar{width:4px}
+.list-region::-webkit-scrollbar-track{background:transparent}
+.list-region::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.file-row{
+  display:flex;align-items:center;
+  padding:10px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  cursor:pointer;
+  min-height:48px;
+  gap:12px;
+  transition:background 0.12s;
+}
+.file-row:hover{background:rgba(255,255,255,0.04)}
+.row-index{
+  flex:0 0 28px;
+  font-size:10px;
+  color:rgba(255,255,255,0.25);
+  letter-spacing:1px;
+  text-align:right;
+}
+.row-icon{
+  flex:0 0 18px;
+  font-size:13px;
+  color:rgba(255,255,255,0.4);
+  text-align:center;
+}
+.row-info{flex:1;min-width:0}
+.row-name{
+  font-size:13px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.row-meta{
+  font-size:10px;
+  color:rgba(255,255,255,0.3);
+  margin-top:2px;
+  letter-spacing:0.5px;
+}
+.row-trail{
+  flex:0 0 auto;
+  font-size:10px;
+  color:rgba(255,255,255,0.3);
+  letter-spacing:0.5px;
+}
+.file-row.playing-now .row-name{color:#FFF}
+.file-row.playing-now .row-icon{color:#FFF}
+.file-row.in-queue .row-trail{color:rgba(255,255,255,0.6)}
+
+.empty-state{
+  text-align:center;
+  padding:48px 16px;
+  color:rgba(255,255,255,0.25);
+  font-size:12px;
+  letter-spacing:1px;
+}
+
+/* ===================== SEARCH PAGE ===================== */
+.search-region{
+  flex:1;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.search-input-wrap{
+  padding:14px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.search-input-label{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  margin-bottom:6px;
+  display:block;
+}
+.search-input{
+  width:100%;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:2px;
+  padding:10px 12px;
+  color:#FFF;
+  font-size:13px;
+  outline:none;
+  min-height:42px;
+}
+.search-input:focus{
+  border-color:rgba(255,255,255,0.4);
+  background:rgba(255,255,255,0.06);
+}
+.search-input::placeholder{color:rgba(255,255,255,0.25)}
+
+.search-scope{
+  display:flex;
+  gap:8px;
+  margin-top:8px;
+}
+.scope-chip{
+  flex:1;
+  padding:6px 8px;
+  font-size:9px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  border:1px solid rgba(255,255,255,0.1);
+  color:rgba(255,255,255,0.4);
+  text-align:center;
+  border-radius:2px;
+  cursor:pointer;
+  transition:all 0.15s;
+  min-height:30px;
+  display:flex;align-items:center;justify-content:center;
+}
+.scope-chip.active{
+  border-color:rgba(255,255,255,0.6);
+  color:#FFF;
+}
+
+.search-summary{
+  padding:8px 16px;
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+
+/* ===================== QUEUE PAGE ===================== */
+.queue-summary-bar{
+  display:flex;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.queue-summary-cell{
+  flex:1;
+  padding:10px 12px;
+  border-right:1px solid rgba(255,255,255,0.06);
+}
+.queue-summary-cell:last-child{border-right:none}
+.qsc-label{
+  font-size:8px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.35);
+  margin-bottom:3px;
+}
+.qsc-val{
+  font-size:13px;
+  color:rgba(255,255,255,0.85);
+  letter-spacing:0.5px;
+}
+
+.queue-actions{
+  display:flex;
+  gap:8px;
+  padding:10px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+
+.queue-row{
+  display:flex;align-items:center;
+  padding:10px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  gap:10px;
+  min-height:48px;
+  cursor:pointer;
+}
+.queue-row:hover{background:rgba(255,255,255,0.04)}
+.queue-pos{
+  flex:0 0 28px;
+  font-size:10px;
+  letter-spacing:1px;
+  color:rgba(255,255,255,0.3);
+  text-align:right;
+}
+.queue-row.current .queue-pos,
+.queue-row.current .row-name{color:#FFF}
+.queue-row.current{background:rgba(255,255,255,0.03)}
+.queue-row.past .row-name{color:rgba(255,255,255,0.35)}
+.queue-row.past .queue-pos{color:rgba(255,255,255,0.2)}
+
+.queue-remove{
+  flex:0 0 auto;
+  width:28px;height:28px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+  color:rgba(255,255,255,0.25);
+  border-radius:2px;
+  transition:color 0.15s, background 0.15s;
+}
+.queue-remove:hover{
+  color:#FFF;
+  background:rgba(255,255,255,0.06);
+}
+
+/* ===================== SETTINGS PAGE ===================== */
+.settings-scroll{
+  flex:1;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.settings-scroll::-webkit-scrollbar{width:4px}
+.settings-scroll::-webkit-scrollbar-track{background:transparent}
+.settings-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.setting-section{
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.setting-section-head{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  padding:14px 16px 6px;
+}
+.setting-section-help{
+  font-size:10px;
+  color:rgba(255,255,255,0.25);
+  padding:0 16px 8px;
+  letter-spacing:0.5px;
+  line-height:1.4;
+}
+
+.setting-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 16px;
+  cursor:pointer;
+  min-height:44px;
+  border-top:1px solid rgba(255,255,255,0.04);
+}
+.setting-row:first-of-type{border-top:none}
+.setting-row:hover{background:rgba(255,255,255,0.04)}
+.setting-label{
+  font-size:13px;
+  color:rgba(255,255,255,0.85);
+  flex:1;
+}
+.setting-sub{
+  font-size:9px;
+  color:rgba(255,255,255,0.3);
+  margin-top:2px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+.setting-value{
+  font-size:12px;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+.setting-value.active-val{color:#FFF}
+
+.toggle-pill{
+  width:42px;height:22px;
+  border:1px solid rgba(255,255,255,0.25);
+  border-radius:11px;
+  position:relative;
+  transition:border-color 0.2s, background 0.2s;
+  flex-shrink:0;
+}
+.toggle-pill::after{
+  content:'';
+  position:absolute;
+  top:2px;left:2px;
+  width:16px;height:16px;
+  border-radius:8px;
+  background:rgba(255,255,255,0.5);
+  transition:transform 0.2s, background 0.2s;
+}
+.toggle-pill.on{
+  border-color:#FFF;
+  background:rgba(255,255,255,0.08);
+}
+.toggle-pill.on::after{
+  transform:translateX(20px);
+  background:#FFF;
+}
+
+.settings-footer{
+  text-align:center;
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.2);
+  padding:24px 16px;
+}
+
+/* ===================== TABLET LAYOUT ===================== */
+body.tablet .header-row-2{padding-bottom:14px}
+body.tablet .page-title{font-size:22px;letter-spacing:0.22em}
+
+body.tablet #app{
+  display:grid;
+  grid-template-columns:220px 1fr;
+  grid-template-rows:auto 1fr;
+}
+body.tablet .page-header{
+  grid-column:1 / -1;
+  grid-row:1;
+}
+body.tablet .page-body{
+  grid-column:2;
+  grid-row:2;
+}
+body.tablet .global-nav{
+  grid-column:1;
+  grid-row:2;
+  flex-direction:column;
+  border-top:none;
+  border-right:1px solid rgba(255,255,255,0.1);
+}
+body.tablet .nav-tab{
+  flex:0 0 auto;
+  flex-direction:row;
+  justify-content:flex-start;
+  gap:14px;
+  padding:14px 18px;
+  border-right:none;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+}
+body.tablet .nav-tab.active::before{
+  top:10%;bottom:10%;left:0;
+  height:auto;width:1px;
+}
+body.tablet .nav-glyph{font-size:14px}
+body.tablet .nav-label{font-size:10px;letter-spacing:3px}
+body.tablet .nav-badge{
+  position:static;
+  margin-left:auto;
+}
+body.tablet .now-meta-grid{margin:24px}
+body.tablet .now-track-section{padding-top:64px}
+
+body.mobile .now-track-name{font-size:clamp(18px, 6vw, 26px)}
+
+/* ===================== TRANSPORT MINI-RAIL (only on non-Now-Playing pages) ===================== */
+.transport-rail{
+  display:none;
+  flex-shrink:0;
+  border-top:1px solid rgba(255,255,255,0.06);
+  padding:8px 16px;
+  align-items:center;
+  gap:10px;
+  background:#000;
+  min-height:48px;
+}
+.transport-rail.visible{display:flex}
+.transport-rail .tr-info{
+  flex:1;
+  min-width:0;
+  cursor:pointer;
+}
+.transport-rail .tr-label{
+  font-size:8px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+}
+.transport-rail .tr-name{
+  font-size:11px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  margin-top:1px;
+}
+.transport-rail .tr-btn{
+  width:32px;height:32px;
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:16px;
+  color:rgba(255,255,255,0.7);
+  font-size:11px;
+  display:flex;align-items:center;justify-content:center;
+}
+.transport-rail .tr-btn:hover{
+  border-color:rgba(255,255,255,0.5);
+  color:#FFF;
+}
+.transport-mini-progress{
+  position:absolute;
+  left:0;right:0;
+  height:1px;
+  background:rgba(255,255,255,0.1);
+  margin-top:-9px;
+}
+.transport-mini-progress .tmp-fill{
+  height:100%;
+  background:#FFF;
+  width:0%;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== PAGE HEADER ===================== -->
+  <header class="page-header">
+    <div class="header-row-1">
+      <span class="app-mark">FILEAMP // ARCHITECT</span>
+      <span class="app-clock" id="appClock">--:--</span>
+    </div>
+    <div class="header-row-2">
+      <h1 class="page-title" id="pageTitle">NOW PLAYING</h1>
+      <span class="page-subtitle" id="pageSubtitle">no track loaded</span>
+    </div>
+  </header>
+
+  <!-- ===================== SUB HEADER (breadcrumb / status rail) ===================== -->
+  <div class="sub-header" id="subHeader">
+    <span class="crumb-label">Path</span>
+    <span class="breadcrumb current">—</span>
+  </div>
+
+  <!-- ===================== PAGE BODY ===================== -->
+  <main class="page-body">
+
+    <!-- ============ NOW PLAYING PAGE ============ -->
+    <section class="page active" id="page-now" data-page="now">
+      <div class="now-canvas">
+
+        <div class="now-track-section">
+          <div class="now-track-label">Track</div>
+          <div class="now-track-name" id="trackName">VOID<span class="cursor-blink">|</span></div>
+          <div class="now-track-folder" id="trackFolder">tap play to begin</div>
+        </div>
+
+        <div class="now-time-row">
+          <span id="timeElapsed">00:00</span>
+          <span id="timeRemaining">-00:00</span>
+        </div>
+        <div class="now-progress-rail" id="progressRail">
+          <div class="now-progress-fill" id="progressFill"></div>
+          <div class="now-progress-hit" id="progressHit"></div>
+        </div>
+
+        <div class="now-controls">
+          <button class="ctrl-btn" id="ctrlPrev" title="Previous">|&laquo;</button>
+          <button class="ctrl-btn primary" id="ctrlPlay" title="Play / Pause">&#9654;</button>
+          <button class="ctrl-btn" id="ctrlNext" title="Next">&raquo;|</button>
+        </div>
+
+        <div class="section-label">
+          <span>Track Detail</span>
+          <span class="count" id="nowQueueCount">queue: 0</span>
+        </div>
+        <div class="now-meta-grid">
+          <div class="meta-row">
+            <div class="meta-key">File Name</div>
+            <div class="meta-val dim" id="metaFileName">—</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-key">Folder</div>
+            <div class="meta-val dim" id="metaFolder">—</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-key">Duration</div>
+            <div class="meta-val dim" id="metaDuration">—</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-key">Size</div>
+            <div class="meta-val dim" id="metaSize">—</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-key">Position</div>
+            <div class="meta-val dim" id="metaPosition">—</div>
+          </div>
+          <div class="meta-row">
+            <div class="meta-key">State</div>
+            <div class="meta-val dim" id="metaState">IDLE</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LIBRARY PAGE ============ -->
+    <section class="page" id="page-library" data-page="library">
+      <div class="library-toolbar">
+        <button class="btn-architect" id="btnUp">Up</button>
+        <button class="btn-architect" id="btnPlayFolder">Play Folder</button>
+        <button class="btn-architect" id="btnQueueFolder">Queue Folder</button>
+        <button class="btn-architect" id="btnShuffleFolder">Shuffle</button>
+      </div>
+      <div class="list-region" id="libraryList"></div>
+    </section>
+
+    <!-- ============ SEARCH PAGE ============ -->
+    <section class="page" id="page-search" data-page="search">
+      <div class="search-region">
+        <div class="search-input-wrap">
+          <label class="search-input-label" for="searchInput">Query</label>
+          <input type="text" class="search-input" id="searchInput" placeholder="type to filter files...">
+          <div class="search-scope">
+            <div class="scope-chip active" data-scope="all">All Files</div>
+            <div class="scope-chip" data-scope="folder">Current Folder</div>
+          </div>
+        </div>
+        <div class="search-summary" id="searchSummary">enter a query above</div>
+        <div class="list-region" id="searchList">
+          <div class="empty-state">no query entered</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ QUEUE PAGE ============ -->
+    <section class="page" id="page-queue" data-page="queue">
+      <div class="queue-summary-bar">
+        <div class="queue-summary-cell">
+          <div class="qsc-label">Position</div>
+          <div class="qsc-val" id="qsumPos">— / —</div>
+        </div>
+        <div class="queue-summary-cell">
+          <div class="qsc-label">Total Length</div>
+          <div class="qsc-val" id="qsumLen">00:00</div>
+        </div>
+        <div class="queue-summary-cell">
+          <div class="qsc-label">Remaining</div>
+          <div class="qsc-val" id="qsumRem">00:00</div>
+        </div>
+      </div>
+      <div class="queue-actions">
+        <button class="btn-architect" id="btnQueueShuffle">Shuffle</button>
+        <button class="btn-architect" id="btnQueueClear">Clear</button>
+        <button class="btn-architect" id="btnQueueSkipToTop">Skip To Top</button>
+      </div>
+      <div class="section-label">
+        <span>Up Next</span>
+        <span class="count" id="queueCount">0 entries</span>
+      </div>
+      <div class="list-region" id="queueList">
+        <div class="empty-state">the queue is empty</div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS PAGE ============ -->
+    <section class="page" id="page-settings" data-page="settings">
+      <div class="settings-scroll">
+
+        <div class="setting-section">
+          <div class="setting-section-head">Theme</div>
+          <div class="setting-section-help">Visual language for shared chrome.</div>
+          <div class="setting-row" data-setting="theme" data-options="Void,Paper,Phosphor,Synthwave">
+            <div>
+              <div class="setting-label">Active Theme</div>
+              <div class="setting-sub">applies to shared widgets</div>
+            </div>
+            <span class="setting-value active-val">Void</span>
+          </div>
+          <div class="setting-row" data-setting="variant" data-options="Dark,Light,Follow System">
+            <div>
+              <div class="setting-label">Variant</div>
+              <div class="setting-sub">dark / light / system</div>
+            </div>
+            <span class="setting-value active-val">Dark</span>
+          </div>
+          <div class="setting-row" data-setting="home" data-options="Void,Spectrum,Polo,Dot">
+            <div>
+              <div class="setting-label">Home Screen</div>
+              <div class="setting-sub">main view when idle</div>
+            </div>
+            <span class="setting-value active-val">Void</span>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <div class="setting-section-head">Playback</div>
+          <div class="setting-row" data-toggle="shuffle">
+            <div>
+              <div class="setting-label">Shuffle</div>
+              <div class="setting-sub">randomise queue order</div>
+            </div>
+            <div class="toggle-pill"></div>
+          </div>
+          <div class="setting-row" data-setting="repeat" data-options="Off,All,One">
+            <div>
+              <div class="setting-label">Repeat</div>
+              <div class="setting-sub">off / all / one</div>
+            </div>
+            <span class="setting-value">Off</span>
+          </div>
+          <div class="setting-row" data-toggle="gapless" data-default-on="true">
+            <div>
+              <div class="setting-label">Gapless Playback</div>
+              <div class="setting-sub">no silence between tracks</div>
+            </div>
+            <div class="toggle-pill on"></div>
+          </div>
+          <div class="setting-row" data-setting="crossfade" data-options="0s,2s,4s,6s,8s">
+            <div>
+              <div class="setting-label">Crossfade</div>
+              <div class="setting-sub">seconds</div>
+            </div>
+            <span class="setting-value">0s</span>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <div class="setting-section-head">Audio</div>
+          <div class="setting-row" data-setting="output" data-options="System Default,Headphones,External DAC">
+            <div>
+              <div class="setting-label">Output Device</div>
+              <div class="setting-sub">audio sink</div>
+            </div>
+            <span class="setting-value">System Default</span>
+          </div>
+          <div class="setting-row" data-toggle="eq">
+            <div>
+              <div class="setting-label">Equalizer</div>
+              <div class="setting-sub">10-band parametric</div>
+            </div>
+            <div class="toggle-pill"></div>
+          </div>
+          <div class="setting-row" data-setting="replaygain" data-options="Off,Track,Album">
+            <div>
+              <div class="setting-label">ReplayGain</div>
+              <div class="setting-sub">volume normalisation</div>
+            </div>
+            <span class="setting-value active-val">Album</span>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <div class="setting-section-head">Library</div>
+          <div class="setting-row" data-toggle="scan" data-default-on="true">
+            <div>
+              <div class="setting-label">Scan On Startup</div>
+              <div class="setting-sub">refresh library when app opens</div>
+            </div>
+            <div class="toggle-pill on"></div>
+          </div>
+          <div class="setting-row" style="cursor:default">
+            <div>
+              <div class="setting-label">Media Folder</div>
+              <div class="setting-sub">scan root</div>
+            </div>
+            <span class="setting-value">/Media/MP3 Collection</span>
+          </div>
+        </div>
+
+        <div class="setting-section">
+          <div class="setting-section-head">About</div>
+          <div class="setting-row" style="cursor:default">
+            <div>
+              <div class="setting-label">Version</div>
+              <div class="setting-sub">build identifier</div>
+            </div>
+            <span class="setting-value">1.0 / Architect</span>
+          </div>
+        </div>
+
+        <div class="settings-footer">
+          FILEAMP &middot; ARCHITECT EDITION
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TRANSPORT MINI-RAIL (persistent when not on NOW) ============ -->
+    <div class="transport-rail" id="transportRail">
+      <div class="transport-mini-progress"><div class="tmp-fill" id="trMiniFill"></div></div>
+      <div class="tr-info" id="trInfo">
+        <div class="tr-label">Now Playing</div>
+        <div class="tr-name" id="trName">VOID</div>
+      </div>
+      <button class="tr-btn" id="trPrev">|&laquo;</button>
+      <button class="tr-btn" id="trPlay">&#9654;</button>
+      <button class="tr-btn" id="trNext">&raquo;|</button>
+    </div>
+
+  </main>
+
+  <!-- ===================== GLOBAL NAV ===================== -->
+  <nav class="global-nav" role="navigation" aria-label="Primary">
+    <button class="nav-tab active" data-target="now">
+      <span class="nav-glyph">&#9654;</span>
+      <span class="nav-label">Now Playing</span>
+    </button>
+    <button class="nav-tab" data-target="library">
+      <span class="nav-glyph">&#9776;</span>
+      <span class="nav-label">Library</span>
+    </button>
+    <button class="nav-tab" data-target="search">
+      <span class="nav-glyph">&#8981;</span>
+      <span class="nav-label">Search</span>
+    </button>
+    <button class="nav-tab" data-target="queue">
+      <span class="nav-glyph">&#8801;</span>
+      <span class="nav-label">Queue</span>
+      <span class="nav-badge" id="navQueueBadge">0</span>
+    </button>
+    <button class="nav-tab" data-target="settings">
+      <span class="nav-glyph">&#9881;</span>
+      <span class="nav-label">Settings</span>
+    </button>
+  </nav>
+
+</div>
+
+<script>
+'use strict';
+
+// ===================== FILE TREE =====================
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// ===================== HELPERS =====================
+function parseDuration(s){ const p=s.split(':').map(Number); return p[0]*60+p[1]; }
+function formatTime(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function formatTimeLong(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return h + 'h ' + String(m).padStart(2,'0') + 'm';
+  return m + 'm ' + String(s).padStart(2,'0') + 's';
+}
+function esc(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+function getPathToFolder(target){
+  const path = [];
+  function find(node){
+    path.push(node);
+    if (node === target) return true;
+    if (node.children) for (const c of node.children) if (find(c)) return true;
+    path.pop();
+    return false;
+  }
+  find(FILE_TREE);
+  return path;
+}
+function collectFilesIn(folder){
+  const out = [];
+  const pathRoot = getPathToFolder(folder).map(f => f.name);
+  function walk(node, p){
+    if (node.type === 'file') {
+      out.push({ name: node.name, duration: node.duration, size: node.size, path: p });
+      return;
+    }
+    if (node.children) for (const c of node.children) walk(c, [...p, c.name]);
+  }
+  if (folder.children) for (const c of folder.children) walk(c, [...pathRoot, c.name]);
+  return out;
+}
+
+// ===================== STATE =====================
+const state = {
+  page: 'now',
+  isPlaying: false,
+  elapsed: 0,
+  duration: 0,
+  currentTrack: null,
+  currentFolder: FILE_TREE,
+  queue: [],
+  queueIndex: -1,
+  searchQuery: '',
+  searchScope: 'all',
+};
+
+const allFiles = collectFilesIn(FILE_TREE);
+
+// ===================== DOM REFS =====================
+const $ = id => document.getElementById(id);
+const refs = {
+  pageTitle: $('pageTitle'),
+  pageSubtitle: $('pageSubtitle'),
+  subHeader: $('subHeader'),
+  appClock: $('appClock'),
+  trackName: $('trackName'),
+  trackFolder: $('trackFolder'),
+  timeElapsed: $('timeElapsed'),
+  timeRemaining: $('timeRemaining'),
+  progressFill: $('progressFill'),
+  progressRail: $('progressRail'),
+  progressHit: $('progressHit'),
+  ctrlPlay: $('ctrlPlay'),
+  ctrlPrev: $('ctrlPrev'),
+  ctrlNext: $('ctrlNext'),
+  metaFileName: $('metaFileName'),
+  metaFolder: $('metaFolder'),
+  metaDuration: $('metaDuration'),
+  metaSize: $('metaSize'),
+  metaPosition: $('metaPosition'),
+  metaState: $('metaState'),
+  nowQueueCount: $('nowQueueCount'),
+  libraryList: $('libraryList'),
+  btnUp: $('btnUp'),
+  btnPlayFolder: $('btnPlayFolder'),
+  btnQueueFolder: $('btnQueueFolder'),
+  btnShuffleFolder: $('btnShuffleFolder'),
+  searchInput: $('searchInput'),
+  searchList: $('searchList'),
+  searchSummary: $('searchSummary'),
+  qsumPos: $('qsumPos'),
+  qsumLen: $('qsumLen'),
+  qsumRem: $('qsumRem'),
+  queueCount: $('queueCount'),
+  queueList: $('queueList'),
+  btnQueueShuffle: $('btnQueueShuffle'),
+  btnQueueClear: $('btnQueueClear'),
+  btnQueueSkipToTop: $('btnQueueSkipToTop'),
+  transportRail: $('transportRail'),
+  trInfo: $('trInfo'),
+  trName: $('trName'),
+  trPlay: $('trPlay'),
+  trPrev: $('trPrev'),
+  trNext: $('trNext'),
+  trMiniFill: $('trMiniFill'),
+  navQueueBadge: $('navQueueBadge'),
+};
+
+// ===================== PAGE NAVIGATION =====================
+const PAGE_META = {
+  now: {
+    title: 'NOW PLAYING',
+    crumbLabel: 'Status',
+    crumb: () => {
+      if (!state.currentTrack) return [{ name:'idle', current:true }];
+      return [{ name: state.isPlaying ? 'playing' : 'paused', current:true }];
+    },
+  },
+  library: {
+    title: 'LIBRARY',
+    crumbLabel: 'Path',
+    crumb: () => getPathToFolder(state.currentFolder).map((f,i,a)=>({ name:f.name, folder:f, current:(i===a.length-1) })),
+  },
+  search: {
+    title: 'SEARCH',
+    crumbLabel: 'Scope',
+    crumb: () => [
+      { name: state.searchScope === 'all' ? 'All Files' : 'Current Folder', current:true }
+    ],
+  },
+  queue: {
+    title: 'QUEUE',
+    crumbLabel: 'Position',
+    crumb: () => {
+      if (state.queue.length === 0) return [{ name:'empty', current:true }];
+      return [{ name:(state.queueIndex+1)+' of '+state.queue.length, current:true }];
+    },
+  },
+  settings: {
+    title: 'SETTINGS',
+    crumbLabel: 'Section',
+    crumb: () => [{ name:'all', current:true }],
+  },
+};
+
+function navigateTo(pageId){
+  state.page = pageId;
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.dataset.page === pageId));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.target === pageId));
+  renderHeader();
+  renderTransportRail();
+  if (pageId === 'library') renderLibrary();
+  if (pageId === 'search') renderSearch();
+  if (pageId === 'queue') renderQueue();
+}
+
+document.querySelectorAll('.nav-tab').forEach(t => {
+  t.addEventListener('click', () => navigateTo(t.dataset.target));
+});
+
+// ===================== HEADER / BREADCRUMBS =====================
+function renderHeader(){
+  const meta = PAGE_META[state.page];
+  refs.pageTitle.textContent = meta.title;
+
+  // Subtitle: dynamic per page
+  if (state.page === 'now') {
+    refs.pageSubtitle.textContent = state.currentTrack
+      ? (state.isPlaying ? 'playing' : 'paused')
+      : 'no track loaded';
+  } else if (state.page === 'library') {
+    const childCount = state.currentFolder.children ? state.currentFolder.children.length : 0;
+    refs.pageSubtitle.textContent = childCount + ' entries';
+  } else if (state.page === 'search') {
+    refs.pageSubtitle.textContent = state.searchQuery ? state.searchQuery : 'awaiting query';
+  } else if (state.page === 'queue') {
+    refs.pageSubtitle.textContent = state.queue.length + ' tracks';
+  } else if (state.page === 'settings') {
+    refs.pageSubtitle.textContent = 'theme · playback · audio · library';
+  }
+
+  // Sub-header breadcrumbs
+  refs.subHeader.innerHTML = '';
+  const labelEl = document.createElement('span');
+  labelEl.className = 'crumb-label';
+  labelEl.textContent = meta.crumbLabel;
+  refs.subHeader.appendChild(labelEl);
+
+  const crumbs = meta.crumb();
+  crumbs.forEach((c, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = '/';
+      refs.subHeader.appendChild(sep);
+    }
+    const bc = document.createElement('span');
+    bc.className = 'breadcrumb' + (c.current ? ' current' : '');
+    bc.textContent = c.name;
+    if (c.folder && !c.current) {
+      bc.addEventListener('click', () => {
+        state.currentFolder = c.folder;
+        renderHeader();
+        renderLibrary();
+      });
+    }
+    refs.subHeader.appendChild(bc);
+  });
+}
+
+// ===================== NOW PLAYING =====================
+function renderNow(){
+  const t = state.currentTrack;
+  if (!t) {
+    refs.trackName.innerHTML = 'VOID<span class="cursor-blink">|</span>';
+    refs.trackName.classList.remove('playing');
+    refs.trackFolder.textContent = 'tap play to begin';
+    refs.timeElapsed.textContent = '00:00';
+    refs.timeRemaining.textContent = '-00:00';
+    refs.progressFill.style.width = '0%';
+    refs.metaFileName.textContent = '—';
+    refs.metaFolder.textContent = '—';
+    refs.metaDuration.textContent = '—';
+    refs.metaSize.textContent = '—';
+    refs.metaPosition.textContent = '—';
+    refs.metaState.textContent = 'IDLE';
+    refs.metaFileName.classList.add('dim');
+    refs.metaFolder.classList.add('dim');
+    refs.metaDuration.classList.add('dim');
+    refs.metaSize.classList.add('dim');
+    refs.ctrlPlay.innerHTML = '&#9654;';
+  } else {
+    refs.trackName.textContent = t.name.replace('.mp3', '');
+    refs.trackName.classList.toggle('playing', state.isPlaying);
+    const folderPath = t.path.slice(0, -1).join(' / ');
+    refs.trackFolder.textContent = folderPath;
+    refs.timeElapsed.textContent = formatTime(state.elapsed);
+    refs.timeRemaining.textContent = '-' + formatTime(state.duration - state.elapsed);
+    const pct = state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0;
+    refs.progressFill.style.width = pct + '%';
+    refs.metaFileName.textContent = t.name;
+    refs.metaFolder.textContent = '/' + t.path.slice(0, -1).join('/');
+    refs.metaDuration.textContent = t.duration;
+    refs.metaSize.textContent = t.size;
+    refs.metaPosition.textContent = (state.queueIndex + 1) + ' / ' + state.queue.length;
+    refs.metaState.textContent = state.isPlaying ? 'PLAYING' : 'PAUSED';
+    refs.metaFileName.classList.remove('dim');
+    refs.metaFolder.classList.remove('dim');
+    refs.metaDuration.classList.remove('dim');
+    refs.metaSize.classList.remove('dim');
+    refs.ctrlPlay.innerHTML = state.isPlaying ? '&#10074;&#10074;' : '&#9654;';
+  }
+  refs.nowQueueCount.textContent = 'queue: ' + state.queue.length;
+}
+
+// ===================== PLAYBACK =====================
+function setTrack(file){
+  state.currentTrack = file;
+  state.duration = parseDuration(file.duration);
+  state.elapsed = 0;
+  state.isPlaying = true;
+  renderNow();
+  renderTransportRail();
+  if (state.page === 'library') renderLibrary();
+  if (state.page === 'queue') renderQueue();
+  renderHeader();
+}
+
+function togglePlay(){
+  if (!state.currentTrack) {
+    if (state.queue.length > 0) {
+      state.queueIndex = 0;
+      setTrack(state.queue[0]);
+    } else {
+      // queue all
+      state.queue = [...allFiles];
+      state.queueIndex = 0;
+      setTrack(state.queue[0]);
+    }
+    return;
+  }
+  state.isPlaying = !state.isPlaying;
+  renderNow();
+  renderTransportRail();
+  renderHeader();
+}
+
+function playNext(){
+  if (state.queue.length === 0) return;
+  state.queueIndex = (state.queueIndex + 1) % state.queue.length;
+  setTrack(state.queue[state.queueIndex]);
+}
+
+function playPrev(){
+  if (state.queue.length === 0) return;
+  if (state.elapsed > 3) { state.elapsed = 0; renderNow(); return; }
+  state.queueIndex = (state.queueIndex - 1 + state.queue.length) % state.queue.length;
+  setTrack(state.queue[state.queueIndex]);
+}
+
+refs.ctrlPlay.addEventListener('click', togglePlay);
+refs.ctrlNext.addEventListener('click', playNext);
+refs.ctrlPrev.addEventListener('click', playPrev);
+
+refs.progressHit.addEventListener('click', e => {
+  if (state.duration === 0) return;
+  const rect = refs.progressRail.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  state.elapsed = Math.max(0, Math.min(state.duration, pct * state.duration));
+  renderNow();
+});
+
+// ===================== LIBRARY =====================
+function renderLibrary(){
+  refs.libraryList.innerHTML = '';
+  const folder = state.currentFolder;
+  if (!folder.children) return;
+
+  const sorted = [...folder.children].sort((a,b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const folders = sorted.filter(c => c.type === 'folder');
+  const files = sorted.filter(c => c.type === 'file');
+
+  if (folders.length > 0) {
+    const sl = document.createElement('div');
+    sl.className = 'section-label';
+    sl.innerHTML = '<span>Folders</span><span class="count">' + folders.length + '</span>';
+    refs.libraryList.appendChild(sl);
+
+    folders.forEach((f, i) => {
+      const count = collectFilesIn(f).length;
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.innerHTML =
+        '<div class="row-index">' + String(i+1).padStart(2,'0') + '</div>' +
+        '<div class="row-icon">&#9656;</div>' +
+        '<div class="row-info"><div class="row-name">' + esc(f.name) + '</div>' +
+        '<div class="row-meta">' + count + ' track' + (count !== 1 ? 's' : '') + '</div></div>' +
+        '<div class="row-trail">FOLDER</div>';
+      row.addEventListener('click', () => {
+        state.currentFolder = f;
+        renderHeader();
+        renderLibrary();
+      });
+      refs.libraryList.appendChild(row);
+    });
+  }
+
+  if (files.length > 0) {
+    const sl = document.createElement('div');
+    sl.className = 'section-label';
+    sl.innerHTML = '<span>Files</span><span class="count">' + files.length + '</span>';
+    refs.libraryList.appendChild(sl);
+
+    const folderPath = getPathToFolder(folder).map(f => f.name);
+    files.forEach((f, i) => {
+      const filePath = [...folderPath, f.name];
+      const isPlaying = state.currentTrack && state.currentTrack.name === f.name &&
+                        state.currentTrack.path.join('/') === filePath.join('/');
+      const inQueue = state.queue.some(q => q.name === f.name && q.path.join('/') === filePath.join('/'));
+      const row = document.createElement('div');
+      row.className = 'file-row' + (isPlaying ? ' playing-now' : '') + (inQueue && !isPlaying ? ' in-queue' : '');
+      row.innerHTML =
+        '<div class="row-index">' + String(i+1).padStart(2,'0') + '</div>' +
+        '<div class="row-icon">' + (isPlaying ? '&#9654;' : '&#9834;') + '</div>' +
+        '<div class="row-info"><div class="row-name">' + esc(f.name.replace('.mp3','')) + '</div>' +
+        '<div class="row-meta">' + f.duration + ' &middot; ' + f.size + '</div></div>' +
+        '<div class="row-trail">' + (isPlaying ? 'PLAYING' : (inQueue ? 'QUEUED' : f.duration)) + '</div>';
+      row.addEventListener('click', () => {
+        const file = { name: f.name, duration: f.duration, size: f.size, path: filePath };
+        // Build queue from folder's files
+        state.queue = files.map(ff => ({ name: ff.name, duration: ff.duration, size: ff.size, path: [...folderPath, ff.name] }));
+        state.queueIndex = state.queue.findIndex(q => q.name === f.name);
+        if (state.queueIndex < 0) state.queueIndex = 0;
+        setTrack(state.queue[state.queueIndex]);
+      });
+      refs.libraryList.appendChild(row);
+    });
+  }
+
+  if (folders.length === 0 && files.length === 0) {
+    const e = document.createElement('div');
+    e.className = 'empty-state';
+    e.textContent = 'empty folder';
+    refs.libraryList.appendChild(e);
+  }
+}
+
+refs.btnUp.addEventListener('click', () => {
+  const p = getPathToFolder(state.currentFolder);
+  if (p.length > 1) {
+    state.currentFolder = p[p.length - 2];
+    renderHeader();
+    renderLibrary();
+  }
+});
+
+refs.btnPlayFolder.addEventListener('click', () => {
+  const files = collectFilesIn(state.currentFolder);
+  if (files.length === 0) return;
+  state.queue = files;
+  state.queueIndex = 0;
+  setTrack(state.queue[0]);
+});
+
+refs.btnQueueFolder.addEventListener('click', () => {
+  const files = collectFilesIn(state.currentFolder);
+  if (files.length === 0) return;
+  state.queue = state.queue.concat(files);
+  renderHeader();
+  renderTransportRail();
+  if (state.page === 'queue') renderQueue();
+  renderNow();
+});
+
+refs.btnShuffleFolder.addEventListener('click', () => {
+  const files = collectFilesIn(state.currentFolder);
+  if (files.length === 0) return;
+  for (let i = files.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
+  state.queue = files;
+  state.queueIndex = 0;
+  setTrack(state.queue[0]);
+});
+
+// ===================== SEARCH =====================
+function renderSearch(){
+  refs.searchList.innerHTML = '';
+  const q = state.searchQuery.toLowerCase().trim();
+  if (!q) {
+    refs.searchSummary.textContent = 'enter a query above';
+    const e = document.createElement('div');
+    e.className = 'empty-state';
+    e.textContent = 'no query entered';
+    refs.searchList.appendChild(e);
+    return;
+  }
+
+  const pool = state.searchScope === 'all' ? allFiles : collectFilesIn(state.currentFolder);
+  const results = pool.filter(f => f.name.toLowerCase().includes(q));
+
+  refs.searchSummary.textContent = results.length + ' result' + (results.length !== 1 ? 's' : '') +
+    ' · scope: ' + (state.searchScope === 'all' ? 'all files' : 'current folder');
+
+  if (results.length === 0) {
+    const e = document.createElement('div');
+    e.className = 'empty-state';
+    e.textContent = 'no matches';
+    refs.searchList.appendChild(e);
+    return;
+  }
+
+  const sl = document.createElement('div');
+  sl.className = 'section-label';
+  sl.innerHTML = '<span>Matches</span><span class="count">' + results.length + '</span>';
+  refs.searchList.appendChild(sl);
+
+  results.forEach((f, i) => {
+    const isPlaying = state.currentTrack && state.currentTrack.path.join('/') === f.path.join('/');
+    const row = document.createElement('div');
+    row.className = 'file-row' + (isPlaying ? ' playing-now' : '');
+    const parentFolder = f.path.slice(1, -1).join(' / ');
+    row.innerHTML =
+      '<div class="row-index">' + String(i+1).padStart(2,'0') + '</div>' +
+      '<div class="row-icon">' + (isPlaying ? '&#9654;' : '&#9834;') + '</div>' +
+      '<div class="row-info"><div class="row-name">' + esc(f.name.replace('.mp3','')) + '</div>' +
+      '<div class="row-meta">' + esc(parentFolder) + '</div></div>' +
+      '<div class="row-trail">' + f.duration + '</div>';
+    row.addEventListener('click', () => {
+      state.queue = [...results];
+      state.queueIndex = i;
+      setTrack(state.queue[state.queueIndex]);
+    });
+    refs.searchList.appendChild(row);
+  });
+}
+
+refs.searchInput.addEventListener('input', e => {
+  state.searchQuery = e.target.value;
+  renderHeader();
+  renderSearch();
+});
+
+document.querySelectorAll('.scope-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.scope-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    state.searchScope = chip.dataset.scope;
+    renderHeader();
+    renderSearch();
+  });
+});
+
+// ===================== QUEUE =====================
+function renderQueue(){
+  refs.queueList.innerHTML = '';
+
+  // Summary
+  const totalSec = state.queue.reduce((s,f) => s + parseDuration(f.duration), 0);
+  const remainingFiles = state.queue.slice(Math.max(state.queueIndex, 0));
+  let remainingSec = remainingFiles.reduce((s,f,i) => {
+    if (i === 0 && state.currentTrack) return s + Math.max(0, state.duration - state.elapsed);
+    return s + parseDuration(f.duration);
+  }, 0);
+  if (state.queueIndex < 0) remainingSec = totalSec;
+
+  refs.qsumPos.textContent = (state.queue.length === 0)
+    ? '— / —'
+    : ((state.queueIndex + 1) + ' / ' + state.queue.length);
+  refs.qsumLen.textContent = formatTimeLong(totalSec);
+  refs.qsumRem.textContent = formatTimeLong(remainingSec);
+  refs.queueCount.textContent = state.queue.length + (state.queue.length === 1 ? ' entry' : ' entries');
+
+  if (state.queue.length === 0) {
+    const e = document.createElement('div');
+    e.className = 'empty-state';
+    e.textContent = 'the queue is empty';
+    refs.queueList.appendChild(e);
+    return;
+  }
+
+  state.queue.forEach((f, i) => {
+    const isCurrent = i === state.queueIndex;
+    const isPast = i < state.queueIndex;
+    const row = document.createElement('div');
+    row.className = 'queue-row' + (isCurrent ? ' current' : '') + (isPast ? ' past' : '');
+    row.innerHTML =
+      '<div class="queue-pos">' + String(i+1).padStart(2,'0') + '</div>' +
+      '<div class="row-icon">' + (isCurrent ? '&#9654;' : '&#9834;') + '</div>' +
+      '<div class="row-info"><div class="row-name">' + esc(f.name.replace('.mp3','')) + '</div>' +
+      '<div class="row-meta">' + esc(f.path.slice(1, -1).join(' / ')) + '</div></div>' +
+      '<div class="row-trail">' + f.duration + '</div>' +
+      '<button class="queue-remove" data-idx="' + i + '" title="Remove">&times;</button>';
+    row.addEventListener('click', e => {
+      if (e.target.classList.contains('queue-remove')) return;
+      state.queueIndex = i;
+      setTrack(state.queue[i]);
+    });
+    refs.queueList.appendChild(row);
+  });
+
+  refs.queueList.querySelectorAll('.queue-remove').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx, 10);
+      const wasCurrent = idx === state.queueIndex;
+      state.queue.splice(idx, 1);
+      if (idx < state.queueIndex) {
+        state.queueIndex--;
+      } else if (wasCurrent) {
+        if (state.queue.length === 0) {
+          state.queueIndex = -1;
+          state.currentTrack = null;
+          state.isPlaying = false;
+          state.elapsed = 0;
+          state.duration = 0;
+        } else {
+          state.queueIndex = Math.min(state.queueIndex, state.queue.length - 1);
+          setTrack(state.queue[state.queueIndex]);
+        }
+      }
+      renderQueue();
+      renderHeader();
+      renderTransportRail();
+      renderNow();
+    });
+  });
+}
+
+refs.btnQueueClear.addEventListener('click', () => {
+  state.queue = [];
+  state.queueIndex = -1;
+  state.currentTrack = null;
+  state.isPlaying = false;
+  state.elapsed = 0;
+  state.duration = 0;
+  renderHeader();
+  renderQueue();
+  renderTransportRail();
+  renderNow();
+});
+
+refs.btnQueueShuffle.addEventListener('click', () => {
+  if (state.queue.length <= 1) return;
+  const current = state.queueIndex >= 0 ? state.queue[state.queueIndex] : null;
+  const rest = state.queue.filter((_,i) => i !== state.queueIndex);
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  state.queue = current ? [current, ...rest] : rest;
+  state.queueIndex = current ? 0 : -1;
+  renderQueue();
+  renderHeader();
+});
+
+refs.btnQueueSkipToTop.addEventListener('click', () => {
+  if (state.queue.length === 0) return;
+  state.queueIndex = 0;
+  setTrack(state.queue[0]);
+});
+
+// ===================== TRANSPORT RAIL =====================
+function renderTransportRail(){
+  const show = state.page !== 'now' && state.currentTrack;
+  refs.transportRail.classList.toggle('visible', !!show);
+  if (!show) return;
+  refs.trName.textContent = state.currentTrack.name.replace('.mp3','');
+  refs.trPlay.innerHTML = state.isPlaying ? '&#10074;&#10074;' : '&#9654;';
+  const pct = state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0;
+  refs.trMiniFill.style.width = pct + '%';
+}
+
+refs.trPlay.addEventListener('click', togglePlay);
+refs.trNext.addEventListener('click', playNext);
+refs.trPrev.addEventListener('click', playPrev);
+refs.trInfo.addEventListener('click', () => navigateTo('now'));
+
+// ===================== SETTINGS =====================
+document.querySelectorAll('.setting-row[data-options]').forEach(row => {
+  row.addEventListener('click', () => {
+    const opts = row.dataset.options.split(',');
+    const valEl = row.querySelector('.setting-value');
+    const cur = valEl.textContent.trim();
+    const idx = opts.indexOf(cur);
+    const next = opts[(idx + 1) % opts.length];
+    valEl.textContent = next;
+    valEl.classList.toggle('active-val', next !== opts[0]);
+  });
+});
+
+document.querySelectorAll('.setting-row[data-toggle]').forEach(row => {
+  row.addEventListener('click', () => {
+    const pill = row.querySelector('.toggle-pill');
+    pill.classList.toggle('on');
+  });
+});
+
+// ===================== CLOCK =====================
+function tickClock(){
+  const d = new Date();
+  refs.appClock.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+tickClock();
+setInterval(tickClock, 30000);
+
+// ===================== QUEUE BADGE =====================
+function renderQueueBadge(){
+  const upcoming = state.queue.length - Math.max(state.queueIndex + 1, 0);
+  if (upcoming > 0) {
+    refs.navQueueBadge.textContent = upcoming;
+    refs.navQueueBadge.classList.add('visible');
+  } else {
+    refs.navQueueBadge.classList.remove('visible');
+  }
+}
+
+// ===================== ANIMATION LOOP =====================
+let lastT = 0;
+function frame(ts){
+  const dt = lastT ? (ts - lastT) / 1000 : 0.016;
+  lastT = ts;
+  if (state.isPlaying && state.currentTrack) {
+    state.elapsed += dt;
+    if (state.elapsed >= state.duration && state.duration > 0) {
+      playNext();
+    } else {
+      // light updates: progress and time only, avoid full rerenders
+      if (state.page === 'now') {
+        const pct = state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0;
+        refs.progressFill.style.width = pct + '%';
+        refs.timeElapsed.textContent = formatTime(state.elapsed);
+        refs.timeRemaining.textContent = '-' + formatTime(state.duration - state.elapsed);
+        refs.metaPosition.textContent = (state.queueIndex + 1) + ' / ' + state.queue.length;
+      }
+      if (refs.transportRail.classList.contains('visible')) {
+        const pct = state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0;
+        refs.trMiniFill.style.width = pct + '%';
+      }
+    }
+  }
+  renderQueueBadge();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ===================== RESIZE OBSERVER (mobile / tablet only) =====================
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  // Only mobile and tablet; no desktop class per scope.
+  if (width < 600) {
+    document.body.classList.add('mobile');
+    document.body.classList.remove('tablet');
+  } else {
+    document.body.classList.add('tablet');
+    document.body.classList.remove('mobile');
+  }
+});
+ro.observe(document.body);
+
+// ===================== KEYBOARD =====================
+document.addEventListener('keydown', e => {
+  if (e.target === refs.searchInput) return;
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowRight':
+      playNext();
+      break;
+    case 'ArrowLeft':
+      playPrev();
+      break;
+    case '1': navigateTo('now'); break;
+    case '2': navigateTo('library'); break;
+    case '3': navigateTo('search'); break;
+    case '4': navigateTo('queue'); break;
+    case '5': navigateTo('settings'); break;
+  }
+});
+
+// ===================== INITIAL RENDER =====================
+renderHeader();
+renderNow();
+renderLibrary();
+renderSearch();
+renderQueue();
+renderTransportRail();
+renderQueueBadge();
+
+</script>
+</body>
+</html>

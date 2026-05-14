@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP - TACTILE</title>
+<!--
+  Persona: The Physicalist / Tactile
+  Core belief: The app is not a screen; it is a stack of paper cards you peel, flip, and push through with your thumb.
+  Key structural moves:
+    1. The browser is a CARD DECK, not a list. One card per item; swipe left/right to flip through siblings; swipe up to push a folder card "deeper" (descend); swipe down to peel the current card off (ascend).
+    2. Every other surface is a PEELING LAYER from a screen edge. Queue peels from the right edge, Settings peels from the bottom edge, Search drops a translucent sheet from the top edge. No tabs, no nav bar; each gesture has its own edge.
+    3. A two-finger PINCH-OUT collapses the deck into a parallax stack-overview where the breadcrumb path is shown as physical cards behind the current one. Tap a back-card to fly back to it. Replaces text breadcrumbs entirely.
+  Trade-offs accepted: Discoverability. Most controls are invisible until learned; on-screen chrome is intentionally minimal, with only thin edge-hints. Reach efficiency for one-handed lists is also sacrificed in favor of object-feel.
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:none;
+}
+
+/* ===================== ROOT STAGE ===================== */
+#stage{
+  position:fixed;inset:0;
+  perspective:1400px;
+  perspective-origin:50% 40%;
+  overflow:hidden;
+  z-index:1;
+}
+
+/* ===================== NOW PLAYING SLAB (background layer) ===================== */
+#np-slab{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  z-index:1;
+  padding:0 24px;
+  pointer-events:auto;
+}
+
+.np-track{
+  text-align:center;
+  max-width:90vw;
+}
+.np-name{
+  font-size:clamp(20px, 5.5vw, 32px);
+  font-weight:300;
+  letter-spacing:0.05em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:90vw;
+  display:inline-block;
+  color:rgba(255,255,255,0.85);
+}
+.np-name.playing{animation:pulse 4s ease-in-out infinite}
+.np-cursor{
+  display:inline-block;
+  font-weight:100;
+  animation:blink 1s step-end infinite;
+  margin-left:2px;
+  opacity:0.8;
+}
+.np-path{
+  font-size:11px;
+  font-weight:300;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  opacity:0.4;
+  margin-top:14px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:90vw;
+}
+.np-controls{
+  margin-top:28px;
+  display:flex;gap:28px;
+  align-items:center;justify-content:center;
+  opacity:0.85;
+}
+.np-btn{
+  background:none;border:none;
+  color:rgba(255,255,255,0.6);
+  font-family:inherit;font-size:18px;
+  cursor:pointer;
+  padding:8px 4px;
+  transition:color 0.15s;
+}
+.np-btn:hover{color:#FFF}
+.np-btn.primary{font-size:24px;color:rgba(255,255,255,0.85)}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+@keyframes blink{0%,100%{opacity:0.8}50%{opacity:0}}
+
+/* ===================== EDGE HINTS (the only chrome) ===================== */
+.edge-hint{
+  position:fixed;
+  background:rgba(255,255,255,0.12);
+  border-radius:1px;
+  z-index:3;
+  pointer-events:none;
+  transition:opacity 0.3s, background 0.3s;
+}
+.edge-hint.bottom{bottom:8px;left:50%;transform:translateX(-50%);width:34px;height:2px}
+.edge-hint.right{right:6px;top:50%;transform:translateY(-50%);width:2px;height:34px}
+.edge-hint.top{top:8px;left:50%;transform:translateX(-50%);width:18px;height:2px;opacity:0.4}
+.edge-hint.left{left:6px;top:50%;transform:translateY(-50%);width:2px;height:18px;opacity:0.4}
+.edge-hint.dim{opacity:0.05}
+
+/* ===================== TIME DISPLAY ===================== */
+.time-display{
+  position:fixed;
+  bottom:22px;
+  left:0;right:0;
+  text-align:center;
+  font-size:11px;
+  font-weight:300;
+  letter-spacing:0.1em;
+  opacity:0.25;
+  pointer-events:none;
+  z-index:2;
+}
+
+/* ===================== PROGRESS LINE ===================== */
+#progress-line{
+  position:fixed;
+  bottom:0;left:0;
+  width:0%;height:1px;
+  background:#FFF;
+  z-index:10;
+  transition:none;
+  pointer-events:none;
+}
+#progress-hit{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:14px;
+  z-index:11;
+  cursor:pointer;
+}
+
+/* ===================== FLASH INDICATOR ===================== */
+.play-state-indicator{
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  font-size:48px;
+  opacity:0;
+  pointer-events:none;
+  z-index:90;
+  transition:opacity 0.15s;
+}
+.play-state-indicator.flash{opacity:0.3;transition:none}
+
+/* ===================== DECK (browser as cards) ===================== */
+#deck-layer{
+  position:fixed;inset:0;
+  z-index:20;
+  pointer-events:none;
+  transform:translateY(100%);
+  transition:transform 320ms cubic-bezier(0.32,0.72,0,1);
+}
+#deck-layer.open{
+  transform:translateY(0);
+  pointer-events:auto;
+}
+
+#deck-stage{
+  position:absolute;
+  left:0;right:0;top:0;bottom:0;
+  display:flex;
+  align-items:center;justify-content:center;
+  transform-style:preserve-3d;
+  perspective:1200px;
+}
+
+.deck-card{
+  position:absolute;
+  width:78vw;max-width:340px;
+  height:62vh;max-height:520px;
+  background:#0a0a0a;
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:10px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 -1px 0 rgba(255,255,255,0.02) inset,
+    0 20px 40px rgba(0,0,0,0.6),
+    0 2px 6px rgba(0,0,0,0.4);
+  padding:24px 22px 18px;
+  display:flex;flex-direction:column;
+  will-change:transform,opacity;
+  transition:transform 220ms cubic-bezier(0.32,0.72,0,1), opacity 220ms;
+  cursor:grab;
+}
+.deck-card.dragging{transition:none;cursor:grabbing}
+
+.deck-card.current{z-index:5}
+.deck-card.next-sib{z-index:4;transform:translateX(8vw) scale(0.96);opacity:0.55}
+.deck-card.prev-sib{z-index:4;transform:translateX(-8vw) scale(0.96);opacity:0.55}
+.deck-card.behind-1{z-index:3;transform:translateY(-12px) scale(0.94);opacity:0.35;pointer-events:none}
+.deck-card.behind-2{z-index:2;transform:translateY(-22px) scale(0.88);opacity:0.18;pointer-events:none}
+.deck-card.behind-3{z-index:1;transform:translateY(-30px) scale(0.82);opacity:0.08;pointer-events:none}
+
+.card-kind{
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  margin-bottom:14px;
+  padding-bottom:8px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.card-kind .pos{color:rgba(255,255,255,0.25)}
+
+.card-glyph{
+  font-size:36px;
+  text-align:center;
+  margin:18px 0 12px;
+  opacity:0.85;
+  font-weight:200;
+  letter-spacing:0.08em;
+}
+
+.card-title{
+  text-align:center;
+  font-size:18px;
+  font-weight:300;
+  letter-spacing:0.04em;
+  color:rgba(255,255,255,0.9);
+  word-break:break-word;
+  margin-bottom:10px;
+  line-height:1.35;
+}
+
+.card-meta{
+  text-align:center;
+  font-size:11px;
+  letter-spacing:0.12em;
+  color:rgba(255,255,255,0.35);
+  margin-bottom:18px;
+}
+
+.card-actions{
+  margin-top:auto;
+  display:flex;flex-direction:column;
+  gap:8px;
+  align-items:center;
+}
+.card-action-text{
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  text-align:center;
+  line-height:1.6;
+}
+.card-action-text .k{color:rgba(255,255,255,0.7)}
+
+.card-mini-list{
+  flex:1;
+  overflow-y:auto;
+  margin:6px -4px 12px;
+  padding:0 4px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.card-mini-list::-webkit-scrollbar{width:3px}
+.card-mini-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+.mini-row{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 6px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  font-size:12px;
+  color:rgba(255,255,255,0.7);
+  cursor:pointer;
+  border-radius:3px;
+  transition:background 0.15s;
+}
+.mini-row:hover{background:rgba(255,255,255,0.05)}
+.mini-row .ic{opacity:0.4;width:14px;text-align:center;flex-shrink:0}
+.mini-row .nm{
+  flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.mini-row .du{
+  font-size:10px;color:rgba(255,255,255,0.3);
+  flex-shrink:0;
+}
+.mini-row.playing-now{color:#FFF}
+.mini-row.playing-now .ic{opacity:1}
+
+/* file card variant */
+.deck-card.file-card .card-glyph{font-size:32px}
+.deck-card.folder-card .card-glyph{font-size:34px}
+
+/* drag-direction hints painted on card edges */
+.card-edge-hint{
+  position:absolute;
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.2);
+  pointer-events:none;
+}
+.card-edge-hint.top{top:8px;left:50%;transform:translateX(-50%)}
+.card-edge-hint.bottom{bottom:8px;left:50%;transform:translateX(-50%)}
+
+/* ===================== STACK-OVERVIEW (pinch view) ===================== */
+#stack-overview{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.85);
+  backdrop-filter:brightness(0.5);
+  -webkit-backdrop-filter:brightness(0.5);
+  z-index:35;
+  opacity:0;pointer-events:none;
+  transition:opacity 250ms;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  perspective:1000px;
+}
+#stack-overview.open{opacity:1;pointer-events:auto}
+
+.stack-title{
+  position:absolute;top:24px;left:0;right:0;
+  text-align:center;
+  font-size:10px;
+  letter-spacing:4px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.35);
+}
+.stack-hint{
+  position:absolute;bottom:24px;left:0;right:0;
+  text-align:center;
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.25);
+}
+
+#stack-cards{
+  position:relative;
+  width:70vw;max-width:280px;
+  height:60vh;max-height:420px;
+  transform-style:preserve-3d;
+}
+.stack-card{
+  position:absolute;
+  inset:0;
+  background:#0a0a0a;
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:8px;
+  box-shadow:0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 20px rgba(0,0,0,0.6);
+  padding:18px;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  cursor:pointer;
+  transition:transform 220ms, opacity 220ms, border-color 0.2s;
+}
+.stack-card:hover{border-color:rgba(255,255,255,0.3)}
+.stack-card .sc-kind{
+  font-size:9px;letter-spacing:3px;text-transform:uppercase;
+  color:rgba(255,255,255,0.3);margin-bottom:10px;
+}
+.stack-card .sc-name{
+  font-size:15px;font-weight:300;
+  color:rgba(255,255,255,0.85);
+  text-align:center;word-break:break-word;
+}
+.stack-card .sc-count{
+  font-size:10px;letter-spacing:2px;
+  color:rgba(255,255,255,0.3);margin-top:8px;
+}
+
+/* ===================== QUEUE PEEL (right edge) ===================== */
+#queue-layer{
+  position:fixed;
+  top:0;bottom:0;right:0;
+  width:min(85vw, 360px);
+  background:#070707;
+  border-left:1px solid rgba(255,255,255,0.10);
+  box-shadow:-20px 0 40px rgba(0,0,0,0.5), inset 1px 0 0 rgba(255,255,255,0.04);
+  z-index:30;
+  transform:translateX(100%);
+  transition:transform 280ms cubic-bezier(0.32,0.72,0,1);
+  display:flex;flex-direction:column;
+}
+#queue-layer.open{transform:translateX(0)}
+#queue-layer.dragging{transition:none}
+
+.queue-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:18px 18px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.queue-title{
+  font-size:10px;letter-spacing:4px;text-transform:uppercase;
+  color:rgba(255,255,255,0.5);
+}
+.queue-count{
+  font-size:10px;letter-spacing:2px;
+  color:rgba(255,255,255,0.3);
+}
+.queue-list{
+  flex:1;overflow-y:auto;
+  padding:8px 6px 24px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.queue-list::-webkit-scrollbar{width:3px}
+.queue-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.q-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  font-size:12px;
+  color:rgba(255,255,255,0.7);
+  cursor:pointer;
+  border-radius:3px;
+  transition:background 0.15s;
+  min-height:42px;
+}
+.q-row:hover{background:rgba(255,255,255,0.05)}
+.q-row .q-num{
+  font-size:10px;
+  color:rgba(255,255,255,0.3);
+  width:22px;text-align:right;flex-shrink:0;
+}
+.q-row .q-nm{
+  flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.q-row .q-du{
+  font-size:10px;color:rgba(255,255,255,0.3);
+  flex-shrink:0;
+}
+.q-row.current{color:#FFF;background:rgba(255,255,255,0.04)}
+.q-row.current .q-num{color:#FFF}
+.q-empty{
+  text-align:center;
+  padding:48px 16px;
+  color:rgba(255,255,255,0.25);
+  font-size:11px;
+  letter-spacing:0.1em;
+}
+
+/* ===================== SETTINGS PEEL (bottom) ===================== */
+#settings-layer{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  height:78vh;
+  background:#070707;
+  border-top:1px solid rgba(255,255,255,0.10);
+  border-radius:10px 10px 0 0;
+  box-shadow:0 -20px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+  z-index:31;
+  transform:translateY(100%);
+  transition:transform 280ms cubic-bezier(0.32,0.72,0,1);
+  display:flex;flex-direction:column;
+}
+#settings-layer.open{transform:translateY(0)}
+#settings-layer.dragging{transition:none}
+
+.settings-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 18px 10px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.settings-pull{
+  position:absolute;
+  top:6px;left:50%;
+  transform:translateX(-50%);
+  width:36px;height:3px;
+  background:rgba(255,255,255,0.18);
+  border-radius:2px;
+}
+.settings-title{
+  font-size:10px;letter-spacing:4px;text-transform:uppercase;
+  color:rgba(255,255,255,0.5);
+}
+.settings-scroll{
+  flex:1;overflow-y:auto;
+  padding:16px 18px 28px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.settings-scroll::-webkit-scrollbar{width:3px}
+.settings-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.setting-group{margin-bottom:24px}
+.setting-group-title{
+  font-size:10px;letter-spacing:3px;text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  margin-bottom:10px;
+  padding-bottom:6px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.setting-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 4px;
+  cursor:pointer;
+  min-height:42px;
+  border-radius:3px;
+  transition:background 0.15s;
+}
+.setting-row:hover{background:rgba(255,255,255,0.04)}
+.setting-label{font-size:13px;color:rgba(255,255,255,0.7)}
+.setting-value{font-size:13px;color:rgba(255,255,255,0.4);letter-spacing:0.5px}
+.setting-value.active-val{color:#FFF}
+.settings-footer{
+  text-align:center;
+  font-size:10px;letter-spacing:1px;
+  color:rgba(255,255,255,0.15);
+  padding:18px 0 4px;
+}
+
+/* ===================== SEARCH SHEET (top) ===================== */
+#search-layer{
+  position:fixed;
+  left:0;right:0;top:0;
+  height:62vh;
+  background:rgba(7,7,7,0.96);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(255,255,255,0.10);
+  box-shadow:0 20px 40px rgba(0,0,0,0.5);
+  z-index:32;
+  transform:translateY(-100%);
+  transition:transform 260ms cubic-bezier(0.32,0.72,0,1);
+  display:flex;flex-direction:column;
+}
+#search-layer.open{transform:translateY(0)}
+#search-layer.dragging{transition:none}
+
+.search-head{
+  padding:24px 20px 10px;
+  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.search-icon{
+  font-size:14px;
+  color:rgba(255,255,255,0.4);
+}
+.search-input{
+  flex:1;
+  background:transparent;
+  border:none;
+  color:#FFF;
+  font-family:inherit;font-size:16px;
+  letter-spacing:0.04em;
+  outline:none;
+  padding:6px 0;
+  min-height:36px;
+}
+.search-input::placeholder{color:rgba(255,255,255,0.25)}
+.search-clear{
+  background:none;border:none;
+  color:rgba(255,255,255,0.4);
+  font-family:inherit;font-size:12px;
+  cursor:pointer;
+  letter-spacing:1px;
+}
+.search-results{
+  flex:1;overflow-y:auto;
+  padding:8px 14px 18px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.search-results::-webkit-scrollbar{width:3px}
+.search-results::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+.sr-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 8px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  font-size:13px;
+  color:rgba(255,255,255,0.8);
+  cursor:pointer;
+  border-radius:3px;
+  transition:background 0.15s;
+}
+.sr-row:hover{background:rgba(255,255,255,0.05)}
+.sr-row .sr-ic{opacity:0.4;width:16px;text-align:center}
+.sr-row .sr-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-row .sr-pa{font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:0.08em;margin-top:2px}
+.sr-info{flex:1;min-width:0}
+.sr-empty{
+  text-align:center;
+  padding:48px 16px;
+  color:rgba(255,255,255,0.25);
+  font-size:12px;letter-spacing:0.1em;
+}
+
+.search-pull{
+  position:absolute;
+  bottom:6px;left:50%;
+  transform:translateX(-50%);
+  width:36px;height:3px;
+  background:rgba(255,255,255,0.18);
+  border-radius:2px;
+}
+
+/* ===================== ONBOARD TOAST ===================== */
+.onboard{
+  position:fixed;
+  bottom:54px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  z-index:5;
+  text-align:center;
+  pointer-events:none;
+  transition:opacity 0.4s;
+  white-space:nowrap;
+}
+.onboard.fade{opacity:0}
+
+/* ===================== RESPONSIVE ===================== */
+body.mobile .np-name{font-size:clamp(18px, 6vw, 28px)}
+body.mobile .deck-card{
+  width:82vw;height:64vh;
+}
+body.tablet #deck-stage{perspective:1600px}
+body.tablet .deck-card{
+  width:54vw;max-width:480px;
+  height:62vh;max-height:560px;
+}
+body.tablet #queue-layer{width:min(46vw,420px)}
+body.tablet #settings-layer{
+  max-width:640px;
+  left:50%;
+  transform:translateX(-50%) translateY(100%);
+}
+body.tablet #settings-layer.open{transform:translateX(-50%) translateY(0)}
+body.tablet #search-layer{
+  max-width:640px;
+  left:50%;
+  transform:translateX(-50%) translateY(-100%);
+}
+body.tablet #search-layer.open{transform:translateX(-50%) translateY(0)}
+body.tablet .np-controls{margin-top:36px;gap:36px}
+
+</style>
+</head>
+<body>
+
+<!-- ====== STAGE ====== -->
+<div id="stage">
+
+  <!-- NOW PLAYING SLAB -->
+  <div id="np-slab">
+    <div class="np-track">
+      <span class="np-name" id="trackName">VOID</span><span class="np-cursor">|</span>
+      <div class="np-path" id="trackPath">peel a layer</div>
+    </div>
+    <div class="np-controls">
+      <button class="np-btn" id="btnPrev" title="previous">&#x25C0;&#x25C0;</button>
+      <button class="np-btn primary" id="btnPlay" title="play / pause">&#x25B6;</button>
+      <button class="np-btn" id="btnNext" title="next">&#x25B6;&#x25B6;</button>
+    </div>
+  </div>
+
+  <!-- TIME + PROGRESS -->
+  <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
+  <div id="progress-line"></div>
+  <div id="progress-hit"></div>
+
+  <!-- EDGE HINTS -->
+  <div class="edge-hint bottom" id="hintBottom" title="peel up: browse"></div>
+  <div class="edge-hint right" id="hintRight" title="peel left: queue"></div>
+  <div class="edge-hint top" id="hintTop" title="peel down: search"></div>
+  <div class="edge-hint left" id="hintLeft" title="peel right: settings"></div>
+
+  <!-- ONBOARD -->
+  <div class="onboard" id="onboard">peel from any edge</div>
+
+  <!-- FLASH -->
+  <div class="play-state-indicator" id="playStateIndicator"></div>
+</div>
+
+<!-- ====== DECK (browser as cards) ====== -->
+<div id="deck-layer">
+  <div id="deck-stage"></div>
+</div>
+
+<!-- ====== STACK OVERVIEW (pinch) ====== -->
+<div id="stack-overview">
+  <div class="stack-title">stack</div>
+  <div id="stack-cards"></div>
+  <div class="stack-hint">tap a card to fly back &middot; tap empty to dismiss</div>
+</div>
+
+<!-- ====== QUEUE PEEL (right) ====== -->
+<aside id="queue-layer">
+  <div class="queue-head">
+    <span class="queue-title">queue</span>
+    <span class="queue-count" id="queueCount">0</span>
+  </div>
+  <div class="queue-list" id="queueList"></div>
+</aside>
+
+<!-- ====== SETTINGS PEEL (bottom) ====== -->
+<aside id="settings-layer">
+  <div class="settings-pull"></div>
+  <div class="settings-head">
+    <span class="settings-title">settings</span>
+    <span class="queue-count">peel down to close</span>
+  </div>
+  <div class="settings-scroll">
+
+    <div class="setting-group">
+      <div class="setting-group-title">Playback</div>
+      <div class="setting-row" data-setting="shuffle" data-options="Off,On">
+        <span class="setting-label">Shuffle</span>
+        <span class="setting-value">Off</span>
+      </div>
+      <div class="setting-row" data-setting="repeat" data-options="Off,All,One">
+        <span class="setting-label">Repeat</span>
+        <span class="setting-value">Off</span>
+      </div>
+      <div class="setting-row" data-setting="gapless" data-options="Off,On">
+        <span class="setting-label">Gapless Playback</span>
+        <span class="setting-value active-val">On</span>
+      </div>
+      <div class="setting-row" data-setting="crossfade" data-options="0s,2s,4s,6s,8s">
+        <span class="setting-label">Crossfade</span>
+        <span class="setting-value">0s</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-group-title">Audio</div>
+      <div class="setting-row" data-setting="output" data-options="System,Headphones,External DAC">
+        <span class="setting-label">Output Device</span>
+        <span class="setting-value">System</span>
+      </div>
+      <div class="setting-row" data-setting="equalizer" data-options="Off,On">
+        <span class="setting-label">Equalizer</span>
+        <span class="setting-value">Off</span>
+      </div>
+      <div class="setting-row" data-setting="replaygain" data-options="Off,Track,Album">
+        <span class="setting-label">ReplayGain</span>
+        <span class="setting-value active-val">Album</span>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-group-title">Tactile</div>
+      <div class="setting-row" data-setting="haptics" data-options="Off,Light,Strong">
+        <span class="setting-label">Haptic Feedback</span>
+        <span class="setting-value active-val">Light</span>
+      </div>
+      <div class="setting-row" data-setting="edges" data-options="Visible,Hidden">
+        <span class="setting-label">Edge Hints</span>
+        <span class="setting-value">Visible</span>
+      </div>
+    </div>
+
+    <div class="settings-footer">FileAMP &mdash; Tactile Edition</div>
+  </div>
+</aside>
+
+<!-- ====== SEARCH SHEET (top) ====== -->
+<aside id="search-layer">
+  <div class="search-head">
+    <span class="search-icon">&#x2315;</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="search files..." autocomplete="off">
+    <button class="search-clear" id="searchClear">CLR</button>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+  <div class="search-pull"></div>
+</aside>
+
+<script>
+// === FILE TREE ===
+const FILE_TREE = {
+  name: 'Media', type: 'folder', children: [
+    { name: 'MP3 Collection', type: 'folder', children: [
+      { name: 'Rock', type: 'folder', children: [
+        { name: 'Led Zeppelin', type: 'folder', children: [
+          { name: 'Stairway to Heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'Kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'Black Dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'Whole Lotta Love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'Pink Floyd', type: 'folder', children: [
+          { name: 'Comfortably Numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'Wish You Were Here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'Time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'AC DC', type: 'folder', children: [
+          { name: 'Thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'Highway to Hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'Back in Black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk', type: 'folder', children: [
+          { name: 'Around the World.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'One More Time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'Digital Love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'Harder Better Faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'Kraftwerk', type: 'folder', children: [
+          { name: 'Autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'The Model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'Computer Love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'Aphex Twin', type: 'folder', children: [
+          { name: 'Windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'Avril 14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis', type: 'folder', children: [
+          { name: 'So What.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'Blue in Green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'All Blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'John Coltrane', type: 'folder', children: [
+          { name: 'Giant Steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'My Favorite Things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'Classical', type: 'folder', children: [
+        { name: 'Bach', type: 'folder', children: [
+          { name: 'Cello Suite No 1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'Toccata and Fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+// === STATE ===
+let isPlaying = false;
+let currentTrack = null;
+let currentDuration = 0;
+let elapsed = 0;
+let playlist = [];
+let playlistIndex = -1;
+
+// Deck state: folderPath (array of folder nodes), siblingIndex (index into current folder's children)
+let folderPath = [FILE_TREE];
+let siblingIndex = 0;
+
+// Layer state
+let deckOpen = false;
+let queueOpen = false;
+let settingsOpen = false;
+let searchOpen = false;
+let stackOpen = false;
+
+// === DOM ===
+const $stage = document.getElementById('stage');
+const $npSlab = document.getElementById('np-slab');
+const $trackName = document.getElementById('trackName');
+const $trackPath = document.getElementById('trackPath');
+const $timeDisplay = document.getElementById('timeDisplay');
+const $progressLine = document.getElementById('progress-line');
+const $progressHit = document.getElementById('progress-hit');
+const $indicator = document.getElementById('playStateIndicator');
+const $onboard = document.getElementById('onboard');
+
+const $deckLayer = document.getElementById('deck-layer');
+const $deckStage = document.getElementById('deck-stage');
+
+const $queueLayer = document.getElementById('queue-layer');
+const $queueList = document.getElementById('queueList');
+const $queueCount = document.getElementById('queueCount');
+
+const $settingsLayer = document.getElementById('settings-layer');
+
+const $searchLayer = document.getElementById('search-layer');
+const $searchInput = document.getElementById('searchInput');
+const $searchClear = document.getElementById('searchClear');
+const $searchResults = document.getElementById('searchResults');
+
+const $stackOverview = document.getElementById('stack-overview');
+const $stackCards = document.getElementById('stack-cards');
+
+const $btnPrev = document.getElementById('btnPrev');
+const $btnPlay = document.getElementById('btnPlay');
+const $btnNext = document.getElementById('btnNext');
+
+const $hints = {
+  bottom: document.getElementById('hintBottom'),
+  right: document.getElementById('hintRight'),
+  top: document.getElementById('hintTop'),
+  left: document.getElementById('hintLeft'),
+};
+
+// === HELPERS ===
+function parseDuration(str){const p=str.split(':').map(Number);return p[0]*60+p[1]}
+function formatTime(sec){const m=Math.floor(Math.max(0,sec)/60);const s=Math.floor(Math.max(0,sec)%60);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
+function esc(str){const d=document.createElement('div');d.textContent=str;return d.innerHTML}
+
+function collectFiles(node, path){
+  const cur = path ? [...path, node.name] : [node.name];
+  let files = [];
+  if (node.type === 'file') files.push({name:node.name, duration:node.duration, size:node.size, path:cur});
+  if (node.children) for (const child of node.children) files = files.concat(collectFiles(child, cur));
+  return files;
+}
+const ALL_FILES = collectFiles(FILE_TREE, []);
+
+function currentFolder(){return folderPath[folderPath.length-1]}
+function currentChildren(){
+  const f = currentFolder();
+  if (!f.children) return [];
+  return [...f.children].sort((a,b)=>{
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+function pathLabel(pathArr){
+  // strip the root 'Media' for display
+  return pathArr.slice(1).join(' / ') || 'Media';
+}
+
+// === PLAYBACK ===
+function setTrack(file){
+  currentTrack = file;
+  currentDuration = parseDuration(file.duration);
+  elapsed = 0;
+  isPlaying = true;
+  updateNowPlaying();
+  renderQueue();
+  if (deckOpen) renderDeck();
+}
+
+function togglePlay(){
+  if (!currentTrack && ALL_FILES.length > 0){
+    playlist = [...ALL_FILES];
+    playlistIndex = 0;
+    setTrack(playlist[0]);
+    return;
+  }
+  isPlaying = !isPlaying;
+  updateNowPlaying();
+  flashIndicator(isPlaying ? '▶' : '❙❙');
+}
+
+function playNext(){
+  if (playlist.length === 0) return;
+  playlistIndex = (playlistIndex + 1) % playlist.length;
+  setTrack(playlist[playlistIndex]);
+}
+function playPrev(){
+  if (playlist.length === 0) return;
+  if (elapsed > 3){elapsed = 0; return}
+  playlistIndex = (playlistIndex - 1 + playlist.length) % playlist.length;
+  setTrack(playlist[playlistIndex]);
+}
+
+function updateNowPlaying(){
+  const name = currentTrack ? currentTrack.name.replace('.mp3','') : 'VOID';
+  $trackName.textContent = name;
+  $trackName.classList.toggle('playing', isPlaying);
+  if (currentTrack){
+    const pathSegs = currentTrack.path.slice(1, -1);
+    $trackPath.textContent = pathSegs.length ? pathSegs.join(' / ') : 'root';
+    $timeDisplay.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+    $timeDisplay.style.opacity = '0.25';
+  } else {
+    $trackPath.textContent = 'peel a layer';
+    $timeDisplay.style.opacity = '0';
+  }
+  $btnPlay.innerHTML = isPlaying ? '&#x2759;&#x2759;' : '&#x25B6;';
+}
+
+function flashIndicator(symbol){
+  $indicator.textContent = symbol;
+  $indicator.classList.add('flash');
+  setTimeout(()=>$indicator.classList.remove('flash'), 300);
+}
+
+// === DECK RENDERING ===
+function renderDeck(){
+  $deckStage.innerHTML = '';
+  const children = currentChildren();
+  if (children.length === 0){
+    // empty card
+    const card = document.createElement('div');
+    card.className = 'deck-card current';
+    card.innerHTML = `
+      <div class="card-kind"><span>EMPTY FOLDER</span><span class="pos">0/0</span></div>
+      <div class="card-glyph">∅</div>
+      <div class="card-title">${esc(currentFolder().name)}</div>
+      <div class="card-meta">nothing here</div>
+      <div class="card-actions">
+        <div class="card-action-text">peel ↓ to go back</div>
+      </div>
+    `;
+    $deckStage.appendChild(card);
+    return;
+  }
+  if (siblingIndex >= children.length) siblingIndex = children.length - 1;
+  if (siblingIndex < 0) siblingIndex = 0;
+
+  // Render behind cards = path ancestry (max 3)
+  const ancestors = folderPath.slice(0, -1).slice(-3).reverse(); // closest ancestor first
+  ancestors.forEach((anc, i) => {
+    const card = document.createElement('div');
+    card.className = 'deck-card folder-card behind-' + (i+1);
+    card.innerHTML = `
+      <div class="card-kind"><span>PARENT</span></div>
+      <div class="card-glyph">▢</div>
+      <div class="card-title">${esc(anc.name)}</div>
+    `;
+    $deckStage.appendChild(card);
+  });
+
+  // Prev sibling
+  if (children.length > 1){
+    const prevIdx = (siblingIndex - 1 + children.length) % children.length;
+    $deckStage.appendChild(buildCard(children[prevIdx], 'prev-sib', prevIdx, children.length));
+  }
+  // Current (last appended is on top within same z, but we use z-index)
+  $deckStage.appendChild(buildCard(children[siblingIndex], 'current', siblingIndex, children.length));
+  // Next sibling
+  if (children.length > 1){
+    const nextIdx = (siblingIndex + 1) % children.length;
+    $deckStage.appendChild(buildCard(children[nextIdx], 'next-sib', nextIdx, children.length));
+  }
+}
+
+function buildCard(item, klass, idx, total){
+  const card = document.createElement('div');
+  card.className = 'deck-card ' + klass + ' ' + (item.type === 'folder' ? 'folder-card' : 'file-card');
+  card.dataset.itemName = item.name;
+
+  if (item.type === 'folder'){
+    const count = collectFiles(item, []).length;
+    const preview = (item.children || []).slice(0, 5);
+    let mini = '';
+    for (const c of preview){
+      const ic = c.type === 'folder' ? '▢' : '♪';
+      const du = c.type === 'file' ? c.duration : '';
+      mini += `<div class="mini-row"><span class="ic">${ic}</span><span class="nm">${esc(c.name.replace('.mp3',''))}</span><span class="du">${du}</span></div>`;
+    }
+    if ((item.children || []).length > 5){
+      mini += `<div class="mini-row" style="cursor:default;color:rgba(255,255,255,0.3);font-style:italic"><span class="ic">+</span><span class="nm">${(item.children.length - 5)} more</span></div>`;
+    }
+    card.innerHTML = `
+      <div class="card-kind"><span>FOLDER</span><span class="pos">${idx+1}/${total}</span></div>
+      <div class="card-edge-hint top">peel down: up</div>
+      <div class="card-glyph">▢</div>
+      <div class="card-title">${esc(item.name)}</div>
+      <div class="card-meta">${count} track${count !== 1 ? 's' : ''}</div>
+      <div class="card-mini-list">${mini}</div>
+      <div class="card-actions">
+        <div class="card-action-text">peel <span class="k">↑</span> to open &middot; <span class="k">← →</span> to flip</div>
+      </div>
+      <div class="card-edge-hint bottom">peel up: open</div>
+    `;
+  } else {
+    const isPlayingThis = currentTrack && currentTrack.name === item.name;
+    card.innerHTML = `
+      <div class="card-kind"><span>FILE</span><span class="pos">${idx+1}/${total}</span></div>
+      <div class="card-edge-hint top">peel down: up</div>
+      <div class="card-glyph">${isPlayingThis ? '▶' : '♪'}</div>
+      <div class="card-title">${esc(item.name.replace('.mp3',''))}</div>
+      <div class="card-meta">${item.duration} &middot; ${item.size}</div>
+      <div class="card-actions">
+        <div class="card-action-text">peel <span class="k">↑</span> to play &middot; <span class="k">← →</span> to flip</div>
+      </div>
+      <div class="card-edge-hint bottom">peel up: play</div>
+    `;
+  }
+
+  // Mini-row click on current card = navigate into that child (folder) or play (file)
+  if (klass === 'current'){
+    setTimeout(()=>{
+      card.querySelectorAll('.mini-row').forEach((row, i) => {
+        const child = (item.children || [])[i];
+        if (!child) return;
+        row.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          if (child.type === 'folder'){
+            folderPath.push(item); // push the parent we previewed
+            folderPath.push(child);
+            siblingIndex = 0;
+            renderDeck();
+          } else {
+            // play
+            const files = (item.children || []).filter(c => c.type === 'file').map(c => {
+              const p = [...buildPathFor(item)];
+              return {name:c.name, duration:c.duration, size:c.size, path:[...p, c.name]};
+            });
+            playlist = files;
+            playlistIndex = files.findIndex(f => f.name === child.name);
+            if (playlistIndex < 0) playlistIndex = 0;
+            setTrack(playlist[playlistIndex]);
+          }
+        });
+      });
+    }, 0);
+  }
+  return card;
+}
+
+function buildPathFor(folderNode){
+  // BFS to find path
+  const path = [];
+  function find(node){
+    path.push(node.name);
+    if (node === folderNode) return true;
+    if (node.children) for (const c of node.children){if (find(c)) return true}
+    path.pop();
+    return false;
+  }
+  find(FILE_TREE);
+  return path;
+}
+
+// === DECK ACTIONS ===
+function deckFlipNext(){
+  const c = currentChildren();
+  if (c.length === 0) return;
+  siblingIndex = (siblingIndex + 1) % c.length;
+  renderDeck();
+}
+function deckFlipPrev(){
+  const c = currentChildren();
+  if (c.length === 0) return;
+  siblingIndex = (siblingIndex - 1 + c.length) % c.length;
+  renderDeck();
+}
+function deckDescend(){
+  const c = currentChildren();
+  if (c.length === 0) return;
+  const item = c[siblingIndex];
+  if (item.type === 'folder'){
+    folderPath.push(item);
+    siblingIndex = 0;
+    renderDeck();
+  } else {
+    // play this file, build playlist from current folder's files
+    const folder = currentFolder();
+    const files = folder.children.filter(c => c.type === 'file').map(c => {
+      const p = buildPathFor(folder);
+      return {name:c.name, duration:c.duration, size:c.size, path:[...p, c.name]};
+    });
+    playlist = files;
+    playlistIndex = files.findIndex(f => f.name === item.name);
+    if (playlistIndex < 0) playlistIndex = 0;
+    setTrack(playlist[playlistIndex]);
+    flashIndicator('▶');
+  }
+}
+function deckAscend(){
+  if (folderPath.length <= 1){
+    // already at root -> close the deck
+    closeDeck();
+    return;
+  }
+  const leaving = folderPath.pop();
+  // restore sibling index to the leaving folder
+  const c = currentChildren();
+  const idx = c.findIndex(x => x === leaving);
+  siblingIndex = idx >= 0 ? idx : 0;
+  renderDeck();
+}
+
+// === LAYER CONTROL ===
+function openDeck(){deckOpen = true; $deckLayer.classList.add('open'); renderDeck(); hideOnboard()}
+function closeDeck(){deckOpen = false; $deckLayer.classList.remove('open')}
+
+function openQueue(){queueOpen = true; $queueLayer.classList.add('open'); renderQueue(); hideOnboard()}
+function closeQueue(){queueOpen = false; $queueLayer.classList.remove('open')}
+
+function openSettings(){settingsOpen = true; $settingsLayer.classList.add('open'); hideOnboard()}
+function closeSettings(){settingsOpen = false; $settingsLayer.classList.remove('open')}
+
+function openSearch(){
+  searchOpen = true;
+  $searchLayer.classList.add('open');
+  hideOnboard();
+  setTimeout(()=>{$searchInput.focus()}, 200);
+  renderSearch();
+}
+function closeSearch(){
+  searchOpen = false;
+  $searchLayer.classList.remove('open');
+  $searchInput.blur();
+}
+
+function openStackOverview(){
+  if (!deckOpen) return;
+  stackOpen = true;
+  renderStackOverview();
+  $stackOverview.classList.add('open');
+}
+function closeStackOverview(){
+  stackOpen = false;
+  $stackOverview.classList.remove('open');
+}
+
+function hideOnboard(){$onboard.classList.add('fade')}
+
+// === RENDER QUEUE ===
+function renderQueue(){
+  $queueCount.textContent = playlist.length || '0';
+  $queueList.innerHTML = '';
+  if (playlist.length === 0){
+    $queueList.innerHTML = '<div class="q-empty">queue is empty<br>flip to a file in the deck<br>and peel up to play</div>';
+    return;
+  }
+  playlist.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'q-row' + (i === playlistIndex ? ' current' : '');
+    row.innerHTML = `<span class="q-num">${String(i+1).padStart(2,'0')}</span><span class="q-nm">${esc(f.name.replace('.mp3',''))}</span><span class="q-du">${f.duration}</span>`;
+    row.addEventListener('click', ()=>{
+      playlistIndex = i;
+      setTrack(playlist[i]);
+    });
+    $queueList.appendChild(row);
+  });
+}
+
+// === RENDER STACK OVERVIEW ===
+function renderStackOverview(){
+  $stackCards.innerHTML = '';
+  const total = folderPath.length;
+  folderPath.forEach((f, i) => {
+    // i=0 root, i=total-1 current
+    const fromTop = total - 1 - i; // 0 = current
+    const card = document.createElement('div');
+    card.className = 'stack-card';
+    const tz = -fromTop * 60;
+    const ty = -fromTop * 24;
+    const op = 1 - fromTop * 0.18;
+    card.style.transform = `translateY(${ty}px) translateZ(${tz}px)`;
+    card.style.opacity = Math.max(0.2, op);
+    card.style.zIndex = i;
+    const fileCount = collectFiles(f, []).length;
+    card.innerHTML = `
+      <div class="sc-kind">${i === 0 ? 'root' : (i === total-1 ? 'here' : 'level '+i)}</div>
+      <div class="sc-name">${esc(f.name)}</div>
+      <div class="sc-count">${fileCount} track${fileCount!==1?'s':''}</div>
+    `;
+    card.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      // navigate back to this level
+      const leaving = folderPath[folderPath.length-1];
+      folderPath = folderPath.slice(0, i + 1);
+      if (i < total - 1){
+        const c = currentChildren();
+        const childIdx = c.findIndex(x => x === folderPath[i+1] || (folderPath[i+1] && x === folderPath[i+1]));
+        // simpler: reset siblingIndex to 0
+        siblingIndex = 0;
+      }
+      closeStackOverview();
+      renderDeck();
+    });
+    $stackCards.appendChild(card);
+  });
+}
+
+$stackOverview.addEventListener('click', (e)=>{
+  if (e.target === $stackOverview || e.target === $stackCards){
+    closeStackOverview();
+  }
+});
+
+// === SEARCH ===
+function renderSearch(){
+  const term = $searchInput.value.toLowerCase().trim();
+  $searchResults.innerHTML = '';
+  if (!term){
+    $searchResults.innerHTML = '<div class="sr-empty">type to filter files</div>';
+    return;
+  }
+  const results = ALL_FILES.filter(f => f.name.toLowerCase().includes(term));
+  if (results.length === 0){
+    $searchResults.innerHTML = '<div class="sr-empty">no matches</div>';
+    return;
+  }
+  for (const f of results){
+    const row = document.createElement('div');
+    row.className = 'sr-row';
+    const pathPretty = f.path.slice(1, -1).join(' / ') || 'root';
+    const playing = currentTrack && currentTrack.name === f.name;
+    row.innerHTML = `<span class="sr-ic">${playing ? '▶' : '♪'}</span><div class="sr-info"><div class="sr-nm">${esc(f.name.replace('.mp3',''))}</div><div class="sr-pa">${esc(pathPretty)} &middot; ${f.duration}</div></div>`;
+    row.addEventListener('click', ()=>{
+      playlist = [...results];
+      playlistIndex = results.indexOf(f);
+      setTrack(f);
+      closeSearch();
+    });
+    $searchResults.appendChild(row);
+  }
+}
+$searchInput.addEventListener('input', renderSearch);
+$searchClear.addEventListener('click', ()=>{
+  $searchInput.value = '';
+  renderSearch();
+  $searchInput.focus();
+});
+
+// === SETTINGS TOGGLE ===
+document.querySelectorAll('.setting-row[data-options]').forEach(row => {
+  row.addEventListener('click', ()=>{
+    const opts = row.dataset.options.split(',');
+    const valEl = row.querySelector('.setting-value');
+    const cur = valEl.textContent.trim();
+    const idx = opts.indexOf(cur);
+    const next = opts[(idx + 1) % opts.length];
+    valEl.textContent = next;
+    valEl.classList.toggle('active-val', next !== opts[0]);
+  });
+});
+
+// === NOW PLAYING BUTTONS ===
+$btnPlay.addEventListener('click', e => {e.stopPropagation(); togglePlay()});
+$btnNext.addEventListener('click', e => {e.stopPropagation(); playNext()});
+$btnPrev.addEventListener('click', e => {e.stopPropagation(); playPrev()});
+
+// === PROGRESS SEEK ===
+$progressHit.addEventListener('click', e => {
+  if (currentDuration === 0) return;
+  const pct = e.clientX / window.innerWidth;
+  elapsed = pct * currentDuration;
+  e.stopPropagation();
+});
+
+// =====================================================
+//   GESTURE ENGINE (touch + mouse, void.html style)
+// =====================================================
+//
+// Edge swipes from idle (any layer closed, on np-slab area):
+//   - swipe-up   from bottom edge      -> open deck (browser)
+//   - swipe-left from right edge       -> open queue
+//   - swipe-down from top edge         -> open search
+//   - swipe-right from left edge       -> open settings
+//
+// Inside the deck (current card):
+//   - swipe left  -> flip to next sibling
+//   - swipe right -> flip to prev sibling
+//   - swipe up    -> descend / play
+//   - swipe down  -> ascend (or close deck if at root)
+//   - two-finger pinch-out -> open stack-overview
+//
+// Inside peel layers:
+//   - swipe in opposite direction near pull-handle/edge -> close
+//
+// Tap on np-slab background -> toggle play
+//
+// Mouse equivalents: mousedown/mouseup with same vectors.
+// =====================================================
+
+const SWIPE = 50;    // min distance for swipe
+const TAP = 12;      // max distance for tap
+const TIME_LIMIT = 600;
+
+let gx0=0, gy0=0, gt0=0;
+let pointerType = null;  // 'touch' | 'mouse'
+let activeLayer = null;  // which layer should react
+let dragTarget = null;   // element being dragged
+let pinchActive = false;
+let pinchStartDist = 0;
+
+function setActiveLayer(){
+  if (searchOpen) activeLayer = 'search';
+  else if (settingsOpen) activeLayer = 'settings';
+  else if (queueOpen) activeLayer = 'queue';
+  else if (deckOpen) activeLayer = 'deck';
+  else activeLayer = 'idle';
+}
+
+function inIdleZone(e){
+  // gestures from idle: must NOT be over the now-playing controls
+  return e.target.closest('.np-controls') === null && e.target.closest('#progress-hit') === null;
+}
+
+// ===== TOUCH =====
+$stage.addEventListener('touchstart', e => {
+  pointerType = 'touch';
+  setActiveLayer();
+
+  if (e.touches.length === 2){
+    // pinch detection
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchStartDist = Math.hypot(dx, dy);
+    pinchActive = true;
+    return;
+  }
+
+  pinchActive = false;
+  gx0 = e.touches[0].clientX;
+  gy0 = e.touches[0].clientY;
+  gt0 = Date.now();
+}, { passive: true });
+
+$stage.addEventListener('touchmove', e => {
+  if (pinchActive && e.touches.length === 2){
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const d = Math.hypot(dx, dy);
+    if (d - pinchStartDist > 60 && deckOpen && !stackOpen){
+      openStackOverview();
+      pinchActive = false;
+    } else if (pinchStartDist - d > 60 && stackOpen){
+      closeStackOverview();
+      pinchActive = false;
+    }
+  }
+}, { passive: true });
+
+$stage.addEventListener('touchend', e => {
+  if (pinchActive){pinchActive = false; return}
+  if (e.changedTouches.length === 0) return;
+  const t = e.changedTouches[0];
+  handlePointerEnd(t.clientX, t.clientY, gt0, e);
+}, { passive: true });
+
+// Layer touch handlers (for closing via reverse swipe)
+function attachLayerSwipe(el, axis, closeDir, closeFn){
+  let sx=0, sy=0, st=0;
+  el.addEventListener('touchstart', e => {
+    sx = e.touches[0].clientX;
+    sy = e.touches[0].clientY;
+    st = Date.now();
+  }, { passive: true });
+  el.addEventListener('touchend', e => {
+    const ex = e.changedTouches[0].clientX;
+    const ey = e.changedTouches[0].clientY;
+    const dx = ex - sx;
+    const dy = ey - sy;
+    const dt = Date.now() - st;
+    if (dt > TIME_LIMIT) return;
+    if (axis === 'y'){
+      if (closeDir === 'down' && dy > SWIPE && Math.abs(dy) > Math.abs(dx)) closeFn();
+      if (closeDir === 'up' && dy < -SWIPE && Math.abs(dy) > Math.abs(dx)) closeFn();
+    } else {
+      if (closeDir === 'left' && dx < -SWIPE && Math.abs(dx) > Math.abs(dy)) closeFn();
+      if (closeDir === 'right' && dx > SWIPE && Math.abs(dx) > Math.abs(dy)) closeFn();
+    }
+  }, { passive: true });
+}
+// queue closes with swipe right; settings closes with swipe down; search closes with swipe up
+attachLayerSwipe($queueLayer, 'x', 'right', closeQueue);
+attachLayerSwipe($settingsLayer, 'y', 'down', closeSettings);
+attachLayerSwipe($searchLayer, 'y', 'up', closeSearch);
+
+// ===== MOUSE =====
+let mouseDown = false;
+let mx0 = 0, my0 = 0, mt0 = 0;
+
+$stage.addEventListener('mousedown', e => {
+  if (pointerType === 'touch') return;
+  pointerType = 'mouse';
+  setActiveLayer();
+  mouseDown = true;
+  mx0 = e.clientX;
+  my0 = e.clientY;
+  mt0 = Date.now();
+});
+
+$stage.addEventListener('mouseup', e => {
+  if (!mouseDown) return;
+  mouseDown = false;
+  handlePointerEnd(e.clientX, e.clientY, mt0, e);
+});
+
+$stage.addEventListener('mouseleave', () => {mouseDown = false});
+
+// === unified pointer-end ===
+function handlePointerEnd(ex, ey, st, e){
+  setActiveLayer();
+  const dx = ex - (pointerType === 'touch' ? gx0 : mx0);
+  const dy = ey - (pointerType === 'touch' ? gy0 : my0);
+  const sx = pointerType === 'touch' ? gx0 : mx0;
+  const sy = pointerType === 'touch' ? gy0 : my0;
+  const dt = Date.now() - st;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  // Tap (idle area)
+  if (activeLayer === 'idle' && absDx < TAP && absDy < TAP && dt < 300){
+    if (inIdleZone(e)){
+      togglePlay();
+    }
+    return;
+  }
+
+  if (dt > TIME_LIMIT) return;
+
+  // Idle gestures (open layers)
+  if (activeLayer === 'idle'){
+    // from bottom edge: swipe up -> deck
+    if (sy > window.innerHeight - 80 && dy < -SWIPE && absDy > absDx){
+      openDeck();
+      return;
+    }
+    // from right edge: swipe left -> queue
+    if (sx > window.innerWidth - 50 && dx < -SWIPE && absDx > absDy){
+      openQueue();
+      return;
+    }
+    // from top edge: swipe down -> search
+    if (sy < 60 && dy > SWIPE && absDy > absDx){
+      openSearch();
+      return;
+    }
+    // from left edge: swipe right -> settings
+    if (sx < 50 && dx > SWIPE && absDx > absDy){
+      openSettings();
+      return;
+    }
+
+    // horizontal swipe in body = prev/next track (matches void.html vocab)
+    if (absDx > SWIPE && absDx > absDy * 1.5){
+      if (dx < 0) playNext(); else playPrev();
+      return;
+    }
+    return;
+  }
+
+  // Deck gestures
+  if (activeLayer === 'deck' && !stackOpen){
+    // horizontal flip
+    if (absDx > SWIPE && absDx > absDy * 1.2){
+      if (dx < 0) deckFlipNext();
+      else deckFlipPrev();
+      return;
+    }
+    // vertical
+    if (absDy > SWIPE && absDy > absDx * 1.2){
+      if (dy < 0) deckDescend();
+      else deckAscend();
+      return;
+    }
+    // tap on current card area = same as peel up
+    if (absDx < TAP && absDy < TAP && dt < 300){
+      // if tap on background (outside any card), close deck
+      const onCard = e.target.closest && e.target.closest('.deck-card.current');
+      if (!onCard) closeDeck();
+    }
+  }
+}
+
+// === KEYBOARD ===
+document.addEventListener('keydown', e => {
+  if (searchOpen && e.target === $searchInput){
+    if (e.key === 'Escape'){closeSearch()}
+    return;
+  }
+  switch (e.key){
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 'ArrowRight':
+      if (deckOpen) deckFlipNext();
+      else playNext();
+      break;
+    case 'ArrowLeft':
+      if (deckOpen) deckFlipPrev();
+      else playPrev();
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      if (!deckOpen && !queueOpen && !settingsOpen && !searchOpen) openDeck();
+      else if (deckOpen) deckDescend();
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      if (deckOpen) deckAscend();
+      break;
+    case 'q': case 'Q':
+      if (queueOpen) closeQueue(); else if (!searchOpen) openQueue();
+      break;
+    case 's': case 'S':
+      if (settingsOpen) closeSettings(); else if (!searchOpen) openSettings();
+      break;
+    case '/':
+      e.preventDefault();
+      if (!searchOpen) openSearch(); else closeSearch();
+      break;
+    case 'Escape':
+      if (stackOpen) closeStackOverview();
+      else if (searchOpen) closeSearch();
+      else if (settingsOpen) closeSettings();
+      else if (queueOpen) closeQueue();
+      else if (deckOpen) closeDeck();
+      break;
+    case 'z': case 'Z':
+      // pinch keyboard shortcut
+      if (deckOpen && !stackOpen) openStackOverview();
+      else if (stackOpen) closeStackOverview();
+      break;
+  }
+});
+
+// === ANIMATION LOOP ===
+let lastTime = 0;
+function animate(ts){
+  const dt = lastTime ? (ts - lastTime) / 1000 : 0.016;
+  lastTime = ts;
+  if (isPlaying && currentTrack){
+    elapsed += dt;
+    if (elapsed >= currentDuration && currentDuration > 0) playNext();
+  }
+  const pct = currentDuration > 0 ? (elapsed / currentDuration * 100) : 0;
+  $progressLine.style.width = pct + '%';
+  if (currentTrack){
+    $timeDisplay.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+  }
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// === RESIZE OBSERVER (mobile/tablet only, no desktop) ===
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  document.body.classList.toggle('mobile', width < 768);
+  document.body.classList.toggle('tablet', width >= 768);
+});
+ro.observe(document.body);
+
+// initial paint
+updateNowPlaying();
+renderQueue();
+
+// Fade onboard hint after a while
+setTimeout(()=>{$onboard.classList.add('fade')}, 6000);
+</script>
+</body>
+</html>

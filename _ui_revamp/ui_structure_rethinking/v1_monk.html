@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>nothingness — monk</title>
+<!--
+  Persona: The Minimalist Monk
+  Core belief: A music player should fit on one surface, where the file you read is the file you hear, and silence is the default control.
+  Key structural moves:
+    1. One surface. No tabs, no sheets, no overlays — the file list IS the home screen. Playback "lives" inside the list as an inverted row; there is no separate "now playing" view.
+    2. No visible buttons or icons for search, settings, queue, play, pause, prev, next. Every control is a gesture on the single existing surface (tap-to-toggle on the playing row, long-press to type, triple-tap the root to open settings, edge-swipe to skip).
+    3. The breadcrumb is the only persistent chrome and it doubles as the search field. Typing replaces the path with the query; clearing restores the path. There is no second input.
+  Trade-offs accepted: Discoverability. A first-time user will not know any gesture exists. The Monk accepts this — the UI's job is to disappear once learned, not to teach itself.
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ===================== ROOT LAYOUT ===================== */
+/* The entire app is one surface. No header, no footer, no tabs.
+   The breadcrumb sits at the very top thumb-out zone; the list
+   fills the rest; the progress line is a hairline at the very bottom. */
+#surface{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  z-index:1;
+}
+
+/* ===================== BREADCRUMB / SEARCH ===================== */
+/* This single element is path AND search input. There is no second
+   field. Long-press anywhere on the list converts it into an input;
+   ESC or empty-blur restores it to a path. */
+#crumb{
+  position:relative;
+  flex-shrink:0;
+  padding:14px 20px 10px;
+  font-size:12px;
+  letter-spacing:0.05em;
+  color:rgba(255,255,255,0.4);
+  line-height:1.4;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  cursor:default;
+  min-height:36px;
+}
+#crumb .seg{
+  cursor:pointer;
+  padding:1px 0;
+}
+#crumb .seg.tail{color:rgba(255,255,255,0.85)}
+#crumb .sep{opacity:0.25;padding:0 3px}
+#crumb.search-mode{
+  color:rgba(255,255,255,0.85);
+}
+#crumb .caret{
+  display:inline-block;
+  font-weight:100;
+  animation:blink 1s step-end infinite;
+  margin-left:1px;
+  opacity:0.8;
+}
+@keyframes blink{0%,100%{opacity:0.8}50%{opacity:0}}
+
+/* Hidden real input — collects keystrokes when in search mode.
+   Sits offscreen but focusable. The visible crumb mirrors its value. */
+#searchProxy{
+  position:absolute;
+  left:-9999px;top:0;
+  opacity:0;
+  width:1px;height:1px;
+}
+
+/* ===================== FILE LIST ===================== */
+/* One scrollable column. Folders and files share the same row shape;
+   only the row's first glyph differs. No icons by default — a folder
+   row is prefixed by "/" and a file row by a single dot. */
+#list{
+  flex:1;
+  overflow-y:auto;
+  padding:4px 0 60px;
+  scrollbar-width:none;
+}
+#list::-webkit-scrollbar{display:none}
+
+.row{
+  display:block;
+  padding:14px 20px;
+  font-size:14px;
+  color:rgba(255,255,255,0.85);
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  position:relative;
+  -webkit-tap-highlight-color:transparent;
+}
+.row::before{
+  content:'';
+  position:absolute;
+  left:20px;right:20px;bottom:0;
+  height:1px;
+  background:rgba(255,255,255,0.06);
+}
+.row:last-child::before{display:none}
+
+/* Folder rows — slightly dimmer than files, no end-of-line meta. */
+.row.folder{color:rgba(255,255,255,0.6)}
+.row.folder .glyph{opacity:0.4}
+
+/* File rows */
+.row.file .glyph{opacity:0.25}
+
+/* Glyph: leading single character. We use "/" for folders and a
+   thin middle-dot for files. Period. */
+.glyph{
+  display:inline-block;
+  width:14px;
+  color:rgba(255,255,255,0.5);
+}
+
+/* The "playing" row is the only thing in the entire app that ever
+   inverts. White block, black text. That inversion IS the now-playing
+   indicator. No separate widget. */
+.row.playing{
+  background:rgba(255,255,255,0.92);
+  color:#000;
+}
+.row.playing .glyph{color:rgba(0,0,0,0.6);opacity:1}
+.row.playing::before{background:transparent}
+.row.playing::after{
+  content:'';
+  position:absolute;
+  left:0;top:0;bottom:0;width:2px;
+  background:#FFF;
+}
+
+/* When the list is in "search mode" we suppress folder rows entirely
+   and show only matching files. */
+
+/* The very first row, when in any non-root folder, is the parent ref.
+   Same shape as everything else, just with ".." text. */
+.row.up{color:rgba(255,255,255,0.4)}
+
+/* ===================== PROGRESS LINE ===================== */
+/* 1px hairline at the very bottom of the screen — fixed, always
+   visible while a track exists. This is the ONLY persistent
+   feedback for playback position. */
+#progress{
+  position:fixed;
+  bottom:0;left:0;
+  width:0%;height:1px;
+  background:#FFF;
+  z-index:10;
+  transition:none;
+  pointer-events:none;
+}
+#progressHit{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:14px;
+  z-index:11;
+  cursor:pointer;
+}
+
+/* ===================== AMBIENT EMPTY STATE ===================== */
+/* When no track has ever been started AND no folder is open, the
+   first row simply reads "nothingness" in the file-row style.
+   Even the empty state is just a row. */
+
+/* ===================== SETTINGS — INLINE ROWS ===================== */
+/* Settings is not a screen. It is reached by triple-tapping the root
+   crumb. Settings rows then appear in the SAME list, replacing the
+   file rows, in the SAME row format. They are dismissed by tapping
+   any breadcrumb segment. */
+.row.setting{color:rgba(255,255,255,0.7)}
+.row.setting .glyph{opacity:0.25}
+.row.setting .value{
+  float:right;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:0.05em;
+}
+.row.setting .value.on{color:#FFF}
+
+/* ===================== HINT (peripheral, non-blocking) ===================== */
+/* A single 1-character hint at the bottom-right corner. Fades after
+   a few seconds. The Monk allows it only because a totally blank
+   first-launch screen would teach nothing at all. */
+#hint{
+  position:fixed;
+  bottom:14px;right:18px;
+  font-size:10px;
+  letter-spacing:0.2em;
+  color:rgba(255,255,255,0.25);
+  pointer-events:none;
+  z-index:5;
+  transition:opacity 800ms;
+}
+#hint.gone{opacity:0}
+
+/* ===================== TIME (only when playing, only on focus) ===================== */
+/* Time appears as a small suffix on the playing row itself. No
+   separate clock element. */
+.row.playing .time{
+  float:right;
+  font-size:12px;
+  color:rgba(0,0,0,0.55);
+  letter-spacing:0.05em;
+}
+
+/* ===================== RESPONSIVE ===================== */
+body.mobile #crumb{
+  font-size:11px;
+  padding:18px 18px 10px;
+}
+body.mobile .row{
+  font-size:14px;
+  padding:14px 18px;
+}
+body.mobile #hint{
+  bottom:18px;right:18px;
+}
+
+body.tablet #surface{
+  max-width:640px;
+  margin:0 auto;
+}
+body.tablet #progress,
+body.tablet #progressHit{
+  max-width:640px;
+  left:50%;
+  transform:translateX(-50%);
+}
+body.tablet #hint{
+  right:calc(50% - 320px + 18px);
+}
+body.tablet .row{
+  font-size:15px;
+  padding:14px 24px;
+}
+body.tablet #crumb{
+  padding:18px 24px 12px;
+  font-size:13px;
+}
+
+/* ===================== FLASH (play/pause confirmation) ===================== */
+/* A 200ms barely-visible white wash over the playing row when state
+   toggles. Replaces the giant play/pause icon flash from void.html. */
+.row.playing.flash{
+  animation:rowflash 240ms ease-out;
+}
+@keyframes rowflash{
+  0%{background:rgba(255,255,255,0.55)}
+  100%{background:rgba(255,255,255,0.92)}
+}
+
+/* Disable any selection in the surface — this is a player, not a doc. */
+#surface,#surface *{user-select:none;-webkit-user-select:none}
+
+</style>
+</head>
+<body>
+
+<!-- One surface. Everything else is a child of this. -->
+<div id="surface">
+
+  <!-- Crumb = path + search. Same element, two modes. -->
+  <div id="crumb" tabindex="-1"></div>
+  <input id="searchProxy" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+  <!-- The list. The whole app, really. -->
+  <div id="list"></div>
+
+</div>
+
+<!-- 1px progress line, only persistent chrome below the list. -->
+<div id="progress"></div>
+<div id="progressHit"></div>
+
+<!-- Ephemeral hint. -->
+<div id="hint">long-press &#183; tap &#183; swipe</div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   FILE TREE — files and folders only, per the file-first principle.
+   No artist/album/genre concepts as data; folder names are folder
+   names, not metadata.
+   ===================================================================== */
+const FILE_TREE = {
+  name: 'nothingness', type: 'folder', children: [
+    { name: 'rock', type: 'folder', children: [
+      { name: 'led zeppelin', type: 'folder', children: [
+        { name: 'stairway to heaven.mp3', type: 'file', duration: '08:02' },
+        { name: 'kashmir.mp3',            type: 'file', duration: '08:37' },
+        { name: 'black dog.mp3',          type: 'file', duration: '04:54' },
+        { name: 'whole lotta love.mp3',   type: 'file', duration: '05:34' },
+      ]},
+      { name: 'pink floyd', type: 'folder', children: [
+        { name: 'comfortably numb.mp3',   type: 'file', duration: '06:22' },
+        { name: 'wish you were here.mp3', type: 'file', duration: '05:34' },
+        { name: 'time.mp3',               type: 'file', duration: '07:06' },
+      ]},
+      { name: 'ac dc', type: 'folder', children: [
+        { name: 'thunderstruck.mp3',      type: 'file', duration: '04:52' },
+        { name: 'highway to hell.mp3',    type: 'file', duration: '03:28' },
+        { name: 'back in black.mp3',      type: 'file', duration: '04:15' },
+      ]},
+    ]},
+    { name: 'electronic', type: 'folder', children: [
+      { name: 'daft punk', type: 'folder', children: [
+        { name: 'around the world.mp3',     type: 'file', duration: '07:09' },
+        { name: 'one more time.mp3',        type: 'file', duration: '05:20' },
+        { name: 'digital love.mp3',         type: 'file', duration: '04:58' },
+        { name: 'harder better faster.mp3', type: 'file', duration: '03:44' },
+      ]},
+      { name: 'kraftwerk', type: 'folder', children: [
+        { name: 'autobahn.mp3',       type: 'file', duration: '22:43' },
+        { name: 'the model.mp3',      type: 'file', duration: '03:43' },
+        { name: 'computer love.mp3',  type: 'file', duration: '07:20' },
+      ]},
+      { name: 'aphex twin', type: 'folder', children: [
+        { name: 'windowlicker.mp3',  type: 'file', duration: '06:07' },
+        { name: 'avril 14th.mp3',    type: 'file', duration: '02:05' },
+      ]},
+    ]},
+    { name: 'jazz', type: 'folder', children: [
+      { name: 'miles davis', type: 'folder', children: [
+        { name: 'so what.mp3',        type: 'file', duration: '09:22' },
+        { name: 'blue in green.mp3',  type: 'file', duration: '05:27' },
+        { name: 'all blues.mp3',      type: 'file', duration: '11:33' },
+      ]},
+      { name: 'john coltrane', type: 'folder', children: [
+        { name: 'giant steps.mp3',        type: 'file', duration: '04:46' },
+        { name: 'my favorite things.mp3', type: 'file', duration: '13:41' },
+      ]},
+    ]},
+    { name: 'classical', type: 'folder', children: [
+      { name: 'bach', type: 'folder', children: [
+        { name: 'cello suite no 1.mp3',     type: 'file', duration: '02:38' },
+        { name: 'toccata and fugue.mp3',    type: 'file', duration: '09:18' },
+      ]},
+    ]},
+    { name: 'silence.mp3', type: 'file', duration: '04:33' },
+  ]
+};
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const state = {
+  // Navigation
+  currentFolder: FILE_TREE,
+  navStack: [],                 // ancestor folders, root-first
+  // Modes that replace the list contents
+  mode: 'browse',               // 'browse' | 'search' | 'settings'
+  search: '',
+  // Playback
+  playlist: [],                 // ordered files
+  playlistIndex: -1,
+  isPlaying: false,
+  elapsed: 0,
+  // Settings (cycle-on-tap)
+  settings: {
+    shuffle:  { value: 'off', options: ['off','on'] },
+    repeat:   { value: 'off', options: ['off','all','one'] },
+    theme:    { value: 'dark', options: ['dark','light','system'] },
+  },
+};
+
+/* =====================================================================
+   DOM REFS
+   ===================================================================== */
+const $crumb     = document.getElementById('crumb');
+const $list      = document.getElementById('list');
+const $progress  = document.getElementById('progress');
+const $progHit   = document.getElementById('progressHit');
+const $hint      = document.getElementById('hint');
+const $proxy     = document.getElementById('searchProxy');
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function parseDuration(s){
+  const p = s.split(':').map(Number);
+  return p[0]*60 + p[1];
+}
+function fmt(sec){
+  sec = Math.max(0, sec|0);
+  const m = (sec/60)|0;
+  const s = sec%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+function esc(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* Build flat list of every file under a node, in tree order. */
+function collectFiles(node, ancestry){
+  const path = [...ancestry, node.name];
+  let out = [];
+  if (node.type === 'file') {
+    out.push({ name: node.name, duration: node.duration, path });
+  } else if (node.children) {
+    for (const c of node.children) out = out.concat(collectFiles(c, path));
+  }
+  return out;
+}
+const ALL_FILES = collectFiles(FILE_TREE, []);
+
+/* Path of folder objects from root to currentFolder, inclusive. */
+function pathToFolder(target){
+  const path = [];
+  function dfs(node){
+    path.push(node);
+    if (node === target) return true;
+    if (node.children) {
+      for (const c of node.children) {
+        if (c.type === 'folder' && dfs(c)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  dfs(FILE_TREE);
+  return path;
+}
+
+/* =====================================================================
+   RENDER — CRUMB
+   ===================================================================== */
+function renderCrumb(){
+  $crumb.classList.toggle('search-mode', state.mode === 'search');
+
+  if (state.mode === 'search') {
+    // Crumb becomes a live-typed query. A leading "?" denotes search.
+    $crumb.innerHTML = '<span class="seg tail">? ' +
+      esc(state.search) + '</span><span class="caret">|</span>';
+    return;
+  }
+
+  if (state.mode === 'settings') {
+    $crumb.innerHTML = '<span class="seg" data-jump="0">' +
+      esc(FILE_TREE.name) + '</span><span class="sep">/</span>' +
+      '<span class="seg tail">settings</span>';
+    return;
+  }
+
+  const folders = pathToFolder(state.currentFolder);
+  let html = '';
+  folders.forEach((f, i) => {
+    if (i > 0) html += '<span class="sep">/</span>';
+    const tail = i === folders.length - 1;
+    html += '<span class="seg' + (tail ? ' tail' : '') +
+            '" data-jump="' + i + '">' + esc(f.name) + '</span>';
+  });
+  $crumb.innerHTML = html;
+}
+
+/* Click on a crumb segment = navigate to that depth.
+   Click on root segment three times in quick succession = open settings. */
+let rootTapTimes = [];
+$crumb.addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg');
+  if (!seg) return;
+  const depth = parseInt(seg.dataset.jump, 10);
+  if (Number.isNaN(depth)) return;
+
+  if (depth === 0) {
+    const now = Date.now();
+    rootTapTimes = rootTapTimes.filter(t => now - t < 600);
+    rootTapTimes.push(now);
+    if (rootTapTimes.length >= 3) {
+      rootTapTimes = [];
+      state.mode = 'settings';
+      renderAll();
+      return;
+    }
+  } else {
+    rootTapTimes = [];
+  }
+
+  // Plain jump
+  state.mode = 'browse';
+  state.search = '';
+  const folders = pathToFolder(state.currentFolder);
+  if (depth < folders.length) {
+    state.currentFolder = folders[depth];
+    state.navStack = folders.slice(0, depth);
+  }
+  renderAll();
+});
+
+/* =====================================================================
+   RENDER — LIST
+   ===================================================================== */
+function renderList(){
+  $list.innerHTML = '';
+
+  if (state.mode === 'settings') {
+    renderSettings();
+    return;
+  }
+
+  if (state.mode === 'search') {
+    renderSearch();
+    return;
+  }
+
+  // Browse mode
+  // 1. ".." row if we have ancestors
+  if (state.navStack.length > 0) {
+    const up = makeRow('up', '←', '..');
+    up.addEventListener('click', () => {
+      state.currentFolder = state.navStack.pop();
+      renderAll();
+    });
+    $list.appendChild(up);
+  }
+
+  // 2. Children
+  if (!state.currentFolder.children) return;
+  const sorted = [...state.currentFolder.children].sort((a,b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  for (const item of sorted) {
+    if (item.type === 'folder') {
+      const r = makeRow('folder', '/', item.name);
+      r.addEventListener('click', () => {
+        state.navStack.push(state.currentFolder);
+        state.currentFolder = item;
+        renderAll();
+      });
+      $list.appendChild(r);
+    } else {
+      const playing = isCurrentTrack(item);
+      const r = makeRow('file', '·', stripExt(item.name), playing);
+      r.addEventListener('click', () => onFileTap(item));
+      $list.appendChild(r);
+    }
+  }
+}
+
+function renderSearch(){
+  const term = state.search.trim().toLowerCase();
+  if (!term) {
+    // Show NOTHING — just the caret. The Monk approves of silence.
+    return;
+  }
+  const matches = ALL_FILES.filter(f =>
+    f.name.toLowerCase().includes(term)
+  );
+  if (matches.length === 0) {
+    const r = document.createElement('div');
+    r.className = 'row';
+    r.style.color = 'rgba(255,255,255,0.25)';
+    r.style.cursor = 'default';
+    r.innerHTML = '<span class="glyph">⌀</span>' + esc('nothing');
+    $list.appendChild(r);
+    return;
+  }
+  for (const f of matches) {
+    const playing = isCurrentTrack(f);
+    const r = makeRow('file', '·', stripExt(f.name), playing);
+    r.addEventListener('click', () => {
+      state.playlist = matches.slice();
+      state.playlistIndex = matches.indexOf(f);
+      setTrack(f);
+    });
+    $list.appendChild(r);
+  }
+}
+
+function renderSettings(){
+  // Render each setting as a row in the same list format. No special
+  // panel. No grouping titles. The Monk does not group what need not
+  // be grouped.
+  for (const [key, s] of Object.entries(state.settings)) {
+    const r = document.createElement('div');
+    r.className = 'row setting';
+    const on = s.value !== s.options[0];
+    r.innerHTML =
+      '<span class="glyph">' + (on ? '■' : '□') + '</span>' +
+      esc(key) +
+      '<span class="value' + (on ? ' on' : '') + '">' + esc(s.value) + '</span>';
+    r.addEventListener('click', () => {
+      const idx = s.options.indexOf(s.value);
+      s.value = s.options[(idx + 1) % s.options.length];
+      renderList();
+    });
+    $list.appendChild(r);
+  }
+  // Trailing version line, also a row (very dim, non-clickable).
+  const v = document.createElement('div');
+  v.className = 'row';
+  v.style.color = 'rgba(255,255,255,0.15)';
+  v.style.cursor = 'default';
+  v.innerHTML = '<span class="glyph">·</span>nothingness 1.0';
+  $list.appendChild(v);
+}
+
+function makeRow(kind, glyph, label, playing){
+  const r = document.createElement('div');
+  r.className = 'row ' + kind + (playing ? ' playing' : '');
+  let html = '<span class="glyph">' + glyph + '</span>' + esc(label);
+  if (playing && state.playlist.length > 0) {
+    const f = state.playlist[state.playlistIndex];
+    const dur = parseDuration(f.duration);
+    html += '<span class="time">' + fmt(state.elapsed) + ' &middot; ' + fmt(dur) + '</span>';
+  }
+  r.innerHTML = html;
+  return r;
+}
+
+function stripExt(n){ return n.replace(/\.mp3$/i,''); }
+
+function isCurrentTrack(file){
+  if (state.playlistIndex < 0) return false;
+  const cur = state.playlist[state.playlistIndex];
+  if (!cur) return false;
+  return cur.name === file.name &&
+         JSON.stringify(cur.path) === JSON.stringify(file.path || cur.path);
+}
+
+/* =====================================================================
+   PLAYBACK
+   ===================================================================== */
+function setTrack(file){
+  state.elapsed = 0;
+  state.isPlaying = true;
+  // file may come from a folder render (no .path) — derive it
+  if (!file.path) {
+    const fp = pathToFolder(state.currentFolder).map(f => f.name);
+    file = { name: file.name, duration: file.duration, path: [...fp, file.name] };
+  }
+  // Ensure playlist contains this file
+  if (!state.playlist.length || state.playlistIndex < 0 ||
+      state.playlist[state.playlistIndex].name !== file.name) {
+    const idx = state.playlist.findIndex(f => f.name === file.name);
+    if (idx >= 0) state.playlistIndex = idx;
+  }
+  renderList();
+  flashPlaying();
+}
+
+function onFileTap(item){
+  const playing = isCurrentTrack(item);
+  if (playing) {
+    // Tap the playing row to toggle play/pause.
+    state.isPlaying = !state.isPlaying;
+    flashPlaying();
+    return;
+  }
+  // Build playlist from this folder.
+  const folderFiles = state.currentFolder.children
+    .filter(c => c.type === 'file')
+    .map(c => {
+      const fp = pathToFolder(state.currentFolder).map(f => f.name);
+      return { name: c.name, duration: c.duration, path: [...fp, c.name] };
+    });
+  state.playlist = folderFiles;
+  state.playlistIndex = folderFiles.findIndex(f => f.name === item.name);
+  if (state.playlistIndex < 0) state.playlistIndex = 0;
+  setTrack(state.playlist[state.playlistIndex]);
+}
+
+function playNext(){
+  if (!state.playlist.length) return;
+  const rep = state.settings.repeat.value;
+  if (rep === 'one') {
+    state.elapsed = 0;
+    return;
+  }
+  if (state.settings.shuffle.value === 'on') {
+    state.playlistIndex = Math.floor(Math.random() * state.playlist.length);
+  } else {
+    state.playlistIndex = (state.playlistIndex + 1) % state.playlist.length;
+  }
+  setTrack(state.playlist[state.playlistIndex]);
+}
+
+function playPrev(){
+  if (!state.playlist.length) return;
+  if (state.elapsed > 3) { state.elapsed = 0; return; }
+  state.playlistIndex =
+    (state.playlistIndex - 1 + state.playlist.length) % state.playlist.length;
+  setTrack(state.playlist[state.playlistIndex]);
+}
+
+function flashPlaying(){
+  const row = $list.querySelector('.row.playing');
+  if (!row) return;
+  row.classList.remove('flash');
+  // Force reflow then re-add to restart the animation.
+  void row.offsetWidth;
+  row.classList.add('flash');
+}
+
+/* =====================================================================
+   SEARCH MODE — long-press to enter, ESC or empty to exit.
+   ===================================================================== */
+function enterSearch(){
+  if (state.mode === 'search') return;
+  state.mode = 'search';
+  state.search = '';
+  renderAll();
+  // Focus hidden proxy so virtual keyboards on phones pop up.
+  setTimeout(() => $proxy.focus(), 0);
+}
+function exitSearch(){
+  if (state.mode !== 'search') return;
+  state.mode = 'browse';
+  state.search = '';
+  $proxy.blur();
+  renderAll();
+}
+
+$proxy.addEventListener('input', () => {
+  state.search = $proxy.value;
+  renderCrumb();
+  renderList();
+});
+$proxy.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    exitSearch();
+  } else if (e.key === 'Backspace' && state.search === '') {
+    // Empty backspace exits search and returns to browse.
+    exitSearch();
+  }
+});
+$proxy.addEventListener('blur', () => {
+  // If user blurred with no query typed, drop back to browse.
+  if (state.mode === 'search' && state.search === '') {
+    state.mode = 'browse';
+    renderAll();
+  }
+});
+
+/* =====================================================================
+   GESTURES — long-press anywhere on the list = search.
+              edge-swipe left/right at the screen edges = next/prev.
+              No prev/next buttons exist.
+   ===================================================================== */
+let pressTimer = null;
+let pressX = 0, pressY = 0, pressTime = 0;
+let pressMoved = false;
+const LONG_PRESS_MS = 450;
+
+function clearPress(){
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+}
+
+$list.addEventListener('touchstart', (e) => {
+  if (state.mode === 'search') return;
+  const t = e.touches[0];
+  pressX = t.clientX; pressY = t.clientY;
+  pressTime = Date.now();
+  pressMoved = false;
+  clearPress();
+  pressTimer = setTimeout(() => {
+    if (!pressMoved) {
+      // Fire long-press: enter search mode.
+      enterSearch();
+      // Suppress the subsequent tap/click.
+      pressTimer = null;
+      pressMoved = true;
+    }
+  }, LONG_PRESS_MS);
+}, { passive: true });
+
+$list.addEventListener('touchmove', (e) => {
+  const t = e.touches[0];
+  if (Math.abs(t.clientX - pressX) > 10 || Math.abs(t.clientY - pressY) > 10) {
+    pressMoved = true;
+    clearPress();
+  }
+}, { passive: true });
+
+$list.addEventListener('touchend', (e) => {
+  clearPress();
+  // If long-press fired, swallow this tap.
+  if (pressMoved && Date.now() - pressTime > LONG_PRESS_MS) {
+    e.preventDefault();
+  }
+});
+
+// Mouse equivalent so the prototype works on a desktop browser too,
+// though the Monk does not bless desktop officially.
+$list.addEventListener('mousedown', (e) => {
+  if (state.mode === 'search') return;
+  pressX = e.clientX; pressY = e.clientY;
+  pressTime = Date.now();
+  pressMoved = false;
+  clearPress();
+  pressTimer = setTimeout(() => {
+    if (!pressMoved) enterSearch();
+  }, LONG_PRESS_MS);
+});
+$list.addEventListener('mousemove', (e) => {
+  if (!pressTimer) return;
+  if (Math.abs(e.clientX - pressX) > 10 || Math.abs(e.clientY - pressY) > 10) {
+    pressMoved = true; clearPress();
+  }
+});
+$list.addEventListener('mouseup', clearPress);
+$list.addEventListener('mouseleave', clearPress);
+
+/* Edge swipes for prev/next.
+   - Swipe right from the very left edge -> previous track.
+   - Swipe left  from the very right edge -> next track.
+   Anywhere else, normal scroll is preserved. */
+const EDGE_PX = 28;
+let edgeStart = null;
+
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  if (t.clientX < EDGE_PX || t.clientX > window.innerWidth - EDGE_PX) {
+    edgeStart = { x: t.clientX, y: t.clientY, ts: Date.now() };
+  } else {
+    edgeStart = null;
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!edgeStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - edgeStart.x;
+  const dy = t.clientY - edgeStart.y;
+  const dt = Date.now() - edgeStart.ts;
+  edgeStart = null;
+  if (dt > 600) return;
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+  if (dx > 0) playPrev(); else playNext();
+}, { passive: true });
+
+/* =====================================================================
+   PROGRESS SEEK
+   ===================================================================== */
+$progHit.addEventListener('click', (e) => {
+  if (state.playlistIndex < 0) return;
+  const f = state.playlist[state.playlistIndex];
+  if (!f) return;
+  const w = $progHit.getBoundingClientRect().width;
+  const x = e.clientX - $progHit.getBoundingClientRect().left;
+  const pct = Math.min(1, Math.max(0, x / w));
+  state.elapsed = pct * parseDuration(f.duration);
+  e.stopPropagation();
+});
+
+/* =====================================================================
+   ANIMATION LOOP
+   ===================================================================== */
+let lastTs = 0;
+function tick(ts){
+  const dt = lastTs ? (ts - lastTs)/1000 : 0.016;
+  lastTs = ts;
+
+  if (state.isPlaying && state.playlistIndex >= 0) {
+    const f = state.playlist[state.playlistIndex];
+    if (f) {
+      const dur = parseDuration(f.duration);
+      state.elapsed += dt;
+      if (state.elapsed >= dur) {
+        playNext();
+      }
+      // Update progress hairline
+      const pct = dur > 0 ? Math.min(100, state.elapsed / dur * 100) : 0;
+      $progress.style.width = pct + '%';
+
+      // Update the in-row time without re-rendering the whole list.
+      const playingRow = $list.querySelector('.row.playing .time');
+      if (playingRow) {
+        playingRow.innerHTML = fmt(state.elapsed) + ' &middot; ' + fmt(dur);
+      }
+    }
+  } else if (state.playlistIndex >= 0) {
+    // Paused — progress line stays where it is.
+  } else {
+    $progress.style.width = '0%';
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* =====================================================================
+   RESIZE OBSERVER — mobile / tablet class toggling (no desktop).
+   ===================================================================== */
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  // The Monk recognises only two surfaces.
+  document.body.classList.toggle('mobile', width < 700);
+  document.body.classList.toggle('tablet', width >= 700);
+});
+ro.observe(document.body);
+
+/* =====================================================================
+   KEYBOARD — minimal, mirrors gestures.
+   ===================================================================== */
+document.addEventListener('keydown', (e) => {
+  // While typing in search, only Escape / Backspace-empty are handled
+  // by the proxy's own listener.
+  if (state.mode === 'search') return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      if (state.playlistIndex < 0) {
+        // Start from first file in current folder.
+        const first = (state.currentFolder.children || []).find(c => c.type === 'file');
+        if (first) onFileTap(first);
+      } else {
+        state.isPlaying = !state.isPlaying;
+        flashPlaying();
+      }
+      break;
+    case 'ArrowRight':
+      playNext();
+      break;
+    case 'ArrowLeft':
+      playPrev();
+      break;
+    case 'ArrowUp':
+      if (state.navStack.length > 0) {
+        state.currentFolder = state.navStack.pop();
+        renderAll();
+      }
+      break;
+    case '/':
+      e.preventDefault();
+      enterSearch();
+      break;
+    case 'Escape':
+      if (state.mode !== 'browse') {
+        state.mode = 'browse';
+        state.search = '';
+        renderAll();
+      }
+      break;
+  }
+});
+
+/* =====================================================================
+   HINT — fades after a few seconds, once.
+   ===================================================================== */
+setTimeout(() => { $hint.classList.add('gone'); }, 4500);
+
+/* =====================================================================
+   ENTRY
+   ===================================================================== */
+function renderAll(){
+  renderCrumb();
+  renderList();
+}
+renderAll();
+
+</script>
+</body>
+</html>
