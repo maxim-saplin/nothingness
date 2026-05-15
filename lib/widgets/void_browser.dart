@@ -117,8 +117,15 @@ class _VoidBrowserState extends State<VoidBrowser> {
     final lower = term.toLowerCase();
     final List<AudioTrack> haystack;
     if (_controller.isAndroid) {
+      // Display the on-disk filename (sans audio extension), matching the
+      // browser/hero. MediaStore's ID3-derived title is irrelevant for
+      // search rows — the user expects to recognise the filename they
+      // typed against.
       haystack = _controller.androidSongs
-          .map((s) => AudioTrack(path: s.path, title: s.title))
+          .map((s) => AudioTrack(
+                path: s.path,
+                title: p.basenameWithoutExtension(s.path),
+              ))
           .toList(growable: false);
     } else {
       haystack = await _controller.tracksForCurrentPath();
