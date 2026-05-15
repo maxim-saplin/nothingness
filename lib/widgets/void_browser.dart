@@ -87,6 +87,11 @@ class _VoidBrowserState extends State<VoidBrowser> {
   void _kickOffInit() {
     if (_initStarted) return;
     _initStarted = true;
+    // When the parent supplies the controller it also owns the init
+    // lifecycle (so it can sequence work like restoring the last
+    // browsed path before the tree paints). Skip the kick-off here to
+    // avoid two concurrent init() calls racing against each other.
+    if (!_ownsController) return;
     _controller.init();
   }
 
@@ -212,17 +217,17 @@ class _VoidBrowserState extends State<VoidBrowser> {
 
     final List<Widget> rows = <Widget>[];
 
-    // "Up" row first (only if there's a parent we can navigate to).
-    if (controller.currentPath != null) {
-      rows.add(_upRow(controller, palette, typography, geometry));
-    }
-
-    // Folders, then files.
+    // Folders, then files, then the up row anchored at the very bottom of
+    // the list (just above the crumb) so it sits within reach of the
+    // user's thumb instead of being hidden at the top of a long folder.
     for (final folder in controller.folders) {
       rows.add(_folderRow(folder, controller, palette, typography, geometry));
     }
     for (final track in controller.tracks) {
       rows.add(_fileRow(track, controller, palette, typography, geometry));
+    }
+    if (controller.currentPath != null) {
+      rows.add(_upRow(controller, palette, typography, geometry));
     }
 
     // Android smart roots (top-level when no path).

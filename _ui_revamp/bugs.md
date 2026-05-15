@@ -142,7 +142,9 @@ Severities: `blocker` > `major` > `minor` > `cosmetic`.
 - **Expected:** Either a "press back again to exit" confirmation or, at minimum, no exit when the user is mid-task (e.g. has a queue playing).
 - **Actual:** The MaterialApp at the root never installs a `WillPopScope` / `PopScope`, so the system Back gesture pops the root route and Android closes the activity. Any unsaved navigation state (last folder, search query) is lost; if a queue is playing the audio service survives in the background but the UI is gone.
 - **Suggested fix:** Wrap `MediaControllerPage` (or the inner `VoidScreen`) in `PopScope(canPop: false, onPopInvoked: ...)`. Optionally, treat Back in Void as "navigate up the file tree" if currentPath != null.
-- **Status:** open
+- **Fix (2026-05-15):** `VoidScreen` now wraps its `Scaffold` in `PopScope(canPop: currentPath == null && !_searchMode, onPopInvokedWithResult: ...)`. The handler exits search mode first, then walks the library up one level via `_libraryController.navigateUp()`. PopScope is fed by a listener on the controller so `canPop` re-evaluates whenever `currentPath` changes. Combined with the new last-library-path persistence in `SettingsService`, the user can press Back to walk the tree without losing context.
+- **Evidence:** `drive.py inspect` at /Music/Indie → KEYCODE_BACK → currentPath=/Music → KEYCODE_BACK → currentPath=null; app PID stable (no exit) across both presses.
+- **Status:** fixed
 
 ### B-009 — Void search results are scoped to currentPath only; misleading "no matches" for off-path tracks
 
@@ -234,4 +236,44 @@ Refactor surface area:
   `test/widgets/transport_row_test.dart` + `test/screens/void_screen_test.dart`.
 - Settings consolidated into `VoidSettingsSheet`; legacy `more settings…`
   pivot points removed.
+
+## UX follow-ups (2026-05-15)
+
+Five behavioural requests landed after the chrome refactor was verified:
+
+1. **Back button = nav-up.** Closes B-007 (see updated entry).
+2. **`..` row at the bottom of the browser list.** `lib/widgets/void_browser.dart`
+   reordered the rows so folders + tracks render first and the up row
+   anchors the bottom of the visible list (just above the crumb / transport).
+3. **Persisted last-browsed folder.** `SettingsService` gained
+   `saveLastLibraryPath` / `loadLastLibraryPath` under the
+   `last_library_path` preference key. `VoidScreen._bootstrapLibrary`
+   awaits the controller's first `init()` and then navigates back to the
+   saved path. The persistence listener guards against re-writing the
+   value we just loaded.
+4. **Version row reads pubspec.** Added `package_info_plus: ^8.0.0`.
+   `VoidSettingsSheet._loadVersion` populates the ABOUT > version row with
+   `${version}+${buildNumber}` (e.g. `2.2.8+32`). Pre-load placeholder
+   shows `...` while the future resolves.
+5. **Help screen.** New `lib/screens/help_screen.dart` reachable via the
+   ABOUT > help row. Lists every gesture / control across HERO / BROWSER /
+   CRUMB / TRANSPORT / CHROME groups in the same row primitive used by
+   the settings sheet.
+
+Additional finding while wiring the above:
+- **File extension leaking into titles.** MediaStore was returning
+  filenames-with-extension (e.g. `Arcade Fire - Wake Up.mp3`) for tracks
+  without an ID3 title tag. Added `SupportedExtensions.stripFromTitle`
+  and applied it at the two MediaStore consumption points
+  (`_loadAndroidSongsInIsolate` and `AndroidMetadataExtractor.extractMetadata`).
+  Display titles in the browser, hero, and search results are all
+  extension-free.
+
+Visual evidence under `_ui_revamp/shots/`:
+- `verify_browser_up_bottom.png` — Music listing with folders, files
+  (no `.mp3` suffix), `< ..` row anchoring the bottom.
+- `verify_settings_with_help.png` / `verify_settings_bottom.png` — LOOK
+  group contains the `transport` toggle; ABOUT group contains `help` and
+  `version 2.2.8+32`.
+- `verify_help_screen.png` — gesture cheat-sheet renders cleanly.
 

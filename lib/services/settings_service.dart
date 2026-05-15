@@ -10,6 +10,7 @@ import '../models/eq_settings.dart';
 import '../models/spectrum_settings.dart';
 import '../models/theme_id.dart';
 import '../models/theme_variant.dart';
+import '../models/transport_position.dart';
 import 'platform_channels.dart';
 
 class SettingsService {
@@ -31,6 +32,8 @@ class SettingsService {
   static const String _smartFoldersPresentationKey = 'smart_folders_presentation';
   static const String _immersiveKey = 'immersive';
   static const String _transportVisibleKey = 'transport_visible';
+  static const String _transportPositionKey = 'transport_position';
+  static const String _lastLibraryPathKey = 'last_library_path';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
   static const double defaultNoiseGateDb = -35.0;
@@ -51,6 +54,8 @@ class SettingsService {
   static const bool defaultSmartFoldersPresentation = true;
   static const bool defaultImmersive = false;
   static const bool defaultTransportVisible = true;
+  static const TransportPosition defaultTransportPosition =
+      TransportPosition.bottom;
 
   /// Light scrim drawn behind dark OEM status-bar icons on automotive displays.
   static const Color automotiveStatusBarScrimLight = Color(0xFFE8E8E8);
@@ -101,12 +106,14 @@ class SettingsService {
   /// drag-down gesture so it doesn't fight with hero swipe-to-skip.
   final ValueNotifier<bool> immersiveNotifier = ValueNotifier(defaultImmersive);
 
-  /// Whether the prev / play-pause / next transport strip is rendered above
-  /// the crumb. When false, the slot collapses and the browser extends down
-  /// to the crumb. Hero gestures (tap / swipe) and the seek hairline at the
-  /// bottom of the screen continue to work regardless.
-  final ValueNotifier<bool> transportVisibleNotifier =
-      ValueNotifier(defaultTransportVisible);
+  /// Where the prev / play-pause / next transport strip is anchored —
+  /// [TransportPosition.bottom] (above the crumb), [TransportPosition.top]
+  /// (pinned to the top of the browser band, immediately below the hero),
+  /// or [TransportPosition.off] (hidden). The previous bool-valued
+  /// `transportVisibleNotifier` (legacy 'transport_visible' pref) is
+  /// migrated into this on first load.
+  final ValueNotifier<TransportPosition> transportPositionNotifier =
+      ValueNotifier(defaultTransportPosition);
 
   /// Heuristic: low-DPI (< 2.0) + wide (>= 1600 logical) = automotive / IVI.
   ///
@@ -258,10 +265,23 @@ class SettingsService {
     //     when true). Defaults off on fresh install.
     immersiveNotifier.value = prefs.getBool(_immersiveKey) ?? defaultImmersive;
 
-    // 6d. Load Transport-visible toggle (LOOK row collapses the prev/play/
-    //     next strip without flipping immersive). Defaults on.
-    transportVisibleNotifier.value =
-        prefs.getBool(_transportVisibleKey) ?? defaultTransportVisible;
+    // 6d. Load Transport position (top / bottom / off). One-shot migration
+    //     from the legacy 'transport_visible' bool key when the new key
+    //     hasn't been set yet: true → bottom (default), false → off.
+    if (prefs.containsKey(_transportPositionKey)) {
+      transportPositionNotifier.value = TransportPositionX.fromStorageKey(
+        prefs.getString(_transportPositionKey),
+      );
+    } else if (prefs.containsKey(_transportVisibleKey)) {
+      final legacy = prefs.getBool(_transportVisibleKey) ?? true;
+      final migrated =
+          legacy ? TransportPosition.bottom : TransportPosition.off;
+      await prefs.setString(_transportPositionKey, migrated.storageKey);
+      await prefs.remove(_transportVisibleKey);
+      transportPositionNotifier.value = migrated;
+    } else {
+      transportPositionNotifier.value = defaultTransportPosition;
+    }
 
     // 7. Load Theme id + variant.
     themeIdNotifier.value = ThemeId.fromStorageKey(prefs.getString(_themeIdKey));
@@ -348,11 +368,30 @@ class SettingsService {
     immersiveNotifier.value = enable;
   }
 
-  /// Sets whether the transport strip is rendered above the crumb.
-  Future<void> setTransportVisible(bool enable) async {
+  /// Sets the transport-strip anchor (top / bottom / off).
+  Future<void> setTransportPosition(TransportPosition pos) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_transportVisibleKey, enable);
-    transportVisibleNotifier.value = enable;
+    await prefs.setString(_transportPositionKey, pos.storageKey);
+    transportPositionNotifier.value = pos;
+  }
+
+  /// Reads the last folder the library browser was inside before the app
+  /// was suspended or closed. Returns `null` when no path has been saved
+  /// (fresh install, or the user navigated back to the smart-roots view).
+  Future<String?> loadLastLibraryPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastLibraryPathKey);
+  }
+
+  /// Persists the current library-browser path. Pass `null` to clear the
+  /// stored value (i.e. when the user navigates up to the smart-roots view).
+  Future<void> saveLastLibraryPath(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (path == null || path.isEmpty) {
+      await prefs.remove(_lastLibraryPathKey);
+    } else {
+      await prefs.setString(_lastLibraryPathKey, path);
+    }
   }
 
   /// Saves the spectrum settings to persistence.

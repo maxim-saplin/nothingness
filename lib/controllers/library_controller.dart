@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:external_path/external_path.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -14,6 +15,7 @@ import '../services/library_service.dart';
 import '../services/logging_service.dart';
 import '../services/android_media_store_freshness.dart';
 import '../services/media_store_freshness.dart';
+import '../models/supported_extensions.dart';
 import '../services/metadata_extractor.dart';
 import '../services/platform_channels.dart';
 
@@ -30,7 +32,10 @@ Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
     ignoreCase: true,
   );
   return songs
-      .map((song) => LibrarySong(path: song.data, title: song.title))
+      .map((song) => LibrarySong(
+            path: song.data,
+            title: SupportedExtensions.stripFromTitle(song.title),
+          ))
       .toList();
 }
 
@@ -330,10 +335,20 @@ class LibraryController extends ChangeNotifier {
       )) {
         try {
           final track = await extractor.extractMetadata(song.path);
-          filtered.add(track);
+          // Override the metadata title with the on-disk filename so the
+          // browser, hero, and search rows all show the user's name for
+          // the file rather than whatever ID3 tag the encoder buried in it.
+          filtered.add(AudioTrack(
+            path: track.path,
+            title: p.basenameWithoutExtension(track.path),
+            artist: track.artist,
+            isNotFound: track.isNotFound,
+          ));
         } catch (e) {
-          // Fallback to song title if extraction fails
-          filtered.add(AudioTrack(path: song.path, title: song.title));
+          filtered.add(AudioTrack(
+            path: song.path,
+            title: p.basenameWithoutExtension(song.path),
+          ));
         }
       }
       filtered.sort((a, b) => a.title.compareTo(b.title));

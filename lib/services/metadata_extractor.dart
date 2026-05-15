@@ -46,9 +46,11 @@ class AndroidMetadataExtractor implements MetadataExtractor {
         orElse: () => throw StateError('No matching song found'),
       );
 
-      // Extract metadata from MediaStore
+      // Extract metadata from MediaStore. Strip any audio extension that
+      // MediaStore left in the title (this happens for files without an
+      // ID3 title tag — the displayed title falls back to the filename).
       final title = matchingSong.title.isNotEmpty
-          ? matchingSong.title
+          ? SupportedExtensions.stripFromTitle(matchingSong.title)
           : _parseFilenameMetadata(filePath).title;
       final artist = matchingSong.artist?.isNotEmpty == true
           ? matchingSong.artist!

@@ -66,16 +66,23 @@ class LibraryBrowser {
         // Direct child file
         if (_isSupported(song.path)) {
           try {
-            // Extract metadata to get artist, but prefer title from LibrarySong
+            // Keep MediaStore artist (useful for the hero subtitle), but
+            // display the on-disk filename — minus its audio extension —
+            // as the title. MediaStore's ID3-derived title can diverge
+            // wildly from what the user dropped onto the device (e.g.
+            // "Atomic Heart - Archive.mp3" returns title "Archive"); the
+            // user wants what they named the file, not what the tag says.
             final extracted = await extractor.extractMetadata(song.path);
             tracks.add(AudioTrack(
               path: song.path,
-              title: song.title.isNotEmpty ? song.title : extracted.title,
+              title: p.basenameWithoutExtension(song.path),
               artist: extracted.artist,
             ));
           } catch (e) {
-            // Fallback to song title if extraction fails
-            tracks.add(AudioTrack(path: song.path, title: song.title));
+            tracks.add(AudioTrack(
+              path: song.path,
+              title: p.basenameWithoutExtension(song.path),
+            ));
           }
         }
       } else {

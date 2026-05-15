@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/operating_mode.dart';
@@ -9,6 +10,8 @@ import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
 import '../models/theme_id.dart';
 import '../models/theme_variant.dart';
+import '../models/transport_position.dart';
+import '../screens/help_screen.dart';
 import '../screens/log_screen.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
@@ -46,6 +49,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
 
   bool _hasAudio = false;
   bool _hasNotification = false;
+  String _versionLabel = '...';
 
   // Notifiers the sheet renders against. Subscribing here lets every row pick
   // up cycle / slider mutations without each individual cycle handler having
@@ -57,7 +61,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     _settings.themeVariantNotifier,
     _settings.screenConfigNotifier,
     _settings.immersiveNotifier,
-    _settings.transportVisibleNotifier,
+    _settings.transportPositionNotifier,
     _settings.fullScreenNotifier,
     _settings.uiScaleNotifier,
     _settings.settingsNotifier,
@@ -80,6 +84,19 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
       l.addListener(_onAnySettingChanged);
     }
     _refreshPermissions();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _versionLabel = '${info.version}+${info.buildNumber}';
+      });
+    } catch (_) {
+      // Non-fatal — keep the placeholder.
+    }
   }
 
   @override
@@ -174,6 +191,13 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     final next = values[(values.indexOf(cur.decaySpeed) + 1) % values.length];
     _settings.saveSettings(cur.copyWith(decaySpeed: next));
     setState(() {});
+  }
+
+  void _cycleTransportPosition() {
+    final values = TransportPosition.values;
+    final cur = _settings.transportPositionNotifier.value;
+    final next = values[(values.indexOf(cur) + 1) % values.length];
+    _settings.setTransportPosition(next);
   }
 
   void _cycleVisualizerColor() {
@@ -344,19 +368,16 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         typography: typography,
         geometry: geometry,
       ),
-      // Transport strip — when off the prev/play/next row collapses and the
-      // browser extends down to the crumb. Hero gestures + seek hairline at
-      // the screen bottom continue to work either way.
-      _toggleRow(
+      // Transport strip — cycle row over bottom / top / off. `top` pins the
+      // strip immediately below the hero so it stays at a fixed y as the
+      // user scrolls a long folder; `bottom` keeps the original placement
+      // above the crumb; `off` hides the strip altogether (hero gestures
+      // and the bottom progress hairline still work).
+      _row(
         key: const ValueKey('void-settings-transport'),
         label: 'transport',
-        value: _settings.transportVisibleNotifier.value,
-        onToggle: () {
-          _settings.setTransportVisible(
-            !_settings.transportVisibleNotifier.value,
-          );
-          setState(() {});
-        },
+        value: _settings.transportPositionNotifier.value.label,
+        onTap: _cycleTransportPosition,
         palette: palette,
         typography: typography,
         geometry: geometry,
@@ -567,6 +588,15 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
       // ----------------------------------------------------------------- ABOUT
       _groupHeader('ABOUT', palette, typography),
       _row(
+        key: const ValueKey('void-settings-help'),
+        label: 'help',
+        value: '>',
+        onTap: () => HelpScreen.push(context),
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
+      _row(
         key: const ValueKey('void-settings-logs'),
         label: 'logs',
         value: '>',
@@ -592,7 +622,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
       _row(
         key: const ValueKey('void-settings-version'),
         label: 'version',
-        value: 'ui revamp',
+        value: _versionLabel,
         onTap: () {},
         palette: palette,
         typography: typography,

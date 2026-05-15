@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../controllers/library_controller.dart';
 import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
+import '../models/transport_position.dart';
 import '../providers/audio_player_provider.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
@@ -63,7 +64,8 @@ class _VoidScreenState extends State<VoidScreen>
   late final Animation<double> _immersiveT;
   final SettingsService _settings = SettingsService();
   bool _immersive = false;
-  bool _transportVisible = true;
+  TransportPosition _transportPosition = TransportPosition.bottom;
+  String? _lastPersistedPath;
   bool _showHint = false;
   bool _hintFaded = false;
   bool _searchMode = false;
@@ -79,6 +81,7 @@ class _VoidScreenState extends State<VoidScreen>
       ),
       libraryService: LibraryService(),
     );
+    _bootstrapLibrary();
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
     _searchFocusNode.addListener(_onSearchFocusChanged);
@@ -94,11 +97,14 @@ class _VoidScreenState extends State<VoidScreen>
       curve: Curves.easeOutCubic,
     );
     _immersive = _settings.immersiveNotifier.value;
-    _transportVisible = _settings.transportVisibleNotifier.value;
+    _transportPosition = _settings.transportPositionNotifier.value;
     if (_immersive) _immersiveCtrl.value = 1.0;
     _settings.immersiveNotifier.addListener(_onImmersiveChanged);
-    _settings.transportVisibleNotifier.addListener(_onTransportVisibleChanged);
+    _settings.transportPositionNotifier.addListener(_onTransportPositionChanged);
     _settings.screenConfigNotifier.addListener(_onScreenConfigChanged);
+    // The PopScope's `canPop` is computed from `currentPath`, so we have to
+    // re-evaluate it whenever the library navigates.
+    _libraryController.addListener(_onLibraryChanged);
     _maybeShowLaunchHint();
 
     // Expose controller + immersive flag to the VM-service agent surface.
@@ -117,10 +123,47 @@ class _VoidScreenState extends State<VoidScreen>
     }
   }
 
-  void _onTransportVisibleChanged() {
-    final next = _settings.transportVisibleNotifier.value;
-    if (_transportVisible == next) return;
-    setState(() => _transportVisible = next);
+  void _onTransportPositionChanged() {
+    final next = _settings.transportPositionNotifier.value;
+    if (_transportPosition == next) return;
+    setState(() => _transportPosition = next);
+  }
+
+  void _onLibraryChanged() {
+    if (!mounted) return;
+    // Lightweight rebuild to refresh PopScope.canPop when currentPath
+    // changes. Child widgets that listen via Provider get their own
+    // notifications and don't depend on this setState.
+    setState(() {});
+    // Persist navigation so the next launch returns to the same folder.
+    final path = _libraryController.currentPath;
+    if (path != _lastPersistedPath) {
+      _lastPersistedPath = path;
+      _settings.saveLastLibraryPath(path);
+    }
+  }
+
+  /// Owns the controller's first init + the one-shot restoration of the
+  /// last browsed path. Kept inside [VoidScreen] (rather than [VoidBrowser])
+  /// because the controller is supplied externally and the parent is the
+  /// natural place to sequence "init, then restore".
+  Future<void> _bootstrapLibrary() async {
+    await _libraryController.init();
+    if (!mounted) return;
+    final saved = await _settings.loadLastLibraryPath();
+    if (!mounted) return;
+    if (saved == null || saved.isEmpty) return;
+    if (_libraryController.currentPath == saved) return;
+    // Record the path we are about to navigate to so the listener does
+    // not turn around and re-persist the same value we just loaded.
+    _lastPersistedPath = saved;
+    try {
+      await _libraryController.loadFolder(saved);
+    } catch (_) {
+      // Folder may have disappeared (SD card pulled, etc.) — fall back
+      // to whatever loadRoot() landed on and clear the stale pointer.
+      await _settings.saveLastLibraryPath(null);
+    }
   }
 
   void _onScreenConfigChanged() {
@@ -138,9 +181,10 @@ class _VoidScreenState extends State<VoidScreen>
     _searchFocusNode.dispose();
     _searchController.dispose();
     _settings.immersiveNotifier.removeListener(_onImmersiveChanged);
-    _settings.transportVisibleNotifier
-        .removeListener(_onTransportVisibleChanged);
+    _settings.transportPositionNotifier
+        .removeListener(_onTransportPositionChanged);
     _settings.screenConfigNotifier.removeListener(_onScreenConfigChanged);
+    _libraryController.removeListener(_onLibraryChanged);
     _immersiveCtrl.dispose();
     AgentService.registerImmersiveLookup(null);
     AgentService.registerLibraryController(null);
@@ -212,7 +256,10 @@ class _VoidScreenState extends State<VoidScreen>
     final heroHeight = mq.size.height * geometry.heroFraction;
     final bottomInset = mq.viewPadding.bottom;
 
-    return Scaffold(
+    return PopScope(
+      canPop: _libraryController.currentPath == null && !_searchMode,
+      onPopInvokedWithResult: _onPopInvoked,
+      child: Scaffold(
       backgroundColor: palette.background,
       body: SafeArea(
         bottom: false,
@@ -236,11 +283,20 @@ class _VoidScreenState extends State<VoidScreen>
                   // (B-003: no layout-time overflow mid-transition).
                   final heroH = heroHeight + (availableH - heroHeight) * t;
                   final showChildren = t < 0.999;
-                  // When the transport strip is hidden the browser claims
-                  // its slot; both the browser-bottom and crumb-top math
-                  // collapse to a single source of truth here.
-                  final transportSlot =
-                      _transportVisible ? _transportHeight : 0.0;
+                  // Transport pins to either the top of the browser band
+                  // (just below the hero) or to the bottom (just above the
+                  // crumb), or it's hidden. The browser's vertical slot
+                  // shrinks from whichever side the strip claims.
+                  final isTransportTop =
+                      _transportPosition == TransportPosition.top;
+                  final isTransportBottom =
+                      _transportPosition == TransportPosition.bottom;
+                  final hasTransport = isTransportTop || isTransportBottom;
+                  final browserTop =
+                      heroH + (isTransportTop ? _transportHeight : 0.0);
+                  final browserBottom = reservedBottom +
+                      _crumbHeight +
+                      (isTransportBottom ? _transportHeight : 0.0);
                   return Stack(
                     children: [
                       // Hero — anchored top, animated height. Wrapped in a
@@ -255,15 +311,15 @@ class _VoidScreenState extends State<VoidScreen>
                           child: _buildHeroFor(_resolvedScreenConfig()),
                         ),
                       ),
-                      // Browser fills the band between hero and the
-                      // transport row (or crumb when transport is hidden).
+                      // Browser fills the band between the hero (or the
+                      // top-anchored transport) and the crumb (or the
+                      // bottom-anchored transport).
                       if (showChildren)
                         Positioned(
-                          top: heroH,
+                          top: browserTop,
                           left: 0,
                           right: 0,
-                          bottom:
-                              reservedBottom + _crumbHeight + transportSlot,
+                          bottom: browserBottom,
                           child: ClipRect(
                             clipBehavior: Clip.hardEdge,
                             child: VoidBrowser(
@@ -272,13 +328,17 @@ class _VoidScreenState extends State<VoidScreen>
                             ),
                           ),
                         ),
-                      // Transport row — above the crumb, hidden in
-                      // immersive or when the LOOK toggle collapses it.
-                      if (showChildren && _transportVisible)
+                      // Transport row — top (just below hero) or bottom
+                      // (just above crumb). Hidden in immersive or when
+                      // position == off.
+                      if (showChildren && hasTransport)
                         Positioned(
                           left: 0,
                           right: 0,
-                          bottom: reservedBottom + _crumbHeight,
+                          top: isTransportTop ? heroH : null,
+                          bottom: isTransportBottom
+                              ? reservedBottom + _crumbHeight
+                              : null,
                           height: _transportHeight,
                           child: const TransportRow(),
                         ),
@@ -312,7 +372,23 @@ class _VoidScreenState extends State<VoidScreen>
           ),
         ),
       ),
+      ),
     );
+  }
+
+  /// Android back: exit search first, otherwise walk one folder up the
+  /// library tree. Only when both are exhausted does PopScope let the
+  /// pop through and the OS leave the app.
+  void _onPopInvoked(bool didPop, Object? _) {
+    if (didPop) return;
+    if (_searchMode) {
+      _exitSearchMode();
+      return;
+    }
+    if (_libraryController.currentPath != null) {
+      _libraryController.navigateUp();
+      return;
+    }
   }
 
   /// Fixed slot height for the crumb (path readout / search input).

@@ -1,21 +1,20 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- nothingness — adaptive icon FOREGROUND.
-       flutter_launcher_icons wraps this in <inset android:inset="16%"> in the
-       launcher_icon.xml it generates, shrinking the drawable to the central
-       68% of the 108dp adaptive canvas. So we position letters near the
-       corners of the SOURCE canvas; after the inset they end up around
-       30/70% of the visible icon — a visible "corners of a square" feel
-       that still sits safely inside both circle and squircle launcher masks.
+  <!-- nothingness — adaptive icon FOREGROUND, "noth" variant.
+       flutter_launcher_icons wraps this in <inset android:inset="16%">,
+       shrinking the drawable to the central 68% of the 108dp adaptive
+       canvas. Letters pre-positioned so that after the inset they sit
+       at ~38%/62% of the visible icon — a tight, larger 2×2 grid that
+       reads safely inside circle and squircle launcher masks.
        Background is solid #000000 from adaptive_icon_background. -->
   <g fill="#FFFFFF"
      font-family="Noto Sans Mono, SF Mono, Consolas, monospace"
      font-weight="300"
-     font-size="270"
+     font-size="380"
      text-anchor="middle"
      dominant-baseline="central">
-    <text x="310" y="320">V</text>
-    <text x="715" y="320">O</text>
-    <text x="310" y="710">I</text>
-    <text x="715" y="710">D</text>
+    <text x="332" y="362">n</text>
+    <text x="692" y="362">o</text>
+    <text x="332" y="662">t</text>
+    <text x="692" y="662">h</text>
   </g>
 </svg>

@@ -301,6 +301,32 @@ All seven previously-closed bugs (B-001..B-006, B-009) remain closed.
 See `_ui_revamp/bugs.md` "Refactor regression check (2026-05-15)"
 appendix for per-bug evidence.
 
-Pre-existing waivers (B-007 Android back, B-008 cold-launch dropped
-frames, B-010 RPC saturation) are unchanged and remain open as before.
+Pre-existing waivers (B-008 cold-launch dropped frames, B-010 RPC
+saturation) remain open as before. **B-007 Android back is now fixed**
+in the UX follow-up pass — see appendix below.
+
+## UX follow-ups (2026-05-15)
+
+Five user-requested behavioural changes landed after the refactor sweep:
+
+| # | Request | Implementation | Evidence |
+|---|---|---|---|
+| 1 | Back button must navigate up the library tree, not exit | `PopScope` in `VoidScreen` with `canPop = currentPath == null && !_searchMode`; handler exits search first, then calls `_libraryController.navigateUp()`. Controller listener re-evaluates `canPop`. | `inspect` showed currentPath /Indie → /Music → null over two BACK presses, app PID stable. |
+| 2 | `..` row at the bottom of the listing | `_buildList` in `lib/widgets/void_browser.dart` now appends the up row after folders + tracks (the list is `reverse: true` so first-in-rows is first-on-screen). | `verify_browser_up_bottom.png` shows Electronic/Indie/Jazz/Russian Rock → Archive/Arlekino/Повело → `< ..` at the bottom. |
+| 3 | Persist + restore last folder | `SettingsService.saveLastLibraryPath` / `loadLastLibraryPath` under `last_library_path`. `VoidScreen._bootstrapLibrary` awaits `init()` then calls `loadFolder(saved)`. Persistence listener avoids re-writing the just-loaded path. | Force-stop + relaunch from /Music/Indie restored `currentPath="/storage/emulated/0/Music/Indie"`. |
+| 4 | Settings version reads pubspec | Added `package_info_plus`; `_loadVersion` populates `${version}+${buildNumber}`. | `verify_settings_bottom.png` shows ABOUT > version `2.2.8+32`. |
+| 5 | Help page explaining controls | New `lib/screens/help_screen.dart` with HERO / BROWSER / CRUMB / TRANSPORT / CHROME sections; reached from ABOUT > help in the settings sheet. | `verify_help_screen.png` shows the cheat-sheet with tap / swipe / long-press / back-button rows. |
+
+Additional fix surfaced during testing:
+
+- **MediaStore filename-titles included `.mp3`.** Centralised
+  `SupportedExtensions.stripFromTitle` and applied it at the two
+  MediaStore consumption points so display titles are extension-free
+  across the browser, search results, and the hero subtitle.
+
+`flutter analyze` reports 3 baseline warnings (unchanged). `flutter test`
+passes 188 cases, 1 skipped (no failures). APK rebuilt with
+`CI_EMULATOR_ABI=x86_64 flutter build apk --debug` (required for the
+emulator since `package_info_plus` brought in a new platform plugin and
+the project enforces ABI filters).
 

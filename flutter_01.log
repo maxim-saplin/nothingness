@@ -1,0 +1,94 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter run --device-id emulator-5554
+
+## exception
+
+RPCError: _deleteDevFS: (1002) File system does not exist
+_deleteDevFS: file system 'nothingness' does not exist
+
+```
+#0      new _OutstandingRequest (package:vm_service/src/vm_service.dart:268:34)
+#1      VmService._call.<anonymous closure> (package:vm_service/src/vm_service.dart:1950:25)
+#2      VmService._call (package:vm_service/src/vm_service.dart:1962:8)
+#3      VmService.callServiceExtension (package:vm_service/src/vm_service.dart:1901:14)
+#4      FlutterVmService._checkedCallServiceExtension (package:flutter_tools/src/vmservice.dart:771:28)
+#5      FlutterVmService.deleteDevFS (package:flutter_tools/src/vmservice.dart:938:11)
+#6      DevFS.destroy (package:flutter_tools/src/devfs.dart:545:22)
+#7      DevFS.create (package:flutter_tools/src/devfs.dart:535:13)
+<asynchronous suspension>
+#8      HotRunner._initDevFS (package:flutter_tools/src/run_hot.dart:488:9)
+<asynchronous suspension>
+#9      HotRunner._attach (package:flutter_tools/src/run_hot.dart:286:35)
+<asynchronous suspension>
+#10     RunCommand.runCommand (package:flutter_tools/src/commands/run.dart:904:26)
+<asynchronous suspension>
+#11     FlutterCommand.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command.dart:1590:27)
+<asynchronous suspension>
+#12     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#13     CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#14     FlutterCommandRunner.runCommand.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:496:9)
+<asynchronous suspension>
+#15     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#16     FlutterCommandRunner.runCommand (package:flutter_tools/src/runner/flutter_command_runner.dart:431:5)
+<asynchronous suspension>
+#17     FlutterCommandRunner.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:307:33)
+<asynchronous suspension>
+#18     run.<anonymous closure>.<anonymous closure> (package:flutter_tools/runner.dart:104:11)
+<asynchronous suspension>
+#19     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#20     main (package:flutter_tools/executable.dart:103:3)
+<asynchronous suspension>
+```
+
+## flutter doctor
+
+```
+[✓] Flutter (Channel stable, 3.41.9, on Ubuntu 25.10 6.6.87.2-microsoft-standard-WSL2, locale C.UTF-8) [250ms]
+    • Flutter version 3.41.9 on channel stable at /home/user/snap/flutter/common/flutter
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision 00b0c91f06 (2 weeks ago), 2026-04-29 10:03:19 -0700
+    • Engine revision 42d3d75a56
+    • Dart version 3.11.5
+    • DevTools version 2.54.2
+    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration
+
+[✓] Android toolchain - develop for Android devices (Android SDK version 35.0.0) [6.8s]
+    • Android SDK at /home/user/android-sdk
+    • Emulator version unknown
+    • Platform android-36, build-tools 35.0.0
+    • ANDROID_HOME = /home/user/android-sdk
+    • Java binary at: /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+      This JDK is specified by the JAVA_HOME environment variable.
+      To manually set the JDK path, use: `flutter config --jdk-dir="path/to/jdk"`.
+    • Java version OpenJDK Runtime Environment (build 17.0.18+8-Ubuntu-125.10.1)
+    • All Android licenses accepted.
+
+[✓] Chrome - develop for the web [197ms]
+    • Chrome at google-chrome
+
+[✓] Linux toolchain - develop for Linux desktop [4.5s]
+    • clang version 10.0.0-4ubuntu1
+    • cmake version 3.16.3
+    • ninja version 1.10.0
+    • pkg-config version 0.29.1
+    ! Unable to access driver information using 'eglinfo'.
+      It is likely available from your distribution (e.g.: apt install mesa-utils)
+
+[✓] Connected device (3 available) [1,588ms]
+    • sdk gphone16k x86 64 (mobile) • emulator-5554 • android-x64    • Android 17 (API 37) (emulator)
+    • Linux (desktop)               • linux         • linux-x64      • Ubuntu 25.10 6.6.87.2-microsoft-standard-WSL2
+    • Chrome (web)                  • chrome        • web-javascript • Google Chrome 145.0.7632.109
+
+[✓] Network resources [565ms]
+    • All expected network resources are available.
+
+• No issues found!
+```
