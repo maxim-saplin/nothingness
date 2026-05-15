@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/browser_presentation.dart';
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
 import '../models/eq_settings.dart';
@@ -33,6 +34,7 @@ class SettingsService {
   static const String _immersiveKey = 'immersive';
   static const String _transportVisibleKey = 'transport_visible';
   static const String _transportPositionKey = 'transport_position';
+  static const String _browserPresentationKey = 'browser_presentation';
   static const String _lastLibraryPathKey = 'last_library_path';
 
   // --- APP DEFAULTS (Single Source of Truth) ---
@@ -56,6 +58,8 @@ class SettingsService {
   static const bool defaultTransportVisible = true;
   static const TransportPosition defaultTransportPosition =
       TransportPosition.bottom;
+  static const BrowserPresentation defaultBrowserPresentation =
+      BrowserPresentation.fixed;
 
   /// Light scrim drawn behind dark OEM status-bar icons on automotive displays.
   static const Color automotiveStatusBarScrimLight = Color(0xFFE8E8E8);
@@ -114,6 +118,11 @@ class SettingsService {
   /// migrated into this on first load.
   final ValueNotifier<TransportPosition> transportPositionNotifier =
       ValueNotifier(defaultTransportPosition);
+
+  /// Whether the library browser is permanently visible or revealed via a
+  /// swipe-up gesture. See [BrowserPresentation].
+  final ValueNotifier<BrowserPresentation> browserPresentationNotifier =
+      ValueNotifier(defaultBrowserPresentation);
 
   /// Heuristic: low-DPI (< 2.0) + wide (>= 1600 logical) = automotive / IVI.
   ///
@@ -283,6 +292,11 @@ class SettingsService {
       transportPositionNotifier.value = defaultTransportPosition;
     }
 
+    // 6e. Browser presentation (fixed / swipe-up).
+    browserPresentationNotifier.value = BrowserPresentationX.fromStorageKey(
+      prefs.getString(_browserPresentationKey),
+    );
+
     // 7. Load Theme id + variant.
     themeIdNotifier.value = ThemeId.fromStorageKey(prefs.getString(_themeIdKey));
     themeVariantNotifier.value =
@@ -373,6 +387,13 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_transportPositionKey, pos.storageKey);
     transportPositionNotifier.value = pos;
+  }
+
+  /// Sets the browser-presentation mode (fixed vs swipe-up).
+  Future<void> setBrowserPresentation(BrowserPresentation p) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_browserPresentationKey, p.storageKey);
+    browserPresentationNotifier.value = p;
   }
 
   /// Reads the last folder the library browser was inside before the app

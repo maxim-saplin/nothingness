@@ -157,18 +157,11 @@ void main() {
       // Force a known starting value.
       await SettingsService().setSmartFoldersPresentation(true);
 
-      await tester.pumpWidget(_wrap(const VoidSettingsSheet()));
-      await tester.pump();
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
 
-      // Smart folders sits below the viewport in tall sheets — scroll until
-      // visible so the tap dispatches to the rendered widget.
+      // In the tall viewport every row is realised; tap by key directly.
       final rowFinder =
           find.byKey(const ValueKey('void-settings-smart-folders'));
-      await tester.scrollUntilVisible(
-        rowFinder,
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
       await tester.tap(rowFinder);
       await tester.pump();
 

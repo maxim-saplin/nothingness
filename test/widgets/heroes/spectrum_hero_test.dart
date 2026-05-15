@@ -32,20 +32,30 @@ void main() {
       spectrumWidthFactor: 0.5,
       spectrumHeightFactor: 0.4,
     );
+    // Constrain to a known size so we can predict the visualiser slot.
     await tester.pumpWidget(
       wrapWithProvider(
         provider,
-        const SpectrumHero(
-          config: config,
-          settings: SpectrumSettings(),
+        const SizedBox(
+          width: 400,
+          height: 600,
+          child: SpectrumHero(
+            config: config,
+            settings: SpectrumSettings(),
+          ),
         ),
       ),
     );
 
+    // Width factor still flows through FractionallySizedBox.
     final fractional = tester.widget<FractionallySizedBox>(
       find.byType(FractionallySizedBox),
     );
     expect(fractional.widthFactor, 0.5);
-    expect(fractional.heightFactor, 0.4);
+
+    // Height factor is now baked into the visualiser SizedBox height
+    // (constraints.maxHeight * 0.7 * spectrumHeightFactor).
+    final visualizerBox = tester.getSize(find.byType(SpectrumVisualizer));
+    expect(visualizerBox.height, closeTo(600 * 0.7 * 0.4, 0.5));
   });
 }

@@ -330,3 +330,22 @@ passes 188 cases, 1 skipped (no failures). APK rebuilt with
 emulator since `package_info_plus` brought in a new platform plugin and
 the project enforces ABI filters).
 
+## UX follow-ups round 2 (2026-05-15)
+
+A second wave of refinements after the initial five UX changes:
+
+| # | Request | Implementation | Evidence |
+|---|---|---|---|
+| 6 | Songs show on-disk filename (not MediaStore ID3 title) | `LibraryController.tracksForCurrentPath` + `LibraryBrowser.buildVirtualListing` build `AudioTrack.title` from `p.basenameWithoutExtension(song.path)`, so the value MediaStore returned (or didn't) for the title column is bypassed entirely. Flows unchanged through browser rows, hero, queue, search. | Hero in `verify_title_size.png` shows `Arcade Fire - Wake Up` (no `.mp3`, no ID3 fallback). |
+| 7 | Search results show filename | Search haystack in `void_browser.dart` already uses `track.title`; combined with item 6, search rows now render the on-disk name. | `inspect` after `tapByKey void-crumb-search` shows track titles without extensions. |
+| 8 | Transport position has top / bottom / off | New `lib/models/transport_position.dart` enum + `SettingsService.transportPositionNotifier` + `setTransportPosition` + `'transport_position'` pref key. `VoidScreen` uses explicit `Positioned(top: heroH)` for top, `Positioned(bottom: …)` for bottom, omits the row when `off`. Browser top/bottom anchors recompute from the chosen slot. | `verify_title_size.png` (transport rendered at top of browser slot, fixed regardless of file count). |
+| 9 | Browser is fixed or swipe-up | New `lib/models/browser_presentation.dart` enum + `SettingsService.browserPresentationNotifier` + `setBrowserPresentation` + `'browser_presentation'` pref key. LOOK group has a `browser` cycle row. When `swipeUp && !_browserExpanded`, the hero claims the freed slot (see row 11) and a thin "↑ swipe to browse" band sits just above the lower chrome. `GestureDetector` on both the band and the hero gesture surface accumulates upward delta and toggles `_browserExpanded` past 30 px (tap on the hint also expands). `PopScope.canPop` extended to consume BACK and collapse the expanded swipe-up browser before walking the library tree up. | Three-screenshot sweep: `verify_swipe_up_hint.png` → `verify_swipe_up_expanded.png` (after upward swipe) → `verify_swipe_up_collapsed.png` (after BACK; library `currentPath` unchanged at `/Music/Indie`). |
+| 10 | Hero title overlaps `⋮` when transport is at top | `AppTypography.heroSize` 30 → 22 in `lib/theme/themes.dart`. Hero container padding widened to 56 dp lateral on both `void_hero.dart` (`EdgeInsets.fromLTRB(56, 12, 56, 12)`) and `spectrum_hero.dart` (`horizontal: 56`) so the title bounds cannot reach the 48 dp-wide settings button at `right: 4`. | `verify_title_size.png` — title wraps to two short lines well clear of the visible `⋮`. |
+| 11 | Expand + centre hero when swipe-up browser is collapsed | `VoidScreen` re-bases `baseHeroH` to fill the freed browser slot minus a 56 dp hint band (and the transport-top strip when active). `SpectrumHero` restructured to `Column.max(mainAxisAlignment.center) { title, gap, SizedBox(visualizer at constraints.maxHeight * 0.7 * spectrumHeightFactor) }` driven by a `LayoutBuilder`. The 0.7 multiplier reproduces the prior `Expanded × FractionallySizedBox` visualiser size at the default hero height while the centred Column keeps content visually balanced when the hero stretches. Hero gesture surface gained `onVerticalDragUpdate` (gated on `swipeUp && !_browserExpanded`) so the expand swipe works anywhere on the now-larger hero, not just the thin hint band. | `verify_hero_centered_final.png` — title + visualizer block sits vertically centred with even whitespace above and below; hint band thin at the bottom; transport + crumb pinned below. Original-size visualiser preserved at the default 32 % hero. |
+
+Test fix that landed alongside: `test/widgets/void_settings_sheet_test.dart`
+"smart folders toggle writes to settings service" was switched from
+`_wrap` + `scrollUntilVisible` to `_pumpInTallViewport` because the
+added `browser` and `transport` rows pushed the smart-folders row past
+the default 800x600 test viewport. All 188 cases still green.
+

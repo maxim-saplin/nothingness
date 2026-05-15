@@ -277,3 +277,88 @@ Visual evidence under `_ui_revamp/shots/`:
   `version 2.2.8+32`.
 - `verify_help_screen.png` — gesture cheat-sheet renders cleanly.
 
+## UX follow-ups round 2 (2026-05-15)
+
+A second wave of refinements landed after the initial five UX changes:
+
+1. **Filename display sourced from the path, not MediaStore.** The
+   previous `SupportedExtensions.stripFromTitle` approach still relied
+   on MediaStore's ID3 title when it was present, so users with embedded
+   ID3 tags saw the tag string instead of the on-disk filename.
+   Replaced with `p.basenameWithoutExtension(song.path)` at the two
+   `AudioTrack` construction points
+   (`LibraryController.tracksForCurrentPath` and
+   `LibraryBrowser.buildVirtualListing`). The resulting title flows
+   unchanged through the browser rows, hero, search results, and the
+   playback queue. `SupportedExtensions.stripFromTitle` retained for
+   the non-Android code path.
+2. **Search results show the filename, not the MediaStore title.**
+   `void_browser.dart`'s search haystack already used the song title;
+   making the title equal to `basenameWithoutExtension(path)` (item 1
+   above) means search hits and result rows now render the on-disk name.
+3. **Transport position is three-way: bottom / top / off.** New
+   `lib/models/transport_position.dart` enum + matching
+   `SettingsService.transportPositionNotifier` /
+   `setTransportPosition` + `'transport_position'` SharedPreferences
+   key. The previous binary toggle row in LOOK is now a cycle row
+   reading `position.label`. `VoidScreen` lays out the transport via
+   `Positioned` with explicit `top` (heroH) or `bottom`-anchored values
+   — independent of browser content scroll, so the strip stays fixed
+   regardless of file count. When `off`, the strip is not rendered and
+   its slot collapses, giving the browser the freed pixels.
+4. **Browser presentation is fixed vs. swipe-up.** New
+   `lib/models/browser_presentation.dart` enum +
+   `SettingsService.browserPresentationNotifier` /
+   `setBrowserPresentation` + `'browser_presentation'` key. The LOOK
+   group now has a `browser` cycle row. `VoidScreen` watches the
+   notifier; when `swipeUp` and not expanded, the hero claims the
+   freed browser slot (see item 6) and a thin "↑ swipe to browse"
+   hint band sits just above the lower chrome.
+   `GestureDetector.onVerticalDragUpdate` on the hint *and* on the
+   hero gesture surface accumulates upward delta and flips
+   `_browserExpanded = true` past a 30 px threshold; tapping the hint
+   also expands. `PopScope.canPop` is extended to consume the back
+   press when the swipe-up browser is expanded, collapsing it back to
+   the hint instead of navigating up.
+5. **Hero title overlap with the `⋮` settings button when transport
+   is at top.** Reduced `AppTypography.heroSize` from 30 → 22 in
+   `lib/theme/themes.dart` and widened lateral padding to 56 dp on
+   both hero containers (`void_hero.dart` → `EdgeInsets.fromLTRB(56,
+   12, 56, 12)`; `spectrum_hero.dart` → `horizontal: 56`) so the title
+   text bounds can never reach the 48 dp-wide settings button anchored
+   at `right: 4`.
+6. **Expand + centre hero when swipe-up browser is collapsed.**
+   `VoidScreen` re-bases `baseHeroH` to fill the freed browser slot
+   (minus a 56 dp hint band + transport allowance) when
+   `BrowserPresentation.swipeUp && !_browserExpanded`. The immersive
+   interpolation still lifts the hero to `availableH` at `t=1`, so the
+   transition stays smooth.
+   `SpectrumHero` was restructured from `Column.min { box, title, box,
+   Expanded(visualizer), box }` to `Column.max(mainAxisAlignment.center)
+   { title, gap, SizedBox(visualizer) }` driven by a `LayoutBuilder` —
+   `visualizerHeight = constraints.maxHeight * 0.7 *
+   spectrumHeightFactor` preserves the original visualiser size while
+   letting the title + visualiser block centre vertically within any
+   hero height. `VoidHero`, `DotHero` and `PoloHero` already centred
+   via `Container.alignment.center` and needed no change. The hero
+   gesture surface also accepts upward drag when collapsed, so the
+   expand gesture works anywhere on the (now much larger) hero.
+
+Visual evidence under `_ui_revamp/shots/`:
+- `verify_title_size.png` — Spectrum hero with track playing,
+  transport row positioned at top of the browser slot. Title "Arcade
+  Fire - Wake Up" wraps to two lines well under the visible `⋮`
+  button; lateral whitespace shields the title bounds from the
+  settings affordance.
+- `verify_swipe_up_hint.png` — Browser presentation set to swipe-up:
+  empty browser slot shows centered "↑ swipe to browse" hint, with
+  transport row + crumb pinned at the bottom of the screen.
+- `verify_swipe_up_expanded.png` — After an upward swipe gesture,
+  browser expands to reveal the two Indie tracks (Arcade Fire / The
+  Strokes) plus the bottom `< ..` row, transport row + crumb still
+  pinned below.
+- `verify_swipe_up_collapsed.png` — After KEYCODE_BACK, browser
+  collapses back to the "↑ swipe to browse" hint; library
+  `currentPath` is unchanged (BACK was consumed by PopScope rather
+  than walking the library tree up).
+

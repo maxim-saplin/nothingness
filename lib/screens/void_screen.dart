@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/library_controller.dart';
+import '../models/browser_presentation.dart';
 import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
 import '../models/transport_position.dart';
@@ -65,6 +66,9 @@ class _VoidScreenState extends State<VoidScreen>
   final SettingsService _settings = SettingsService();
   bool _immersive = false;
   TransportPosition _transportPosition = TransportPosition.bottom;
+  BrowserPresentation _browserPresentation = BrowserPresentation.fixed;
+  bool _browserExpanded = false;
+  double _swipeUpAccum = 0;
   String? _lastPersistedPath;
   bool _showHint = false;
   bool _hintFaded = false;
@@ -98,9 +102,12 @@ class _VoidScreenState extends State<VoidScreen>
     );
     _immersive = _settings.immersiveNotifier.value;
     _transportPosition = _settings.transportPositionNotifier.value;
+    _browserPresentation = _settings.browserPresentationNotifier.value;
     if (_immersive) _immersiveCtrl.value = 1.0;
     _settings.immersiveNotifier.addListener(_onImmersiveChanged);
     _settings.transportPositionNotifier.addListener(_onTransportPositionChanged);
+    _settings.browserPresentationNotifier
+        .addListener(_onBrowserPresentationChanged);
     _settings.screenConfigNotifier.addListener(_onScreenConfigChanged);
     // The PopScope's `canPop` is computed from `currentPath`, so we have to
     // re-evaluate it whenever the library navigates.
@@ -127,6 +134,17 @@ class _VoidScreenState extends State<VoidScreen>
     final next = _settings.transportPositionNotifier.value;
     if (_transportPosition == next) return;
     setState(() => _transportPosition = next);
+  }
+
+  void _onBrowserPresentationChanged() {
+    final next = _settings.browserPresentationNotifier.value;
+    if (_browserPresentation == next) return;
+    setState(() {
+      _browserPresentation = next;
+      // Reset the expansion flag whenever the mode changes so the user
+      // sees the canonical state for the newly-selected presentation.
+      _browserExpanded = false;
+    });
   }
 
   void _onLibraryChanged() {
@@ -183,6 +201,8 @@ class _VoidScreenState extends State<VoidScreen>
     _settings.immersiveNotifier.removeListener(_onImmersiveChanged);
     _settings.transportPositionNotifier
         .removeListener(_onTransportPositionChanged);
+    _settings.browserPresentationNotifier
+        .removeListener(_onBrowserPresentationChanged);
     _settings.screenConfigNotifier.removeListener(_onScreenConfigChanged);
     _libraryController.removeListener(_onLibraryChanged);
     _immersiveCtrl.dispose();
@@ -247,6 +267,26 @@ class _VoidScreenState extends State<VoidScreen>
     _horizDragAccum = 0;
   }
 
+  /// Upward drag on the (expanded) hero while the swipe-up browser is
+  /// collapsed mirrors the hint-band gesture: 30 px past the threshold
+  /// flips `_browserExpanded` so the user can swipe anywhere in the
+  /// freed area, not just the thin strip above the crumb.
+  void _onHeroVerticalDrag(DragUpdateDetails d) {
+    if (_browserExpanded ||
+        _browserPresentation != BrowserPresentation.swipeUp) {
+      return;
+    }
+    _swipeUpAccum += d.primaryDelta ?? 0;
+    if (_swipeUpAccum < -30) {
+      setState(() => _browserExpanded = true);
+      _swipeUpAccum = 0;
+    }
+  }
+
+  void _onHeroVerticalDragEnd(DragEndDetails _) {
+    _swipeUpAccum = 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
@@ -256,8 +296,14 @@ class _VoidScreenState extends State<VoidScreen>
     final heroHeight = mq.size.height * geometry.heroFraction;
     final bottomInset = mq.viewPadding.bottom;
 
+    final bool browserCollapsed =
+        _browserPresentation == BrowserPresentation.swipeUp &&
+            !_browserExpanded;
     return PopScope(
-      canPop: _libraryController.currentPath == null && !_searchMode,
+      canPop: _libraryController.currentPath == null &&
+          !_searchMode &&
+          !(_browserExpanded &&
+              _browserPresentation == BrowserPresentation.swipeUp),
       onPopInvokedWithResult: _onPopInvoked,
       child: Scaffold(
       backgroundColor: palette.background,
@@ -276,12 +322,6 @@ class _VoidScreenState extends State<VoidScreen>
                   // meets the screen edge; otherwise it pushes the crumb +
                   // hairline above the Android gesture-nav bar (B-002).
                   final reservedBottom = bottomInset * (1 - t);
-                  // Hero height interpolates from `heroHeight` (non-
-                  // immersive) to the full available height (immersive).
-                  // Everything else hangs off the bottom edge so the
-                  // hero growth never collides with their fixed slot
-                  // (B-003: no layout-time overflow mid-transition).
-                  final heroH = heroHeight + (availableH - heroHeight) * t;
                   final showChildren = t < 0.999;
                   // Transport pins to either the top of the browser band
                   // (just below the hero) or to the bottom (just above the
@@ -292,11 +332,29 @@ class _VoidScreenState extends State<VoidScreen>
                   final isTransportBottom =
                       _transportPosition == TransportPosition.bottom;
                   final hasTransport = isTransportTop || isTransportBottom;
-                  final browserTop =
-                      heroH + (isTransportTop ? _transportHeight : 0.0);
                   final browserBottom = reservedBottom +
                       _crumbHeight +
                       (isTransportBottom ? _transportHeight : 0.0);
+                  // When the swipe-up browser is collapsed, the hero
+                  // grows down to claim the freed browser slot — only a
+                  // thin band at the bottom of that slot stays reserved
+                  // for the "↑ swipe to browse" hint. baseHeroH is the
+                  // non-immersive height; the immersive interpolation
+                  // below still lifts it to availableH at t=1.
+                  final double baseHeroH = browserCollapsed
+                      ? (availableH -
+                          browserBottom -
+                          _swipeHintZoneHeight -
+                          (isTransportTop ? _transportHeight : 0.0))
+                      : heroHeight;
+                  // Hero height interpolates from `baseHeroH` (non-
+                  // immersive) to the full available height (immersive).
+                  // Everything else hangs off the bottom edge so the
+                  // hero growth never collides with their fixed slot
+                  // (B-003: no layout-time overflow mid-transition).
+                  final heroH = baseHeroH + (availableH - baseHeroH) * t;
+                  final browserTop =
+                      heroH + (isTransportTop ? _transportHeight : 0.0);
                   return Stack(
                     children: [
                       // Hero — anchored top, animated height. Wrapped in a
@@ -313,8 +371,10 @@ class _VoidScreenState extends State<VoidScreen>
                       ),
                       // Browser fills the band between the hero (or the
                       // top-anchored transport) and the crumb (or the
-                      // bottom-anchored transport).
-                      if (showChildren)
+                      // bottom-anchored transport). When the swipe-up
+                      // presentation is collapsed the browser is hidden
+                      // and a hint zone takes its place.
+                      if (showChildren && !browserCollapsed)
                         Positioned(
                           top: browserTop,
                           left: 0,
@@ -327,6 +387,18 @@ class _VoidScreenState extends State<VoidScreen>
                               searchController: _searchController,
                             ),
                           ),
+                        ),
+                      // Swipe-up hint band — a thin strip at the bottom
+                      // of the freed browser slot. The expanded hero sits
+                      // directly above it. Tap / upward drag expands the
+                      // browser into view.
+                      if (showChildren && browserCollapsed)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          height: _swipeHintZoneHeight,
+                          bottom: browserBottom,
+                          child: _buildSwipeUpHint(palette, typography),
                         ),
                       // Transport row — top (just below hero) or bottom
                       // (just above crumb). Hidden in immersive or when
@@ -376,11 +448,16 @@ class _VoidScreenState extends State<VoidScreen>
     );
   }
 
-  /// Android back: exit search first, otherwise walk one folder up the
-  /// library tree. Only when both are exhausted does PopScope let the
-  /// pop through and the OS leave the app.
+  /// Android back: collapse the swipe-up browser, then exit search, then
+  /// walk one folder up the library tree. Only when all three are
+  /// exhausted does PopScope let the pop through and the OS leave the app.
   void _onPopInvoked(bool didPop, Object? _) {
     if (didPop) return;
+    if (_browserExpanded &&
+        _browserPresentation == BrowserPresentation.swipeUp) {
+      setState(() => _browserExpanded = false);
+      return;
+    }
     if (_searchMode) {
       _exitSearchMode();
       return;
@@ -397,6 +474,11 @@ class _VoidScreenState extends State<VoidScreen>
   /// Fixed slot height for the transport row — seek strip + icon row.
   /// Kept in sync with [TransportRow.transportHeight].
   static const double _transportHeight = TransportRow.transportHeight;
+
+  /// Height of the swipe-up hint band when the browser is collapsed in
+  /// swipe-up mode. The hero claims everything above this band so the
+  /// visualisation has room to breathe instead of stranding empty space.
+  static const double _swipeHintZoneHeight = 56.0;
 
   /// Resolve the active visualisation config. Prefer the value passed via
   /// the constructor (used by tests and by [MediaControllerPage]), falling
@@ -428,13 +510,20 @@ class _VoidScreenState extends State<VoidScreen>
 
   /// Wraps the hero in a gesture surface so tap / horizontal-swipe drive
   /// the player regardless of which visualisation is rendered inside.
+  /// Vertical drag is wired only when the swipe-up browser is collapsed —
+  /// the same arena where the hint band lives.
   Widget _buildHeroGestureSurface({required Widget child}) {
     final player = context.read<AudioPlayerProvider>();
+    final bool acceptVertical =
+        _browserPresentation == BrowserPresentation.swipeUp &&
+            !_browserExpanded;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => player.playPause(),
       onHorizontalDragUpdate: _onHeroHorizontalDrag,
       onHorizontalDragEnd: _onHeroHorizontalDragEnd,
+      onVerticalDragUpdate: acceptVertical ? _onHeroVerticalDrag : null,
+      onVerticalDragEnd: acceptVertical ? _onHeroVerticalDragEnd : null,
       child: child,
     );
   }
@@ -568,6 +657,33 @@ class _VoidScreenState extends State<VoidScreen>
                 height: 1,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwipeUpHint(AppPalette palette, AppTypography typography) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: (d) {
+        _swipeUpAccum += d.primaryDelta ?? 0;
+        if (_swipeUpAccum < -30 && !_browserExpanded) {
+          setState(() => _browserExpanded = true);
+          _swipeUpAccum = 0;
+        }
+      },
+      onVerticalDragEnd: (_) => _swipeUpAccum = 0,
+      onTap: () => setState(() => _browserExpanded = true),
+      child: Container(
+        alignment: Alignment.center,
+        child: Text(
+          '↑ swipe to browse',
+          style: TextStyle(
+            color: palette.fgTertiary,
+            fontFamily: typography.monoFamily,
+            fontSize: typography.hintSize,
+            letterSpacing: 0.2,
           ),
         ),
       ),

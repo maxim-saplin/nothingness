@@ -43,7 +43,9 @@ class VoidHero extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      // Horizontal padding is wide enough that the title text can never
+      // reach the top-right `⋮` settings button (48 dp wide @ right: 4).
+      padding: const EdgeInsets.fromLTRB(56, 12, 56, 12),
       decoration: BoxDecoration(
         color: palette.background,
         border: Border(

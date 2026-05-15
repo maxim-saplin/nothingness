@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../models/browser_presentation.dart';
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
@@ -62,6 +63,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     _settings.screenConfigNotifier,
     _settings.immersiveNotifier,
     _settings.transportPositionNotifier,
+    _settings.browserPresentationNotifier,
     _settings.fullScreenNotifier,
     _settings.uiScaleNotifier,
     _settings.settingsNotifier,
@@ -198,6 +200,13 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     final cur = _settings.transportPositionNotifier.value;
     final next = values[(values.indexOf(cur) + 1) % values.length];
     _settings.setTransportPosition(next);
+  }
+
+  void _cycleBrowserPresentation() {
+    final values = BrowserPresentation.values;
+    final cur = _settings.browserPresentationNotifier.value;
+    final next = values[(values.indexOf(cur) + 1) % values.length];
+    _settings.setBrowserPresentation(next);
   }
 
   void _cycleVisualizerColor() {
@@ -378,6 +387,16 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         label: 'transport',
         value: _settings.transportPositionNotifier.value.label,
         onTap: _cycleTransportPosition,
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
+      // Browser presentation — fixed in its slot vs revealed by swipe-up.
+      _row(
+        key: const ValueKey('void-settings-browser'),
+        label: 'browser',
+        value: _settings.browserPresentationNotifier.value.label,
+        onTap: _cycleBrowserPresentation,
         palette: palette,
         typography: typography,
         geometry: geometry,

@@ -48,64 +48,79 @@ class SpectrumHero extends StatelessWidget {
       palette.fgPrimary,
     ];
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                hasTrack ? track.title : 'nothingness',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: palette.fgPrimary,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.heroSize,
-                  letterSpacing: typography.heroLetterSpacing,
-                  fontWeight: FontWeight.w300,
-                  height: 1.18,
-                ),
-              ),
-              if (hasTrack) ...[
-                const SizedBox(height: 8),
-                Text(
-                  parent,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.fgTertiary,
-                    fontFamily: typography.monoFamily,
-                    fontSize: typography.hintSize,
-                    letterSpacing: 0.18,
+    // Vertically center the title + visualizer block so the hero stays
+    // visually balanced when the Void chrome expands the hero into the
+    // freed browser slot (swipe-up collapsed). At the default ~32 % hero
+    // height the centered layout still looks natural — the visualizer's
+    // fractional size (`spectrumHeightFactor` of half the slot) keeps
+    // it readable without dominating.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 0.7 of the hero slot times `spectrumHeightFactor` (default 0.45)
+        // matches the prior layout's visualiser height (Expanded ≈ 0.7 H,
+        // then FractionallySizedBox heightFactor 0.45).
+        final double visualizerHeight =
+            constraints.maxHeight * 0.7 * config.spectrumHeightFactor;
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 56),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    hasTrack ? track.title : 'nothingness',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.fgPrimary,
+                      fontFamily: typography.monoFamily,
+                      fontSize: typography.heroSize,
+                      letterSpacing: typography.heroLetterSpacing,
+                      fontWeight: FontWeight.w300,
+                      height: 1.18,
+                    ),
                   ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: FractionallySizedBox(
-            widthFactor: config.spectrumWidthFactor,
-            heightFactor: config.spectrumHeightFactor,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: SpectrumVisualizer(
-                data: spectrumData,
-                settings: settings,
-                colorsOverride: voidBarColors,
+                  if (hasTrack) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      parent,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.fgTertiary,
+                        fontFamily: typography.monoFamily,
+                        fontSize: typography.hintSize,
+                        letterSpacing: 0.18,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: visualizerHeight,
+              child: FractionallySizedBox(
+                widthFactor: config.spectrumWidthFactor,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: SpectrumVisualizer(
+                    data: spectrumData,
+                    settings: settings,
+                    colorsOverride: voidBarColors,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
