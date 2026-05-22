@@ -6,7 +6,7 @@ description: Efficient app-driving workflow for the real Flutter app on emulator
 
 Use this skill to drive the real app quickly, inspect runtime state, and unblock UI/action dead-ends.
 
-Always use real app entrypoint: `lib/main.dart` (never `main_test.dart`).
+Always use the real app entrypoint: `lib/main.dart` (never `main_test.dart` — that's reserved for deterministic `integration_test/` runs with fake transport).
 
 ## Fast Setup
 
@@ -24,19 +24,68 @@ After install, **prepare the device** so the first-launch UI doesn't stall on pe
 
 This grants `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`, and (optionally) copies host audio files into `/data/user/0/com.saplin.nothingness/files/`. The script is idempotent — run it any time the app is reinstalled. After staging `foo.mp3`, queue it via:
 
-```
-ext.nothingness.setQueue?paths=/data/user/0/com.saplin.nothingness/files/foo.mp3
-```
-
-From stdout, capture VM URL:
-
-```text
-http://127.0.0.1:<PORT>/<AUTH>=/
+```bash
+.claude/skills/agent-emulator-debugging/scripts/drive.py play /data/user/0/com.saplin.nothingness/files/foo.mp3
 ```
 
-Set:
+## Primary driver: `scripts/drive.py`
+
+`scripts/drive.py` is the recommended way to puppet the app. It:
+
+- Discovers the VM service WebSocket from logcat or `/tmp/flutter_run.log`.
+- Caches the WS URI next to itself (`.vm_ws.txt`) so subsequent calls are instant.
+- Sets up the ADB port-forward and resolves the main isolate.
+- Wraps every `ext.nothingness.*` extension (26 of them) as a typed subcommand.
+- Adds conveniences: screenshots into `.tmp/agent_shots/`, hot reload/restart via the `/tmp/flutter_input` fifo, force-stop + clear-data + cold launch, and a `replay` mode for newline-separated scripts.
 
 ```bash
+D=.claude/skills/agent-emulator-debugging/scripts/drive.py
+
+# State + UI
+$D inspect            # router + library + playback + overflow ring buffer
+$D tree 40            # widget tree as text
+$D overflows          # FlutterError.onError ring buffer
+$D shoot before_x     # adb screencap → .tmp/agent_shots/before_x.png
+
+# Navigation (Void shell)
+$D screen void                                # set active hero: spectrum|polo|dot|void
+$D variant dark                               # dark|light|system
+$D mode own                                   # own|background
+$D nav /storage/emulated/0/Music              # navigate the library to a path
+$D up                                         # navigateVoidUp
+$D settings open                              # settings sheet open|close
+$D permit                                     # programmatic library permission grant
+
+# Playback
+$D play /data/user/0/com.saplin.nothingness/files/foo.mp3
+$D pause | $D resume | $D next | $D prev
+
+# Preferences (broader than legacy setSetting)
+$D pref void_hint_shown=false:bool            # types: bool|int|string
+$D clearpref void_hint_shown
+
+# Lifecycle
+$D reload                                     # hot reload (sends `r` to /tmp/flutter_input)
+$D restart                                    # hot restart
+$D reset                                      # force-stop, clear app data, cold launch
+
+# Audio diagnostics
+$D call simulateInterruption phase=begin kind=pause
+$D call simulateNoisy
+$D call setSetting name=audioDiagnosticsOverlay value=true
+$D logcat 500
+$D replay smoke.txt                           # one drive.py invocation per line
+```
+
+For extensions not yet wrapped, `drive.py call <ext> k=v k=v …` calls any `ext.nothingness.<name>` with arbitrary params.
+
+## Manual fallback (no drive.py)
+
+When Python or the WS dependency is unavailable, the raw recipe still works.
+
+```bash
+flutter run -d emulator-5554 --debug
+# capture the VM URL from stdout:
 BASE="http://127.0.0.1:<PORT>/<AUTH>=/"
 ISOLATE=$(python3 - <<'PY'
 import json
@@ -44,17 +93,38 @@ import urllib.request
 
 base = "http://127.0.0.1:<PORT>/<AUTH>=/"
 with urllib.request.urlopen(base + 'getVM') as resp:
-	vm = json.load(resp)["result"]
+    vm = json.load(resp)["result"]
 print([i for i in vm["isolates"] if i["name"] == "main"][0]["id"])
 PY
 )
-```
 
-The shipped helper script uses `python3 urllib.request`, so it no longer depends on `curl`.
+e(){ python3 - "$BASE" "$ISOLATE" "$1" "${2:-}" <<'PY'
+import json
+import sys
+import urllib.parse
+import urllib.request
+
+base, isolate, name, extra = sys.argv[1:5]
+params = {'isolateId': isolate}
+if extra:
+    for key, value in urllib.parse.parse_qsl(extra, keep_blank_values=True):
+        params[key] = value
+with urllib.request.urlopen(f"{base}ext.nothingness.{name}?" + urllib.parse.urlencode(params)) as resp:
+    print(resp.read().decode())
+PY
+}
+
+# examples
+e getPlaybackState
+e getSettings
+e play
+e setQueue "paths=/sdcard/Music/a.mp3,/sdcard/Music/b.mp3&startIndex=0"
+e tapByKey "key=test.playPause"
+```
 
 ## WSL2 + Host Emulator
 
-When Flutter runs in WSL2 and emulator runs on Windows host:
+When Flutter runs in WSL2 and the emulator runs on the Windows host:
 
 ```bash
 "/mnt/c/Users/<windows-user>/AppData/Local/Android/Sdk/platform-tools/adb.exe" -a start-server
@@ -68,87 +138,46 @@ If launch-only is needed:
 ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --no-resident
 ```
 
-## Driving Shortcuts
-
-```bash
-e(){ python3 - "$BASE" "$ISOLATE" "$1" "${2:-}" <<'PY'
-import json
-import sys
-import urllib.parse
-import urllib.request
-
-base, isolate, name, extra = sys.argv[1:5]
-params = {'isolateId': isolate}
-if extra:
-	for key, value in urllib.parse.parse_qsl(extra, keep_blank_values=True):
-		params[key] = value
-with urllib.request.urlopen(f"{base}ext.nothingness.{name}?" + urllib.parse.urlencode(params)) as resp:
-	print(resp.read().decode())
-PY
-}
-
-# State
-e getPlaybackState
-e getSettings
-e getWidgetTree "depth=40"
-
-# Playback
-e play
-e pause
-e next
-e prev
-
-# Queue
-e setQueue "paths=/sdcard/Music/a.mp3,/sdcard/Music/b.mp3&startIndex=0"
-
-# Audio diagnostics (Bug #1 / #2 / #3 instrumentation)
-e getAudioEvents
-e getDiagnostics
-e simulateInterruption "phase=begin&kind=pause"
-e simulateInterruption "phase=end&kind=pause"
-e simulateNoisy
-e setSetting "name=audioDiagnosticsOverlay&value=true"
-
-# Key tap (only if widget has ValueKey<String>)
-e tapByKey "key=test.playPause"
-```
+If `adb devices` shows nothing from WSL2, run the `wsl2-adb-setup` skill first.
 
 ## Common Blockers (Fast Recovery)
 
-1. App installs fail with signature mismatch:
-- Symptom: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
-- Fix: uninstall existing package, then run again.
+1. **`drive.py` says "could not find Dart VM service URI"**:
+   - The app isn't running in debug mode (release build, or `flutter run` exited).
+   - Or the cached `.vm_ws.txt` points at a dead session. Either delete the cache or run `drive.py reset` then retry.
 
-2. Queue is empty after reinstall:
-- Symptom: state shows `queueLen/queueLength = 0`.
-- Fix: set queue with real files from `/sdcard/Music`.
+2. **App installs fail with signature mismatch (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`)**:
+   - Uninstall the existing package, then re-run `flutter run`.
 
-3. SoLoud cannot load shared-storage file on emulator:
-- Symptom: logcat shows `SoLoudFileNotFoundException` for `/sdcard/...` even though the file exists.
-- Fix: use `agent_prepare.sh --stage <host_file>` (preferred), or manually push to `/data/local/tmp` and `run-as com.saplin.nothingness cp ... files/...`, then queue `/data/user/0/com.saplin.nothingness/files/<name>`.
+3. **Queue is empty after reinstall**:
+   - State shows `queueLen/queueLength = 0`. Set a queue with real files from `/sdcard/Music` or stage one via `agent_prepare.sh --stage`.
 
-4. `Permissions Required` overlay blocks panel actions:
-- Fix path A (preferred): run `agent_prepare.sh -d <device>` — grants all runtime permissions in one shot, no in-app UI needed.
-- Fix path B: tap in-app `Grant Permissions` and approve OS dialogs.
+4. **SoLoud cannot load shared-storage file on emulator**:
+   - Logcat shows `SoLoudFileNotFoundException` for `/sdcard/...` even though the file exists.
+   - Fix: `agent_prepare.sh --stage <host_file>` (preferred), then `drive.py play /data/user/0/com.saplin.nothingness/files/<name>`.
 
-5. Cannot tap Shuffle (or another panel control):
-- First open library panel (handle tap or swipe up).
-- If key tap fails, use adb UIAutomator dump and tap by bounds for visible text.
+5. **`Permissions Required` overlay blocks panel actions**:
+   - Fix A (preferred): `agent_prepare.sh -d <device>` — grants all runtime permissions in one shot.
+   - Fix B: `drive.py permit` — triggers the in-app permission request flow.
 
-6. `tapByKey` returns not found:
-- Cause: production widget has no `ValueKey<String>`.
-- Fix: drive via panel open + text/bounds tap, not key tap.
+6. **Cannot tap a control via `tapByKey`**:
+   - Cause: the production widget has no `ValueKey<String>`.
+   - Fix: drive via `drive.py` (open settings sheet, navigate, set preference), or use `adb shell uiautomator dump` and tap by bounds.
 
-7. Action path ambiguity (UI vs extension):
-- Verify with before/after state around one action.
-- Prefer single-action runs with immediate state readback.
+7. **`drive.py reload` reports "Reloaded but no changes detected"**:
+   - Hot reload doesn't pick up `initState`, static init, or top-level field changes.
+   - Use `drive.py restart` (hot restart) or a full rebuild for those.
+
+8. **Action path ambiguity (UI vs extension)**:
+   - Verify with before/after state around one action.
+   - Prefer single-action runs with immediate state readback.
 
 ## Minimal Drive Loop
 
-1. Read baseline (`getPlaybackState`).
-2. Apply precondition (queue/panel/permission).
+1. Read baseline (`drive.py inspect`).
+2. Apply precondition (queue/permission/screen).
 3. Trigger one action.
 4. Read state immediately.
 5. Assert only required fields (index, isPlaying, title, position).
 
-Reference: `docs/agent-driven-debugging.md`
+Reference: `docs/agent-driven-debugging.md`.

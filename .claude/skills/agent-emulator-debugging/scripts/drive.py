@@ -5,7 +5,7 @@ Wraps `ext.nothingness.*` extensions exposed by `lib/testing/agent_service.dart`
 so a human or agent can puppet the live emulator without writing one-off scripts.
 
 Subcommands print structured JSON on stdout and exit 0 on success, non-zero on
-RPC error.  See `_ui_revamp/plan.md` Phase A.2 for the full menu.
+RPC error.
 
 Usage (a few examples):
   drive.py inspect                       # router + library + playback + overflow
@@ -20,7 +20,7 @@ Usage (a few examples):
   drive.py pref void_hint_shown=false:bool
   drive.py clearpref void_hint_shown
   drive.py permit                        # request library permissions
-  drive.py shoot before_b001             # adb screencap -> _ui_revamp/shots/before_b001.png
+  drive.py shoot before_b001             # adb screencap -> .tmp/agent_shots/before_b001.png
   drive.py tree [depth]
   drive.py tap <key>
   drive.py logcat [lines]
@@ -50,8 +50,8 @@ except ImportError:  # pragma: no cover - script is only useful with websockets
     sys.exit(2)
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SHOTS_DIR = REPO_ROOT / "_ui_revamp" / "shots"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+SHOTS_DIR = REPO_ROOT / ".tmp" / "agent_shots"
 SHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_SERIAL = os.environ.get("ADB_SERIAL", "emulator-5554")
@@ -60,7 +60,7 @@ LAUNCH_ACTIVITY = "com.saplin.nothingness.MainActivity"
 LOCAL_FORWARD_PORT = int(os.environ.get("DRIVE_LOCAL_PORT", "8181"))
 
 # Where we cache the discovered VM service WebSocket URI between runs.
-WS_CACHE = REPO_ROOT / "_ui_revamp" / "drive" / ".vm_ws.txt"
+WS_CACHE = Path(__file__).with_name(".vm_ws.txt")
 
 
 # ---------------------------------------------------------------------------

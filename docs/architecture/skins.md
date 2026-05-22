@@ -1,13 +1,13 @@
 # Skins & Screen System
 
-Nothingness supports multiple screen types, allowing for radically different visual presentations. The system is designed to distinguish between **Screens** (functional layouts) and **Skins** (aesthetic variations of a layout, primarily the "Polo" style).
+Nothingness supports four skins. After the `ui-revamp` arc all skins share a single shell (`VoidScreen`) and are implemented as **hero widgets** under `lib/widgets/heroes/`. `ScreenConfig` selects which hero is active; the surrounding chrome, browser, transport row, and settings sheet are owned by `VoidScreen` regardless of the active skin.
 
-## Screen Concepts
+## Heroes
 
-The application uses `ScreenConfig` models to define which screen is currently active.
-
--   **Spectrum Screen**: The default, modern visualization with dynamic bars and a clean UI.
--   **Polo Screen**: A skeuomorphic design mimicking a car head unit, using a static background image and a retro LCD font.
+-   **Spectrum** (`lib/widgets/heroes/spectrum_hero.dart`) — the default, modern visualization with dynamic bars driven by the SoLoud FFT.
+-   **Polo** (`lib/widgets/heroes/polo_hero.dart`) — a skeuomorphic design mimicking a car head unit, using a static background image and a retro LCD font. See "The Polo Skin" below for coordinate handling.
+-   **Dot** (`lib/widgets/heroes/dot_hero.dart`) — a minimalist, single-dot visualization that pulses with playback.
+-   **Void** (`lib/widgets/heroes/void_hero.dart`) — a text-driven minimalist hero that pairs with the integrated `VoidBrowser` and the settings sheet. The Void hero is the visual identity of the shell itself; the name "Void" applies to both the hero and the chrome that hosts the other heroes.
 
 ## The Polo Skin
 

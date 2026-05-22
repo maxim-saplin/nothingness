@@ -30,3 +30,6 @@ doc/api/
 # Android signing
 android/key.properties
 .tmp/
+
+# drive.py VM service WebSocket cache (per-run, never check in)
+.claude/skills/agent-emulator-debugging/scripts/.vm_ws.txt
