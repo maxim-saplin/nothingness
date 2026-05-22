@@ -8,6 +8,10 @@
 // SoLoud, so we test those concerns via direct notifier flips on the
 // VoidSettingsSheet + VoidScreen ancestor scope which use the same
 // notifiers.
+//
+// The listener-leak assertions reach for `ChangeNotifier.hasListeners` — it's
+// `@protected` but is the only API that exposes the leak we're testing for.
+// ignore_for_file: invalid_use_of_protected_member
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

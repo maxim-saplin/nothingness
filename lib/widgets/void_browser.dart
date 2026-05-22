@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
@@ -282,7 +283,7 @@ class _VoidBrowserState extends State<VoidBrowser> {
     return ListView(
       reverse: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
-      cacheExtent: 0,
+      scrollCacheExtent: const ScrollCacheExtent.pixels(0),
       clipBehavior: Clip.hardEdge,
       children: rows.reversed.toList(growable: false),
     );
@@ -299,7 +300,7 @@ class _VoidBrowserState extends State<VoidBrowser> {
     return ListView.builder(
       reverse: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
-      cacheExtent: 0,
+      scrollCacheExtent: const ScrollCacheExtent.pixels(0),
       clipBehavior: Clip.hardEdge,
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
