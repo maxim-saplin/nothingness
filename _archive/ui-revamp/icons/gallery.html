@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nothingness — icon variants</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    background:#111;
+    color:#FFF;
+    font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+    min-height:100%;
+    -webkit-font-smoothing:antialiased;
+  }
+  body{padding:32px 24px 80px;}
+  header{
+    max-width:1200px;margin:0 auto 36px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+    padding-bottom:20px;
+  }
+  header h1{
+    font-size:18px;font-weight:300;letter-spacing:0.08em;
+    color:rgba(255,255,255,0.85);
+  }
+  header p{
+    margin-top:8px;font-size:12px;color:rgba(255,255,255,0.4);
+    letter-spacing:0.04em;line-height:1.5;
+  }
+  .grid{
+    max-width:1200px;margin:0 auto;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:28px;
+  }
+  .tile{
+    background:#000;
+    padding:22px 22px 18px;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:6px;
+  }
+  .tile .index{
+    font-size:10px;letter-spacing:0.24em;text-transform:uppercase;
+    color:rgba(255,255,255,0.35);
+    margin-bottom:14px;
+  }
+  .big{
+    width:100%;aspect-ratio:1;background:#000;
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:22%;
+    overflow:hidden;
+    display:block;
+  }
+  .row-small{
+    display:flex;align-items:center;gap:14px;margin-top:14px;
+  }
+  .small{
+    width:56px;height:56px;
+    background:#000;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px;
+    overflow:hidden;
+    flex-shrink:0;
+  }
+  .micro{
+    width:32px;height:32px;
+    background:#000;
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:8px;
+    overflow:hidden;
+    flex-shrink:0;
+  }
+  .title{
+    font-size:13px;font-weight:400;letter-spacing:0.04em;
+    color:rgba(255,255,255,0.85);
+    margin-top:10px;
+  }
+  .note{
+    font-size:11px;color:rgba(255,255,255,0.4);
+    margin-top:6px;line-height:1.5;letter-spacing:0.02em;
+  }
+  .badge{
+    display:inline-block;font-size:9px;letter-spacing:0.2em;
+    text-transform:uppercase;color:rgba(255,255,255,0.55);
+    border:1px solid rgba(255,255,255,0.2);
+    padding:2px 6px;border-radius:2px;
+    margin-left:8px;vertical-align:middle;
+  }
+  /* Make sure SVG text renders consistent on light/dark */
+  svg text{font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>nothingness — icon variants</h1>
+  <p>10 candidates in the v6_monk+ aesthetic: pure black field, white forms, monospace, light weights, 1px hairlines.<br>
+     Each tile shows the icon at preview size, plus a 56px (app drawer) and 32px (status bar) version to test legibility at small sizes.</p>
+</header>
+
+<div class="grid">
+
+  <!-- ===================== 01 — N O T H (uppercase) ===================== -->
+  <div class="tile">
+    <div class="index">01 <span class="badge">corners</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#FFF" font-weight="200" font-size="140" text-anchor="middle" dominant-baseline="central" letter-spacing="0.04em">
+        <text x="128" y="148">N</text>
+        <text x="384" y="148">O</text>
+        <text x="128" y="364">T</text>
+        <text x="384" y="364">H</text>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="200" font-size="140" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">N</text><text x="384" y="148">O</text>
+          <text x="128" y="364">T</text><text x="384" y="364">H</text>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="300" font-size="170" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">N</text><text x="384" y="148">O</text>
+          <text x="128" y="364">T</text><text x="384" y="364">H</text>
+        </g>
+      </svg>
+      <div class="note">NOTH — first four letters of "nothing", positioned at the corners of an unseen square. Reads as a word at large size and as a structured logotype at small size.</div>
+    </div>
+    <div class="title">N · O · T · H</div>
+  </div>
+
+  <!-- ===================== 02 — n o t h (lowercase, hair) ===================== -->
+  <div class="tile">
+    <div class="index">02 <span class="badge">corners</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#FFF" font-weight="100" font-size="150" text-anchor="middle" dominant-baseline="central">
+        <text x="128" y="148">n</text>
+        <text x="384" y="148">o</text>
+        <text x="128" y="364">t</text>
+        <text x="384" y="364">h</text>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="200" font-size="160" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">n</text><text x="384" y="148">o</text>
+          <text x="128" y="364">t</text><text x="384" y="364">h</text>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="300" font-size="180" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">n</text><text x="384" y="148">o</text>
+          <text x="128" y="364">t</text><text x="384" y="364">h</text>
+        </g>
+      </svg>
+      <div class="note">Same composition, lowercase, hair-thin (200 weight). Echoes the v6_monk hero ("nothingness|") which itself is light-weight lowercase.</div>
+    </div>
+    <div class="title">n · o · t · h</div>
+  </div>
+
+  <!-- ===================== 03 — V O I D ===================== -->
+  <div class="tile">
+    <div class="index">03 <span class="badge">corners</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#FFF" font-weight="200" font-size="140" text-anchor="middle" dominant-baseline="central">
+        <text x="128" y="148">V</text>
+        <text x="384" y="148">O</text>
+        <text x="128" y="364">I</text>
+        <text x="384" y="364">D</text>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="200" font-size="140" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">V</text><text x="384" y="148">O</text>
+          <text x="128" y="364">I</text><text x="384" y="364">D</text>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="300" font-size="170" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">V</text><text x="384" y="148">O</text>
+          <text x="128" y="364">I</text><text x="384" y="364">D</text>
+        </g>
+      </svg>
+      <div class="note">VOID — a sister concept to "nothingness". Already used in the codebase (void_screen.dart, void_browser.dart). Short, four characters, perfect for the corner pattern.</div>
+    </div>
+    <div class="title">V · O · I · D</div>
+  </div>
+
+  <!-- ===================== 04 — N E S S ===================== -->
+  <div class="tile">
+    <div class="index">04 <span class="badge">corners</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#FFF" font-weight="200" font-size="140" text-anchor="middle" dominant-baseline="central">
+        <text x="128" y="148">N</text>
+        <text x="384" y="148">E</text>
+        <text x="128" y="364">S</text>
+        <text x="384" y="364">S</text>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="200" font-size="140" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">N</text><text x="384" y="148">E</text>
+          <text x="128" y="364">S</text><text x="384" y="364">S</text>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="300" font-size="170" text-anchor="middle" dominant-baseline="central">
+          <text x="128" y="148">N</text><text x="384" y="148">E</text>
+          <text x="128" y="364">S</text><text x="384" y="364">S</text>
+        </g>
+      </svg>
+      <div class="note">NESS — the last four letters of "nothingNESS". Less literal than NOTH; reads as a cryptic monogram. Distinctive at small size because of the repeated S.</div>
+    </div>
+    <div class="title">N · E · S · S</div>
+  </div>
+
+  <!-- ===================== 05 — n| (centered) ===================== -->
+  <div class="tile">
+    <div class="index">05 <span class="badge">typographic</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#FFF" font-weight="200" dominant-baseline="central">
+        <text x="180" y="256" font-size="220">n</text>
+        <text x="320" y="256" font-size="240" font-weight="100" opacity="0.8">|</text>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="200" dominant-baseline="central">
+          <text x="180" y="256" font-size="220">n</text>
+          <text x="320" y="256" font-size="240" font-weight="100" opacity="0.8">|</text>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF" font-weight="300" dominant-baseline="central">
+          <text x="180" y="256" font-size="260">n</text>
+          <text x="320" y="256" font-size="280" font-weight="200" opacity="0.85">|</text>
+        </g>
+      </svg>
+      <div class="note">Pure quote of the v6_monk hero ("nothingness|" reduced to first letter + caret). Strongest brand fidelity to the actual UI.</div>
+    </div>
+    <div class="title">n|</div>
+  </div>
+
+  <!-- ===================== 06 — ∅ empty set ===================== -->
+  <div class="tile">
+    <div class="index">06 <span class="badge">glyph</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="none" stroke="#FFF" stroke-width="6">
+        <circle cx="256" cy="256" r="120"/>
+        <line x1="156" y1="356" x2="356" y2="156"/>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="none" stroke="#FFF" stroke-width="8">
+          <circle cx="256" cy="256" r="130"/>
+          <line x1="150" y1="362" x2="362" y2="150"/>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="none" stroke="#FFF" stroke-width="14">
+          <circle cx="256" cy="256" r="140"/>
+          <line x1="140" y1="372" x2="372" y2="140"/>
+        </g>
+      </svg>
+      <div class="note">∅ — the empty set / null glyph. Already used in v6_monk's empty-search row ("⌀ nothing"). Direct semantic match for "nothingness". Reads at any size.</div>
+    </div>
+    <div class="title">∅ empty set</div>
+  </div>
+
+  <!-- ===================== 07 — circle (○) ===================== -->
+  <div class="tile">
+    <div class="index">07 <span class="badge">glyph</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <circle cx="256" cy="256" r="120" fill="none" stroke="#FFF" stroke-width="4"/>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <circle cx="256" cy="256" r="130" fill="none" stroke="#FFF" stroke-width="6"/>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <circle cx="256" cy="256" r="150" fill="none" stroke="#FFF" stroke-width="14"/>
+      </svg>
+      <div class="note">A single hairline circle. The most reduced form: nothing enclosed by an outline. The "0" of zen and of zero. Dangerously generic but maximally on-brand.</div>
+    </div>
+    <div class="title">○</div>
+  </div>
+
+  <!-- ===================== 08 — hairline (the 1px progress line) ===================== -->
+  <div class="tile">
+    <div class="index">08 <span class="badge">structural</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <rect x="0" y="486" width="512" height="3" fill="#FFF"/>
+      <rect x="0" y="486" width="180" height="3" fill="#FFF"/>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <rect x="0" y="480" width="512" height="6" fill="#FFF" opacity="0.25"/>
+        <rect x="0" y="480" width="180" height="6" fill="#FFF"/>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <rect x="0" y="460" width="512" height="20" fill="#FFF" opacity="0.25"/>
+        <rect x="0" y="460" width="180" height="20" fill="#FFF"/>
+      </svg>
+      <div class="note">The 1px progress hairline at the bottom of the viewport, lifted into the icon. The most extreme reduction: the icon is literally just the play-progress bar. Probably illegible at 32px.</div>
+    </div>
+    <div class="title">— hairline</div>
+  </div>
+
+  <!-- ===================== 09 — …/ breadcrumb ===================== -->
+  <div class="tile">
+    <div class="index">09 <span class="badge">structural</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g font-weight="300" dominant-baseline="central" text-anchor="middle">
+        <text x="180" y="256" font-size="120" fill="rgba(255,255,255,0.45)">…</text>
+        <text x="265" y="256" font-size="120" fill="rgba(255,255,255,0.3)">/</text>
+        <text x="355" y="256" font-size="120" fill="#FFF">n</text>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g font-weight="300" dominant-baseline="central" text-anchor="middle">
+          <text x="180" y="256" font-size="140" fill="rgba(255,255,255,0.45)">…</text>
+          <text x="270" y="256" font-size="140" fill="rgba(255,255,255,0.3)">/</text>
+          <text x="360" y="256" font-size="140" fill="#FFF">n</text>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g font-weight="400" dominant-baseline="central" text-anchor="middle">
+          <text x="170" y="256" font-size="180" fill="rgba(255,255,255,0.5)">…</text>
+          <text x="270" y="256" font-size="180" fill="rgba(255,255,255,0.35)">/</text>
+          <text x="365" y="256" font-size="180" fill="#FFF">n</text>
+        </g>
+      </svg>
+      <div class="note">"…/n" — the auto-truncated breadcrumb from v6_monk, frozen into a logo. Tail-of-path metaphor: "you are here, at the end of a long tree, in nothingness". File-tree-native.</div>
+    </div>
+    <div class="title">…/n</div>
+  </div>
+
+  <!-- ===================== 10 — dot grid (3x3, center missing) ===================== -->
+  <div class="tile">
+    <div class="index">10 <span class="badge">grid</span></div>
+    <svg class="big" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#000"/>
+      <g fill="#FFF">
+        <circle cx="156" cy="156" r="10"/><circle cx="256" cy="156" r="10"/><circle cx="356" cy="156" r="10"/>
+        <circle cx="156" cy="256" r="10"/><!-- center: nothing --><circle cx="356" cy="256" r="10"/>
+        <circle cx="156" cy="356" r="10"/><circle cx="256" cy="356" r="10"/><circle cx="356" cy="356" r="10"/>
+      </g>
+    </svg>
+    <div class="row-small">
+      <svg class="small" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF">
+          <circle cx="156" cy="156" r="16"/><circle cx="256" cy="156" r="16"/><circle cx="356" cy="156" r="16"/>
+          <circle cx="156" cy="256" r="16"/><circle cx="356" cy="256" r="16"/>
+          <circle cx="156" cy="356" r="16"/><circle cx="256" cy="356" r="16"/><circle cx="356" cy="356" r="16"/>
+        </g>
+      </svg>
+      <svg class="micro" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <rect width="512" height="512" fill="#000"/>
+        <g fill="#FFF">
+          <circle cx="140" cy="140" r="30"/><circle cx="256" cy="140" r="30"/><circle cx="372" cy="140" r="30"/>
+          <circle cx="140" cy="256" r="30"/><circle cx="372" cy="256" r="30"/>
+          <circle cx="140" cy="372" r="30"/><circle cx="256" cy="372" r="30"/><circle cx="372" cy="372" r="30"/>
+        </g>
+      </svg>
+      <div class="note">3×3 dot grid with the centre absent — "nothing in the middle". Reads as a tic-tac-toe with a missing piece. Suggests structure-around-emptiness, which is exactly what the player is.</div>
+    </div>
+    <div class="title">· · · · · · · ·</div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -22,7 +22,10 @@ void main() {
 
       expect(listing.path, '/storage/emulated/0/Music');
       expect(listing.folders.map((f) => f.name), containsAll(['Jazz', 'Rock']));
-      expect(listing.tracks.map((t) => t.title), contains('Root Song'));
+      // Display title is the on-disk filename (sans extension), not the
+      // MediaStore ID3 title — the user wants to see what they named the
+      // file.
+      expect(listing.tracks.map((t) => t.title), contains('song0'));
       expect(listing.tracks.any((t) => t.title == 'Skip'), isFalse);
     });
 

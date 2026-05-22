@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>nothingness — monk+</title>
+<!--
+  Persona: The Minimalist Monk (forked — "Monk+")
+  Core belief: The home screen is the music; the browser sits beneath it and disappears at the swipe of a thumb.
+  Key structural moves (vs. v1_monk):
+    1. Inverted layout. Top ~33% = Now Playing hero (large track name + dim parent/scope line). Middle = file tree. Bottom = breadcrumb/search in the thumb zone. 1px progress hairline at the very bottom of the viewport, unchanged.
+    2. Swipe DOWN on the hero = enter immersive (tree + crumb hidden, hero fills the screen). Swipe UP on the hero = exit. Tap the hero = play/pause. The hero is the home screen, and you can promote it to fullscreen instantly.
+    3. Realistic deep paths, Cyrillic/Latin filenames, .opus/.mp3/.flac mixed. Breadcrumb auto-left-truncates on mobile (Music / … / Дискотека до утра); the leading "…" is tappable as "jump to root". The crumb is now in the thumb zone — long-press it to type a search.
+    4. Sharper search: full-library scope, matched substring rendered full-white over a ghost background, dim parent-folder suffix per row, an "N matches" summary on top. Empty query = silence.
+    5. Long-press a folder = play that folder recursively, ALWAYS shuffled. The folder becomes the queue scope; the hero subtitle shows "≈ <folder>" so you always know where the music is coming from.
+    6. Long-press a file OR tap a search result = one-shot. When it ends, the previously active queue resumes from where it would have been (unless repeat=one). The hero subtitle shows "↩ <parent>" while the one-shot is active.
+    7. Hints kept and slightly expanded — a 1-line corner hint fades on launch, and per-row preview glyphs (≈ for folders, ↩ for files) softly appear while you're holding a row down.
+  Trade-offs accepted: Discoverability is still essentially zero without the launch hint. The hero takes a third of the screen even when you're heads-down browsing — fine for a music player, less fine for a file manager. The "immersive" gesture lives inside the hero, so a vertical drag near the top edge of the tree won't trigger it.
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ===================== ROOT LAYOUT =====================
+   Flex column: hero (top) → list (flex:1, middle) → crumb (bottom).
+   In immersive mode the list and crumb hide; the hero fills.
+*/
+#surface{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  z-index:1;
+}
+
+/* ===================== HERO =====================
+   The home screen, sitting up top. Track name + dim parent/scope.
+   When playing, the title pulses gently (like void.html).
+*/
+#hero{
+  position:relative;
+  flex-shrink:0;
+  height:33vh;
+  min-height:180px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:8px 24px 14px;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  cursor:default;
+  -webkit-tap-highlight-color:transparent;
+  text-align:center;
+  transition:height 320ms cubic-bezier(0.32,0.72,0,1),
+             min-height 320ms cubic-bezier(0.32,0.72,0,1);
+}
+#hero .track-name{
+  font-size:clamp(22px, 5vw, 36px);
+  font-weight:300;
+  letter-spacing:0.03em;
+  line-height:1.18;
+  max-width:760px;
+  max-height:2.4em;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  word-break:break-word;
+  color:rgba(255,255,255,0.92);
+}
+#hero .track-name.playing{
+  animation:pulse 4s ease-in-out infinite;
+}
+#hero .caret{
+  display:inline-block;
+  font-weight:100;
+  animation:blink 1s step-end infinite;
+  margin-left:2px;
+  opacity:0.8;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+@keyframes blink{0%,100%{opacity:0.8}50%{opacity:0}}
+
+#hero .track-sub{
+  margin-top:14px;
+  font-size:11px;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.32);
+  max-width:80%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+#hero .track-sub .marker{
+  margin-right:5px;
+  color:rgba(255,255,255,0.5);
+}
+#hero .track-sub.idle{
+  text-transform:none;
+  letter-spacing:0.06em;
+  font-size:11px;
+  color:rgba(255,255,255,0.22);
+  margin-top:18px;
+}
+
+/* Immersive mode — hero fills, list + crumb hidden. */
+body.immersive #list,
+body.immersive #crumb,
+body.immersive #crumb + *{
+  display:none;
+}
+body.immersive #hero{
+  flex:1;
+  height:auto;
+  border-bottom:none;
+}
+body.immersive #hero .track-name{
+  font-size:clamp(28px, 7vw, 56px);
+}
+body.immersive #hero .track-sub{
+  margin-top:18px;
+}
+
+/* ===================== FILE LIST =====================
+   Sits between the hero and the crumb. Same row vocabulary as v1.
+   Bottom-anchored: flex-direction:column-reverse pins the first DOM
+   child (back row) to the visual bottom — adjacent to the crumb in
+   the thumb zone — and stacks subsequent items upward. The natural
+   scrollTop=0 position shows the bottom; scrolling up reveals the rest.
+*/
+#list{
+  flex:1;
+  display:flex;
+  flex-direction:column-reverse;
+  overflow-y:auto;
+  padding:4px 0 4px;
+  scrollbar-width:none;
+}
+#list::-webkit-scrollbar{display:none}
+
+.row{
+  display:block;
+  padding:14px 20px;
+  font-size:14px;
+  color:rgba(255,255,255,0.85);
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  position:relative;
+  -webkit-tap-highlight-color:transparent;
+}
+.row::before{
+  content:'';
+  position:absolute;
+  left:20px;right:20px;bottom:0;
+  height:1px;
+  background:rgba(255,255,255,0.06);
+}
+/* The visual-bottom row sits adjacent to the crumb (which already has
+   its own border-top). Hide its own bottom divider to avoid a double
+   line. With column-reverse, the visual-bottom row is DOM :first-child. */
+.row:first-child::before{display:none}
+
+.row.folder{color:rgba(255,255,255,0.6)}
+.row.folder .glyph{opacity:0.4}
+.row.file .glyph{opacity:0.25}
+
+.glyph{
+  display:inline-block;
+  width:14px;
+  color:rgba(255,255,255,0.5);
+}
+
+/* Inverted "playing" row in the tree. Same as v1 — the queue's
+   currently-playing file shows inverted wherever it appears in
+   the list. */
+.row.playing{
+  background:rgba(255,255,255,0.92);
+  color:#000;
+}
+.row.playing .glyph{color:rgba(0,0,0,0.6);opacity:1}
+.row.playing::before{background:transparent}
+.row.playing::after{
+  content:'';
+  position:absolute;
+  left:0;top:0;bottom:0;width:2px;
+  background:#FFF;
+}
+
+/* Parent-folder suffix (search result rows). */
+.row .where{
+  float:right;
+  color:rgba(255,255,255,0.3);
+  font-size:11px;
+  letter-spacing:0.03em;
+  margin-left:12px;
+  max-width:40%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.row.playing .where{color:rgba(0,0,0,0.45)}
+
+/* Matched-substring highlight inside the file name. */
+.row .hl{
+  color:#FFF;
+  background:rgba(255,255,255,0.08);
+  border-radius:1px;
+}
+.row.playing .hl{color:#000;background:rgba(0,0,0,0.08)}
+
+/* "N matches" header row. */
+.row.summary{
+  color:rgba(255,255,255,0.3);
+  cursor:default;
+  font-size:11px;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  padding:10px 20px 6px;
+}
+.row.summary::before{display:none}
+
+.row.up{color:rgba(255,255,255,0.4)}
+
+/* Per-row pre-hint glyph that fades in while you press, signaling
+   what the long-press is about to do. Sits at the right edge. */
+.row .prehint{
+  position:absolute;
+  right:18px;top:50%;
+  transform:translateY(-50%);
+  font-size:11px;
+  color:rgba(255,255,255,0.5);
+  opacity:0;
+  transition:opacity 220ms ease-out;
+  pointer-events:none;
+}
+.row.pressing .prehint{opacity:1}
+
+/* ===================== CRUMB (bottom thumb zone) =====================
+   The breadcrumb sits at the bottom now. Long-press it to enter
+   search mode; while searching it shows "? <query>|".
+*/
+#crumb{
+  position:relative;
+  flex-shrink:0;
+  padding:12px 20px 14px;
+  border-top:1px solid rgba(255,255,255,0.05);
+  font-size:12px;
+  letter-spacing:0.04em;
+  color:rgba(255,255,255,0.4);
+  line-height:1.4;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  cursor:default;
+  min-height:44px;
+  background:#000;
+}
+#crumb .seg{
+  cursor:pointer;
+  padding:1px 0;
+}
+#crumb .seg.tail{color:rgba(255,255,255,0.85)}
+#crumb .seg.ellipsis{color:rgba(255,255,255,0.3);padding:0 2px}
+#crumb .sep{opacity:0.25;padding:0 3px}
+#crumb .scope{
+  display:inline-block;
+  margin-left:4px;
+  color:rgba(255,255,255,0.55);
+  font-size:11px;
+}
+#crumb.search-mode{
+  color:rgba(255,255,255,0.85);
+}
+#crumb .caret{
+  display:inline-block;
+  font-weight:100;
+  animation:blink 1s step-end infinite;
+  margin-left:1px;
+  opacity:0.8;
+}
+
+/* Hidden input — receives keystrokes while crumb is in search mode. */
+#searchProxy{
+  position:absolute;
+  left:-9999px;top:0;
+  opacity:0;
+  width:1px;height:1px;
+}
+
+/* ===================== PROGRESS LINE =====================
+   1px hairline at the very bottom of the viewport. Same as v1.
+*/
+#progress{
+  position:fixed;
+  bottom:0;left:0;
+  width:0%;height:1px;
+  background:#FFF;
+  z-index:10;
+  transition:none;
+  pointer-events:none;
+}
+#progressHit{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:14px;
+  z-index:11;
+  cursor:pointer;
+}
+
+/* ===================== SETTINGS rows ===================== */
+.row.setting{color:rgba(255,255,255,0.7)}
+.row.setting .glyph{opacity:0.25}
+.row.setting .value{
+  float:right;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:0.05em;
+}
+.row.setting .value.on{color:#FFF}
+
+/* ===================== LAUNCH HINT =====================
+   1-line dim corner hint, top-right (since the crumb owns the bottom
+   thumb zone now). Fades on launch and stays gone.
+*/
+#hint{
+  position:fixed;
+  top:12px;right:14px;
+  font-size:10px;
+  letter-spacing:0.18em;
+  color:rgba(255,255,255,0.22);
+  pointer-events:none;
+  z-index:5;
+  transition:opacity 800ms;
+  white-space:nowrap;
+  max-width:calc(100% - 28px);
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#hint.gone{opacity:0}
+
+/* Flash on play/pause toggle, painted on the playing row. */
+.row.playing.flash{
+  animation:rowflash 240ms ease-out;
+}
+@keyframes rowflash{
+  0%{background:rgba(255,255,255,0.55)}
+  100%{background:rgba(255,255,255,0.92)}
+}
+
+/* ===================== RESPONSIVE =====================
+   Mobile (< 700px) and tablet (>= 700px). No desktop.
+*/
+body.mobile #crumb{
+  font-size:11px;
+  padding:12px 18px 16px;
+}
+body.mobile .row{
+  font-size:14px;
+  padding:14px 18px;
+}
+body.mobile .row .where{
+  max-width:42%;
+}
+body.mobile #hero{
+  height:30vh;
+  min-height:160px;
+}
+
+body.tablet #surface{
+  max-width:760px;
+  margin:0 auto;
+}
+body.tablet #progress,
+body.tablet #progressHit{
+  max-width:760px;
+  left:50%;
+  transform:translateX(-50%);
+}
+body.tablet #hint{
+  right:calc(50% - 380px + 14px);
+}
+body.tablet .row{
+  font-size:15px;
+  padding:14px 24px;
+}
+body.tablet #crumb{
+  padding:14px 24px 16px;
+  font-size:13px;
+}
+body.tablet #hero{
+  height:34vh;
+  min-height:220px;
+}
+
+#surface,#surface *{user-select:none;-webkit-user-select:none}
+</style>
+</head>
+<body>
+
+<div id="surface">
+
+  <!-- Hero: the home screen. Track name + parent/scope/one-shot line. -->
+  <div id="hero">
+    <div class="track-name" id="heroName">nothingness<span class="caret">|</span></div>
+    <div class="track-sub idle" id="heroSub">long-press a folder &middot; ←→ skip &middot; ↓ fullscreen</div>
+  </div>
+
+  <!-- File tree. -->
+  <div id="list"></div>
+
+  <!-- Breadcrumb / search. Now at the bottom. Long-press to type. -->
+  <div id="crumb" tabindex="-1"></div>
+  <input id="searchProxy" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+</div>
+
+<!-- 1px progress hairline + invisible seek hit area. -->
+<div id="progress"></div>
+<div id="progressHit"></div>
+
+<!-- Top-right launch hint. Fades after a few seconds. -->
+<div id="hint">tap · long-press · swipe</div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   FILE TREE — realistic depth, mixed Cyrillic/Latin, .opus/.mp3/.flac.
+   Files-and-folders only — no metadata.
+   ===================================================================== */
+const FILE_TREE = {
+  name: 'Music', type: 'folder', children: [
+    { name: '1. before University', type: 'folder', children: [
+      { name: '100 Пудовая дискотека', type: 'folder', children: [
+        { name: 'Дискотека до утра', type: 'folder', children: [
+          { name: '2 + 2 - Опустевший бульвар.opus',                  type: 'file', duration: '04:18' },
+          { name: 'Bad Balance - Джунгли.opus',                       type: 'file', duration: '03:54' },
+          { name: 'Гости из будущего - Ундина.opus',                  type: 'file', duration: '03:42' },
+          { name: 'Д.Маликов - Птицелов.opus',                        type: 'file', duration: '04:09' },
+          { name: 'Е.Зосимова - Две капли.opus',                      type: 'file', duration: '03:27' },
+          { name: 'Класс - Лучшие Танцы.opus',                        type: 'file', duration: '03:48' },
+          { name: 'Краденое сердце - Солнце по небу гуляло.opus',     type: 'file', duration: '03:33' },
+          { name: 'Океан Эльзы - Коко Шанель.opus',                   type: 'file', duration: '04:02' },
+          { name: 'Р.Жуков - Птицы улетели.opus',                     type: 'file', duration: '03:51' },
+          { name: 'Руки вверх ! - Молодой, красивый.opus',            type: 'file', duration: '03:39' },
+          { name: 'Хали-Гали - Лепестки сирени.opus',                 type: 'file', duration: '04:15' },
+        ]},
+        { name: 'Танцпол 90х', type: 'folder', children: [
+          { name: 'Кар-Мэн - Сан-Франциско.opus',         type: 'file', duration: '04:21' },
+          { name: 'Mr. Credo - Чудная долина.opus',       type: 'file', duration: '03:58' },
+          { name: 'Технология - Странные танцы.opus',     type: 'file', duration: '04:33' },
+          { name: 'Кролики - Мать Россия.opus',           type: 'file', duration: '03:24' },
+          { name: 'Аквариум - Город золотой.opus',        type: 'file', duration: '04:10' },
+          { name: 'Браво - Этот город.opus',              type: 'file', duration: '03:45' },
+          { name: 'Мумий Тролль - Утекай.opus',           type: 'file', duration: '03:30' },
+        ]},
+      ]},
+      { name: 'School mixtapes', type: 'folder', children: [
+        { name: '01 - intro.mp3',                                  type: 'file', duration: '00:42' },
+        { name: '02 - Nirvana - Smells Like Teen Spirit.mp3',      type: 'file', duration: '05:01' },
+        { name: '03 - The Offspring - Pretty Fly.mp3',             type: 'file', duration: '03:08' },
+        { name: '04 - Linkin Park - In The End.mp3',               type: 'file', duration: '03:36' },
+        { name: '05 - Limp Bizkit - Rollin.mp3',                   type: 'file', duration: '03:34' },
+        { name: '06 - System of a Down - Toxicity.mp3',            type: 'file', duration: '03:38' },
+      ]},
+    ]},
+    { name: '2. University', type: 'folder', children: [
+      { name: 'Indie 2005-2010', type: 'folder', children: [
+        { name: 'Arcade Fire - Wake Up.flac',          type: 'file', duration: '05:35' },
+        { name: 'The Strokes - Last Nite.flac',        type: 'file', duration: '03:17' },
+        { name: 'Interpol - Evil.flac',                type: 'file', duration: '03:36' },
+        { name: 'Yeah Yeah Yeahs - Maps.flac',         type: 'file', duration: '03:40' },
+        { name: 'The National - Bloodbuzz Ohio.flac',  type: 'file', duration: '04:35' },
+        { name: 'Wolf Parade - I\'ll Believe In Anything.flac', type: 'file', duration: '05:09' },
+      ]},
+      { name: 'Russian Rock', type: 'folder', children: [
+        { name: 'Кино - Группа крови.opus',            type: 'file', duration: '04:42' },
+        { name: 'Ария - Беспечный ангел.opus',         type: 'file', duration: '06:01' },
+        { name: 'ДДТ - Это всё.opus',                  type: 'file', duration: '04:25' },
+        { name: 'Сплин - Романс.opus',                 type: 'file', duration: '03:48' },
+        { name: 'Земфира - Хочешь.opus',               type: 'file', duration: '04:09' },
+        { name: 'Чайф - Аргентина - Ямайка 5-0.opus',  type: 'file', duration: '03:52' },
+        { name: 'Наутилус Помпилиус - Я хочу быть с тобой.opus', type: 'file', duration: '05:14' },
+      ]},
+      { name: 'Late nights', type: 'folder', children: [
+        { name: 'Massive Attack - Teardrop.flac',      type: 'file', duration: '05:31' },
+        { name: 'Portishead - Glory Box.flac',         type: 'file', duration: '05:08' },
+        { name: 'Air - La Femme d\'Argent.flac',       type: 'file', duration: '07:11' },
+        { name: 'Boards of Canada - Roygbiv.flac',     type: 'file', duration: '02:31' },
+      ]},
+    ]},
+    { name: '3. After', type: 'folder', children: [
+      { name: 'Electronic', type: 'folder', children: [
+        { name: 'Daft Punk - Around The World.flac',   type: 'file', duration: '07:09' },
+        { name: 'Kraftwerk - Autobahn.flac',           type: 'file', duration: '22:43' },
+        { name: 'Aphex Twin - Windowlicker.flac',      type: 'file', duration: '06:07' },
+        { name: 'Four Tet - Two Thousand and Seventeen.flac', type: 'file', duration: '04:35' },
+        { name: 'Jon Hopkins - Open Eye Signal.flac',  type: 'file', duration: '07:48' },
+      ]},
+      { name: 'Jazz', type: 'folder', children: [
+        { name: 'Miles Davis - So What.flac',          type: 'file', duration: '09:22' },
+        { name: 'John Coltrane - Giant Steps.flac',    type: 'file', duration: '04:46' },
+        { name: 'Bill Evans - Peace Piece.flac',       type: 'file', duration: '06:47' },
+        { name: 'Chet Baker - Almost Blue.flac',       type: 'file', duration: '04:12' },
+      ]},
+      { name: 'Modern Classical', type: 'folder', children: [
+        { name: 'Max Richter - On The Nature Of Daylight.flac',  type: 'file', duration: '06:14' },
+        { name: 'Nils Frahm - Says.flac',                        type: 'file', duration: '08:14' },
+        { name: 'Ólafur Arnalds - Near Light.flac',              type: 'file', duration: '06:56' },
+      ]},
+    ]},
+    { name: 'Soundtracks', type: 'folder', children: [
+      { name: 'Blade Runner 2049', type: 'folder', children: [
+        { name: '01 - 2049.flac',              type: 'file', duration: '02:55' },
+        { name: '02 - Sapper\'s Tree.flac',    type: 'file', duration: '02:21' },
+        { name: '03 - Flight to LAPD.flac',    type: 'file', duration: '01:37' },
+        { name: '04 - Mesa.flac',              type: 'file', duration: '03:21' },
+      ]},
+      { name: 'Stalker (1979)', type: 'folder', children: [
+        { name: 'Артемьев - Медитация.flac',   type: 'file', duration: '04:30' },
+        { name: 'Артемьев - Поезд.flac',       type: 'file', duration: '02:48' },
+        { name: 'Артемьев - Зона.flac',        type: 'file', duration: '05:12' },
+      ]},
+    ]},
+    { name: 'silence.flac', type: 'file', duration: '04:33' },
+  ]
+};
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const state = {
+  currentFolder: FILE_TREE,
+  navStack: [],
+
+  mode: 'browse',               // 'browse' | 'search' | 'settings'
+  search: '',
+  searchResults: [],
+
+  queue: [],
+  queueIndex: -1,
+  queueScope: null,
+  queueIsRecursiveShuffle: false,
+
+  oneShot: null,                // { file, queueIndexAtStart, queueWasPlaying } | null
+
+  isPlaying: false,
+  elapsed: 0,
+
+  immersive: false,
+
+  settings: {
+    shuffle:  { value: 'off', options: ['off','on'] },
+    repeat:   { value: 'off', options: ['off','all','one'] },
+    theme:    { value: 'dark', options: ['dark','light','system'] },
+  },
+};
+
+/* =====================================================================
+   DOM REFS
+   ===================================================================== */
+const $surface   = document.getElementById('surface');
+const $hero      = document.getElementById('hero');
+const $heroName  = document.getElementById('heroName');
+const $heroSub   = document.getElementById('heroSub');
+const $crumb     = document.getElementById('crumb');
+const $list      = document.getElementById('list');
+const $progress  = document.getElementById('progress');
+const $progHit   = document.getElementById('progressHit');
+const $hint      = document.getElementById('hint');
+const $proxy     = document.getElementById('searchProxy');
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+function parseDuration(s){
+  const p = s.split(':').map(Number);
+  return p[0]*60 + p[1];
+}
+function fmt(sec){
+  sec = Math.max(0, sec|0);
+  const m = (sec/60)|0;
+  const s = sec%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+function esc(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+function stripExt(n){
+  return n.replace(/\.(mp3|opus|flac|m4a|wav|ogg|aac)$/i, '');
+}
+function shuffleInPlace(arr){
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function collectFiles(node, ancestry){
+  const path = [...ancestry, node.name];
+  let out = [];
+  if (node.type === 'file') {
+    out.push({ name: node.name, duration: node.duration, path });
+  } else if (node.children) {
+    for (const c of node.children) out = out.concat(collectFiles(c, path));
+  }
+  return out;
+}
+const ALL_FILES = collectFiles(FILE_TREE, []);
+
+function pathToFolder(target){
+  const path = [];
+  function dfs(node){
+    path.push(node);
+    if (node === target) return true;
+    if (node.children) {
+      for (const c of node.children) {
+        if (c.type === 'folder' && dfs(c)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  dfs(FILE_TREE);
+  return path;
+}
+
+function inAncestry(folder, folders){
+  return folders.includes(folder);
+}
+
+/* =====================================================================
+   RENDER — HERO (top home-screen pane)
+   ===================================================================== */
+function renderHero(){
+  const ref = currentPlayingRef();
+  if (!ref) {
+    $heroName.innerHTML = 'nothingness<span class="caret">|</span>';
+    $heroName.classList.remove('playing');
+    $heroSub.className = 'track-sub idle';
+    $heroSub.textContent = 'long-press a folder · ←→ skip · ↓ fullscreen';
+    return;
+  }
+  $heroName.textContent = stripExt(ref.name);
+  $heroName.classList.toggle('playing', state.isPlaying);
+  $heroSub.className = 'track-sub';
+
+  // Subtitle decorations: ≈ recursive shuffle scope, ↩ one-shot.
+  let marker = '';
+  let label = ref.path.length >= 2 ? ref.path[ref.path.length - 2] : '';
+  if (state.oneShot) {
+    marker = '↩';
+  } else if (state.queueIsRecursiveShuffle && state.queueScope) {
+    marker = '≈';
+    label = state.queueScope.name;
+  }
+  $heroSub.innerHTML = (marker ? '<span class="marker">' + esc(marker) + '</span>' : '') + esc(label);
+}
+
+/* =====================================================================
+   RENDER — CRUMB (bottom)
+   On mobile, paths deeper than 3 segments collapse to root + … + tail.
+   ===================================================================== */
+function renderCrumb(){
+  $crumb.classList.toggle('search-mode', state.mode === 'search');
+
+  if (state.mode === 'search') {
+    $crumb.innerHTML =
+      '<span class="seg tail">? ' + esc(state.search) +
+      '</span><span class="caret">|</span>';
+    return;
+  }
+
+  if (state.mode === 'settings') {
+    $crumb.innerHTML =
+      '<span class="seg" data-jump="0">' + esc(FILE_TREE.name) + '</span>' +
+      '<span class="sep">/</span>' +
+      '<span class="seg tail">settings</span>';
+    return;
+  }
+
+  const folders = pathToFolder(state.currentFolder);
+  const isMobile = document.body.classList.contains('mobile');
+  const maxSegs  = isMobile ? 3 : 6;
+  const useEllipsis = folders.length > maxSegs;
+
+  let segs;
+  if (!useEllipsis) {
+    segs = folders.map((f, i) => ({ folder: f, depth: i }));
+  } else {
+    const tailCount = maxSegs - 2;
+    const tail = folders.slice(-tailCount).map((f, idx) => ({
+      folder: f,
+      depth: folders.length - tailCount + idx,
+    }));
+    segs = [
+      { folder: folders[0], depth: 0 },
+      { ellipsis: true },
+      ...tail,
+    ];
+  }
+
+  const scopeFolders = state.queueScope ? pathToFolder(state.queueScope) : null;
+  const scopeDepth = scopeFolders ? scopeFolders.length - 1 : -1;
+
+  let html = '';
+  let firstSeg = true;
+  for (const s of segs) {
+    if (!firstSeg) html += '<span class="sep">/</span>';
+    firstSeg = false;
+    if (s.ellipsis) {
+      html += '<span class="seg ellipsis" data-jump="0">…</span>';
+      continue;
+    }
+    const isTail = (s.depth === folders.length - 1);
+    html += '<span class="seg' + (isTail ? ' tail' : '') +
+            '" data-jump="' + s.depth + '">' + esc(s.folder.name) + '</span>';
+    if (state.queueScope && s.depth === scopeDepth) {
+      html += '<span class="scope" title="queue scope">≈</span>';
+    }
+  }
+  if (state.queueScope && state.queue.length > 0 &&
+      !inAncestry(state.queueScope, folders)) {
+    html += '<span class="scope" style="margin-left:8px" title="queue scope: '
+          + esc(state.queueScope.name) + '">≈ '
+          + esc(state.queueScope.name) + '</span>';
+  }
+  $crumb.innerHTML = html;
+}
+
+/* Click on a crumb segment = navigate. Triple-tap root = settings. */
+let rootTapTimes = [];
+$crumb.addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg');
+  if (!seg) return;
+  const depth = parseInt(seg.dataset.jump, 10);
+  if (Number.isNaN(depth)) return;
+
+  if (state.mode === 'search') exitSearch();
+
+  if (depth === 0) {
+    const now = Date.now();
+    rootTapTimes = rootTapTimes.filter(t => now - t < 600);
+    rootTapTimes.push(now);
+    if (rootTapTimes.length >= 3) {
+      rootTapTimes = [];
+      state.mode = 'settings';
+      renderAll();
+      return;
+    }
+  } else {
+    rootTapTimes = [];
+  }
+
+  state.mode = 'browse';
+  state.search = '';
+  const folders = pathToFolder(state.currentFolder);
+  if (depth < folders.length) {
+    state.currentFolder = folders[depth];
+    state.navStack = folders.slice(0, depth);
+  }
+  renderAll();
+});
+
+/* Long-press the crumb to enter search mode. */
+attachLongPress($crumb, {
+  onLongPress: () => {
+    if (state.mode !== 'search') enterSearch();
+  },
+});
+
+/* =====================================================================
+   RENDER — LIST (middle file tree)
+   ===================================================================== */
+function renderList(){
+  // Preserve scroll position across re-renders so a track change or
+  // settings toggle doesn't yank the user back to the visual bottom.
+  const savedScroll = $list.scrollTop;
+  $list.innerHTML = '';
+
+  if (state.mode === 'settings') {
+    renderSettings();
+    $list.scrollTop = savedScroll;
+    return;
+  }
+  if (state.mode === 'search') {
+    renderSearch();
+    $list.scrollTop = savedScroll;
+    return;
+  }
+
+  if (state.navStack.length > 0) {
+    const up = makeRow('up', '←', '..');
+    up.addEventListener('click', () => {
+      state.currentFolder = state.navStack.pop();
+      renderAll();
+    });
+    $list.appendChild(up);
+  }
+
+  if (!state.currentFolder.children) return;
+  const sorted = [...state.currentFolder.children].sort((a,b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+
+  for (const item of sorted) {
+    if (item.type === 'folder') {
+      const r = makeRow('folder', '/', item.name);
+      const ph = document.createElement('span');
+      ph.className = 'prehint';
+      ph.textContent = '≈';
+      r.appendChild(ph);
+      r.addEventListener('click', () => {
+        state.navStack.push(state.currentFolder);
+        state.currentFolder = item;
+        renderAll();
+      });
+      attachLongPress(r, {
+        onPress: () => r.classList.add('pressing'),
+        onRelease: () => r.classList.remove('pressing'),
+        onLongPress: () => playFolderRecursiveShuffled(item),
+      });
+      $list.appendChild(r);
+    } else {
+      const playing = isCurrentTrack(item);
+      const r = makeRow('file', '·', stripExt(item.name), playing);
+      const ph = document.createElement('span');
+      ph.className = 'prehint';
+      ph.textContent = '↩';
+      r.appendChild(ph);
+      r.addEventListener('click', () => onFileTap(item));
+      attachLongPress(r, {
+        onPress: () => r.classList.add('pressing'),
+        onRelease: () => r.classList.remove('pressing'),
+        onLongPress: () => playOneShot(materialize(item)),
+      });
+      $list.appendChild(r);
+    }
+  }
+  $list.scrollTop = savedScroll;
+}
+
+function materialize(item){
+  const fp = pathToFolder(state.currentFolder).map(f => f.name);
+  return { name: item.name, duration: item.duration, path: [...fp, item.name] };
+}
+
+/* =====================================================================
+   RENDER — SEARCH RESULTS
+   ===================================================================== */
+function renderSearch(){
+  const term = state.search.trim().toLowerCase();
+  if (!term) return;
+  const matches = ALL_FILES.filter(f =>
+    f.name.toLowerCase().includes(term)
+  );
+  state.searchResults = matches;
+
+  const sum = document.createElement('div');
+  sum.className = 'row summary';
+  sum.textContent = matches.length + (matches.length === 1 ? ' match' : ' matches');
+  $list.appendChild(sum);
+
+  if (matches.length === 0) {
+    const r = document.createElement('div');
+    r.className = 'row';
+    r.style.color = 'rgba(255,255,255,0.25)';
+    r.style.cursor = 'default';
+    r.innerHTML = '<span class="glyph">⌀</span>' + esc('nothing');
+    $list.appendChild(r);
+    return;
+  }
+
+  for (const f of matches) {
+    const playing = isCurrentTrack(f);
+    const display = stripExt(f.name);
+    const html = highlight(display, term);
+    const where = f.path.length >= 2 ? f.path[f.path.length - 2] : '';
+    const r = document.createElement('div');
+    r.className = 'row file' + (playing ? ' playing' : '');
+    let inner = '<span class="glyph">·</span>' + html;
+    if (where) inner += '<span class="where">' + esc(where) + '</span>';
+    r.innerHTML = inner;
+    r.addEventListener('click', () => playOneShot(f));
+    $list.appendChild(r);
+  }
+}
+
+function highlight(text, term){
+  if (!term) return esc(text);
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(term);
+  if (idx < 0) return esc(text);
+  const before = text.substring(0, idx);
+  const match  = text.substring(idx, idx + term.length);
+  const after  = text.substring(idx + term.length);
+  return esc(before) + '<span class="hl">' + esc(match) + '</span>' + highlight(after, term);
+}
+
+/* =====================================================================
+   RENDER — SETTINGS
+   ===================================================================== */
+function renderSettings(){
+  for (const [key, s] of Object.entries(state.settings)) {
+    const r = document.createElement('div');
+    r.className = 'row setting';
+    const on = s.value !== s.options[0];
+    r.innerHTML =
+      '<span class="glyph">' + (on ? '■' : '□') + '</span>' +
+      esc(key) +
+      '<span class="value' + (on ? ' on' : '') + '">' + esc(s.value) + '</span>';
+    r.addEventListener('click', () => {
+      const idx = s.options.indexOf(s.value);
+      s.value = s.options[(idx + 1) % s.options.length];
+      renderList();
+    });
+    $list.appendChild(r);
+  }
+  const v = document.createElement('div');
+  v.className = 'row';
+  v.style.color = 'rgba(255,255,255,0.15)';
+  v.style.cursor = 'default';
+  v.innerHTML = '<span class="glyph">·</span>nothingness · monk+';
+  $list.appendChild(v);
+}
+
+/* =====================================================================
+   ROW FACTORY
+   ===================================================================== */
+function makeRow(kind, glyph, label, playing){
+  const r = document.createElement('div');
+  r.className = 'row ' + kind + (playing ? ' playing' : '');
+  r.innerHTML = '<span class="glyph">' + glyph + '</span>' + esc(label);
+  return r;
+}
+
+function currentPlayingRef(){
+  if (state.oneShot) return state.oneShot.file;
+  if (state.queueIndex >= 0 && state.queue[state.queueIndex]) {
+    return state.queue[state.queueIndex];
+  }
+  return null;
+}
+
+function isCurrentTrack(node){
+  const ref = currentPlayingRef();
+  if (!ref) return false;
+  if (ref.name !== node.name) return false;
+  if (node.path) return JSON.stringify(ref.path) === JSON.stringify(node.path);
+  const fp = pathToFolder(state.currentFolder).map(f => f.name);
+  return JSON.stringify(ref.path) === JSON.stringify([...fp, node.name]);
+}
+
+/* =====================================================================
+   PLAYBACK
+   ===================================================================== */
+function setActiveAudible(){
+  state.elapsed = 0;
+  state.isPlaying = true;
+  renderHero();
+  renderList();
+  flashPlaying();
+}
+
+function onFileTap(item){
+  const ref = currentPlayingRef();
+  const wouldBe = materialize(item);
+
+  if (ref && ref.name === wouldBe.name &&
+      JSON.stringify(ref.path) === JSON.stringify(wouldBe.path)) {
+    state.isPlaying = !state.isPlaying;
+    renderHero();
+    flashPlaying();
+    return;
+  }
+
+  state.oneShot = null;
+
+  const folderFiles = state.currentFolder.children
+    .filter(c => c.type === 'file')
+    .map(c => materialize(c));
+
+  const shuffleOn = state.settings.shuffle.value === 'on';
+  state.queue = shuffleOn ? shuffleInPlace(folderFiles.slice()) : folderFiles;
+  state.queueIsRecursiveShuffle = false;
+  state.queueScope = state.currentFolder;
+  state.queueIndex = state.queue.findIndex(f =>
+    f.name === wouldBe.name &&
+    JSON.stringify(f.path) === JSON.stringify(wouldBe.path)
+  );
+  if (state.queueIndex < 0) state.queueIndex = 0;
+  setActiveAudible();
+  renderCrumb();
+}
+
+function playFolderRecursiveShuffled(folder){
+  const files = collectFiles(folder, pathToFolder(folder).slice(0, -1).map(f => f.name));
+  if (files.length === 0) return;
+  state.oneShot = null;
+  state.queue = shuffleInPlace(files.slice());
+  state.queueIndex = 0;
+  state.queueIsRecursiveShuffle = true;
+  state.queueScope = folder;
+  setActiveAudible();
+  renderCrumb();
+}
+
+function playOneShot(file){
+  const queueIndexAtStart = state.queueIndex;
+  const queueWasPlaying = state.isPlaying;
+  state.oneShot = { file, queueIndexAtStart, queueWasPlaying };
+  state.elapsed = 0;
+  state.isPlaying = true;
+  renderHero();
+  renderList();
+  flashPlaying();
+}
+
+function playNext(){
+  if (state.oneShot) {
+    finishOneShot({ manual: true });
+    return;
+  }
+  if (!state.queue.length) return;
+  const rep = state.settings.repeat.value;
+  if (rep === 'one') {
+    state.elapsed = 0;
+    return;
+  }
+  state.queueIndex = (state.queueIndex + 1) % state.queue.length;
+  setActiveAudible();
+}
+
+function playPrev(){
+  if (state.oneShot) {
+    finishOneShot({ manual: true, backward: true });
+    return;
+  }
+  if (!state.queue.length) return;
+  if (state.elapsed > 3) { state.elapsed = 0; return; }
+  state.queueIndex =
+    (state.queueIndex - 1 + state.queue.length) % state.queue.length;
+  setActiveAudible();
+}
+
+function onTrackEnded(){
+  if (state.oneShot) {
+    const rep = state.settings.repeat.value;
+    if (rep === 'one') {
+      state.elapsed = 0;
+      return;
+    }
+    finishOneShot({ manual: false });
+    return;
+  }
+  const rep = state.settings.repeat.value;
+  if (rep === 'one') { state.elapsed = 0; return; }
+  if (!state.queue.length) { state.isPlaying = false; renderHero(); return; }
+  if (state.queueIndex >= state.queue.length - 1 && rep !== 'all') {
+    state.isPlaying = false;
+    state.elapsed = 0;
+    renderHero();
+    renderList();
+    return;
+  }
+  state.queueIndex = (state.queueIndex + 1) % state.queue.length;
+  setActiveAudible();
+}
+
+function finishOneShot({ manual, backward }){
+  const os = state.oneShot;
+  state.oneShot = null;
+  if (!state.queue.length) {
+    state.isPlaying = false;
+    state.elapsed = 0;
+    renderHero();
+    renderList();
+    return;
+  }
+  if (manual) {
+    state.queueIndex = backward
+      ? (os.queueIndexAtStart - 1 + state.queue.length) % state.queue.length
+      : (os.queueIndexAtStart + 1) % state.queue.length;
+  } else {
+    if (os.queueIndexAtStart < 0) {
+      state.isPlaying = false;
+      state.elapsed = 0;
+      renderHero();
+      renderList();
+      return;
+    }
+    if (!os.queueWasPlaying) {
+      state.isPlaying = false;
+      state.elapsed = 0;
+      state.queueIndex = os.queueIndexAtStart;
+      renderHero();
+      renderList();
+      return;
+    }
+    state.queueIndex = (os.queueIndexAtStart + 1) % state.queue.length;
+  }
+  setActiveAudible();
+}
+
+function togglePlayPause(){
+  if (!currentPlayingRef()) {
+    const first = (state.currentFolder.children || []).find(c => c.type === 'file');
+    if (first) onFileTap(first);
+    return;
+  }
+  state.isPlaying = !state.isPlaying;
+  renderHero();
+  flashPlaying();
+}
+
+function flashPlaying(){
+  const row = $list.querySelector('.row.playing');
+  if (!row) return;
+  row.classList.remove('flash');
+  void row.offsetWidth;
+  row.classList.add('flash');
+}
+
+/* =====================================================================
+   SEARCH MODE
+   ===================================================================== */
+function enterSearch(){
+  if (state.mode === 'search') return;
+  state.mode = 'search';
+  state.search = '';
+  state.searchResults = [];
+  renderAll();
+  setTimeout(() => $proxy.focus(), 0);
+}
+function exitSearch(){
+  if (state.mode !== 'search') return;
+  state.mode = 'browse';
+  state.search = '';
+  state.searchResults = [];
+  $proxy.blur();
+  renderAll();
+}
+
+$proxy.addEventListener('input', () => {
+  state.search = $proxy.value;
+  renderCrumb();
+  renderList();
+});
+$proxy.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    exitSearch();
+  } else if (e.key === 'Backspace' && state.search === '') {
+    exitSearch();
+  } else if (e.key === 'Enter') {
+    if (state.searchResults.length > 0) {
+      e.preventDefault();
+      playOneShot(state.searchResults[0]);
+      exitSearch();
+    }
+  }
+});
+$proxy.addEventListener('blur', () => {
+  if (state.mode === 'search' && state.search === '') {
+    state.mode = 'browse';
+    renderAll();
+  }
+});
+
+/* =====================================================================
+   LONG-PRESS HELPER (touch + mouse).
+   ===================================================================== */
+function attachLongPress(el, { onLongPress, onPress, onRelease } = {}){
+  const LONG_MS = 450;
+  let timer = null;
+  let sx = 0, sy = 0, moved = false, fired = false;
+
+  function start(x, y){
+    sx = x; sy = y; moved = false; fired = false;
+    if (onPress) onPress();
+    timer = setTimeout(() => {
+      if (!moved) {
+        fired = true;
+        if (onLongPress) onLongPress();
+      }
+      timer = null;
+    }, LONG_MS);
+  }
+  function move(x, y){
+    if (!timer && !fired) return;
+    if (Math.abs(x - sx) > 10 || Math.abs(y - sy) > 10) {
+      moved = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (onRelease) onRelease();
+    }
+  }
+  function end(e){
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (onRelease) onRelease();
+    if (fired && e) {
+      e.preventDefault?.();
+      e.stopPropagation?.();
+    }
+  }
+
+  el.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    start(t.clientX, t.clientY);
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    move(t.clientX, t.clientY);
+  }, { passive: true });
+  el.addEventListener('touchend', end);
+  el.addEventListener('touchcancel', end);
+
+  el.addEventListener('mousedown', (e) => start(e.clientX, e.clientY));
+  el.addEventListener('mousemove', (e) => move(e.clientX, e.clientY));
+  el.addEventListener('mouseup', end);
+  el.addEventListener('mouseleave', end);
+
+  el.addEventListener('click', (e) => {
+    if (fired) {
+      fired = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+}
+
+/* =====================================================================
+   HERO GESTURES — tap = play/pause, swipe ↓ = immersive, ↑ = exit.
+   ===================================================================== */
+let heroDrag = null;
+
+function heroStart(x, y){
+  heroDrag = { x, y, ts: Date.now() };
+}
+function heroEnd(x, y){
+  if (!heroDrag) return;
+  const dx = x - heroDrag.x;
+  const dy = y - heroDrag.y;
+  const dt = Date.now() - heroDrag.ts;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  heroDrag = null;
+
+  // Tap
+  if (adx < 12 && ady < 12 && dt < 320) {
+    togglePlayPause();
+    return;
+  }
+  // Vertical swipe (clearly vertical, fast-ish)
+  if (ady >= 48 && ady > adx * 1.4 && dt < 800) {
+    if (dy > 0) {
+      // Swipe down — enter immersive if not already
+      setImmersive(true);
+    } else {
+      // Swipe up — exit immersive if active
+      if (state.immersive) setImmersive(false);
+    }
+  }
+}
+
+$hero.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  heroStart(t.clientX, t.clientY);
+}, { passive: true });
+$hero.addEventListener('touchend', (e) => {
+  const t = e.changedTouches[0];
+  heroEnd(t.clientX, t.clientY);
+}, { passive: true });
+
+$hero.addEventListener('mousedown', (e) => heroStart(e.clientX, e.clientY));
+$hero.addEventListener('mouseup',   (e) => heroEnd(e.clientX, e.clientY));
+$hero.addEventListener('mouseleave',(e) => { heroDrag = null; });
+
+function setImmersive(on){
+  if (state.immersive === on) return;
+  state.immersive = on;
+  document.body.classList.toggle('immersive', on);
+}
+
+/* =====================================================================
+   EDGE SWIPES — prev/next at the screen edges.
+   ===================================================================== */
+const EDGE_PX = 28;
+let edgeStart = null;
+
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  if (t.clientX < EDGE_PX || t.clientX > window.innerWidth - EDGE_PX) {
+    edgeStart = { x: t.clientX, y: t.clientY, ts: Date.now() };
+  } else {
+    edgeStart = null;
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!edgeStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - edgeStart.x;
+  const dy = t.clientY - edgeStart.y;
+  const dt = Date.now() - edgeStart.ts;
+  edgeStart = null;
+  if (dt > 600) return;
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+  if (dx > 0) playPrev(); else playNext();
+}, { passive: true });
+
+/* =====================================================================
+   PROGRESS SEEK
+   ===================================================================== */
+$progHit.addEventListener('click', (e) => {
+  const f = currentPlayingRef();
+  if (!f) return;
+  const w = $progHit.getBoundingClientRect().width;
+  const x = e.clientX - $progHit.getBoundingClientRect().left;
+  const pct = Math.min(1, Math.max(0, x / w));
+  state.elapsed = pct * parseDuration(f.duration);
+  e.stopPropagation();
+});
+
+/* =====================================================================
+   ANIMATION LOOP
+   ===================================================================== */
+let lastTs = 0;
+function tick(ts){
+  const dt = lastTs ? (ts - lastTs)/1000 : 0.016;
+  lastTs = ts;
+
+  const f = currentPlayingRef();
+  if (state.isPlaying && f) {
+    const dur = parseDuration(f.duration);
+    state.elapsed += dt;
+    if (state.elapsed >= dur) {
+      onTrackEnded();
+    } else {
+      const pct = dur > 0 ? Math.min(100, state.elapsed / dur * 100) : 0;
+      $progress.style.width = pct + '%';
+    }
+  } else if (!f) {
+    $progress.style.width = '0%';
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* =====================================================================
+   RESIZE OBSERVER — mobile / tablet only.
+   ===================================================================== */
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  document.body.classList.toggle('mobile', width < 700);
+  document.body.classList.toggle('tablet', width >= 700);
+  renderCrumb();
+});
+ro.observe(document.body);
+
+/* =====================================================================
+   KEYBOARD — minimal, mirrors gestures.
+   ===================================================================== */
+document.addEventListener('keydown', (e) => {
+  if (state.mode === 'search') return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlayPause();
+      break;
+    case 'ArrowRight':
+      playNext();
+      break;
+    case 'ArrowLeft':
+      playPrev();
+      break;
+    case 'ArrowDown':
+      setImmersive(true);
+      break;
+    case 'ArrowUp':
+      if (state.immersive) {
+        setImmersive(false);
+      } else if (state.navStack.length > 0) {
+        state.currentFolder = state.navStack.pop();
+        renderAll();
+      }
+      break;
+    case '/':
+      e.preventDefault();
+      enterSearch();
+      break;
+    case 'Escape':
+      if (state.immersive) {
+        setImmersive(false);
+      } else if (state.mode !== 'browse') {
+        state.mode = 'browse';
+        state.search = '';
+        renderAll();
+      }
+      break;
+  }
+});
+
+/* =====================================================================
+   HINT — corner fade-out on launch.
+   ===================================================================== */
+setTimeout(() => { $hint.classList.add('gone'); }, 6500);
+
+/* =====================================================================
+   ENTRY
+   ===================================================================== */
+function renderAll(){
+  renderHero();
+  renderCrumb();
+  renderList();
+}
+renderAll();
+
+</script>
+</body>
+</html>

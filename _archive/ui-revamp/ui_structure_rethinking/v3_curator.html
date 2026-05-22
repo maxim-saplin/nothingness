@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FileAMP — CURATOR</title>
+<!--
+  Persona: The Curator / Librarian
+  Core belief: A file alone is meaningless; show the shelf it sits on, the file before it, the file after it, and the room it lives in.
+  Key structural moves:
+    1. The home screen is not a "now playing" screen. It is a Context Card: the current file rendered as the centre of a vertical stack of inline "neighbourhoods" — folder mates above and below, sibling folders alongside, session history before, recently-touched files from this folder, an upcoming-from-here strip. Tapping any neighbour plays it and the entire card recomposes around the new centre.
+    2. The file browser never shows bare filenames. Every folder row shows a 3-item peek into the folder; every file row shows its position in the folder (e.g. "3 of 7") and its immediate predecessor/successor inline. A flat list of names is treated as a curatorial failure.
+    3. Search results are grouped by the folder they came from and each match carries 1–2 folder mates as adjacency hints, so you never lose the sense of where a file lives.
+  Trade-offs accepted: Dense, information-rich screens. Vertical scrolling is mandatory even for short interactions, and a glance never gives you only the track name in isolation — there is no zen "VOID" hero. We trade minimalism and one-glance scannability for orientation and adjacency at all times.
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ============== ROOT LAYOUT ============== */
+#app{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+
+/* The Context Card: this IS the home screen */
+#context-card{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+  padding:24px 0 140px;
+}
+#context-card::-webkit-scrollbar{width:3px}
+#context-card::-webkit-scrollbar-track{background:transparent}
+#context-card::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15)}
+
+/* ============== CARD SECTIONS ============== */
+.ctx-section{
+  padding:0 20px;
+  margin-bottom:18px;
+}
+
+.ctx-label{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.25);
+  margin-bottom:8px;
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  padding-bottom:6px;
+}
+.ctx-label .ctx-label-aux{
+  font-size:9px;
+  color:rgba(255,255,255,0.2);
+  letter-spacing:1px;
+  text-transform:none;
+}
+
+/* The path/breadcrumbs strip above the centre */
+.ctx-path{
+  font-size:10px;
+  letter-spacing:1px;
+  color:rgba(255,255,255,0.4);
+  padding:0 20px;
+  margin-bottom:14px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:2px;
+  align-items:center;
+}
+.ctx-path .crumb{
+  cursor:pointer;
+  padding:2px 4px;
+  transition:color 0.2s;
+}
+.ctx-path .crumb:hover{color:#FFF}
+.ctx-path .crumb.current{color:rgba(255,255,255,0.7)}
+.ctx-path .sep{opacity:0.25}
+
+/* The current file headline */
+.ctx-headline{
+  padding:8px 20px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  margin-bottom:18px;
+}
+.ctx-headline .pos{
+  font-size:10px;
+  letter-spacing:2px;
+  color:rgba(255,255,255,0.25);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.ctx-headline .title{
+  font-size:22px;
+  font-weight:300;
+  letter-spacing:0.04em;
+  color:#FFF;
+  line-height:1.2;
+  word-wrap:break-word;
+}
+.ctx-headline .title .cursor-blink{
+  display:inline-block;
+  font-weight:100;
+  animation:blink 1s step-end infinite;
+  margin-left:2px;
+  opacity:0.8;
+}
+.ctx-headline .title.playing{
+  animation:pulse 4s ease-in-out infinite;
+}
+.ctx-headline .sub{
+  font-size:11px;
+  color:rgba(255,255,255,0.4);
+  margin-top:6px;
+  letter-spacing:0.5px;
+}
+
+@keyframes pulse{
+  0%,100%{opacity:1}
+  50%{opacity:0.78}
+}
+@keyframes blink{
+  0%,100%{opacity:0.8}
+  50%{opacity:0}
+}
+
+/* Neighbour rows */
+.nbr-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:7px 6px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  cursor:pointer;
+  min-height:38px;
+  transition:background 0.15s;
+}
+.nbr-row:hover{background:rgba(255,255,255,0.05)}
+.nbr-row:last-child{border-bottom:none}
+
+.nbr-row .nbr-marker{
+  width:18px;
+  font-size:10px;
+  color:rgba(255,255,255,0.25);
+  flex-shrink:0;
+  text-align:center;
+}
+.nbr-row .nbr-info{flex:1;min-width:0}
+.nbr-row .nbr-name{
+  font-size:12px;
+  color:rgba(255,255,255,0.7);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.nbr-row .nbr-meta{
+  font-size:9px;
+  color:rgba(255,255,255,0.25);
+  margin-top:1px;
+  letter-spacing:0.5px;
+}
+.nbr-row.current .nbr-name{color:#FFF;font-weight:400}
+.nbr-row.current .nbr-marker{color:#FFF;opacity:1}
+.nbr-row.dim .nbr-name{color:rgba(255,255,255,0.4)}
+
+/* Sibling folder chips (horizontal scroll) */
+.sib-strip{
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding-bottom:6px;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+.sib-strip::-webkit-scrollbar{display:none}
+
+.sib-chip{
+  flex:0 0 auto;
+  min-width:140px;
+  max-width:200px;
+  padding:10px 12px;
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px;
+  cursor:pointer;
+  background:rgba(255,255,255,0.02);
+  transition:border-color 0.2s, background 0.2s;
+}
+.sib-chip:hover{
+  border-color:rgba(255,255,255,0.3);
+  background:rgba(255,255,255,0.05);
+}
+.sib-chip .sib-name{
+  font-size:11px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-bottom:4px;
+}
+.sib-chip .sib-count{
+  font-size:9px;
+  color:rgba(255,255,255,0.3);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.sib-chip .sib-peek{
+  font-size:9px;
+  color:rgba(255,255,255,0.4);
+  line-height:1.5;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* Empty state for context sections */
+.ctx-empty{
+  font-size:11px;
+  color:rgba(255,255,255,0.2);
+  padding:8px 6px;
+  letter-spacing:0.5px;
+  font-style:italic;
+}
+
+/* ============== TRANSPORT BAR ============== */
+#transport{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  background:#000;
+  border-top:1px solid rgba(255,255,255,0.08);
+  z-index:30;
+  padding:10px 20px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.transport-now{
+  font-size:11px;
+  color:rgba(255,255,255,0.6);
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+}
+.transport-now .tn-name{
+  flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.transport-now .tn-time{
+  color:rgba(255,255,255,0.25);
+  font-size:10px;
+  flex-shrink:0;
+}
+
+.transport-controls{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.tc-btn{
+  background:none;
+  border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.7);
+  font-family:inherit;
+  font-size:14px;
+  width:40px;height:36px;
+  border-radius:3px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;
+}
+.tc-btn:hover{
+  border-color:rgba(255,255,255,0.4);
+  color:#FFF;
+}
+.tc-btn.tc-play{
+  width:48px;
+}
+
+.tc-search{
+  flex:1;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:3px;
+  padding:8px 10px;
+  color:#FFF;
+  font-family:inherit;font-size:12px;
+  min-height:36px;
+  outline:none;
+}
+.tc-search:focus{border-color:rgba(255,255,255,0.35)}
+.tc-search::placeholder{color:rgba(255,255,255,0.25)}
+
+.tc-icon-btn{
+  background:none;
+  border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.5);
+  font-family:inherit;
+  font-size:10px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  padding:8px 10px;
+  border-radius:3px;
+  cursor:pointer;
+  min-height:36px;
+  white-space:nowrap;
+}
+.tc-icon-btn:hover{
+  border-color:rgba(255,255,255,0.4);
+  color:#FFF;
+}
+.tc-icon-btn.active{
+  border-color:rgba(255,255,255,0.5);
+  color:#FFF;
+}
+
+/* 1px progress line sits above transport */
+#progress-line{
+  position:fixed;
+  left:0;
+  width:0%;height:1px;
+  background:#FFF;
+  z-index:40;
+  pointer-events:none;
+}
+
+#progress-hit{
+  position:fixed;
+  left:0;right:0;
+  height:14px;
+  z-index:41;
+  cursor:pointer;
+}
+
+/* ============== BROWSER OVERLAY ============== */
+.panel-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.5);
+  backdrop-filter:brightness(0.3);
+  -webkit-backdrop-filter:brightness(0.3);
+  opacity:0;pointer-events:none;
+  transition:opacity 250ms;
+  z-index:50;
+}
+.panel-overlay.open{opacity:1;pointer-events:auto}
+
+.bottom-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  height:88vh;
+  transform:translateY(100%);
+  transition:transform 280ms cubic-bezier(0.32,0.72,0,1);
+  z-index:51;
+  border-radius:10px 10px 0 0;
+  background:#0a0a0a;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.bottom-sheet.open{transform:translateY(0)}
+
+.sheet-handle{
+  display:flex;justify-content:center;
+  padding:10px 0 6px;
+  flex-shrink:0;
+  cursor:grab;
+}
+.sheet-handle-bar{
+  width:36px;height:2px;
+  background:rgba(255,255,255,0.3);
+  border-radius:1px;
+}
+
+.sheet-tabs{
+  display:flex;
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  flex-shrink:0;
+}
+.sheet-tab{
+  flex:1;
+  padding:12px 0;
+  text-align:center;
+  font-size:10px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  background:none;border:none;
+  cursor:pointer;
+  font-family:inherit;
+  position:relative;
+  transition:color 0.2s;
+  min-height:44px;
+}
+.sheet-tab:hover{color:rgba(255,255,255,0.6)}
+.sheet-tab.active{color:#FFF}
+.sheet-tab.active::after{
+  content:'';
+  position:absolute;bottom:-1px;left:25%;right:25%;
+  height:1px;background:#FFF;
+}
+
+.tab-content{
+  display:none;
+  flex:1;
+  overflow:hidden;
+  flex-direction:column;
+}
+.tab-content.active{display:flex}
+
+/* ============== BROWSER ============== */
+.browser-breadcrumbs{
+  display:flex;
+  flex-wrap:wrap;
+  gap:2px;
+  align-items:center;
+  font-size:11px;
+  color:rgba(255,255,255,0.4);
+  padding:10px 16px;
+  flex-shrink:0;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+}
+.browser-breadcrumbs .crumb{
+  cursor:pointer;
+  padding:2px 4px;
+  transition:color 0.15s;
+}
+.browser-breadcrumbs .crumb:hover{color:#FFF}
+.browser-breadcrumbs .crumb.current{color:rgba(255,255,255,0.85)}
+.browser-breadcrumbs .sep{opacity:0.3;padding:0 2px}
+
+.browser-actions{
+  display:flex;
+  gap:6px;
+  padding:8px 16px;
+  flex-shrink:0;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  flex-wrap:wrap;
+}
+.bx-mini{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.1);
+  color:rgba(255,255,255,0.55);
+  font-family:inherit;font-size:9px;
+  letter-spacing:2px;text-transform:uppercase;
+  padding:6px 10px;
+  border-radius:3px;cursor:pointer;
+  min-height:32px;
+  transition:all 0.15s;
+}
+.bx-mini:hover{
+  border-color:rgba(255,255,255,0.35);
+  color:#FFF;
+}
+
+.browser-list{
+  flex:1;
+  overflow-y:auto;
+  padding:6px 16px 24px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.browser-list::-webkit-scrollbar{width:3px}
+.browser-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15)}
+
+/* Folder card: every folder shows a 3-file peek */
+.fld-card{
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:4px;
+  margin-bottom:10px;
+  overflow:hidden;
+  background:rgba(255,255,255,0.015);
+}
+.fld-card-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  cursor:pointer;
+  min-height:44px;
+  transition:background 0.15s;
+}
+.fld-card-head:hover{background:rgba(255,255,255,0.04)}
+.fld-card-head .fc-icon{
+  font-size:13px;
+  color:rgba(255,255,255,0.5);
+  width:18px;text-align:center;
+  flex-shrink:0;
+}
+.fld-card-head .fc-name{
+  flex:1;min-width:0;
+  font-size:13px;
+  color:rgba(255,255,255,0.9);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  letter-spacing:0.3px;
+}
+.fld-card-head .fc-count{
+  font-size:9px;
+  color:rgba(255,255,255,0.3);
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  flex-shrink:0;
+}
+.fld-peek{
+  padding:6px 12px 8px 40px;
+  font-size:10px;
+  color:rgba(255,255,255,0.35);
+  line-height:1.7;
+}
+.fld-peek .pk-line{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  cursor:pointer;
+  padding:1px 0;
+  transition:color 0.15s;
+}
+.fld-peek .pk-line:hover{color:#FFF}
+.fld-peek .pk-more{
+  color:rgba(255,255,255,0.2);
+  font-style:italic;
+}
+
+/* File row: shows position + adjacent neighbours */
+.file-row{
+  padding:8px 10px;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  cursor:pointer;
+  border-radius:3px;
+  transition:background 0.15s;
+}
+.file-row:hover{background:rgba(255,255,255,0.05)}
+.file-row .fr-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.file-row .fr-icon{
+  font-size:12px;
+  color:rgba(255,255,255,0.5);
+  width:18px;text-align:center;
+  flex-shrink:0;
+}
+.file-row .fr-info{flex:1;min-width:0}
+.file-row .fr-name{
+  font-size:13px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.file-row .fr-meta{
+  font-size:9px;
+  color:rgba(255,255,255,0.3);
+  margin-top:2px;
+  letter-spacing:0.5px;
+}
+.file-row.current .fr-name{color:#FFF}
+.file-row.current .fr-icon{color:#FFF}
+.file-row .fr-adj{
+  font-size:9px;
+  color:rgba(255,255,255,0.22);
+  padding:4px 0 2px 28px;
+  letter-spacing:0.4px;
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+}
+.file-row .fr-adj .fr-adj-side{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:48%;
+}
+
+/* Back row */
+.back-row{
+  padding:8px 10px;
+  font-size:11px;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:1px;
+  cursor:pointer;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  border-radius:3px;
+  transition:background 0.15s;
+}
+.back-row:hover{background:rgba(255,255,255,0.05);color:#FFF}
+
+/* Search grouped result */
+.srch-group{
+  margin-bottom:14px;
+}
+.srch-group-head{
+  font-size:9px;
+  letter-spacing:2px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  padding:6px 8px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  margin-bottom:4px;
+  cursor:pointer;
+}
+.srch-group-head:hover{color:#FFF}
+
+.srch-match{
+  padding:6px 8px;
+  border-radius:3px;
+  cursor:pointer;
+  transition:background 0.15s;
+}
+.srch-match:hover{background:rgba(255,255,255,0.05)}
+.srch-match .sm-name{
+  font-size:12px;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.srch-match .sm-name mark{
+  background:rgba(255,255,255,0.18);
+  color:#FFF;
+}
+.srch-match .sm-neighbours{
+  font-size:9px;
+  color:rgba(255,255,255,0.25);
+  margin-top:2px;
+  padding-left:6px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  letter-spacing:0.3px;
+}
+
+.srch-empty{
+  text-align:center;
+  padding:30px 0;
+  color:rgba(255,255,255,0.25);
+  font-size:12px;
+  letter-spacing:1px;
+}
+
+/* ============== SETTINGS ============== */
+.settings-scroll{
+  flex:1;overflow-y:auto;
+  padding:14px 16px 24px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.settings-scroll::-webkit-scrollbar{width:3px}
+.settings-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15)}
+
+.setting-group{margin-bottom:18px}
+.setting-group-title{
+  font-size:9px;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  margin-bottom:8px;
+  padding-bottom:5px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.setting-row{
+  display:flex;justify-content:space-between;
+  align-items:center;
+  padding:10px 4px;
+  cursor:pointer;
+  min-height:44px;
+  border-radius:3px;
+  transition:background 0.15s;
+}
+.setting-row:hover{background:rgba(255,255,255,0.04)}
+.setting-label{
+  font-size:12px;
+  color:rgba(255,255,255,0.7);
+  letter-spacing:0.3px;
+}
+.setting-sub{
+  font-size:9px;
+  color:rgba(255,255,255,0.25);
+  margin-top:2px;
+  letter-spacing:0.5px;
+}
+.setting-value{
+  font-size:12px;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:0.5px;
+}
+.setting-value.active-val{color:#FFF}
+
+.settings-footer{
+  text-align:center;
+  font-size:9px;
+  letter-spacing:2px;
+  color:rgba(255,255,255,0.15);
+  padding:18px 0;
+}
+
+/* ============== RESPONSIVE ============== */
+body.mobile #context-card{
+  padding-bottom:160px;
+}
+body.mobile .ctx-headline .title{
+  font-size:19px;
+}
+body.mobile .sib-chip{
+  min-width:130px;
+}
+
+body.tablet #app{
+  max-width:1024px;
+  margin:0 auto;
+}
+body.tablet #context-card{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:auto auto auto auto auto auto;
+  gap:0 24px;
+  padding:32px 32px 110px;
+  align-content:start;
+}
+body.tablet .ctx-path,
+body.tablet .ctx-headline{
+  grid-column:1 / -1;
+  padding-left:0;
+  padding-right:0;
+}
+body.tablet .ctx-section{
+  padding:0;
+  margin-bottom:24px;
+}
+body.tablet #transport{
+  padding:10px 32px 14px;
+}
+body.tablet .bottom-sheet{
+  max-width:780px;
+  left:50%;
+  transform:translateX(-50%) translateY(100%);
+}
+body.tablet .bottom-sheet.open{
+  transform:translateX(-50%) translateY(0);
+}
+body.tablet .browser-list{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0 16px;
+  padding:10px 24px 24px;
+}
+body.tablet .browser-list .back-row,
+body.tablet .browser-list .srch-empty{
+  grid-column:1 / -1;
+}
+
+/* Flash indicator for play/pause */
+.play-state-indicator{
+  position:fixed;
+  top:40%;left:50%;
+  transform:translate(-50%,-50%);
+  font-size:42px;
+  opacity:0;
+  pointer-events:none;
+  z-index:5;
+  transition:opacity 0.15s;
+}
+.play-state-indicator.flash{
+  opacity:0.3;
+  transition:none;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- The Context Card IS the home screen -->
+  <div id="context-card">
+
+    <!-- Path / breadcrumbs -->
+    <div class="ctx-path" id="ctxPath"></div>
+
+    <!-- Current file headline -->
+    <div class="ctx-headline">
+      <div class="pos" id="ctxPos">NO FILE LOADED</div>
+      <div class="title" id="ctxTitle">CURATOR<span class="cursor-blink">|</span></div>
+      <div class="sub" id="ctxSub">tap a folder or file to begin</div>
+    </div>
+
+    <!-- Section: folder mates (full folder contents centred on current) -->
+    <div class="ctx-section" id="sectionFolderMates">
+      <div class="ctx-label">
+        <span>Folder Mates</span>
+        <span class="ctx-label-aux" id="fmAux"></span>
+      </div>
+      <div id="folderMatesList"></div>
+    </div>
+
+    <!-- Section: sibling folders -->
+    <div class="ctx-section" id="sectionSiblings">
+      <div class="ctx-label">
+        <span>Folders Alongside</span>
+        <span class="ctx-label-aux" id="sibAux"></span>
+      </div>
+      <div class="sib-strip" id="siblingStrip"></div>
+    </div>
+
+    <!-- Section: session history (what played just before) -->
+    <div class="ctx-section" id="sectionHistory">
+      <div class="ctx-label">
+        <span>Played Earlier</span>
+        <span class="ctx-label-aux">this session</span>
+      </div>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- Section: recently played from this folder -->
+    <div class="ctx-section" id="sectionRecent">
+      <div class="ctx-label">
+        <span>Recently from here</span>
+        <span class="ctx-label-aux" id="recentAux"></span>
+      </div>
+      <div id="recentList"></div>
+    </div>
+
+    <!-- Section: upcoming from this folder -->
+    <div class="ctx-section" id="sectionUpcoming">
+      <div class="ctx-label">
+        <span>Up Next from here</span>
+        <span class="ctx-label-aux">in order</span>
+      </div>
+      <div id="upcomingList"></div>
+    </div>
+
+  </div>
+
+  <!-- Progress line above transport -->
+  <div id="progress-line"></div>
+  <div id="progress-hit"></div>
+
+  <!-- Transport bar - bottom thumb zone -->
+  <div id="transport">
+    <div class="transport-now">
+      <span class="tn-name" id="tnName">—</span>
+      <span class="tn-time" id="tnTime">00:00 / 00:00</span>
+    </div>
+    <div class="transport-controls">
+      <button class="tc-btn" id="btnPrev" title="Previous">◀</button>
+      <button class="tc-btn tc-play" id="btnPlay" title="Play/Pause">▶</button>
+      <button class="tc-btn" id="btnNext" title="Next">▶</button>
+      <input type="text" class="tc-search" id="searchInput" placeholder="search files…">
+      <button class="tc-icon-btn" id="btnBrowse">BROWSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Browser overlay -->
+<div class="panel-overlay" id="panelOverlay"></div>
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="sheet-handle" id="sheetHandle">
+    <div class="sheet-handle-bar"></div>
+  </div>
+
+  <div class="sheet-tabs">
+    <button class="sheet-tab active" data-tab="browser">BROWSER</button>
+    <button class="sheet-tab" data-tab="settings">SETTINGS</button>
+  </div>
+
+  <!-- BROWSER TAB -->
+  <div class="tab-content active" id="tab-browser">
+    <div class="browser-breadcrumbs" id="browserCrumbs"></div>
+    <div class="browser-actions">
+      <button class="bx-mini" id="bxPlayAll">PLAY FOLDER</button>
+      <button class="bx-mini" id="bxShuffle">SHUFFLE FOLDER</button>
+      <button class="bx-mini" id="bxOpenHere">CONTEXT FROM HERE</button>
+    </div>
+    <div class="browser-list" id="browserList"></div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-scroll">
+
+      <div class="setting-group">
+        <div class="setting-group-title">Curator</div>
+        <div class="setting-row" data-setting="adjacency" data-options="3,5,7,9">
+          <div>
+            <div class="setting-label">Folder Mates radius</div>
+            <div class="setting-sub">files shown above + below current</div>
+          </div>
+          <span class="setting-value active-val">5</span>
+        </div>
+        <div class="setting-row" data-setting="siblings" data-options="On,Off">
+          <div>
+            <div class="setting-label">Show Sibling Folders</div>
+            <div class="setting-sub">strip of folders alongside parent</div>
+          </div>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" data-setting="upcoming" data-options="On,Off">
+          <div>
+            <div class="setting-label">Show Up Next strip</div>
+            <div class="setting-sub">files queued after current</div>
+          </div>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" data-setting="foldpeek" data-options="3,2,1,0">
+          <div>
+            <div class="setting-label">Folder peek depth</div>
+            <div class="setting-sub">files previewed inside each folder row</div>
+          </div>
+          <span class="setting-value active-val">3</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Playback</div>
+        <div class="setting-row" data-setting="shuffle" data-options="Off,On">
+          <span class="setting-label">Shuffle</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="repeat" data-options="Off,All,One">
+          <span class="setting-label">Repeat</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="gapless" data-options="Off,On">
+          <span class="setting-label">Gapless Playback</span>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" data-setting="crossfade" data-options="0s,2s,4s,6s,8s">
+          <span class="setting-label">Crossfade</span>
+          <span class="setting-value">0s</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Audio</div>
+        <div class="setting-row" data-setting="output" data-options="System Default,Headphones,External DAC">
+          <span class="setting-label">Output Device</span>
+          <span class="setting-value">System Default</span>
+        </div>
+        <div class="setting-row" data-setting="equalizer" data-options="Off,On">
+          <span class="setting-label">Equalizer</span>
+          <span class="setting-value">Off</span>
+        </div>
+        <div class="setting-row" data-setting="replaygain" data-options="Off,Track,Folder">
+          <span class="setting-label">ReplayGain</span>
+          <span class="setting-value active-val">Folder</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-group-title">Library</div>
+        <div class="setting-row" data-setting="scan" data-options="Off,On">
+          <span class="setting-label">Scan on Startup</span>
+          <span class="setting-value active-val">On</span>
+        </div>
+        <div class="setting-row" style="cursor:default">
+          <span class="setting-label">Media Folder</span>
+          <span class="setting-value">/Media/Library</span>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        FileAMP v1.0 &mdash; CURATOR Edition
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Play/pause flash indicator -->
+<div class="play-state-indicator" id="playStateIndicator"></div>
+
+<script>
+// =====================================================================
+// CURATOR — context-first audio file player
+// File-first mock tree: folders are folders. No genre/artist/album semantics.
+// =====================================================================
+
+// timestamps in ISO-ish "days ago" cosmetic form
+function ago(h){ return Date.now() - h*3600*1000; }
+
+const FILE_TREE = {
+  name: 'Library', type: 'folder', children: [
+    { name: '01_Sessions_2024', type: 'folder', children: [
+      { name: 'Morning_Sessions', type: 'folder', children: [
+        { name: '2024-01-12_dawn_take_01.flac', type: 'file', duration: '08:02', size: '42.1 MB', lastPlayed: ago(6) },
+        { name: '2024-01-12_dawn_take_02.flac', type: 'file', duration: '07:14', size: '38.4 MB', lastPlayed: ago(48) },
+        { name: '2024-01-19_first_light.flac', type: 'file', duration: '11:38', size: '61.2 MB', lastPlayed: ago(2) },
+        { name: '2024-02-03_overcast.flac', type: 'file', duration: '06:24', size: '34.0 MB', lastPlayed: ago(168) },
+        { name: '2024-02-17_grey_room.flac', type: 'file', duration: '09:18', size: '49.3 MB', lastPlayed: ago(96) },
+        { name: '2024-03-05_steam.flac', type: 'file', duration: '04:54', size: '26.1 MB', lastPlayed: ago(1) },
+      ]},
+      { name: 'Late_Night_Sessions', type: 'folder', children: [
+        { name: '2024-01-27_after_midnight.flac', type: 'file', duration: '12:07', size: '64.3 MB', lastPlayed: ago(72) },
+        { name: '2024-02-09_two_am.flac', type: 'file', duration: '09:44', size: '51.7 MB', lastPlayed: ago(240) },
+        { name: '2024-02-24_blue_hour.flac', type: 'file', duration: '07:55', size: '42.1 MB', lastPlayed: ago(12) },
+        { name: '2024-03-08_quiet_room.flac', type: 'file', duration: '14:22', size: '76.3 MB', lastPlayed: ago(36) },
+      ]},
+      { name: 'Walks_and_Drives', type: 'folder', children: [
+        { name: 'highway_north_loop.mp3', type: 'file', duration: '07:09', size: '10.0 MB', lastPlayed: ago(120) },
+        { name: 'park_pavilion_long.mp3', type: 'file', duration: '05:20', size: '7.5 MB', lastPlayed: ago(8) },
+        { name: 'subway_platform_C.mp3', type: 'file', duration: '04:58', size: '7.0 MB', lastPlayed: ago(50) },
+        { name: 'evening_canal_walk.mp3', type: 'file', duration: '03:44', size: '5.2 MB', lastPlayed: ago(3) },
+        { name: 'rain_under_bridge.mp3', type: 'file', duration: '06:12', size: '8.7 MB', lastPlayed: ago(220) },
+      ]},
+    ]},
+    { name: '02_Field_Recordings', type: 'folder', children: [
+      { name: 'Coastal', type: 'folder', children: [
+        { name: 'tide_in_at_dusk.flac', type: 'file', duration: '22:43', size: '120.8 MB', lastPlayed: ago(72) },
+        { name: 'gulls_morning_pier.flac', type: 'file', duration: '03:43', size: '19.7 MB', lastPlayed: ago(30) },
+        { name: 'fog_horn_long.flac', type: 'file', duration: '07:20', size: '38.9 MB', lastPlayed: ago(10) },
+        { name: 'wet_rocks_low_wind.flac', type: 'file', duration: '11:08', size: '59.0 MB', lastPlayed: ago(4) },
+      ]},
+      { name: 'Urban', type: 'folder', children: [
+        { name: 'rooftop_distant_traffic.flac', type: 'file', duration: '06:07', size: '32.4 MB', lastPlayed: ago(18) },
+        { name: 'empty_market_2am.flac', type: 'file', duration: '02:05', size: '11.0 MB', lastPlayed: ago(60) },
+        { name: 'corner_stoplight_loop.flac', type: 'file', duration: '04:38', size: '24.6 MB', lastPlayed: ago(100) },
+      ]},
+      { name: 'Forest', type: 'folder', children: [
+        { name: 'creek_under_pines.flac', type: 'file', duration: '09:22', size: '49.7 MB', lastPlayed: ago(20) },
+        { name: 'dawn_chorus_april.flac', type: 'file', duration: '05:27', size: '28.9 MB', lastPlayed: ago(80) },
+        { name: 'wind_in_birch_high.flac', type: 'file', duration: '11:33', size: '61.3 MB', lastPlayed: ago(7) },
+      ]},
+    ]},
+    { name: '03_Inbox', type: 'folder', children: [
+      { name: 'voicememo_001.m4a', type: 'file', duration: '04:46', size: '4.7 MB', lastPlayed: ago(200) },
+      { name: 'voicememo_002.m4a', type: 'file', duration: '13:41', size: '13.2 MB', lastPlayed: ago(0.5) },
+      { name: 'voicememo_003.m4a', type: 'file', duration: '02:38', size: '2.4 MB', lastPlayed: ago(15) },
+      { name: 'voicememo_004.m4a', type: 'file', duration: '09:18', size: '9.1 MB', lastPlayed: ago(40) },
+      { name: 'sketch_loop_a.wav', type: 'file', duration: '01:24', size: '14.7 MB', lastPlayed: ago(5) },
+      { name: 'sketch_loop_b.wav', type: 'file', duration: '02:11', size: '23.0 MB', lastPlayed: ago(48) },
+      { name: 'sketch_loop_c.wav', type: 'file', duration: '01:47', size: '18.6 MB', lastPlayed: ago(150) },
+    ]},
+    { name: '04_Mixes', type: 'folder', children: [
+      { name: 'long_form_winter_v3.flac', type: 'file', duration: '47:18', size: '250.4 MB', lastPlayed: ago(2) },
+      { name: 'long_form_winter_v4.flac', type: 'file', duration: '49:01', size: '259.7 MB', lastPlayed: ago(1) },
+      { name: 'thirty_min_drift.flac', type: 'file', duration: '30:00', size: '158.9 MB', lastPlayed: ago(40) },
+      { name: 'short_set_friday.flac', type: 'file', duration: '18:22', size: '97.3 MB', lastPlayed: ago(170) },
+    ]},
+    { name: '05_Archive', type: 'folder', children: [
+      { name: '2021', type: 'folder', children: [
+        { name: 'old_jam_april.mp3', type: 'file', duration: '07:42', size: '10.8 MB', lastPlayed: ago(800) },
+        { name: 'old_jam_june.mp3', type: 'file', duration: '05:18', size: '7.4 MB', lastPlayed: ago(700) },
+      ]},
+      { name: '2022', type: 'folder', children: [
+        { name: 'attic_loop_001.mp3', type: 'file', duration: '12:08', size: '17.1 MB', lastPlayed: ago(500) },
+        { name: 'attic_loop_002.mp3', type: 'file', duration: '14:33', size: '20.5 MB', lastPlayed: ago(450) },
+        { name: 'kitchen_table_demo.mp3', type: 'file', duration: '06:11', size: '8.7 MB', lastPlayed: ago(380) },
+      ]},
+    ]},
+  ]
+};
+
+// ===================== STATE =====================
+let isPlaying = false;
+let currentFile = null;          // file node currently playing
+let currentFolder = null;        // folder node containing currentFile
+let currentDuration = 0;
+let elapsed = 0;
+let playlist = [];
+let playlistIndex = -1;
+let sheetOpen = false;
+
+// session history of play actions (newest last). { name, path }
+let history = [];
+
+// browser navigation
+let browserFolder = FILE_TREE;
+let browserStack = [];
+
+// curator settings (mirror settings sheet)
+let cfg = {
+  adjacency: 5,
+  siblings: true,
+  upcoming: true,
+  foldpeek: 3,
+};
+
+// ===================== DOM REFS =====================
+const $ctxPath = document.getElementById('ctxPath');
+const $ctxPos = document.getElementById('ctxPos');
+const $ctxTitle = document.getElementById('ctxTitle');
+const $ctxSub = document.getElementById('ctxSub');
+const $folderMatesList = document.getElementById('folderMatesList');
+const $fmAux = document.getElementById('fmAux');
+const $siblingStrip = document.getElementById('siblingStrip');
+const $sibAux = document.getElementById('sibAux');
+const $historyList = document.getElementById('historyList');
+const $recentList = document.getElementById('recentList');
+const $recentAux = document.getElementById('recentAux');
+const $upcomingList = document.getElementById('upcomingList');
+const $sectionSiblings = document.getElementById('sectionSiblings');
+const $sectionUpcoming = document.getElementById('sectionUpcoming');
+
+const $tnName = document.getElementById('tnName');
+const $tnTime = document.getElementById('tnTime');
+const $btnPrev = document.getElementById('btnPrev');
+const $btnPlay = document.getElementById('btnPlay');
+const $btnNext = document.getElementById('btnNext');
+const $btnBrowse = document.getElementById('btnBrowse');
+const $searchInput = document.getElementById('searchInput');
+const $progressLine = document.getElementById('progress-line');
+const $progressHit = document.getElementById('progress-hit');
+
+const $panelOverlay = document.getElementById('panelOverlay');
+const $bottomSheet = document.getElementById('bottomSheet');
+const $browserCrumbs = document.getElementById('browserCrumbs');
+const $browserList = document.getElementById('browserList');
+const $indicator = document.getElementById('playStateIndicator');
+
+// ===================== HELPERS =====================
+function esc(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function parseDuration(str){
+  const p = str.split(':').map(Number);
+  return p[0]*60 + p[1];
+}
+
+function formatTime(sec){
+  const m = Math.floor(Math.max(0,sec)/60);
+  const s = Math.floor(Math.max(0,sec)%60);
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+function stripExt(name){
+  return name.replace(/\.(mp3|flac|m4a|wav|ogg|aac)$/i,'');
+}
+
+function relativeAgo(ts){
+  if(!ts) return '';
+  const dh = (Date.now()-ts)/3600000;
+  if(dh < 1) return Math.max(1,Math.round(dh*60))+'m ago';
+  if(dh < 24) return Math.round(dh)+'h ago';
+  if(dh < 24*7) return Math.round(dh/24)+'d ago';
+  if(dh < 24*60) return Math.round(dh/24/7)+'w ago';
+  return Math.round(dh/24/30)+'mo ago';
+}
+
+// Find the parent folder of a given node and the path (array of folder nodes from root).
+function findPathTo(target, node=FILE_TREE, path=[]){
+  const p = [...path, node];
+  if(node === target) return p;
+  if(node.children){
+    for(const c of node.children){
+      const r = findPathTo(target, c, p);
+      if(r) return r;
+    }
+  }
+  return null;
+}
+
+function parentOf(target){
+  const p = findPathTo(target);
+  if(!p || p.length < 2) return null;
+  return p[p.length-2];
+}
+
+function collectFiles(node){
+  const out = [];
+  if(node.type === 'file'){ out.push(node); return out; }
+  if(node.children){
+    for(const c of node.children) out.push(...collectFiles(c));
+  }
+  return out;
+}
+
+function childFiles(folder){
+  if(!folder || !folder.children) return [];
+  return folder.children.filter(c => c.type === 'file');
+}
+
+function childFolders(folder){
+  if(!folder || !folder.children) return [];
+  return folder.children.filter(c => c.type === 'folder');
+}
+
+// ===================== PLAYBACK =====================
+function playFile(file, folder){
+  if(!file) return;
+  currentFile = file;
+  currentFolder = folder || parentOf(file) || FILE_TREE;
+  currentDuration = parseDuration(file.duration);
+  elapsed = 0;
+  isPlaying = true;
+  file.lastPlayed = Date.now();  // cosmetic; per intent — no persistence
+
+  // history
+  history.push({ file, folder: currentFolder });
+  if(history.length > 40) history.shift();
+
+  // playlist defaults to folder mates in order
+  const mates = childFiles(currentFolder);
+  if(!playlist.length || !playlist.includes(file) || playlist[0]?.__source !== currentFolder){
+    playlist = [...mates];
+    playlist.__source = currentFolder;
+  }
+  playlistIndex = playlist.indexOf(file);
+  if(playlistIndex < 0){
+    playlist = [...mates];
+    playlistIndex = playlist.indexOf(file);
+  }
+  $btnPlay.textContent = '❙❙';
+  renderContextCard();
+  renderTransport();
+}
+
+function togglePlay(){
+  if(!currentFile){
+    // pick the newest file in the inbox if nothing chosen
+    const inbox = FILE_TREE.children.find(c => c.name === '03_Inbox');
+    const f = inbox && childFiles(inbox)[0];
+    if(f) playFile(f, inbox);
+    return;
+  }
+  isPlaying = !isPlaying;
+  $btnPlay.textContent = isPlaying ? '❙❙' : '▶';
+  flashIndicator(isPlaying ? '▶' : '❙❙');
+}
+
+function nextTrack(){
+  if(!currentFile) return;
+  const mates = childFiles(currentFolder);
+  const idx = mates.indexOf(currentFile);
+  const nxt = mates[(idx+1) % mates.length];
+  if(nxt) playFile(nxt, currentFolder);
+}
+
+function prevTrack(){
+  if(!currentFile) return;
+  if(elapsed > 3){ elapsed = 0; return; }
+  const mates = childFiles(currentFolder);
+  const idx = mates.indexOf(currentFile);
+  const prv = mates[(idx - 1 + mates.length) % mates.length];
+  if(prv) playFile(prv, currentFolder);
+}
+
+function flashIndicator(symbol){
+  $indicator.textContent = symbol;
+  $indicator.classList.add('flash');
+  setTimeout(()=>$indicator.classList.remove('flash'), 280);
+}
+
+// ===================== CONTEXT CARD =====================
+function renderContextCard(){
+  if(!currentFile){
+    renderEmptyContext();
+    return;
+  }
+  renderPath();
+  renderHeadline();
+  renderFolderMates();
+  renderSiblings();
+  renderHistory();
+  renderRecent();
+  renderUpcoming();
+}
+
+function renderEmptyContext(){
+  $ctxPath.innerHTML = '';
+  $ctxPos.textContent = 'NO FILE LOADED';
+  $ctxTitle.innerHTML = 'CURATOR<span class="cursor-blink">|</span>';
+  $ctxSub.textContent = 'tap BROWSE below to find a folder';
+
+  // Show top-level folders as siblings so the screen is never bare
+  $folderMatesList.innerHTML = '<div class="ctx-empty">No folder context yet — pick a file.</div>';
+  $fmAux.textContent = '';
+
+  $siblingStrip.innerHTML = '';
+  childFolders(FILE_TREE).forEach(f => {
+    $siblingStrip.appendChild(makeSiblingChip(f));
+  });
+  $sibAux.textContent = 'top level';
+  $sectionSiblings.style.display = '';
+
+  $historyList.innerHTML = '<div class="ctx-empty">Nothing played yet this session.</div>';
+  $recentList.innerHTML = '<div class="ctx-empty">No recently-played files yet.</div>';
+  $recentAux.textContent = '';
+  $upcomingList.innerHTML = '<div class="ctx-empty">No queue yet.</div>';
+  $sectionUpcoming.style.display = '';
+}
+
+function renderPath(){
+  const path = findPathTo(currentFile) || [];
+  $ctxPath.innerHTML = '';
+  // path includes the file at the end; show folders only
+  const folders = path.slice(0, -1);
+  folders.forEach((f, i) => {
+    if(i > 0){
+      const sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = '/';
+      $ctxPath.appendChild(sep);
+    }
+    const c = document.createElement('span');
+    c.className = 'crumb' + (i === folders.length-1 ? ' current' : '');
+    c.textContent = f.name;
+    c.addEventListener('click', () => {
+      browserFolder = f;
+      browserStack = folders.slice(0, i);
+      openSheet();
+    });
+    $ctxPath.appendChild(c);
+  });
+}
+
+function renderHeadline(){
+  const mates = childFiles(currentFolder);
+  const idx = mates.indexOf(currentFile);
+  $ctxPos.textContent = `FILE ${idx+1} OF ${mates.length} IN ${currentFolder.name.toUpperCase()}`;
+  const nameOnly = stripExt(currentFile.name);
+  $ctxTitle.innerHTML = esc(nameOnly) + '<span class="cursor-blink">|</span>';
+  $ctxTitle.classList.toggle('playing', isPlaying);
+  $ctxSub.textContent = currentFile.duration + ' · ' + currentFile.size +
+    (currentFile.lastPlayed ? ' · played ' + relativeAgo(currentFile.lastPlayed) : '');
+}
+
+function renderFolderMates(){
+  const mates = childFiles(currentFolder);
+  const idx = mates.indexOf(currentFile);
+  const radius = cfg.adjacency;
+  // We center on current file
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(mates.length, idx + radius + 1);
+  const window = mates.slice(start, end);
+
+  $fmAux.textContent = `${window.length} of ${mates.length} · ${currentFolder.name}`;
+  $folderMatesList.innerHTML = '';
+
+  if(start > 0){
+    const more = document.createElement('div');
+    more.className = 'nbr-row dim';
+    more.innerHTML = `<span class="nbr-marker">↑</span><div class="nbr-info"><div class="nbr-name">${start} earlier file${start!==1?'s':''}</div><div class="nbr-meta">tap to expand</div></div>`;
+    more.addEventListener('click', () => {
+      cfg.adjacency = mates.length;
+      renderFolderMates();
+    });
+    $folderMatesList.appendChild(more);
+  }
+
+  window.forEach((f, k) => {
+    const absIdx = start + k;
+    const row = document.createElement('div');
+    row.className = 'nbr-row' + (f === currentFile ? ' current' : '');
+    const marker = f === currentFile ? '▶' :
+                   absIdx < idx ? (idx - absIdx) :
+                   '+' + (absIdx - idx);
+    row.innerHTML = `<span class="nbr-marker">${marker}</span>
+      <div class="nbr-info">
+        <div class="nbr-name">${esc(stripExt(f.name))}</div>
+        <div class="nbr-meta">${f.duration} · ${f.size}${f.lastPlayed?(' · '+relativeAgo(f.lastPlayed)):''}</div>
+      </div>`;
+    row.addEventListener('click', () => playFile(f, currentFolder));
+    $folderMatesList.appendChild(row);
+  });
+
+  if(end < mates.length){
+    const more = document.createElement('div');
+    more.className = 'nbr-row dim';
+    const remaining = mates.length - end;
+    more.innerHTML = `<span class="nbr-marker">↓</span><div class="nbr-info"><div class="nbr-name">${remaining} more file${remaining!==1?'s':''} below</div><div class="nbr-meta">tap to expand</div></div>`;
+    more.addEventListener('click', () => {
+      cfg.adjacency = mates.length;
+      renderFolderMates();
+    });
+    $folderMatesList.appendChild(more);
+  }
+}
+
+function makeSiblingChip(folder){
+  const chip = document.createElement('div');
+  chip.className = 'sib-chip';
+  const files = collectFiles(folder);
+  const peekFile = files[0];
+  chip.innerHTML = `
+    <div class="sib-name">${esc(folder.name)}</div>
+    <div class="sib-count">${files.length} file${files.length!==1?'s':''}</div>
+    <div class="sib-peek">${peekFile ? esc(stripExt(peekFile.name)) : '— empty —'}</div>
+  `;
+  chip.addEventListener('click', () => {
+    const firstFile = files[0];
+    if(firstFile){
+      const innerFolder = parentOf(firstFile);
+      playFile(firstFile, innerFolder);
+    } else {
+      browserFolder = folder;
+      browserStack = (findPathTo(folder) || []).slice(0, -1);
+      openSheet();
+    }
+  });
+  return chip;
+}
+
+function renderSiblings(){
+  if(!cfg.siblings){
+    $sectionSiblings.style.display = 'none';
+    return;
+  }
+  $sectionSiblings.style.display = '';
+  const parent = parentOf(currentFolder);
+  $siblingStrip.innerHTML = '';
+  if(!parent){
+    // current folder is top level — show its own children-as-folders or top level
+    $sibAux.textContent = 'top level';
+    childFolders(FILE_TREE).filter(f => f !== currentFolder).forEach(f => {
+      $siblingStrip.appendChild(makeSiblingChip(f));
+    });
+    if(!$siblingStrip.children.length){
+      $siblingStrip.innerHTML = '<div class="ctx-empty">no siblings at root</div>';
+    }
+    return;
+  }
+  const sibs = childFolders(parent).filter(f => f !== currentFolder);
+  $sibAux.textContent = `in ${parent.name}`;
+  if(!sibs.length){
+    $siblingStrip.innerHTML = '<div class="ctx-empty">no sibling folders</div>';
+    return;
+  }
+  sibs.forEach(f => $siblingStrip.appendChild(makeSiblingChip(f)));
+}
+
+function renderHistory(){
+  $historyList.innerHTML = '';
+  // Exclude current entry (last), show last 5 before it
+  const past = history.slice(0, -1).slice(-5).reverse();
+  if(past.length === 0){
+    $historyList.innerHTML = '<div class="ctx-empty">nothing yet — this is the first file you\'ve opened</div>';
+    return;
+  }
+  past.forEach((h, i) => {
+    const row = document.createElement('div');
+    row.className = 'nbr-row';
+    row.innerHTML = `<span class="nbr-marker">←${i+1}</span>
+      <div class="nbr-info">
+        <div class="nbr-name">${esc(stripExt(h.file.name))}</div>
+        <div class="nbr-meta">from ${esc(h.folder.name)} · ${h.file.duration}</div>
+      </div>`;
+    row.addEventListener('click', () => playFile(h.file, h.folder));
+    $historyList.appendChild(row);
+  });
+}
+
+function renderRecent(){
+  $recentList.innerHTML = '';
+  const mates = childFiles(currentFolder)
+    .filter(f => f !== currentFile && f.lastPlayed)
+    .sort((a,b) => (b.lastPlayed||0) - (a.lastPlayed||0))
+    .slice(0, 4);
+  $recentAux.textContent = currentFolder.name;
+  if(!mates.length){
+    $recentList.innerHTML = '<div class="ctx-empty">nothing else in this folder has been opened recently</div>';
+    return;
+  }
+  mates.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'nbr-row';
+    row.innerHTML = `<span class="nbr-marker">◉</span>
+      <div class="nbr-info">
+        <div class="nbr-name">${esc(stripExt(f.name))}</div>
+        <div class="nbr-meta">${relativeAgo(f.lastPlayed)} · ${f.duration}</div>
+      </div>`;
+    row.addEventListener('click', () => playFile(f, currentFolder));
+    $recentList.appendChild(row);
+  });
+}
+
+function renderUpcoming(){
+  if(!cfg.upcoming){
+    $sectionUpcoming.style.display = 'none';
+    return;
+  }
+  $sectionUpcoming.style.display = '';
+  $upcomingList.innerHTML = '';
+  const mates = childFiles(currentFolder);
+  const idx = mates.indexOf(currentFile);
+  const after = mates.slice(idx+1, idx+1+4);
+  if(!after.length){
+    $upcomingList.innerHTML = '<div class="ctx-empty">end of folder — next will loop or move on</div>';
+    return;
+  }
+  after.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'nbr-row';
+    row.innerHTML = `<span class="nbr-marker">+${i+1}</span>
+      <div class="nbr-info">
+        <div class="nbr-name">${esc(stripExt(f.name))}</div>
+        <div class="nbr-meta">${f.duration} · ${f.size}</div>
+      </div>`;
+    row.addEventListener('click', () => playFile(f, currentFolder));
+    $upcomingList.appendChild(row);
+  });
+}
+
+// ===================== TRANSPORT =====================
+function renderTransport(){
+  if(currentFile){
+    $tnName.textContent = stripExt(currentFile.name);
+    $tnTime.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+  } else {
+    $tnName.textContent = '—';
+    $tnTime.textContent = '00:00 / 00:00';
+  }
+}
+
+$btnPlay.addEventListener('click', togglePlay);
+$btnNext.addEventListener('click', nextTrack);
+$btnPrev.addEventListener('click', prevTrack);
+$btnBrowse.addEventListener('click', () => {
+  if(sheetOpen) closeSheet(); else openSheet();
+});
+
+$progressHit.addEventListener('click', e => {
+  if(currentDuration === 0) return;
+  const pct = e.clientX / window.innerWidth;
+  elapsed = pct * currentDuration;
+  e.stopPropagation();
+});
+
+// ===================== BROWSER =====================
+function openSheet(){
+  sheetOpen = true;
+  $panelOverlay.classList.add('open');
+  $bottomSheet.classList.add('open');
+  renderBrowser();
+}
+
+function closeSheet(){
+  sheetOpen = false;
+  $panelOverlay.classList.remove('open');
+  $bottomSheet.classList.remove('open');
+}
+
+$panelOverlay.addEventListener('click', closeSheet);
+document.querySelector('.sheet-handle').addEventListener('dblclick', closeSheet);
+
+document.querySelectorAll('.sheet-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sheet-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+function browseInto(folder){
+  if(browserFolder !== folder){
+    browserStack.push(browserFolder);
+  }
+  browserFolder = folder;
+  renderBrowser();
+}
+
+function browseUp(){
+  if(browserStack.length){
+    browserFolder = browserStack.pop();
+    renderBrowser();
+  }
+}
+
+function browseToDepth(d){
+  // re-derive from FILE_TREE
+  const path = findPathTo(browserFolder) || [FILE_TREE];
+  if(d < path.length){
+    browserStack = path.slice(0, d);
+    browserFolder = path[d];
+    renderBrowser();
+  }
+}
+
+function renderBrowser(){
+  const searchTerm = ($searchInput.value || '').toLowerCase().trim();
+
+  // Breadcrumbs
+  const path = findPathTo(browserFolder) || [FILE_TREE];
+  $browserCrumbs.innerHTML = '';
+  path.forEach((f, i) => {
+    if(i > 0){
+      const sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = '/';
+      $browserCrumbs.appendChild(sep);
+    }
+    const c = document.createElement('span');
+    c.className = 'crumb' + (i === path.length-1 ? ' current' : '');
+    c.textContent = f.name;
+    if(i < path.length-1){
+      c.addEventListener('click', () => browseToDepth(i));
+    }
+    $browserCrumbs.appendChild(c);
+  });
+
+  // Tablet hint: list is grid, but the search heading row should not be inside grid cells
+  $browserList.innerHTML = '';
+
+  if(searchTerm){
+    renderSearchResults(searchTerm);
+    return;
+  }
+
+  // Back row
+  if(browserStack.length || browserFolder !== FILE_TREE){
+    const back = document.createElement('div');
+    back.className = 'back-row';
+    back.textContent = '←  back to ' + (browserStack[browserStack.length-1]?.name || 'Library');
+    back.addEventListener('click', browseUp);
+    $browserList.appendChild(back);
+  }
+
+  if(!browserFolder.children) return;
+
+  const folders = childFolders(browserFolder).sort((a,b) => a.name.localeCompare(b.name));
+  const files = childFiles(browserFolder);
+
+  // Folder cards with peek
+  folders.forEach(f => {
+    const allFiles = collectFiles(f);
+    const card = document.createElement('div');
+    card.className = 'fld-card';
+    const head = document.createElement('div');
+    head.className = 'fld-card-head';
+    head.innerHTML = `<span class="fc-icon">▸</span>
+      <span class="fc-name">${esc(f.name)}</span>
+      <span class="fc-count">${allFiles.length} file${allFiles.length!==1?'s':''}</span>`;
+    head.addEventListener('click', () => browseInto(f));
+    card.appendChild(head);
+
+    if(cfg.foldpeek > 0){
+      const peek = document.createElement('div');
+      peek.className = 'fld-peek';
+      const peekItems = allFiles.slice(0, cfg.foldpeek);
+      peekItems.forEach(pf => {
+        const line = document.createElement('div');
+        line.className = 'pk-line';
+        line.textContent = '· ' + stripExt(pf.name);
+        line.addEventListener('click', e => {
+          e.stopPropagation();
+          playFile(pf, parentOf(pf));
+          closeSheet();
+        });
+        peek.appendChild(line);
+      });
+      if(allFiles.length > cfg.foldpeek){
+        const more = document.createElement('div');
+        more.className = 'pk-line pk-more';
+        more.textContent = '· ' + (allFiles.length - cfg.foldpeek) + ' more…';
+        more.addEventListener('click', e => {
+          e.stopPropagation();
+          browseInto(f);
+        });
+        peek.appendChild(more);
+      }
+      card.appendChild(peek);
+    }
+    $browserList.appendChild(card);
+  });
+
+  // File rows with adjacency hint
+  files.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'file-row' + (f === currentFile ? ' current' : '');
+    const prev = files[i-1];
+    const next = files[i+1];
+    row.innerHTML = `
+      <div class="fr-head">
+        <span class="fr-icon">${f === currentFile ? '▶' : '♪'}</span>
+        <div class="fr-info">
+          <div class="fr-name">${esc(stripExt(f.name))}</div>
+          <div class="fr-meta">${i+1} of ${files.length} · ${f.duration} · ${f.size}</div>
+        </div>
+      </div>
+      <div class="fr-adj">
+        <span class="fr-adj-side">${prev ? '← '+esc(stripExt(prev.name)) : '— first —'}</span>
+        <span class="fr-adj-side" style="text-align:right">${next ? esc(stripExt(next.name))+' →' : '— last —'}</span>
+      </div>`;
+    row.addEventListener('click', () => {
+      playFile(f, browserFolder);
+      closeSheet();
+    });
+    $browserList.appendChild(row);
+  });
+
+  if(!folders.length && !files.length){
+    const empty = document.createElement('div');
+    empty.className = 'srch-empty';
+    empty.textContent = 'empty folder';
+    $browserList.appendChild(empty);
+  }
+}
+
+function renderSearchResults(term){
+  // Group matches by parent folder
+  const allFiles = collectFiles(FILE_TREE);
+  const matches = allFiles.filter(f => f.name.toLowerCase().includes(term));
+  if(!matches.length){
+    const empty = document.createElement('div');
+    empty.className = 'srch-empty';
+    empty.textContent = 'no matches for "' + term + '"';
+    $browserList.appendChild(empty);
+    return;
+  }
+
+  // Group by parent folder
+  const groups = new Map();
+  matches.forEach(f => {
+    const p = parentOf(f);
+    if(!groups.has(p)) groups.set(p, []);
+    groups.get(p).push(f);
+  });
+
+  groups.forEach((files, folder) => {
+    const grp = document.createElement('div');
+    grp.className = 'srch-group';
+
+    const head = document.createElement('div');
+    head.className = 'srch-group-head';
+    const folderPath = (findPathTo(folder) || []).map(f => f.name).join(' / ');
+    head.textContent = folderPath + '  ·  ' + files.length + ' match' + (files.length!==1?'es':'');
+    head.addEventListener('click', () => {
+      $searchInput.value = '';
+      browserFolder = folder;
+      browserStack = (findPathTo(folder) || []).slice(0, -1);
+      renderBrowser();
+    });
+    grp.appendChild(head);
+
+    files.forEach(f => {
+      const allFolderFiles = childFiles(folder);
+      const idx = allFolderFiles.indexOf(f);
+      const neighbours = [];
+      if(idx > 0) neighbours.push('← ' + stripExt(allFolderFiles[idx-1].name));
+      if(idx < allFolderFiles.length-1) neighbours.push(stripExt(allFolderFiles[idx+1].name) + ' →');
+
+      const m = document.createElement('div');
+      m.className = 'srch-match';
+      const nameOnly = stripExt(f.name);
+      const highlighted = nameOnly.replace(new RegExp('('+escapeRegex(term)+')','ig'), '<mark>$1</mark>');
+      m.innerHTML = `
+        <div class="sm-name">${highlighted}</div>
+        <div class="sm-neighbours">${neighbours.length?neighbours.join('  ·  '):'— only file here —'}</div>`;
+      m.addEventListener('click', () => {
+        playFile(f, folder);
+        $searchInput.value = '';
+        closeSheet();
+      });
+      grp.appendChild(m);
+    });
+
+    $browserList.appendChild(grp);
+  });
+}
+
+function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+// Browser quick action buttons
+document.getElementById('bxPlayAll').addEventListener('click', () => {
+  const files = collectFiles(browserFolder);
+  if(!files.length) return;
+  playlist = [...files];
+  playlist.__source = browserFolder;
+  playlistIndex = 0;
+  playFile(files[0], parentOf(files[0]) || browserFolder);
+  closeSheet();
+});
+
+document.getElementById('bxShuffle').addEventListener('click', () => {
+  const files = collectFiles(browserFolder);
+  if(!files.length) return;
+  for(let i = files.length-1; i > 0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
+  playlist = files;
+  playlist.__source = browserFolder;
+  playlistIndex = 0;
+  playFile(files[0], parentOf(files[0]) || browserFolder);
+  closeSheet();
+});
+
+document.getElementById('bxOpenHere').addEventListener('click', () => {
+  // Open the context card centred on the first file of this folder
+  const files = childFiles(browserFolder);
+  if(files.length){
+    playFile(files[0], browserFolder);
+    isPlaying = false;
+    $btnPlay.textContent = '▶';
+    closeSheet();
+  } else {
+    // descend into first subfolder with files
+    const sub = childFolders(browserFolder).find(s => collectFiles(s).length);
+    if(sub){
+      const f = collectFiles(sub)[0];
+      playFile(f, parentOf(f));
+      isPlaying = false;
+      $btnPlay.textContent = '▶';
+      closeSheet();
+    }
+  }
+});
+
+// Live search filtering — search bar lives in transport and works regardless of sheet state
+$searchInput.addEventListener('input', () => {
+  if(!sheetOpen){
+    // Opening the sheet on first keystroke would be jarring — instead just route to browser when user submits/clicks
+    openSheet();
+  }
+  renderBrowser();
+});
+
+$searchInput.addEventListener('focus', () => {
+  if(!sheetOpen) openSheet();
+});
+
+// ===================== SETTINGS =====================
+function applySettingChange(name, value){
+  switch(name){
+    case 'adjacency': cfg.adjacency = parseInt(value, 10); break;
+    case 'siblings':  cfg.siblings  = value === 'On'; break;
+    case 'upcoming':  cfg.upcoming  = value === 'On'; break;
+    case 'foldpeek':  cfg.foldpeek  = parseInt(value, 10); break;
+  }
+  if(currentFile) renderContextCard();
+  if(sheetOpen) renderBrowser();
+}
+
+document.querySelectorAll('.setting-row[data-options]').forEach(row => {
+  row.addEventListener('click', () => {
+    const options = row.dataset.options.split(',');
+    const valEl = row.querySelector('.setting-value');
+    const current = valEl.textContent.trim();
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    valEl.textContent = next;
+    valEl.classList.toggle('active-val', next !== options[0]);
+    applySettingChange(row.dataset.setting, next);
+  });
+});
+
+// ===================== ANIMATION LOOP =====================
+let lastTime = 0;
+function animate(timestamp){
+  const dt = lastTime ? (timestamp - lastTime)/1000 : 0.016;
+  lastTime = timestamp;
+
+  if(isPlaying && currentFile){
+    elapsed += dt;
+    if(elapsed >= currentDuration && currentDuration > 0){
+      nextTrack();
+    }
+  }
+  const pct = currentDuration > 0 ? (elapsed / currentDuration * 100) : 0;
+  $progressLine.style.width = pct + '%';
+  if(currentFile){
+    $tnTime.textContent = formatTime(elapsed) + ' / ' + formatTime(currentDuration);
+  }
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// ===================== RESIZE OBSERVER (mobile/tablet only) =====================
+const ro = new ResizeObserver(entries => {
+  const { width } = entries[0].contentRect;
+  document.body.classList.toggle('mobile', width < 700);
+  document.body.classList.toggle('tablet', width >= 700);
+  // Position the progress line just above the transport bar
+  positionProgressLine();
+});
+ro.observe(document.body);
+
+function positionProgressLine(){
+  const transport = document.getElementById('transport');
+  if(!transport) return;
+  const h = transport.offsetHeight;
+  $progressLine.style.bottom = h + 'px';
+  $progressHit.style.bottom = (h - 4) + 'px';
+}
+
+// ===================== KEYBOARD =====================
+document.addEventListener('keydown', e => {
+  if(e.target === $searchInput) return;
+  switch(e.key){
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowRight':
+      nextTrack();
+      break;
+    case 'ArrowLeft':
+      prevTrack();
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      if(!sheetOpen) openSheet();
+      break;
+    case 'Escape':
+      if(sheetOpen) closeSheet();
+      break;
+  }
+});
+
+// ===================== INITIAL RENDER =====================
+renderEmptyContext();
+renderTransport();
+renderBrowser();
+positionProgressLine();
+// Recompute on next frame in case fonts shift transport height
+requestAnimationFrame(positionProgressLine);
+
+</script>
+</body>
+</html>

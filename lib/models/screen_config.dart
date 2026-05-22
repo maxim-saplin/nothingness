@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'spectrum_settings.dart';
 
-enum ScreenType { spectrum, polo, dot }
+enum ScreenType { spectrum, polo, dot, void_ }
 
 abstract class ScreenConfig {
   final ScreenType type;
@@ -26,8 +26,23 @@ abstract class ScreenConfig {
         return PoloScreenConfig.fromJson(json);
       case ScreenType.dot:
         return DotScreenConfig.fromJson(json);
+      case ScreenType.void_:
+        return VoidScreenConfig.fromJson(json);
     }
   }
+}
+
+class VoidScreenConfig extends ScreenConfig {
+  const VoidScreenConfig() : super(type: ScreenType.void_, name: 'Void');
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'name': name,
+  };
+
+  factory VoidScreenConfig.fromJson(Map<String, dynamic> _) =>
+      const VoidScreenConfig();
 }
 
 class SpectrumScreenConfig extends ScreenConfig {

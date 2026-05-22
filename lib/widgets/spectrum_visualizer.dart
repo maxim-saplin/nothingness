@@ -3,16 +3,25 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/spectrum_settings.dart';
+import '../theme/app_palette.dart';
 
 class SpectrumVisualizer extends StatelessWidget {
   final List<double> data;
   final SpectrumSettings settings;
 
+  /// Optional override that bypasses [SpectrumSettings.colorScheme]. Used by
+  /// the Spectrum hero to paint a monochrome variant against the active Void
+  /// palette regardless of the user's saved colour-scheme preference.
+  final List<Color>? colorsOverride;
+
   const SpectrumVisualizer({
     super.key,
     required this.data,
     required this.settings,
+    this.colorsOverride,
   });
+
+  List<Color> _colors() => colorsOverride ?? settings.colorScheme.colors;
 
   // Frequency labels for display (logarithmic distribution)
   static const List<String> _frequencyLabels8 = [
@@ -82,6 +91,9 @@ class SpectrumVisualizer extends StatelessWidget {
     // Resample data to match bar count
     final targetCount = settings.barCount.count;
     final resampledData = _resampleData(data, targetCount);
+    final theme = Theme.of(context);
+    final palette = theme.extension<AppPalette>()!;
+    final isLight = theme.brightness == Brightness.light;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -103,6 +115,9 @@ class SpectrumVisualizer extends StatelessWidget {
                     painter: _SpectrumPainter(
                       data: resampledData,
                       settings: settings,
+                      isLight: isLight,
+                      fgPrimary: palette.fgPrimary,
+                      colors: _colors(),
                     ),
                     size: Size.infinite,
                   ),
@@ -114,7 +129,7 @@ class SpectrumVisualizer extends StatelessWidget {
             Center(
               child: SizedBox(
                 width: actualWidth,
-                child: _buildFrequencyLabels(targetCount),
+                child: _buildFrequencyLabels(targetCount, palette),
               ),
             ),
           ],
@@ -130,7 +145,7 @@ class SpectrumVisualizer extends StatelessWidget {
     return barCount * barWidth * (1 + gapRatio);
   }
 
-  Widget _buildFrequencyLabels(int barCount) {
+  Widget _buildFrequencyLabels(int barCount, AppPalette palette) {
     final labels = _labels;
     // Show fewer labels for readability
     final showEvery = barCount == 24 ? 3 : (barCount == 12 ? 2 : 1);
@@ -143,9 +158,9 @@ class SpectrumVisualizer extends StatelessWidget {
           child: Text(
             showLabel ? labels[i] : '',
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 9,
-              color: Colors.white38,
+              color: palette.fgSecondary,
               fontFamily: 'monospace',
               fontWeight: FontWeight.w500,
             ),
@@ -181,8 +196,19 @@ class SpectrumVisualizer extends StatelessWidget {
 class _SpectrumPainter extends CustomPainter {
   final List<double> data;
   final SpectrumSettings settings;
+  final bool isLight;
+  final Color fgPrimary;
+  final List<Color> colors;
 
-  _SpectrumPainter({required this.data, required this.settings});
+  _SpectrumPainter({
+    required this.data,
+    required this.settings,
+    required this.isLight,
+    required this.fgPrimary,
+    required this.colors,
+  });
+
+  List<Color> _colors() => colors;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -257,7 +283,7 @@ class _SpectrumPainter extends CustomPainter {
     double segmentHeight,
     double totalSegmentHeight,
   ) {
-    final colors = settings.colorScheme.colors;
+    final colors = _colors();
 
     for (int seg = 0; seg < segmentCount; seg++) {
       final y =
@@ -275,18 +301,27 @@ class _SpectrumPainter extends CustomPainter {
         color = Color.lerp(colors[1], colors[2], (segmentRatio - 0.5) * 2)!;
       }
 
+      // Unlit colour: in light variant, the per-channel hue at alpha 25 is
+      // imperceptible against a white background; mix the segment colour
+      // toward `fgPrimary` so the bar grid stays readable while still hinting
+      // at the segment's chromatic position.
+      final Color unlitColor = isLight
+          ? Color.lerp(color, fgPrimary, 0.55)!.withAlpha(70)
+          : color.withAlpha(25);
+
       final paint = Paint()
-        ..color = isLit ? color : color.withAlpha(25)
+        ..color = isLit ? color : unlitColor
         ..style = PaintingStyle.fill;
 
       // Sharp rectangle (no rounded corners) for pixelated look
       final rect = Rect.fromLTWH(x, y, barWidth, segmentHeight);
       canvas.drawRect(rect, paint);
 
-      // Add subtle highlight on lit segments
+      // Add subtle highlight on lit segments — keep the highlight tone in the
+      // theme's ink colour so it reads in both variants.
       if (isLit) {
         final highlightPaint = Paint()
-          ..color = Colors.white.withAlpha(40)
+          ..color = (isLight ? Colors.black : Colors.white).withAlpha(40)
           ..style = PaintingStyle.fill;
         final highlightRect = Rect.fromLTWH(
           x,
@@ -307,7 +342,7 @@ class _SpectrumPainter extends CustomPainter {
     double barHeight,
     double maxBarHeight,
   ) {
-    final colors = settings.colorScheme.colors;
+    final colors = _colors();
     final normalizedHeight = (barHeight / maxBarHeight).clamp(0.0, 1.0);
 
     Color color;
@@ -333,7 +368,7 @@ class _SpectrumPainter extends CustomPainter {
     double barHeight,
     double maxBarHeight,
   ) {
-    final colors = settings.colorScheme.colors;
+    final colors = _colors();
     final normalizedHeight = (barHeight / maxBarHeight).clamp(0.0, 1.0);
 
     Color color;

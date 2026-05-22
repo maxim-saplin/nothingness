@@ -26,12 +26,11 @@ graph TD
 ## Key Components
 
 ### 1. Flutter UI Layer
--   **`MediaControllerPage`**: The main entry point and orchestrator. It manages the layout, including the main visualizer area and the slide-out settings panel. It switches between different screens:
-    -   **`SpectrumScreen`**: Standard bar visualizer.
-    -   **`PoloScreen`**: Retro LCD-style display.
-    -   **`DotScreen`**: Minimalist fluctuating dot interface.
--   **`ScaledLayout`**: A wrapper widget that ensures the entire UI is scaled consistently across different screen DPIs. It now wraps the entire `MediaControllerPage` content (including the Settings overlay) to ensure consistent scaling for all elements (see [UI Scaling](ui-scaling.md)).
-    -   **Library Panel**: A swipe-up/arrow-triggered panel with tabs for Now Playing (queue controls) and Folders (folder picker, Play All with recursive enqueue).
+-   **`MediaControllerPage`**: The main entry point and orchestrator. It owns the active `ScreenConfig`, passes audio state down, and hands off rendering to a single shell, `VoidScreen`.
+-   **`VoidScreen`** (`lib/screens/void_screen.dart`): The unified chrome for all four skins. It hosts a pluggable **hero** (`SpectrumHero` / `PoloHero` / `DotHero` / `VoidHero` under `lib/widgets/heroes/`), a sliding library browser (`VoidBrowser`, with full-name recursive search), a configurable transport row (`TransportRow`), and a redesigned settings sheet (`VoidSettingsSheet`). Replaces the legacy per-skin `SpectrumScreen` / `PoloScreen` / `DotScreen` shells and the old `LibraryPanel`.
+-   **Theme abstraction** (`lib/theme/`): `app_palette.dart`, `app_typography.dart`, `app_geometry.dart`, `themes.dart`, and per-theme palettes (`palettes/void_dark.dart`, `void_light.dart`). Drives the `ThemeId` / `ThemeVariant` enums and the dark / light / auto switching surfaced in settings.
+-   **`ScaledLayout`**: A wrapper widget that ensures the entire UI is scaled consistently across different screen DPIs. It still wraps the entire `MediaControllerPage` content (including the settings sheet) to ensure consistent scaling (see [UI Scaling](ui-scaling.md)).
+-   **Browser**: `VoidBrowser` is the swipe-up library browser, with last-folder restore, breadcrumb, and a `BrowserPresentation` enum that controls whether it sits as a permanent strip or slides up over the hero.
 
 ### 2. Service Layer
 -   **`SettingsService`**: A singleton service responsible for managing application state.

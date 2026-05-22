@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:external_path/external_path.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -14,6 +15,7 @@ import '../services/library_service.dart';
 import '../services/logging_service.dart';
 import '../services/android_media_store_freshness.dart';
 import '../services/media_store_freshness.dart';
+import '../models/supported_extensions.dart';
 import '../services/metadata_extractor.dart';
 import '../services/platform_channels.dart';
 
@@ -30,7 +32,10 @@ Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
     ignoreCase: true,
   );
   return songs
-      .map((song) => LibrarySong(path: song.data, title: song.title))
+      .map((song) => LibrarySong(
+            path: song.data,
+            title: SupportedExtensions.stripFromTitle(song.title),
+          ))
       .toList();
 }
 
@@ -98,6 +103,13 @@ class LibraryController extends ChangeNotifier {
 
   bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
   bool get isAndroid => _isAndroid;
+
+  /// All MediaStore songs cached this session (Android only). Empty on
+  /// other platforms or before [_ensureAndroidSongsLoaded] has run.
+  ///
+  /// Used by Void search (B-009) so the result set covers the whole
+  /// library, not just the currently-loaded folder.
+  List<LibrarySong> get androidSongs => List.unmodifiable(_androidSongs);
 
   Future<void> init() async {
     if (_isAndroid) {
@@ -250,35 +262,16 @@ class LibraryController extends ChangeNotifier {
     try {
       if (_isAndroid) {
         await _ensureAndroidSongsLoaded();
-        var listing = await libraryBrowser.buildVirtualListing(
+        final listing = await libraryBrowser.buildVirtualListing(
           basePath: path,
           songs: _androidSongs,
         );
 
-        // If MediaStore has nothing for this path (common on some automotive/USB mounts),
-        // fall back to a direct filesystem listing so users can still browse and play.
-        if (listing.folders.isEmpty && listing.tracks.isEmpty) {
-          final dir = Directory(path);
-          if (await dir.exists()) {
-            try {
-              final fsListing = await libraryBrowser.listFileSystem(path);
-              if (fsListing.folders.isNotEmpty || fsListing.tracks.isNotEmpty) {
-                listing = fsListing;
-                LoggingService().log(
-                  tag: 'Library',
-                  message:
-                      'Used filesystem fallback for $path (MediaStore empty)',
-                );
-              }
-            } catch (e) {
-              LoggingService().log(
-                tag: 'Library',
-                message: 'Filesystem fallback failed for $path: $e',
-                level: LogLevel.error,
-              );
-            }
-          }
-        }
+        // No filesystem fallback on Android — the player surfaces only what
+        // MediaStore knows about so it stays a music player, never a file
+        // browser. If MediaStore is empty for this path the listing renders
+        // empty and the user can refresh / use search instead of being
+        // dumped into Alarms / Android / Notifications / Ringtones.
         currentPath = listing.path;
         folders = listing.folders;
         tracks = listing.tracks;
@@ -342,10 +335,20 @@ class LibraryController extends ChangeNotifier {
       )) {
         try {
           final track = await extractor.extractMetadata(song.path);
-          filtered.add(track);
+          // Override the metadata title with the on-disk filename so the
+          // browser, hero, and search rows all show the user's name for
+          // the file rather than whatever ID3 tag the encoder buried in it.
+          filtered.add(AudioTrack(
+            path: track.path,
+            title: p.basenameWithoutExtension(track.path),
+            artist: track.artist,
+            isNotFound: track.isNotFound,
+          ));
         } catch (e) {
-          // Fallback to song title if extraction fails
-          filtered.add(AudioTrack(path: song.path, title: song.title));
+          filtered.add(AudioTrack(
+            path: song.path,
+            title: p.basenameWithoutExtension(song.path),
+          ));
         }
       }
       filtered.sort((a, b) => a.title.compareTo(b.title));
@@ -538,13 +541,13 @@ class LibraryController extends ChangeNotifier {
             androidSmartRootSections.expand((s) => s.entries).toList()..sort();
 
         if (smartEntries.isEmpty) {
-          // Smart roots produced no entries (e.g., songs under device root or
-          // mismatched roots). Fall back to a reasonable default root view.
-          initialAndroidRoot = roots.firstWhere(
-            (r) => r.contains('/storage/emulated/0'),
-            orElse: () => roots.first,
-          );
-          await loadFolder(initialAndroidRoot!);
+          // No music-bearing smart roots: leave the listing empty so the
+          // user sees a "no music found" state instead of the device root
+          // filesystem. Pre-fix, this fell through to `loadFolder(deviceRoot)`
+          // which produced the unwanted "Alarms / Android / Notifications /
+          // Ringtones" Android-file-explorer view (B-001).
+          _clearListing();
+          _safeNotifyListeners();
           return;
         }
 
@@ -561,20 +564,10 @@ class LibraryController extends ChangeNotifier {
         return;
       }
 
-      // Fallback: if we have roots but couldn't compute smart roots, open a reasonable default.
-      if (roots.isNotEmpty) {
-        initialAndroidRoot = roots.firstWhere(
-          (r) => r.contains('/storage/emulated/0'),
-          orElse: () => roots.first,
-        );
-        await loadFolder(initialAndroidRoot!);
-        return;
-      }
-
-      if (_androidSongs.isNotEmpty) {
-        initialAndroidRoot = '/storage/emulated/0';
-        await loadFolder(initialAndroidRoot!);
-      }
+      // No songs and/or no roots → empty smart-roots view. We do NOT open a
+      // filesystem listing on Android (see comment in `loadFolder`).
+      _clearListing();
+      _safeNotifyListeners();
     } catch (e) {
       debugPrint('Failed to load Android root: $e');
     }

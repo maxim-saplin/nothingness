@@ -29,6 +29,21 @@ class SupportedExtensions {
     '.ogg',
     '.opus',
   };
+
+  /// Strips a trailing supported-audio extension from a display title, e.g.
+  /// "Nirvana - Smells like Teen Spirit.mp3" -> "Nirvana - Smells like Teen
+  /// Spirit". MediaStore sometimes returns the on-disk filename verbatim when
+  /// the file lacks a proper ID3 title tag — we never want to show ".mp3" or
+  /// ".flac" to the user.
+  static String stripFromTitle(String title) {
+    final dot = title.lastIndexOf('.');
+    if (dot < 0) return title;
+    final ext = title.substring(dot).toLowerCase();
+    if (supportedExtensionsWithDots.contains(ext)) {
+      return title.substring(0, dot);
+    }
+    return title;
+  }
 }
 
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_palette.dart';
+
 class AnimatedBar extends StatefulWidget {
   final int delay;
 
@@ -42,6 +44,7 @@ class _AnimatedBarState extends State<AnimatedBar>
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).extension<AppPalette>()!.accent;
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -49,7 +52,7 @@ class _AnimatedBarState extends State<AnimatedBar>
           width: 3,
           height: 16 * _animation.value,
           decoration: BoxDecoration(
-            color: const Color(0xFF00FF88),
+            color: accent,
             borderRadius: BorderRadius.circular(2),
           ),
         );

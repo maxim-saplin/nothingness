@@ -6,7 +6,7 @@ This document describes the folder browsing pipeline after moving MediaStore log
 
 - **LibraryBrowser (service)**: Pure logic for building folder listings from MediaStore song paths (Android) or from the local file system (macOS). Returns `LibraryListing` with folders and `AudioTrack` items.
 - **LibraryController (ChangeNotifier)**: Owns library state (current path, loading, errors, folders, tracks, permissions). Delegates all data work to `LibraryBrowser`, handles permission requests on Android, and exposes navigation helpers for the UI.
-- **LibraryPanel (widget)**: Presentation-only. Listens to `LibraryController` via Provider, renders folders/tracks, and triggers actions such as `requestPermission`, `loadFolder`, `navigateUp`, `repairCurrentFolderListing`, and `tracksForCurrentPath`.
+- **VoidBrowser (widget)** (`lib/widgets/void_browser.dart`): Presentation-only. Listens to `LibraryController` via Provider, renders the breadcrumb, folders, and tracks, and triggers actions such as `requestPermission`, `loadFolder`, `navigateUp`, `repairCurrentFolderListing`, and `tracksForCurrentPath`. Supports a sliding-up presentation (collapsed hint band → expanded drawer) controlled by the `BrowserPresentation` setting, plus full-name recursive search across the entire library (not just the current folder). Replaces the legacy `LibraryPanel` widget.
 - **LibraryService (macOS bookmarks)**: Persists user-selected roots on macOS; the controller consults it when navigating back to root.
 - **PlatformChannels (Android MediaStore bridge)**: Exposes MediaStore version checks, change notifications, and the folder-level rescan method used by the manual repair action.
 
@@ -42,7 +42,7 @@ This document describes the folder browsing pipeline after moving MediaStore log
 
 ## Rationale
 
-- Removes storage and MediaStore logic from `LibraryPanel` to keep the widget focused on presentation.
+- Removes storage and MediaStore logic from the browser widget (`VoidBrowser`) to keep it focused on presentation.
 - Enables unit testing of the folder-building logic (`LibraryBrowser`) without Flutter bindings.
 - Keeps Android on the existing MediaStore-first model while still giving users a targeted repair path for stale folder indexes.
 - Maintains feature parity: Android uses MediaStore; macOS keeps filesystem browsing with security-scoped bookmarks.

@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>nothingness :: hacker</title>
+<!--
+  Persona: The CLI Hacker
+  Core belief: The bottom bar is a prompt; every action in this app is one keystroke away from being typed.
+  Key structural moves:
+    1. A persistent, always-focused prompt in the bottom thumb zone is the only navigational surface — no tabs, no bottom sheet, no settings screen. `:commands`, `/searches`, `?help` and bare-path fuzzy-jumps all share that one input.
+    2. Results grow UPWARD from the prompt as a scored, ranked palette (file matches, command matches, history matches interleaved by score). Arrow keys / taps select; Enter executes; selected row shows its full path fragment.
+    3. The "now playing" surface is a single line of monospace above the prompt — track + 1px progress + transport glyphs as typeable letters (p/n/b/space). No separate player view, no sheet. Settings live as `:set key value` commands; toggles are also tap-cyclable rows surfaced via `:settings`.
+  Trade-offs accepted: Almost no discoverability without reading `?help`. Tap-first / pure-gesture users will be lost — every affordance assumes typing is the primary modality. Visual chrome is brutally sparse; the whole app could be mistaken for a terminal.
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:#000;
+  color:#FFF;
+  font-family:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  font-size:13px;
+  line-height:1.4;
+}
+
+/* ===================== ROOT LAYOUT ===================== */
+#root{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+}
+
+/* ===================== HEADER STRIP ===================== */
+.head{
+  flex-shrink:0;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:8px 12px;
+  font-size:10px;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.25);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.head .left{display:flex;gap:14px;align-items:center}
+.head .right{display:flex;gap:10px;align-items:center}
+.kbd{
+  display:inline-block;
+  padding:1px 5px;
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:2px;
+  color:rgba(255,255,255,0.4);
+  font-size:9px;
+  letter-spacing:0.05em;
+  text-transform:none;
+}
+.brand{color:rgba(255,255,255,0.85);letter-spacing:0.3em}
+.brand .blink{
+  animation:blink 1s step-end infinite;
+  font-weight:100;
+}
+
+@keyframes blink{
+  0%,100%{opacity:0.85}
+  50%{opacity:0}
+}
+
+/* ===================== NOW PLAYING LINE ===================== */
+.now{
+  flex-shrink:0;
+  padding:10px 12px 0;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.now-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:24px;
+  font-size:12px;
+}
+.now-glyph{
+  color:rgba(255,255,255,0.4);
+  width:14px;
+}
+.now-track{
+  flex:1;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.now-track.playing::after{
+  content:'_';
+  margin-left:2px;
+  animation:blink 1s step-end infinite;
+  font-weight:100;
+  opacity:0.6;
+}
+.now-track.idle{color:rgba(255,255,255,0.25)}
+.now-time{
+  color:rgba(255,255,255,0.4);
+  font-size:11px;
+  letter-spacing:0.05em;
+  font-variant-numeric:tabular-nums;
+}
+.now-transport{
+  display:flex;
+  gap:6px;
+  margin-left:4px;
+}
+.tbtn{
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.6);
+  font-family:inherit;
+  font-size:10px;
+  padding:3px 7px;
+  border-radius:2px;
+  cursor:pointer;
+  letter-spacing:0.05em;
+  min-width:24px;
+  text-align:center;
+}
+.tbtn:hover,.tbtn:active{
+  border-color:rgba(255,255,255,0.4);
+  color:#FFF;
+}
+
+.progress-wrap{
+  position:relative;
+  height:1px;
+  margin-top:8px;
+  background:rgba(255,255,255,0.06);
+}
+.progress{
+  position:absolute;
+  left:0;top:0;
+  height:1px;
+  width:0%;
+  background:#FFF;
+}
+.progress-hit{
+  position:absolute;
+  left:0;right:0;
+  top:-8px;
+  height:16px;
+  cursor:pointer;
+}
+
+/* ===================== RESULTS PANE ===================== */
+.results{
+  flex:1;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column-reverse; /* grows upward */
+  padding:8px 0 0;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.15) transparent;
+}
+.results::-webkit-scrollbar{width:4px}
+.results::-webkit-scrollbar-track{background:transparent}
+.results::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+
+.results-inner{
+  display:flex;
+  flex-direction:column;
+}
+
+/* hint shown when prompt is empty */
+.idle-pane{
+  padding:16px 16px 8px;
+  color:rgba(255,255,255,0.25);
+  font-size:11px;
+  letter-spacing:0.05em;
+}
+.idle-pane h1{
+  font-size:11px;
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  margin-bottom:10px;
+  font-weight:400;
+}
+.idle-pane .ex{
+  display:flex;
+  gap:10px;
+  padding:3px 0;
+  align-items:baseline;
+}
+.idle-pane .ex code{
+  color:rgba(255,255,255,0.7);
+  background:rgba(255,255,255,0.06);
+  padding:1px 6px;
+  border-radius:2px;
+  font-family:inherit;
+  font-size:11px;
+}
+.idle-pane .ex span{color:rgba(255,255,255,0.4)}
+
+.breadcrumbs{
+  padding:6px 12px 8px;
+  font-size:11px;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:0.05em;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:2px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.breadcrumbs .bc{
+  cursor:pointer;
+  padding:1px 4px;
+  border-radius:2px;
+}
+.breadcrumbs .bc:hover{color:#FFF}
+.breadcrumbs .bc.current{color:rgba(255,255,255,0.85)}
+.breadcrumbs .sep{opacity:0.3}
+.breadcrumbs .prompt-mark{
+  color:rgba(255,255,255,0.4);
+  margin-right:4px;
+  letter-spacing:0;
+}
+
+.row{
+  display:flex;
+  align-items:center;
+  padding:6px 12px;
+  gap:10px;
+  cursor:pointer;
+  border-left:2px solid transparent;
+  min-height:32px;
+  font-size:13px;
+}
+.row:hover{background:rgba(255,255,255,0.04)}
+.row.selected{
+  background:rgba(255,255,255,0.06);
+  border-left-color:#FFF;
+}
+.row .glyph{
+  width:16px;
+  flex-shrink:0;
+  color:rgba(255,255,255,0.4);
+  font-size:12px;
+  text-align:center;
+}
+.row .label{
+  flex:1;
+  min-width:0;
+  color:rgba(255,255,255,0.85);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.row .meta{
+  font-size:10px;
+  color:rgba(255,255,255,0.3);
+  letter-spacing:0.05em;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.row .score{
+  font-size:9px;
+  color:rgba(255,255,255,0.25);
+  background:rgba(255,255,255,0.06);
+  padding:1px 4px;
+  border-radius:2px;
+  margin-left:6px;
+  letter-spacing:0;
+  flex-shrink:0;
+}
+.row.playing-now .glyph{color:#FFF;opacity:1}
+.row.playing-now .label{color:#FFF}
+.row.cmd .glyph{color:rgba(255,255,255,0.6)}
+.row.cmd .label{color:rgba(255,255,255,0.7)}
+.row.cmd .label b{color:#FFF;font-weight:400}
+.row.hist .glyph{color:rgba(255,255,255,0.3)}
+.row.hist .label{color:rgba(255,255,255,0.5);font-style:italic}
+
+.match{color:#FFF;font-weight:500;background:rgba(255,255,255,0.10)}
+.path-frag{
+  color:rgba(255,255,255,0.3);
+  font-size:11px;
+  margin-left:2px;
+}
+
+.no-results{
+  padding:24px 16px;
+  text-align:center;
+  color:rgba(255,255,255,0.25);
+  font-size:11px;
+  letter-spacing:0.1em;
+}
+
+.section-head{
+  padding:8px 12px 4px;
+  font-size:9px;
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.25);
+}
+
+/* ===================== TOAST ===================== */
+.toast{
+  position:fixed;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:96px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.85);
+  font-size:11px;
+  letter-spacing:0.05em;
+  padding:6px 12px;
+  border-radius:3px;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.2s;
+  z-index:30;
+  white-space:nowrap;
+  max-width:90vw;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.toast.show{opacity:1}
+
+/* ===================== PROMPT ===================== */
+.prompt-shell{
+  flex-shrink:0;
+  border-top:1px solid rgba(255,255,255,0.1);
+  background:#000;
+  padding:10px 12px env(safe-area-inset-bottom, 10px);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.mode-line{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  font-size:9px;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  min-height:14px;
+}
+.mode-line .mode-tag{
+  color:rgba(255,255,255,0.85);
+  border:1px solid rgba(255,255,255,0.2);
+  padding:1px 6px;
+  border-radius:2px;
+  letter-spacing:0.15em;
+}
+.mode-line .hint{
+  color:rgba(255,255,255,0.25);
+  letter-spacing:0.05em;
+  text-transform:none;
+  flex:1;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.prompt-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:3px;
+  padding:10px 12px;
+  background:rgba(255,255,255,0.03);
+  min-height:44px;
+}
+.prompt-row:focus-within{
+  border-color:rgba(255,255,255,0.4);
+  background:rgba(255,255,255,0.06);
+}
+.prompt-sigil{
+  color:rgba(255,255,255,0.6);
+  font-size:14px;
+  letter-spacing:0;
+  width:14px;
+  flex-shrink:0;
+  font-weight:500;
+}
+.prompt-cwd{
+  color:rgba(255,255,255,0.35);
+  font-size:11px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:35%;
+  flex-shrink:0;
+}
+#promptInput{
+  flex:1;
+  background:transparent;
+  border:none;
+  outline:none;
+  color:#FFF;
+  font-family:inherit;
+  font-size:14px;
+  caret-color:#FFF;
+  min-width:0;
+  padding:0;
+}
+#promptInput::placeholder{
+  color:rgba(255,255,255,0.25);
+}
+.prompt-actions{
+  display:flex;
+  gap:4px;
+  flex-shrink:0;
+}
+.parrow{
+  width:28px;height:28px;
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.12);
+  color:rgba(255,255,255,0.5);
+  border-radius:2px;
+  font-family:inherit;
+  font-size:11px;
+  cursor:pointer;
+}
+.parrow:hover,.parrow:active{
+  border-color:rgba(255,255,255,0.4);
+  color:#FFF;
+}
+
+/* ===================== RESPONSIVE ===================== */
+body.mobile .head{
+  padding:6px 10px;
+  font-size:9px;
+}
+body.mobile .head .right .kbd{display:none}
+body.mobile .row{
+  padding:8px 12px;
+  min-height:40px;
+}
+body.mobile .prompt-row{
+  min-height:48px;
+  padding:10px 12px;
+}
+body.mobile #promptInput{font-size:15px}
+body.mobile .prompt-cwd{max-width:30%}
+body.mobile .now-transport .tbtn{
+  padding:4px 8px;
+  font-size:11px;
+  min-width:30px;
+}
+
+body.tablet #root{
+  max-width:760px;
+  margin:0 auto;
+  border-left:1px solid rgba(255,255,255,0.06);
+  border-right:1px solid rgba(255,255,255,0.06);
+}
+body.tablet .prompt-cwd{max-width:40%}
+</style>
+</head>
+<body>
+
+<div id="root">
+
+  <!-- ===================== HEADER ===================== -->
+  <div class="head">
+    <div class="left">
+      <span class="brand">nothingness<span class="blink">_</span></span>
+      <span class="kbd">?</span>
+      <span>help</span>
+    </div>
+    <div class="right">
+      <span class="kbd">/</span><span>find</span>
+      <span class="kbd">:</span><span>cmd</span>
+      <span class="kbd">&uarr;</span><span>hist</span>
+    </div>
+  </div>
+
+  <!-- ===================== NOW PLAYING ===================== -->
+  <div class="now">
+    <div class="now-row">
+      <span class="now-glyph" id="nowGlyph">~</span>
+      <span class="now-track idle" id="nowTrack">[void]</span>
+      <span class="now-time" id="nowTime">--:-- / --:--</span>
+      <span class="now-transport">
+        <button class="tbtn" id="btnPrev" title="b — previous">b</button>
+        <button class="tbtn" id="btnPlay" title="space — play/pause">&#9655;</button>
+        <button class="tbtn" id="btnNext" title="n — next">n</button>
+      </span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress" id="progress"></div>
+      <div class="progress-hit" id="progressHit"></div>
+    </div>
+  </div>
+
+  <!-- ===================== RESULTS ===================== -->
+  <div class="results" id="results">
+    <div class="results-inner" id="resultsInner"></div>
+  </div>
+
+  <!-- ===================== PROMPT ===================== -->
+  <div class="prompt-shell">
+    <div class="mode-line">
+      <span class="mode-tag" id="modeTag">NAV</span>
+      <span class="hint" id="modeHint">type a path, /search, :command, or ?help</span>
+    </div>
+    <div class="prompt-row">
+      <span class="prompt-sigil" id="promptSigil">&gt;</span>
+      <span class="prompt-cwd" id="promptCwd">~/</span>
+      <input id="promptInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" placeholder="">
+      <div class="prompt-actions">
+        <button class="parrow" id="parrowUp" title="prev (history / select up)">&uarr;</button>
+        <button class="parrow" id="parrowDown" title="next (select down)">&darr;</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== FILE TREE ===================== */
+const FILE_TREE = {
+  name: '~', type: 'folder', children: [
+    { name: 'media', type: 'folder', children: [
+      { name: 'rock', type: 'folder', children: [
+        { name: 'led_zeppelin', type: 'folder', children: [
+          { name: 'stairway_to_heaven.mp3', type: 'file', duration: '08:02', size: '11.2 MB' },
+          { name: 'kashmir.mp3', type: 'file', duration: '08:37', size: '12.1 MB' },
+          { name: 'black_dog.mp3', type: 'file', duration: '04:54', size: '6.9 MB' },
+          { name: 'whole_lotta_love.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+        ]},
+        { name: 'pink_floyd', type: 'folder', children: [
+          { name: 'comfortably_numb.mp3', type: 'file', duration: '06:22', size: '8.9 MB' },
+          { name: 'wish_you_were_here.mp3', type: 'file', duration: '05:34', size: '7.8 MB' },
+          { name: 'time.mp3', type: 'file', duration: '07:06', size: '9.9 MB' },
+        ]},
+        { name: 'ac_dc', type: 'folder', children: [
+          { name: 'thunderstruck.mp3', type: 'file', duration: '04:52', size: '6.8 MB' },
+          { name: 'highway_to_hell.mp3', type: 'file', duration: '03:28', size: '4.9 MB' },
+          { name: 'back_in_black.mp3', type: 'file', duration: '04:15', size: '6.0 MB' },
+        ]},
+      ]},
+      { name: 'electronic', type: 'folder', children: [
+        { name: 'daft_punk', type: 'folder', children: [
+          { name: 'around_the_world.mp3', type: 'file', duration: '07:09', size: '10.0 MB' },
+          { name: 'one_more_time.mp3', type: 'file', duration: '05:20', size: '7.5 MB' },
+          { name: 'digital_love.mp3', type: 'file', duration: '04:58', size: '7.0 MB' },
+          { name: 'harder_better_faster.mp3', type: 'file', duration: '03:44', size: '5.2 MB' },
+        ]},
+        { name: 'kraftwerk', type: 'folder', children: [
+          { name: 'autobahn.mp3', type: 'file', duration: '22:43', size: '31.8 MB' },
+          { name: 'the_model.mp3', type: 'file', duration: '03:43', size: '5.2 MB' },
+          { name: 'computer_love.mp3', type: 'file', duration: '07:20', size: '10.3 MB' },
+        ]},
+        { name: 'aphex_twin', type: 'folder', children: [
+          { name: 'windowlicker.mp3', type: 'file', duration: '06:07', size: '8.6 MB' },
+          { name: 'avril_14th.mp3', type: 'file', duration: '02:05', size: '2.9 MB' },
+        ]},
+      ]},
+      { name: 'jazz', type: 'folder', children: [
+        { name: 'miles_davis', type: 'folder', children: [
+          { name: 'so_what.mp3', type: 'file', duration: '09:22', size: '13.1 MB' },
+          { name: 'blue_in_green.mp3', type: 'file', duration: '05:27', size: '7.6 MB' },
+          { name: 'all_blues.mp3', type: 'file', duration: '11:33', size: '16.2 MB' },
+        ]},
+        { name: 'john_coltrane', type: 'folder', children: [
+          { name: 'giant_steps.mp3', type: 'file', duration: '04:46', size: '6.7 MB' },
+          { name: 'my_favorite_things.mp3', type: 'file', duration: '13:41', size: '19.2 MB' },
+        ]},
+      ]},
+      { name: 'classical', type: 'folder', children: [
+        { name: 'bach', type: 'folder', children: [
+          { name: 'cello_suite_no_1.mp3', type: 'file', duration: '02:38', size: '3.7 MB' },
+          { name: 'toccata_and_fugue.mp3', type: 'file', duration: '09:18', size: '13.0 MB' },
+        ]},
+      ]},
+    ]}
+  ]
+};
+
+/* ===================== INDEX & PATH UTILS ===================== */
+function buildIndex(node, path, out){
+  const here = [...path, node.name];
+  if (node.type === 'file'){
+    out.push({
+      name: node.name,
+      pretty: node.name.replace(/\.mp3$/,''),
+      duration: node.duration,
+      size: node.size,
+      path: here,
+      pathStr: here.join('/'),
+      type: 'file',
+    });
+  } else if (node.children){
+    out.push({
+      name: node.name,
+      pretty: node.name,
+      path: here,
+      pathStr: here.join('/'),
+      type: 'folder',
+      node,
+    });
+    for (const c of node.children) buildIndex(c, here, out);
+  }
+  return out;
+}
+const ALL = buildIndex(FILE_TREE, [], []);
+const ALL_FILES = ALL.filter(e => e.type === 'file');
+const ALL_FOLDERS = ALL.filter(e => e.type === 'folder');
+
+function findNodeByPath(pathArr){
+  // pathArr starts with '~'
+  let node = FILE_TREE;
+  if (!pathArr.length || pathArr[0] !== '~') return null;
+  for (let i=1;i<pathArr.length;i++){
+    if (!node.children) return null;
+    const next = node.children.find(c => c.name === pathArr[i]);
+    if (!next) return null;
+    node = next;
+  }
+  return node;
+}
+
+function pathFromNode(target){
+  // BFS to get path to a node from root
+  let result = null;
+  function walk(n, acc){
+    if (n === target){ result = acc.slice(); return true; }
+    if (n.children){
+      for (const c of n.children){
+        acc.push(c.name);
+        if (walk(c, acc)) return true;
+        acc.pop();
+      }
+    }
+    return false;
+  }
+  walk(FILE_TREE, ['~']);
+  return result;
+}
+
+/* ===================== FUZZY ===================== */
+// Subsequence fuzzy match with simple scoring. Returns {score, marks} or null.
+function fuzzy(needle, haystack){
+  if (!needle) return { score: 1, marks: [] };
+  const n = needle.toLowerCase();
+  const h = haystack.toLowerCase();
+  let hi = 0, score = 0, marks = [], streak = 0, lastIdx = -1;
+  for (let ni=0; ni<n.length; ni++){
+    const ch = n[ni];
+    const idx = h.indexOf(ch, hi);
+    if (idx === -1) return null;
+    // bonuses
+    let s = 1;
+    if (idx === lastIdx + 1){ streak++; s += streak; } else streak = 0;
+    if (idx === 0 || /[\s_\-\/.]/.test(h[idx-1])) s += 4; // word boundary
+    score += s;
+    marks.push(idx);
+    lastIdx = idx;
+    hi = idx + 1;
+  }
+  // shorter is better
+  score += Math.max(0, 20 - h.length) * 0.1;
+  return { score, marks };
+}
+
+function highlight(text, marks){
+  if (!marks || !marks.length) return esc(text);
+  let out = '';
+  let mi = 0;
+  for (let i=0;i<text.length;i++){
+    if (marks[mi] === i){
+      out += '<span class="match">' + esc(text[i]) + '</span>';
+      mi++;
+    } else {
+      out += esc(text[i]);
+    }
+  }
+  return out;
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+/* ===================== STATE ===================== */
+const settings = {
+  shuffle: 'off',     // off | on
+  repeat:  'off',     // off | all | one
+  gapless: 'on',
+  crossfade: '0s',
+  replaygain: 'album',
+  scan: 'on',
+};
+const SETTING_OPTIONS = {
+  shuffle: ['off','on'],
+  repeat: ['off','all','one'],
+  gapless: ['off','on'],
+  crossfade: ['0s','2s','4s','6s','8s'],
+  replaygain: ['off','track','album'],
+  scan: ['off','on'],
+};
+
+let cwd = ['~'];                  // current folder path
+let queue = [];                   // [{file entry}]
+let queueIdx = -1;
+let currentTrack = null;
+let isPlaying = false;
+let elapsed = 0;
+let duration = 0;
+let history = [];                 // command history (most recent last)
+let historyCursor = -1;           // -1 = not browsing history
+let selectedIdx = -1;             // selected result row
+let currentResults = [];          // last rendered rows
+let mode = 'NAV';                 // NAV | FIND | CMD | HELP | SETTINGS | QUEUE
+
+/* ===================== DOM ===================== */
+const $promptInput = document.getElementById('promptInput');
+const $promptSigil = document.getElementById('promptSigil');
+const $promptCwd   = document.getElementById('promptCwd');
+const $resultsInner= document.getElementById('resultsInner');
+const $results     = document.getElementById('results');
+const $modeTag     = document.getElementById('modeTag');
+const $modeHint    = document.getElementById('modeHint');
+const $nowTrack    = document.getElementById('nowTrack');
+const $nowTime     = document.getElementById('nowTime');
+const $nowGlyph    = document.getElementById('nowGlyph');
+const $progress    = document.getElementById('progress');
+const $progressHit = document.getElementById('progressHit');
+const $btnPlay     = document.getElementById('btnPlay');
+const $btnPrev     = document.getElementById('btnPrev');
+const $btnNext     = document.getElementById('btnNext');
+const $toast       = document.getElementById('toast');
+const $parrowUp    = document.getElementById('parrowUp');
+const $parrowDown  = document.getElementById('parrowDown');
+
+/* ===================== COMMANDS ===================== */
+const COMMANDS = [
+  { name: ':cd',        argHint: '<path>',           help: 'change folder (e.g. :cd media/rock)', run: cmdCd },
+  { name: ':up',        argHint: '',                 help: 'go up one folder', run: () => cmdCd('..') },
+  { name: ':root',      argHint: '',                 help: 'jump to ~', run: () => cmdCd('~') },
+  { name: ':ls',        argHint: '',                 help: 'list current folder', run: cmdLs },
+  { name: ':play',      argHint: '[query]',          help: 'play match (or first in cwd)', run: cmdPlay },
+  { name: ':pause',     argHint: '',                 help: 'pause/resume', run: () => { togglePlay(); } },
+  { name: ':next',      argHint: '',                 help: 'next track', run: nextTrack },
+  { name: ':prev',      argHint: '',                 help: 'previous track', run: prevTrack },
+  { name: ':stop',      argHint: '',                 help: 'stop playback', run: cmdStop },
+  { name: ':queue',     argHint: '[query|cwd]',      help: 'append to queue, or show queue', run: cmdQueue },
+  { name: ':enqueue',   argHint: '<query>',          help: 'append matches to queue', run: cmdEnqueue },
+  { name: ':clear',     argHint: '',                 help: 'clear queue', run: cmdClearQueue },
+  { name: ':shuffle',   argHint: '[on|off]',         help: 'toggle shuffle', run: a => cmdToggle('shuffle', a) },
+  { name: ':repeat',    argHint: '[off|all|one]',    help: 'set repeat mode', run: a => cmdToggle('repeat', a) },
+  { name: ':set',       argHint: '<key> <value>',    help: 'set a setting', run: cmdSet },
+  { name: ':settings',  argHint: '',                 help: 'show all settings', run: cmdSettings },
+  { name: ':help',      argHint: '',                 help: 'show help', run: cmdHelp },
+  { name: ':theme',     argHint: '[dark|light]',     help: 'theme variant (stub)', run: cmdTheme },
+  { name: ':home',      argHint: '[void|spectrum|polo|dot]', help: 'home screen (stub)', run: cmdHome },
+  { name: ':clear-history', argHint: '',             help: 'clear command history', run: () => { history=[]; toast('history cleared'); } },
+];
+
+/* ===================== INIT ===================== */
+function init(){
+  $promptInput.addEventListener('input', onInput);
+  $promptInput.addEventListener('keydown', onKey);
+  $promptInput.addEventListener('focus', () => {});
+  // Keep prompt focused: any tap on body that isn't on an interactive element refocuses
+  document.addEventListener('click', e => {
+    if (e.target.closest('.row, .tbtn, .parrow, .bc, .progress-hit')) return;
+    if (e.target === $promptInput) return;
+    // small delay so soft keyboards behave
+    $promptInput.focus();
+  });
+
+  $btnPlay.addEventListener('click', () => togglePlay());
+  $btnPrev.addEventListener('click', () => prevTrack());
+  $btnNext.addEventListener('click', () => nextTrack());
+
+  $progressHit.addEventListener('click', e => {
+    if (!duration) return;
+    const rect = $progressHit.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    elapsed = pct * duration;
+    updateProgress();
+  });
+
+  $parrowUp.addEventListener('click', () => moveSelection(-1));
+  $parrowDown.addEventListener('click', () => moveSelection(1));
+
+  // Resize observer for body classes
+  const ro = new ResizeObserver(entries => {
+    const w = entries[0].contentRect.width;
+    document.body.classList.toggle('mobile', w < 600);
+    document.body.classList.toggle('tablet', w >= 600 && w < 1025);
+  });
+  ro.observe(document.body);
+
+  // Animation loop
+  requestAnimationFrame(loop);
+
+  render();
+  $promptInput.focus();
+}
+
+/* ===================== RENDER ===================== */
+function render(){
+  const raw = $promptInput.value;
+  updateModeFromInput(raw);
+  renderResults(raw);
+  renderPromptCwd();
+}
+
+function updateModeFromInput(raw){
+  const t = raw.trim();
+  if (!t){ mode = 'NAV'; }
+  else if (t === '?' || t.startsWith('?')){ mode = 'HELP'; }
+  else if (t.startsWith(':')){ mode = 'CMD'; }
+  else if (t.startsWith('/')){ mode = 'FIND'; }
+  else { mode = 'NAV'; }
+  $modeTag.textContent = mode;
+  $promptSigil.textContent = ({
+    NAV: '>',
+    FIND: '/',
+    CMD: ':',
+    HELP: '?',
+  })[mode] || '>';
+  $modeHint.textContent = ({
+    NAV: 'type a path fragment to jump; enter to open; tab to complete',
+    FIND: 'global file search; enter plays best match',
+    CMD: 'command palette; tab to complete; enter to run',
+    HELP: 'help — keep typing to filter; esc to exit',
+  })[mode] || '';
+}
+
+function renderPromptCwd(){
+  const s = cwd.join('/').replace(/^~/,'~');
+  $promptCwd.textContent = s + (s.endsWith('/') ? '' : '/');
+}
+
+function renderResults(raw){
+  $resultsInner.innerHTML = '';
+
+  const t = raw.trim();
+
+  // BREADCRUMBS for cwd
+  const bc = document.createElement('div');
+  bc.className = 'breadcrumbs';
+  bc.innerHTML = '<span class="prompt-mark">cwd:</span>';
+  cwd.forEach((seg, i) => {
+    if (i > 0){
+      const s = document.createElement('span');
+      s.className = 'sep';
+      s.textContent = '/';
+      bc.appendChild(s);
+    }
+    const span = document.createElement('span');
+    span.className = 'bc' + (i === cwd.length - 1 ? ' current' : '');
+    span.textContent = seg;
+    span.addEventListener('click', () => {
+      cwd = cwd.slice(0, i+1);
+      $promptInput.value = '';
+      render();
+    });
+    bc.appendChild(span);
+  });
+  $resultsInner.appendChild(bc);
+
+  let rows = [];
+
+  if (!t){
+    // Show idle pane + cwd listing
+    rows = listCwd();
+    appendIdleHint();
+  } else if (t === '?' || t.startsWith('?')){
+    rows = helpRows(t.slice(1).trim());
+  } else if (t.startsWith(':')){
+    rows = cmdRows(t.slice(1));
+  } else if (t.startsWith('/')){
+    rows = findRows(t.slice(1));
+  } else {
+    // bare text = fuzzy jump within cwd and below + cmds matching
+    rows = navRows(t);
+  }
+
+  // history matches (always at the bottom of the stack, but visually at top since column-reverse)
+  // Only when there is at least some input
+  if (t && history.length){
+    const hits = history
+      .map(h => ({ h, m: fuzzy(t, h) }))
+      .filter(x => x.m)
+      .sort((a,b) => b.m.score - a.m.score)
+      .slice(0, 3);
+    if (hits.length){
+      rows.push({ type:'section', label:'HISTORY' });
+      for (const x of hits){
+        rows.push({
+          type:'hist',
+          glyph:'↑',
+          label: highlight(x.h, x.m.marks),
+          score: x.m.score.toFixed(0),
+          action: () => { $promptInput.value = x.h; render(); },
+        });
+      }
+    }
+  }
+
+  currentResults = rows.filter(r => r.type !== 'section');
+  if (selectedIdx >= currentResults.length) selectedIdx = currentResults.length - 1;
+  if (selectedIdx < 0 && currentResults.length > 0) selectedIdx = 0;
+
+  let interactiveIdx = 0;
+  for (const r of rows){
+    if (r.type === 'section'){
+      const s = document.createElement('div');
+      s.className = 'section-head';
+      s.textContent = r.label;
+      $resultsInner.appendChild(s);
+      continue;
+    }
+    const el = document.createElement('div');
+    el.className = 'row';
+    if (r.type === 'cmd') el.classList.add('cmd');
+    if (r.type === 'hist') el.classList.add('hist');
+    if (r.playing) el.classList.add('playing-now');
+    if (interactiveIdx === selectedIdx) el.classList.add('selected');
+
+    const g = document.createElement('span');
+    g.className = 'glyph';
+    g.textContent = r.glyph;
+    el.appendChild(g);
+
+    const lab = document.createElement('span');
+    lab.className = 'label';
+    lab.innerHTML = r.label + (r.pathFrag ? ` <span class="path-frag">${esc(r.pathFrag)}</span>` : '');
+    el.appendChild(lab);
+
+    if (r.meta){
+      const m = document.createElement('span');
+      m.className = 'meta';
+      m.textContent = r.meta;
+      el.appendChild(m);
+    }
+    if (r.score !== undefined){
+      const sc = document.createElement('span');
+      sc.className = 'score';
+      sc.textContent = r.score;
+      el.appendChild(sc);
+    }
+
+    const fixedIdx = interactiveIdx;
+    el.addEventListener('click', () => {
+      selectedIdx = fixedIdx;
+      if (r.action) r.action();
+    });
+    $resultsInner.appendChild(el);
+    interactiveIdx++;
+  }
+
+  if (rows.filter(r=>r.type!=='section').length === 0){
+    const nr = document.createElement('div');
+    nr.className = 'no-results';
+    nr.textContent = '// no matches';
+    $resultsInner.appendChild(nr);
+  }
+
+  // scroll to bottom (visible end) since column-reverse keeps newest visible
+  $results.scrollTop = 0;
+}
+
+function appendIdleHint(){
+  const hint = document.createElement('div');
+  hint.className = 'idle-pane';
+  hint.innerHTML =
+    '<h1>// prompt is the app</h1>' +
+    '<div class="ex"><code>kash</code><span>fuzzy-jump to Kashmir</span></div>' +
+    '<div class="ex"><code>/floyd</code><span>global search</span></div>' +
+    '<div class="ex"><code>:play kraft</code><span>play first match</span></div>' +
+    '<div class="ex"><code>:cd electronic/daft</code><span>change folder</span></div>' +
+    '<div class="ex"><code>:queue</code><span>show queue</span></div>' +
+    '<div class="ex"><code>:set shuffle on</code><span>toggle a setting</span></div>' +
+    '<div class="ex"><code>?</code><span>help</span></div>';
+  $resultsInner.appendChild(hint);
+}
+
+/* ===================== ROW BUILDERS ===================== */
+function listCwd(){
+  const folder = findNodeByPath(cwd);
+  if (!folder || !folder.children) return [];
+  const rows = [];
+  if (cwd.length > 1){
+    rows.push({
+      type:'nav', glyph:'←', label:'..',
+      action: () => { cwd = cwd.slice(0, -1); $promptInput.value=''; render(); },
+    });
+  }
+  const sorted = [...folder.children].sort((a,b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const c of sorted){
+    if (c.type === 'folder'){
+      const count = countFiles(c);
+      rows.push({
+        type:'nav', glyph:'▸', label: esc(c.name + '/'),
+        meta: count + ' tracks',
+        action: () => { cwd = [...cwd, c.name]; $promptInput.value=''; render(); },
+      });
+    } else {
+      const playing = currentTrack && currentTrack.name === c.name && currentTrack.pathStr === [...cwd, c.name].join('/');
+      rows.push({
+        type:'nav',
+        glyph: playing ? '▶' : '♪',
+        label: esc(c.name.replace(/\.mp3$/,'')),
+        meta: c.duration + '  ' + c.size,
+        playing,
+        action: () => playFromCwd(c),
+      });
+    }
+  }
+  return rows;
+}
+
+function countFiles(n){
+  if (n.type === 'file') return 1;
+  if (!n.children) return 0;
+  return n.children.reduce((a,c)=>a+countFiles(c), 0);
+}
+
+function navRows(needle){
+  // Score: cwd entries, then all files & folders globally
+  const folder = findNodeByPath(cwd);
+  const local = (folder && folder.children) ? folder.children : [];
+
+  const scoredLocal = [];
+  for (const c of local){
+    const m = fuzzy(needle, c.name);
+    if (m) scoredLocal.push({ c, m, local: true });
+  }
+
+  const scoredAll = [];
+  for (const e of ALL){
+    if (e.pathStr === cwd.join('/')) continue;
+    // skip the same items already in local
+    const m = fuzzy(needle, e.name);
+    if (m) scoredAll.push({ e, m });
+  }
+
+  scoredLocal.sort((a,b) => b.m.score - a.m.score);
+  scoredAll.sort((a,b) => b.m.score - a.m.score);
+
+  const rows = [];
+
+  // Suggest commands matching needle too (lighter weight)
+  const cmdHits = COMMANDS
+    .map(cm => ({ cm, m: fuzzy(needle, cm.name) }))
+    .filter(x => x.m)
+    .sort((a,b) => b.m.score - a.m.score)
+    .slice(0, 2);
+
+  if (scoredLocal.length){
+    rows.push({ type:'section', label:'IN CWD' });
+    for (const x of scoredLocal.slice(0, 10)){
+      const c = x.c;
+      if (c.type === 'folder'){
+        rows.push({
+          type:'nav', glyph:'▸',
+          label: highlight(c.name + '/', x.m.marks),
+          meta: countFiles(c) + ' tracks',
+          score: x.m.score.toFixed(0),
+          action: () => { cwd = [...cwd, c.name]; $promptInput.value=''; render(); },
+        });
+      } else {
+        rows.push({
+          type:'nav', glyph:'♪',
+          label: highlight(c.name.replace(/\.mp3$/,''), shiftMarks(x.m.marks, 0, c.name.length-4)),
+          meta: c.duration,
+          score: x.m.score.toFixed(0),
+          action: () => playFromCwd(c),
+        });
+      }
+    }
+  }
+
+  if (scoredAll.length){
+    rows.push({ type:'section', label:'GLOBAL' });
+    for (const x of scoredAll.slice(0, 8)){
+      const e = x.e;
+      const parent = e.path.slice(0, -1).join('/');
+      if (e.type === 'folder'){
+        rows.push({
+          type:'nav', glyph:'▸',
+          label: highlight(e.name + '/', x.m.marks),
+          pathFrag: parent,
+          meta: countFiles(e.node) + ' tracks',
+          score: x.m.score.toFixed(0),
+          action: () => { cwd = e.path.slice(); $promptInput.value=''; render(); },
+        });
+      } else {
+        rows.push({
+          type:'nav', glyph:'♪',
+          label: highlight(e.pretty, x.m.marks),
+          pathFrag: parent,
+          meta: e.duration,
+          score: x.m.score.toFixed(0),
+          action: () => playEntry(e),
+        });
+      }
+    }
+  }
+
+  if (cmdHits.length){
+    rows.push({ type:'section', label:'COMMANDS' });
+    for (const x of cmdHits){
+      rows.push({
+        type:'cmd', glyph:':',
+        label: `<b>${esc(x.cm.name)}</b> <span class="path-frag">${esc(x.cm.argHint)}</span> — ${esc(x.cm.help)}`,
+        score: x.m.score.toFixed(0),
+        action: () => { $promptInput.value = x.cm.name + ' '; render(); },
+      });
+    }
+  }
+
+  return rows;
+}
+
+function shiftMarks(marks, _start, max){
+  return marks.filter(m => m < max);
+}
+
+function findRows(needle){
+  const n = needle.trim();
+  const rows = [];
+  rows.push({ type:'section', label: n ? 'SEARCH RESULTS' : 'SEARCH' });
+  if (!n){
+    for (const f of ALL_FILES.slice(0, 15)){
+      rows.push({
+        type:'nav', glyph:'♪', label: esc(f.pretty),
+        pathFrag: f.path.slice(0, -1).join('/'),
+        meta: f.duration,
+        action: () => playEntry(f),
+      });
+    }
+    return rows;
+  }
+  const hits = [];
+  for (const f of ALL_FILES){
+    const m = fuzzy(n, f.name);
+    if (m) hits.push({ f, m });
+  }
+  hits.sort((a,b) => b.m.score - a.m.score);
+  for (const x of hits.slice(0, 25)){
+    rows.push({
+      type:'nav', glyph:'♪',
+      label: highlight(x.f.pretty, shiftMarks(x.m.marks, 0, x.f.name.length - 4)),
+      pathFrag: x.f.path.slice(0, -1).join('/'),
+      meta: x.f.duration,
+      score: x.m.score.toFixed(0),
+      action: () => playEntry(x.f),
+    });
+  }
+  return rows;
+}
+
+function cmdRows(rest){
+  const rows = [];
+  const m = rest.match(/^(\S*)(\s+(.*))?$/);
+  const cmdName = ':' + (m ? m[1] : rest);
+  const arg = m && m[3] !== undefined ? m[3] : '';
+
+  // Exact-ish command: also show args preview / settings list
+  const exact = COMMANDS.find(c => c.name === cmdName);
+
+  if (!exact){
+    rows.push({ type:'section', label:'COMMAND PALETTE' });
+    const matches = COMMANDS
+      .map(c => ({ c, m: fuzzy(cmdName.slice(1), c.name.slice(1)) }))
+      .filter(x => x.m)
+      .sort((a,b) => b.m.score - a.m.score);
+    for (const x of matches){
+      rows.push({
+        type:'cmd', glyph:':',
+        label: `<b>${highlight(x.c.name, x.m.marks.map(i=>i+1))}</b> <span class="path-frag">${esc(x.c.argHint)}</span> — ${esc(x.c.help)}`,
+        score: x.m.score.toFixed(0),
+        action: () => {
+          $promptInput.value = x.c.name + (x.c.argHint ? ' ' : '');
+          render();
+        },
+      });
+    }
+    if (matches.length === 0){
+      rows.push({ type:'cmd', glyph:'!', label:'unknown command — try <b>:help</b>', action: () => { $promptInput.value=':help'; render(); }});
+    }
+    return rows;
+  }
+
+  // Found exact command — show preview / completions for argument
+  rows.push({ type:'section', label: 'PREVIEW — ' + exact.name });
+  rows.push({
+    type:'cmd', glyph:':',
+    label: `<b>${esc(exact.name)}</b> <span class="path-frag">${esc(exact.argHint)}</span> — ${esc(exact.help)}`,
+    action: () => runCommand(exact, arg),
+  });
+
+  // Smart completions
+  if (exact.name === ':cd'){
+    const folders = ALL_FOLDERS;
+    const hits = folders.map(f => ({ f, m: fuzzy(arg, f.pathStr) })).filter(x => x.m)
+      .sort((a,b) => b.m.score - a.m.score).slice(0, 12);
+    if (hits.length){
+      rows.push({ type:'section', label:'FOLDER COMPLETIONS' });
+      for (const x of hits){
+        rows.push({
+          type:'nav', glyph:'▸',
+          label: highlight(x.f.pathStr, x.m.marks),
+          meta: countFiles(x.f.node) + ' tracks',
+          score: x.m.score.toFixed(0),
+          action: () => { cwd = x.f.path.slice(); $promptInput.value=''; render(); },
+        });
+      }
+    }
+  } else if (exact.name === ':play' || exact.name === ':enqueue' || exact.name === ':queue'){
+    const hits = ALL_FILES.map(f => ({ f, m: fuzzy(arg, f.name) })).filter(x => x.m)
+      .sort((a,b) => b.m.score - a.m.score).slice(0, 12);
+    if (hits.length){
+      rows.push({ type:'section', label:'FILE COMPLETIONS' });
+      for (const x of hits){
+        rows.push({
+          type:'nav', glyph:'♪',
+          label: highlight(x.f.pretty, shiftMarks(x.m.marks, 0, x.f.name.length-4)),
+          pathFrag: x.f.path.slice(0,-1).join('/'),
+          meta: x.f.duration,
+          score: x.m.score.toFixed(0),
+          action: () => {
+            if (exact.name === ':play') playEntry(x.f);
+            else { queue.push(x.f); toast('queued: ' + x.f.pretty); $promptInput.value=''; render(); }
+          },
+        });
+      }
+    }
+  } else if (exact.name === ':set'){
+    rows.push({ type:'section', label:'KEYS' });
+    for (const k of Object.keys(settings)){
+      rows.push({
+        type:'cmd', glyph:'=',
+        label: `<b>${k}</b> <span class="path-frag">[${SETTING_OPTIONS[k].join('|')}]</span> = ${settings[k]}`,
+        action: () => { $promptInput.value = ':set ' + k + ' '; render(); },
+      });
+    }
+  } else if (exact.name === ':shuffle'){
+    for (const v of SETTING_OPTIONS.shuffle){
+      rows.push({ type:'cmd', glyph:'=', label: `<b>${v}</b>${settings.shuffle===v?' &nbsp;[current]':''}`,
+        action: () => runCommand(exact, v) });
+    }
+  } else if (exact.name === ':repeat'){
+    for (const v of SETTING_OPTIONS.repeat){
+      rows.push({ type:'cmd', glyph:'=', label: `<b>${v}</b>${settings.repeat===v?' &nbsp;[current]':''}`,
+        action: () => runCommand(exact, v) });
+    }
+  } else if (exact.name === ':queue' && !arg){
+    rows.push({ type:'section', label: `QUEUE — ${queue.length} item(s)` });
+    if (queue.length === 0){
+      rows.push({ type:'cmd', glyph:'!', label:'queue is empty — try <b>:queue kashmir</b> or <b>:enqueue cwd</b>' });
+    } else {
+      queue.forEach((f, i) => {
+        rows.push({
+          type:'nav',
+          glyph: i === queueIdx ? '▶' : String(i+1),
+          label: esc(f.pretty),
+          pathFrag: f.path.slice(0,-1).join('/'),
+          meta: f.duration,
+          playing: i === queueIdx,
+          action: () => { queueIdx = i; setTrack(queue[i]); isPlaying = true; updateNow(); render(); },
+        });
+      });
+    }
+  } else if (exact.name === ':settings'){
+    rows.push({ type:'section', label:'SETTINGS' });
+    for (const k of Object.keys(settings)){
+      rows.push({
+        type:'cmd', glyph:'=',
+        label: `<b>${esc(k)}</b> = ${esc(settings[k])} <span class="path-frag">[${SETTING_OPTIONS[k].join('|')}]</span>`,
+        action: () => cycleSetting(k),
+      });
+    }
+  }
+
+  return rows;
+}
+
+function helpRows(filter){
+  const rows = [];
+  rows.push({ type:'section', label:'KEYS' });
+  const keys = [
+    ['Enter',  'execute / open / play selection'],
+    ['Tab',    'autocomplete current token'],
+    ['Esc',    'clear input'],
+    ['↑ / ↓', 'move selection (or command history when input is empty)'],
+    ['Space',  'play/pause (when prompt is empty)'],
+    ['n / b',  'next / previous (when prompt is empty)'],
+    ['?',      'help'],
+    [':',      'command palette'],
+    ['/',      'global search'],
+  ];
+  for (const [k, d] of keys){
+    if (filter && !d.toLowerCase().includes(filter.toLowerCase()) && !k.toLowerCase().includes(filter.toLowerCase())) continue;
+    rows.push({
+      type:'cmd', glyph:'⌨',
+      label: `<b>${k}</b> — ${esc(d)}`,
+    });
+  }
+  rows.push({ type:'section', label:'COMMANDS' });
+  for (const c of COMMANDS){
+    if (filter && !c.help.toLowerCase().includes(filter.toLowerCase()) && !c.name.toLowerCase().includes(filter.toLowerCase())) continue;
+    rows.push({
+      type:'cmd', glyph:':',
+      label: `<b>${esc(c.name)}</b> <span class="path-frag">${esc(c.argHint)}</span> — ${esc(c.help)}`,
+      action: () => { $promptInput.value = c.name + (c.argHint ? ' ' : ''); render(); },
+    });
+  }
+  return rows;
+}
+
+/* ===================== ACTIONS ===================== */
+function playFromCwd(fileNode){
+  // Build queue from current folder, all file children in order
+  const folder = findNodeByPath(cwd);
+  if (!folder || !folder.children) return;
+  const files = folder.children
+    .filter(c => c.type === 'file')
+    .map(c => ALL_FILES.find(f => f.pathStr === [...cwd, c.name].join('/')))
+    .filter(Boolean);
+  queue = files;
+  queueIdx = files.findIndex(f => f.name === fileNode.name);
+  if (queueIdx < 0) queueIdx = 0;
+  setTrack(queue[queueIdx]);
+  isPlaying = true;
+  updateNow();
+  toast('playing from ' + cwd.join('/'));
+  $promptInput.value = '';
+  render();
+}
+
+function playEntry(entry){
+  // Build queue from entry's parent folder
+  const parentPath = entry.path.slice(0, -1);
+  const folder = findNodeByPath(parentPath);
+  if (folder && folder.children){
+    const files = folder.children
+      .filter(c => c.type === 'file')
+      .map(c => ALL_FILES.find(f => f.pathStr === [...parentPath, c.name].join('/')))
+      .filter(Boolean);
+    queue = files;
+    queueIdx = files.findIndex(f => f.pathStr === entry.pathStr);
+    if (queueIdx < 0) queueIdx = 0;
+  } else {
+    queue = [entry];
+    queueIdx = 0;
+  }
+  setTrack(entry);
+  isPlaying = true;
+  updateNow();
+  toast('▶ ' + entry.pretty);
+  $promptInput.value = '';
+  render();
+}
+
+function setTrack(f){
+  currentTrack = f;
+  duration = parseDur(f.duration);
+  elapsed = 0;
+  updateNow();
+}
+function parseDur(s){ const [m,sec] = s.split(':').map(Number); return m*60+sec; }
+function fmtTime(t){
+  if (!isFinite(t) || t < 0) t = 0;
+  const m = Math.floor(t/60), s = Math.floor(t%60);
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function togglePlay(){
+  if (!currentTrack){
+    // start from cwd or queue
+    if (queue.length){
+      queueIdx = Math.max(0, queueIdx);
+      setTrack(queue[queueIdx]);
+      isPlaying = true;
+      toast('▶ ' + currentTrack.pretty);
+    } else {
+      const folder = findNodeByPath(cwd);
+      const firstFile = folder && folder.children && folder.children.find(c => c.type === 'file');
+      if (firstFile){
+        const entry = ALL_FILES.find(f => f.pathStr === [...cwd, firstFile.name].join('/'));
+        playFromCwd(firstFile);
+      } else {
+        toast('// nothing to play — try :play <query>');
+      }
+    }
+    updateNow();
+    return;
+  }
+  isPlaying = !isPlaying;
+  updateNow();
+  toast(isPlaying ? '▶ play' : '❙❙ pause');
+}
+
+function nextTrack(){
+  if (!queue.length) return;
+  if (settings.repeat === 'one'){
+    elapsed = 0; updateProgress(); return;
+  }
+  if (settings.shuffle === 'on'){
+    queueIdx = Math.floor(Math.random() * queue.length);
+  } else {
+    queueIdx = queueIdx + 1;
+    if (queueIdx >= queue.length){
+      if (settings.repeat === 'all') queueIdx = 0;
+      else { queueIdx = queue.length - 1; isPlaying = false; updateNow(); return; }
+    }
+  }
+  setTrack(queue[queueIdx]);
+  isPlaying = true;
+  updateNow();
+  render();
+}
+
+function prevTrack(){
+  if (!queue.length) return;
+  if (elapsed > 3){ elapsed = 0; updateProgress(); return; }
+  queueIdx = (queueIdx - 1 + queue.length) % queue.length;
+  setTrack(queue[queueIdx]);
+  isPlaying = true;
+  updateNow();
+  render();
+}
+
+function updateNow(){
+  if (!currentTrack){
+    $nowTrack.textContent = '[void]';
+    $nowTrack.classList.add('idle');
+    $nowTrack.classList.remove('playing');
+    $nowTime.textContent = '--:-- / --:--';
+    $nowGlyph.textContent = '~';
+    $btnPlay.innerHTML = '&#9655;';
+    updateProgress();
+    return;
+  }
+  $nowTrack.textContent = currentTrack.pretty;
+  $nowTrack.classList.remove('idle');
+  $nowTrack.classList.toggle('playing', isPlaying);
+  $nowTime.textContent = fmtTime(elapsed) + ' / ' + fmtTime(duration);
+  $nowGlyph.textContent = isPlaying ? '▶' : '❙❙';
+  $btnPlay.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9655;';
+  updateProgress();
+}
+
+function updateProgress(){
+  const pct = duration > 0 ? Math.min(100, (elapsed/duration)*100) : 0;
+  $progress.style.width = pct + '%';
+  if (currentTrack) $nowTime.textContent = fmtTime(elapsed) + ' / ' + fmtTime(duration);
+}
+
+/* ===================== COMMAND IMPLS ===================== */
+function cmdCd(arg){
+  arg = (arg || '').trim();
+  if (!arg || arg === '~'){
+    cwd = ['~'];
+  } else if (arg === '..'){
+    if (cwd.length > 1) cwd = cwd.slice(0, -1);
+  } else {
+    // Resolve relative to cwd unless starts with ~ or /
+    let target;
+    if (arg.startsWith('~/') || arg === '~') target = ['~', ...arg.replace(/^~\/?/,'').split('/').filter(Boolean)];
+    else if (arg.startsWith('/')) target = ['~', ...arg.replace(/^\//,'').split('/').filter(Boolean)];
+    else target = [...cwd, ...arg.split('/').filter(Boolean)];
+
+    // Try direct match
+    let node = findNodeByPath(target);
+    if (!node){
+      // fuzzy: pick best folder match
+      const hits = ALL_FOLDERS.map(f => ({ f, m: fuzzy(arg, f.pathStr) }))
+        .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+      if (hits.length){
+        cwd = hits[0].f.path.slice();
+        toast('cd: ' + hits[0].f.pathStr);
+        $promptInput.value = '';
+        render();
+        return;
+      }
+      toast('// no such folder: ' + arg);
+      return;
+    }
+    if (node.type !== 'folder'){ toast('// not a folder'); return; }
+    cwd = target;
+  }
+  $promptInput.value = '';
+  render();
+}
+
+function cmdLs(){
+  $promptInput.value = '';
+  render();
+  toast('ls ' + cwd.join('/'));
+}
+
+function cmdPlay(arg){
+  arg = (arg || '').trim();
+  if (!arg){
+    // play first file in cwd
+    const folder = findNodeByPath(cwd);
+    const firstFile = folder && folder.children && folder.children.find(c => c.type === 'file');
+    if (firstFile){ playFromCwd(firstFile); return; }
+    toast('// no files in cwd');
+    return;
+  }
+  // fuzzy global
+  const hits = ALL_FILES.map(f => ({ f, m: fuzzy(arg, f.name) }))
+    .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+  if (hits.length){ playEntry(hits[0].f); return; }
+  toast('// no match for ' + arg);
+}
+
+function cmdStop(){
+  isPlaying = false;
+  elapsed = 0;
+  updateNow();
+  toast('stopped');
+}
+
+function cmdQueue(arg){
+  arg = (arg || '').trim();
+  if (!arg){
+    $promptInput.value = ':queue';
+    render();
+    return;
+  }
+  if (arg === 'cwd'){
+    const folder = findNodeByPath(cwd);
+    if (folder && folder.children){
+      const files = folder.children
+        .filter(c => c.type === 'file')
+        .map(c => ALL_FILES.find(f => f.pathStr === [...cwd, c.name].join('/')))
+        .filter(Boolean);
+      queue = queue.concat(files);
+      toast('queued ' + files.length + ' from cwd');
+    }
+    $promptInput.value = '';
+    render();
+    return;
+  }
+  // append matching files
+  cmdEnqueue(arg);
+}
+
+function cmdEnqueue(arg){
+  arg = (arg || '').trim();
+  if (!arg){ toast('// usage: :enqueue <query>'); return; }
+  const hits = ALL_FILES.map(f => ({ f, m: fuzzy(arg, f.name) }))
+    .filter(x => x.m).sort((a,b) => b.m.score - a.m.score).slice(0, 1);
+  if (hits.length){
+    queue.push(hits[0].f);
+    toast('queued: ' + hits[0].f.pretty + ' (' + queue.length + ' total)');
+    $promptInput.value = '';
+    render();
+  } else toast('// no match');
+}
+
+function cmdClearQueue(){
+  queue = [];
+  queueIdx = -1;
+  toast('queue cleared');
+  render();
+}
+
+function cmdToggle(key, arg){
+  arg = (arg || '').trim();
+  if (!arg){
+    cycleSetting(key);
+    return;
+  }
+  if (SETTING_OPTIONS[key].includes(arg)){
+    settings[key] = arg;
+    toast(key + ' = ' + arg);
+  } else {
+    toast('// invalid: ' + arg + ' (options: ' + SETTING_OPTIONS[key].join(',') + ')');
+  }
+  $promptInput.value = '';
+  render();
+}
+
+function cycleSetting(k){
+  const opts = SETTING_OPTIONS[k];
+  const i = opts.indexOf(settings[k]);
+  settings[k] = opts[(i+1) % opts.length];
+  toast(k + ' = ' + settings[k]);
+  render();
+}
+
+function cmdSet(arg){
+  arg = (arg || '').trim();
+  const parts = arg.split(/\s+/);
+  if (parts.length < 2){ toast('// usage: :set <key> <value>'); return; }
+  const [k, ...rest] = parts;
+  const v = rest.join(' ');
+  if (!(k in settings)){ toast('// unknown key: ' + k); return; }
+  if (!SETTING_OPTIONS[k].includes(v)){
+    toast('// invalid value for ' + k + ': ' + v + ' (options: ' + SETTING_OPTIONS[k].join(',') + ')');
+    return;
+  }
+  settings[k] = v;
+  toast(k + ' = ' + v);
+  $promptInput.value = '';
+  render();
+}
+
+function cmdSettings(){
+  $promptInput.value = ':settings';
+  render();
+}
+
+function cmdHelp(){
+  $promptInput.value = '?';
+  render();
+}
+
+function cmdTheme(arg){
+  toast('theme: ' + (arg || 'dark') + ' (stub)');
+  $promptInput.value = '';
+  render();
+}
+
+function cmdHome(arg){
+  toast('home: ' + (arg || 'void') + ' (stub)');
+  $promptInput.value = '';
+  render();
+}
+
+/* ===================== KEY HANDLING ===================== */
+function onInput(){
+  historyCursor = -1;
+  selectedIdx = -1;
+  render();
+}
+
+function onKey(e){
+  const raw = $promptInput.value;
+
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    // If a row is selected, run its action; else, execute as typed
+    if (selectedIdx >= 0 && currentResults[selectedIdx] && currentResults[selectedIdx].action){
+      pushHistory(raw);
+      currentResults[selectedIdx].action();
+      return;
+    }
+    executeRaw(raw);
+    return;
+  }
+
+  if (e.key === 'Tab'){
+    e.preventDefault();
+    completeToken(raw);
+    return;
+  }
+
+  if (e.key === 'Escape'){
+    e.preventDefault();
+    $promptInput.value = '';
+    selectedIdx = -1;
+    historyCursor = -1;
+    render();
+    return;
+  }
+
+  if (e.key === 'ArrowDown'){
+    e.preventDefault();
+    moveSelection(1);
+    return;
+  }
+
+  if (e.key === 'ArrowUp'){
+    e.preventDefault();
+    // If input is empty or selection not started, browse history
+    if (!raw.trim()){
+      if (history.length){
+        if (historyCursor < 0) historyCursor = history.length;
+        historyCursor = Math.max(0, historyCursor - 1);
+        $promptInput.value = history[historyCursor] || '';
+        selectedIdx = -1;
+        render();
+      }
+      return;
+    }
+    moveSelection(-1);
+    return;
+  }
+
+  // Transport when prompt is empty
+  if (!raw){
+    if (e.key === ' '){ e.preventDefault(); togglePlay(); return; }
+    if (e.key === 'n'){ e.preventDefault(); nextTrack(); return; }
+    if (e.key === 'b'){ e.preventDefault(); prevTrack(); return; }
+  }
+}
+
+function moveSelection(dir){
+  if (currentResults.length === 0) return;
+  if (selectedIdx < 0) selectedIdx = dir > 0 ? 0 : currentResults.length - 1;
+  else selectedIdx = (selectedIdx + dir + currentResults.length) % currentResults.length;
+  // re-render to update selected class
+  renderResults($promptInput.value);
+  // scroll selected into view (column-reverse so we work backwards)
+  const rowEls = $resultsInner.querySelectorAll('.row');
+  const el = rowEls[selectedIdx];
+  if (el) el.scrollIntoView({ block: 'nearest' });
+}
+
+function completeToken(raw){
+  // Tab completion:
+  // - if cmd mode (:), expand to top command match
+  // - if cd argument, expand folder name
+  // - if play arg, expand file name
+  // - if nav (bare), expand to top folder/file token
+  if (raw.startsWith(':')){
+    const m = raw.match(/^:(\S*)(\s+(.*))?$/);
+    const cmdPart = m ? m[1] : '';
+    const argPart = m && m[3] !== undefined ? m[3] : '';
+    const fullCmd = COMMANDS.find(c => c.name === ':' + cmdPart);
+    if (!fullCmd){
+      // complete command name
+      const hits = COMMANDS.map(c => ({ c, m: fuzzy(cmdPart, c.name.slice(1)) }))
+        .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+      if (hits.length){ $promptInput.value = hits[0].c.name + (hits[0].c.argHint ? ' ' : ''); render(); }
+      return;
+    }
+    // complete argument
+    if (fullCmd.name === ':cd'){
+      const hits = ALL_FOLDERS.map(f => ({ f, m: fuzzy(argPart, f.pathStr) }))
+        .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+      if (hits.length){ $promptInput.value = ':cd ' + hits[0].f.pathStr; render(); }
+    } else if (fullCmd.name === ':play' || fullCmd.name === ':enqueue' || fullCmd.name === ':queue'){
+      const hits = ALL_FILES.map(f => ({ f, m: fuzzy(argPart, f.name) }))
+        .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+      if (hits.length){ $promptInput.value = fullCmd.name + ' ' + hits[0].f.pretty; render(); }
+    }
+    return;
+  }
+  if (raw.startsWith('/')){
+    const term = raw.slice(1);
+    const hits = ALL_FILES.map(f => ({ f, m: fuzzy(term, f.name) }))
+      .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+    if (hits.length){ $promptInput.value = '/' + hits[0].f.pretty; render(); }
+    return;
+  }
+  // bare: pick selected result if any
+  if (selectedIdx >= 0 && currentResults[selectedIdx]){
+    const r = currentResults[selectedIdx];
+    // extract plain text from label HTML
+    const tmp = document.createElement('div'); tmp.innerHTML = r.label;
+    $promptInput.value = tmp.textContent.trim();
+    render();
+  }
+}
+
+function executeRaw(raw){
+  const t = raw.trim();
+  if (!t){ togglePlay(); return; }
+  pushHistory(t);
+  if (t.startsWith(':')){
+    const m = t.match(/^(:\S+)(\s+(.*))?$/);
+    const name = m ? m[1] : t;
+    const arg = m && m[3] !== undefined ? m[3] : '';
+    const cmd = COMMANDS.find(c => c.name === name);
+    if (cmd){ runCommand(cmd, arg); }
+    else { toast('// unknown command: ' + name); }
+    return;
+  }
+  if (t === '?' || t.startsWith('?')){ cmdHelp(); return; }
+  if (t.startsWith('/')){
+    // execute search: play best match
+    const term = t.slice(1).trim();
+    if (!term) return;
+    const hits = ALL_FILES.map(f => ({ f, m: fuzzy(term, f.name) }))
+      .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+    if (hits.length){ playEntry(hits[0].f); }
+    else toast('// no match');
+    return;
+  }
+  // bare: try fuzzy jump in cwd then global, prefer folders over files
+  const folder = findNodeByPath(cwd);
+  const local = (folder && folder.children) ? folder.children : [];
+  const localHits = local.map(c => ({ c, m: fuzzy(t, c.name) }))
+    .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+  if (localHits.length){
+    const top = localHits[0].c;
+    if (top.type === 'folder'){ cwd = [...cwd, top.name]; $promptInput.value=''; render(); return; }
+    playFromCwd(top); return;
+  }
+  const globalHits = ALL.map(e => ({ e, m: fuzzy(t, e.name) }))
+    .filter(x => x.m).sort((a,b) => b.m.score - a.m.score);
+  if (globalHits.length){
+    const top = globalHits[0].e;
+    if (top.type === 'folder'){ cwd = top.path.slice(); $promptInput.value=''; render(); return; }
+    playEntry(top); return;
+  }
+  toast('// no match for ' + t);
+}
+
+function runCommand(cmd, arg){
+  pushHistory(cmd.name + (arg ? ' ' + arg : ''));
+  cmd.run(arg);
+}
+
+function pushHistory(line){
+  line = line.trim();
+  if (!line) return;
+  if (history[history.length-1] === line) return;
+  history.push(line);
+  if (history.length > 50) history.shift();
+  historyCursor = -1;
+}
+
+/* ===================== TOAST ===================== */
+let toastTimer;
+function toast(msg){
+  $toast.textContent = msg;
+  $toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), 1600);
+}
+
+/* ===================== LOOP ===================== */
+let lastT = 0;
+function loop(t){
+  const dt = lastT ? (t - lastT)/1000 : 0.016;
+  lastT = t;
+  if (isPlaying && currentTrack){
+    elapsed += dt;
+    if (elapsed >= duration && duration > 0){ nextTrack(); }
+    updateProgress();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ===================== GO ===================== */
+init();
+</script>
+</body>
+</html>

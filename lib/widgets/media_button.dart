@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_palette.dart';
+
 class MediaButton extends StatelessWidget {
   final IconData icon;
   final double size;
@@ -22,9 +24,12 @@ class MediaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = accentColor ?? const Color(0xFF00FF88);
-    final secondaryBg = inactiveBackgroundColor ?? Colors.white.withAlpha(13);
-    final secondaryIcon = inactiveIconColor ?? Colors.white70;
+    final palette = Theme.of(context).extension<AppPalette>()!;
+    final primaryColor = accentColor ?? palette.accent;
+    final secondaryBg =
+        inactiveBackgroundColor ?? palette.fgPrimary.withValues(alpha: 0.05);
+    final secondaryIcon =
+        inactiveIconColor ?? palette.fgPrimary.withValues(alpha: 0.7);
 
     return GestureDetector(
       onTap: onTap,
@@ -47,7 +52,7 @@ class MediaButton extends StatelessWidget {
         child: Icon(
           icon,
           size: size * 0.5,
-          color: isPrimary ? const Color(0xFF0A0A0F) : secondaryIcon,
+          color: isPrimary ? palette.background : secondaryIcon,
         ),
       ),
     );

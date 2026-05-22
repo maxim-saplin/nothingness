@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 2.2.8+32
+version: 3.0.0+40
 
 environment:
   sdk: ^3.10.1
@@ -26,6 +26,7 @@ dependencies:
   macos_secure_bookmarks: ^0.2.1
   external_path: ^2.2.0
   on_audio_query: ^2.9.0
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:

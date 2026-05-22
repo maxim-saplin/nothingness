@@ -30,12 +30,16 @@ Originally inspired by a need for digital minimalism in modern cars (specificall
     -   **Tuning**: Adjustable decay speed and noise gate.
 
 ### 🎨 Skins & UI
--   **Three Distinct Skins**:
+-   **Four Distinct Skins**:
     -   **Spectrum**: Clean, modern visualizer focus.
     -   **Polo**: Skeuomorphic retro car dashboard with LCD font.
     -   **Dot**: Minimalist, fluctuating dot interface.
+    -   **Void**: Text-driven minimalist home with an integrated sliding library browser and full-name recursive search.
+-   **Unified Chrome**: All skins are pluggable "heroes" hosted by a single shell (`VoidScreen`); skin switching no longer changes the navigation surface.
+-   **Theming**: Dark / light / auto theme variant, light/dark palettes under `lib/theme/palettes/`.
+-   **Configurable Transport**: Prev/play/next row position (top/bottom/off) plus horizontal swipe gestures on the hero.
 -   **UI Scaling**: "Smart Scale" automatically adjusts button sizes and text for automotive head units and high-DPI displays.
--   **Full Screen Mode**: Immersive mode hiding system bars.
+-   **Full Screen Mode**: Settings-driven immersive mode hiding system bars.
 
 ## Skins
 

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'models/screen_config.dart';
 import 'models/spectrum_settings.dart';
 import 'providers/audio_player_provider.dart';
-import 'screens/spectrum_screen.dart';
+import 'screens/void_screen.dart';
 import 'services/playback_controller.dart';
 import 'services/playlist_store.dart';
 import 'testing/test_harness.dart';
@@ -52,18 +52,15 @@ Future<void> main() async {
           scaffoldBackgroundColor: const Color(0xFF0A0A0F),
         ),
         home: Stack(
-          children: [
-            const SpectrumScreen(
-              settings: SpectrumSettings(),
+          children: const [
+            VoidScreen(
               config: SpectrumScreenConfig(),
-              onToggleSettings: _noop,
+              settings: SpectrumSettings(),
             ),
-            const TestOverlay(),
+            TestOverlay(),
           ],
         ),
       ),
     ),
   );
 }
-
-void _noop() {}

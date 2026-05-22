@@ -43,6 +43,56 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
 └─────────────────────────────────────────────────┘
 ```
 
+## Primary CLI: `drive.py`
+
+For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto-discovers the VM service WebSocket (scanning logcat + `/tmp/flutter_run.log`), caches it between calls, resolves the main isolate, wraps every `ext.nothingness.*` extension as a typed subcommand, and offers screenshot, hot-reload, hot-restart, and clear-data conveniences.
+
+```bash
+# All examples assume the app is running in debug mode on emulator-5554.
+
+# State
+.claude/skills/agent-emulator-debugging/scripts/drive.py inspect
+.claude/skills/agent-emulator-debugging/scripts/drive.py tree 40
+.claude/skills/agent-emulator-debugging/scripts/drive.py overflows
+
+# Navigation
+.claude/skills/agent-emulator-debugging/scripts/drive.py screen void
+.claude/skills/agent-emulator-debugging/scripts/drive.py nav /storage/emulated/0/Music
+.claude/skills/agent-emulator-debugging/scripts/drive.py up
+.claude/skills/agent-emulator-debugging/scripts/drive.py settings open
+.claude/skills/agent-emulator-debugging/scripts/drive.py settings close
+
+# Theming
+.claude/skills/agent-emulator-debugging/scripts/drive.py variant dark
+.claude/skills/agent-emulator-debugging/scripts/drive.py mode own
+
+# Playback
+.claude/skills/agent-emulator-debugging/scripts/drive.py play /sdcard/Music/foo.mp3
+.claude/skills/agent-emulator-debugging/scripts/drive.py pause
+.claude/skills/agent-emulator-debugging/scripts/drive.py resume
+.claude/skills/agent-emulator-debugging/scripts/drive.py next
+.claude/skills/agent-emulator-debugging/scripts/drive.py prev
+
+# Preferences
+.claude/skills/agent-emulator-debugging/scripts/drive.py pref void_hint_shown=false:bool
+.claude/skills/agent-emulator-debugging/scripts/drive.py clearpref void_hint_shown
+
+# Lifecycle
+.claude/skills/agent-emulator-debugging/scripts/drive.py reload      # hot reload (via /tmp/flutter_input fifo)
+.claude/skills/agent-emulator-debugging/scripts/drive.py restart     # hot restart
+.claude/skills/agent-emulator-debugging/scripts/drive.py reset       # force-stop + clear data + cold launch
+
+# Diagnostics
+.claude/skills/agent-emulator-debugging/scripts/drive.py shoot before_x       # → .tmp/agent_shots/before_x.png
+.claude/skills/agent-emulator-debugging/scripts/drive.py logcat 500
+.claude/skills/agent-emulator-debugging/scripts/drive.py call setSetting name=fullScreen value=true  # arbitrary extension
+.claude/skills/agent-emulator-debugging/scripts/drive.py replay script.txt    # one extension call per newline
+```
+
+The cache lives next to the script as `.vm_ws.txt`. If you kill `flutter run` and restart it, `drive.py reset` (or simply deleting the cache) refreshes it.
+
+Subcommand source: `.claude/skills/agent-emulator-debugging/scripts/drive.py`. The `e()` shell fallback below remains useful when you want to call an extension that drive.py doesn't yet wrap, or when Python is unavailable.
+
 ## Quick Start
 
 ### 1. Launch the app in debug mode
@@ -174,6 +224,25 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/a.m
 | `getAudioEvents` | — | `{audioEvents: [...]}` | Just the audio-event ring buffer (timestamped lines for interruption / noisy / devicesChanged / load / ended / error). |
 | `simulateInterruption` | `phase=begin\|end`, `kind=pause\|duck\|unknown` | `{phase, kind}` | Drive `PlaybackController._onInterruption` directly. Equivalent to a real OS audio focus event. |
 | `simulateNoisy` | — | `{simulated: "noisy"}` | Drive `PlaybackController._onBecomingNoisy` directly (headphones/BT yanked). |
+
+### Void Shell / Library Navigation
+
+These extensions were added during the `ui-revamp` arc to drive the unified Void chrome and the library browser.
+
+| Extension | Params | Returns | Purpose |
+|---|---|---|---|
+| `getRouterState` | — | Active hero, immersive flag, settings-sheet state | Snapshot of the `VoidScreen` shell. |
+| `getLibraryState` | — | Current path, listing, permission state | Snapshot of `LibraryController`. |
+| `navigateVoid` | `path` | `{path: "..."}` | Navigate the library browser to `path` (Android: MediaStore-derived; macOS: filesystem). |
+| `navigateVoidUp` | — | `{path: "..."}` | Pop one level up in the library tree. |
+| `openSettingsSheet` / `closeSettingsSheet` | — | `{open: true/false}` | Toggle the in-shell settings sheet. |
+| `playTrackByPath` | `path` | `{queued, started}` | Equivalent to tapping a track in the browser; queues + starts it. |
+| `setPreference` | `name`, `value` (typed: `value=foo:bool`/`int`/`string`) | `{set, value}` | Write any `SettingsService` field at runtime. Broader than `setSetting`. |
+| `clearPreference` | `name` | `{cleared: true}` | Remove a preference key (back to default). |
+| `requestLibraryPermission` | — | `{granted: bool}` | Programmatically trigger the storage / audio permission flow on Android. |
+| `getOverflowReports` | `clear=true` (optional) | `{reports: [...]}` | Returns the `FlutterError.onError` ring buffer, including layout overflow incidents. |
+
+Total: **26 extensions** registered in `lib/testing/agent_service.dart:67-145`. Use `drive.py` (see top of this doc) for typed access from the command line.
 
 ### Response Format
 

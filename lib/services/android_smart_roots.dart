@@ -48,11 +48,19 @@ class AndroidSmartRoots {
 
       final candidates = _candidatesForDevice(root: root, songDirs: dirs);
 
-      final entriesForDevice = candidates.isEmpty
-          ? <String>[root]
-          : (candidates.length > maxEntriesPerDevice
-                ? <String>[root]
-                : candidates);
+      // Music-only contract: never fall back to the device root itself.
+      // When no candidates exist for a device, omit it — the UI then renders
+      // an empty smart-roots view rather than the full file system. The
+      // device-root fallback used to slip through to a filesystem listing of
+      // every top-level folder (Alarms, Android, …), which violated the
+      // "this is a music player, not a file explorer" contract.
+      if (candidates.isEmpty) continue;
+
+      final entriesForDevice =
+          candidates.length > maxEntriesPerDevice
+              ? <String>[]
+              : candidates;
+      if (entriesForDevice.isEmpty) continue;
 
       sections.add(
         SmartRootSection(deviceRoot: root, entries: entriesForDevice),
