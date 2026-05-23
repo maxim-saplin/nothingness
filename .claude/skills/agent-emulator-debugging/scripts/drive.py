@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["websockets>=12.0"]
+# ///
 """drive.py — CLI driver for the Nothingness app's VM service surface.
 
 Wraps `ext.nothingness.*` extensions exposed by `lib/testing/agent_service.dart`
@@ -43,11 +47,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-try:
-    import websockets
-except ImportError:  # pragma: no cover - script is only useful with websockets
-    print("error: install python websockets (pip install websockets)", file=sys.stderr)
-    sys.exit(2)
+import websockets
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]

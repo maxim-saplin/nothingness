@@ -27,6 +27,10 @@ Precondition: WSL2 mirrored networking must be configured. If `adb devices` show
 
 Once configured, plain `adb` works from WSL2 with no bridge or shims needed.
 
+## Python Tooling
+
+Python scripts (e.g. `drive.py`) are managed by `uv` against a repo-root `.venv`. Bootstrap once after checkout with `uv sync`. Deps are declared in `pyproject.toml`; `drive.py` also carries a PEP 723 inline header so it self-installs on first run.
+
 ## Temp Files
 
 Store at local .tmp/ folder

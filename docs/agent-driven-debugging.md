@@ -47,6 +47,8 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
 
 For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto-discovers the VM service WebSocket (scanning logcat + `/tmp/flutter_run.log`), caches it between calls, resolves the main isolate, wraps every `ext.nothingness.*` extension as a typed subcommand, and offers screenshot, hot-reload, hot-restart, and clear-data conveniences.
 
+The script is managed by `uv`: it carries a PEP 723 inline metadata block and a `#!/usr/bin/env -S uv run --script` shebang, so `./drive.py …` works directly with no setup. For a stable project venv (useful for IDE completion), run `uv sync` once after checkout — it creates `.venv/` and installs `websockets` from the repo-root `pyproject.toml`.
+
 ```bash
 # All examples assume the app is running in debug mode on emulator-5554.
 
@@ -91,7 +93,7 @@ For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto
 
 The cache lives next to the script as `.vm_ws.txt`. If you kill `flutter run` and restart it, `drive.py reset` (or simply deleting the cache) refreshes it.
 
-Subcommand source: `.claude/skills/agent-emulator-debugging/scripts/drive.py`. The `e()` shell fallback below remains useful when you want to call an extension that drive.py doesn't yet wrap, or when Python is unavailable.
+Subcommand source: `.claude/skills/agent-emulator-debugging/scripts/drive.py`. For extensions drive.py doesn't yet wrap, use `drive.py call <ext> k=v k=v …` to make an arbitrary `ext.nothingness.*` call — no need to drop down to the raw `curl` recipe below.
 
 ## Quick Start
 

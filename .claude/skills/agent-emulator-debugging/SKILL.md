@@ -8,6 +8,16 @@ Use this skill to drive the real app quickly, inspect runtime state, and unblock
 
 Always use the real app entrypoint: `lib/main.dart` (never `main_test.dart` — that's reserved for deterministic `integration_test/` runs with fake transport).
 
+## First-time setup
+
+The Python tooling (`drive.py`) is managed by `uv` against a repo-root `.venv`. Bootstrap once after checkout:
+
+```bash
+uv sync   # creates .venv at the repo root and installs websockets
+```
+
+`drive.py` carries a PEP 723 inline metadata block and a `#!/usr/bin/env -S uv run --script` shebang, so `./drive.py …` Just Works even before `uv sync` has been run — uv resolves the dep on demand. The project venv is still useful for IDE completion and any future Python tooling.
+
 ## Fast Setup
 
 ```bash
@@ -78,49 +88,6 @@ $D replay smoke.txt                           # one drive.py invocation per line
 ```
 
 For extensions not yet wrapped, `drive.py call <ext> k=v k=v …` calls any `ext.nothingness.<name>` with arbitrary params.
-
-## Manual fallback (no drive.py)
-
-When Python or the WS dependency is unavailable, the raw recipe still works.
-
-```bash
-flutter run -d emulator-5554 --debug
-# capture the VM URL from stdout:
-BASE="http://127.0.0.1:<PORT>/<AUTH>=/"
-ISOLATE=$(python3 - <<'PY'
-import json
-import urllib.request
-
-base = "http://127.0.0.1:<PORT>/<AUTH>=/"
-with urllib.request.urlopen(base + 'getVM') as resp:
-    vm = json.load(resp)["result"]
-print([i for i in vm["isolates"] if i["name"] == "main"][0]["id"])
-PY
-)
-
-e(){ python3 - "$BASE" "$ISOLATE" "$1" "${2:-}" <<'PY'
-import json
-import sys
-import urllib.parse
-import urllib.request
-
-base, isolate, name, extra = sys.argv[1:5]
-params = {'isolateId': isolate}
-if extra:
-    for key, value in urllib.parse.parse_qsl(extra, keep_blank_values=True):
-        params[key] = value
-with urllib.request.urlopen(f"{base}ext.nothingness.{name}?" + urllib.parse.urlencode(params)) as resp:
-    print(resp.read().decode())
-PY
-}
-
-# examples
-e getPlaybackState
-e getSettings
-e play
-e setQueue "paths=/sdcard/Music/a.mp3,/sdcard/Music/b.mp3&startIndex=0"
-e tapByKey "key=test.playPause"
-```
 
 ## WSL2 + Host Emulator
 
