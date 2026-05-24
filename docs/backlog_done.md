@@ -334,3 +334,57 @@ directional `‹` / `›` flash when a horizontal swipe trips prev/next. New
 `HeroFeedbackSurface` widget owns the hero overlay; transport row replaced
 `InkResponse` with a custom `_TouchDownDimmer`. Widget tests added for all
 three surfaces.
+
+---
+
+## B-014 (major): Search results destroy the queue; needs sub-queue model
+
+**Symptom**: Tap a result while searching → the queue becomes a one-track
+list (just the result). When the track ends, playback simply stops; the
+other search results are gone.
+
+**Repro**: queue contained two indie tracks. Searched "the" → two results
+("The Strokes – Last Nite", "The Offspring – Pretty Fly"). Tapped the
+first. Immediately after:
+```
+queueLength = 1
+queue = ["The Strokes - Last Nite"]
+isPlaying = True
+```
+The Offspring result is unreachable — playback dead-ends at the natural
+end.
+
+**Root cause**: `VoidBrowser._playOneShot`
+(`lib/widgets/void_browser.dart:628-631`) calls `playOneShot`. On Android
+the provider (`lib/providers/audio_player_provider.dart:285`) drops back
+to `setQueue([track])` because the Android handler doesn't implement
+one-shot, *destroying the prior queue in the process*. On non-Android,
+`PlaybackController.playOneShot`
+(`lib/services/playback_controller.dart:815`) preserves the prior queue
+and resumes at `index+1` on natural end — but the search-results list is
+still discarded.
+
+**Desired — sub-queue model**:
+- Search is **global** across the library (already true since B-009).
+- Tapping a result installs the **search results list as a sub-queue**
+  injected into the current queue, with the tapped track as the active
+  item. Subsequent results play in order.
+- **Closing search** (× or back) restores the *original* queue. The
+  currently-playing track keeps playing until natural end or user skip,
+  then playback resumes the restored queue from where it was.
+- If the currently-playing track is itself a search result match, the
+  search list **includes it** so the user can identify and tap it
+  (no-op or restart — pick one). Document this in the help/About sheet.
+
+**Implementation sketch**:
+- Add a "search session" notion to `PlaybackController` that snapshots
+  the prior queue + currentIndex, installs a new queue derived from
+  search results, and restores on close.
+- Surface a help row (`HelpScreen`) explaining the sub-queue behaviour
+  and the "tap your current track in search" affordance.
+- Add a new explainer paragraph to `HelpScreen` covering the search
+  model.
+
+**Area**: search / playback
+
+**Closed**: 2026-05-24 — search sub-queue model: results install as session sub-queue, original queue restored on dismiss; help text added.

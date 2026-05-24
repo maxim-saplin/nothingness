@@ -292,6 +292,37 @@ class AudioPlayerProvider extends ChangeNotifier {
     await _controller!.playOneShot(track, repeatOne: repeatOne);
   }
 
+  /// Install [results] as a search-session sub-queue starting at
+  /// [tappedIndex]. The previous queue and index are preserved by
+  /// [PlaybackController] and restored on [exitSearchSession]. B-014.
+  Future<void> enterSearchSession(
+    List<AudioTrack> results,
+    int tappedIndex,
+  ) async {
+    if (_isAndroid) {
+      await _androidHandler!.customAction(
+        'enterSearchSession',
+        <String, Object?>{
+          'tracks': results.map(_encodeTrack).toList(growable: false),
+          'tappedIndex': tappedIndex,
+        },
+      );
+      return;
+    }
+    await _controller!.enterSearchSession(results, tappedIndex);
+  }
+
+  /// Restore the queue captured at the start of the current search session.
+  /// The currently-playing track keeps playing. No-op if no session is
+  /// active. B-014.
+  Future<void> exitSearchSession() async {
+    if (_isAndroid) {
+      await _androidHandler!.customAction('exitSearchSession');
+      return;
+    }
+    await _controller!.exitSearchSession();
+  }
+
   Future<void> shuffleQueue() => _isAndroid
       ? _androidHandler!.customAction('shuffleQueue')
       : _controller!.shuffleQueue();

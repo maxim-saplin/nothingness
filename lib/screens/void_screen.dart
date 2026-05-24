@@ -231,6 +231,9 @@ class _VoidScreenState extends State<VoidScreen>
       // results panel keys off the controller, so empty it to mirror the
       // visual collapse. _exitSearchMode already does this; mirror it here.
       _searchController.clear();
+      // B-014: restore the queue captured at the start of this search
+      // session, if any. No-op when the user never tapped a result.
+      _endSearchSession();
     }
   }
 
@@ -245,6 +248,17 @@ class _VoidScreenState extends State<VoidScreen>
     _searchController.clear();
     _searchFocusNode.unfocus();
     setState(() => _searchMode = false);
+    // B-014: restore the prior queue. The provider/controller handle the
+    // no-active-session case as a no-op.
+    _endSearchSession();
+  }
+
+  void _endSearchSession() {
+    if (!mounted) return;
+    // Fire-and-forget: the controller / provider treats no-active-session
+    // as a no-op, and we don't need to block UI on the restore.
+    final player = context.read<AudioPlayerProvider>();
+    unawaited(player.exitSearchSession());
   }
 
   void _maybeShowLaunchHint() {

@@ -22,6 +22,16 @@ enum PlayIntent {
   pause,
 }
 
+/// Snapshot of the queue + active index taken when the user enters a search
+/// session (B-014). Restored verbatim on `exitSearchSession`, with the
+/// currently-playing track allowed to continue without a reload.
+class _SearchSession {
+  _SearchSession({required this.savedQueue, required this.savedIndex});
+
+  final List<AudioTrack> savedQueue;
+  final int savedIndex;
+}
+
 /// Internal classification of why a selection/play attempt is happening.
 enum _SelectionReason { userTap, previous, autoAdvance, setQueue, other }
 
@@ -56,6 +66,15 @@ class PlaybackController {
   final ValueNotifier<bool> isOneShotNotifier = ValueNotifier(false);
   bool get isOneShot => _oneShot;
   AudioTrack? get oneShotTrack => _oneShotTrack;
+
+  // Search-session state (B-014). When active, the controller has swapped the
+  // visible queue out for a search-results sub-queue, with the original
+  // queue/index preserved here to restore on `exitSearchSession`. The
+  // currently-playing track is allowed to keep playing across the restore
+  // (no reload) — its index inside the restored queue is reused when
+  // possible, otherwise the snapshotted `savedIndex` wins.
+  _SearchSession? _activeSearchSession;
+  bool get isInSearchSession => _activeSearchSession != null;
 
   // Track paths of files that failed to load (backend-agnostic)
   final Set<String> _failedTrackPaths = <String>{};
@@ -925,6 +944,116 @@ class PlaybackController {
       position: position.inMilliseconds,
       duration: duration.inMilliseconds,
     );
+  }
+
+  /// Enter a search session (B-014).
+  ///
+  /// Snapshots the current queue + index (only on the FIRST enter while the
+  /// session is active — subsequent calls swap the visible results without
+  /// re-snapshotting), then installs [results] as the active queue and starts
+  /// playback at [tappedIndex]. The original queue is restored by
+  /// [exitSearchSession].
+  ///
+  /// Visible to [VoidBrowser] when the user taps a search result while the
+  /// crumb is in search mode. Replaces the prior code path that routed
+  /// through `playOneShot` and dropped the rest of the result list.
+  Future<void> enterSearchSession(
+    List<AudioTrack> results,
+    int tappedIndex,
+  ) async {
+    if (results.isEmpty) return;
+    final clampedTap = tappedIndex.clamp(0, results.length - 1).toInt();
+
+    // First enter — capture the prior queue + index so we can restore on
+    // dismissal. Re-entering while a session is already active is treated as
+    // "extend the session": swap the displayed results without overwriting
+    // the original snapshot.
+    if (_activeSearchSession == null) {
+      final savedQueue = List<AudioTrack>.unmodifiable(
+        // Use the raw playlist queue (no isNotFound flags) so a later restore
+        // returns the tracks as the user originally supplied them.
+        _playlist.queueNotifier.value,
+      );
+      final savedIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
+      _activeSearchSession = _SearchSession(
+        savedQueue: savedQueue,
+        savedIndex: savedIndex,
+      );
+      _log('SearchSession enter: saved index=$savedIndex queueLen=${savedQueue.length}');
+    } else {
+      _log('SearchSession re-enter (no re-snapshot)');
+    }
+
+    // Install the results as the playable queue and play the tapped track.
+    // Reuse the controller's normal setQueue path so transport load + play
+    // intent + error handling all behave consistently. `shuffle: false` so
+    // the result order is preserved — the user expects the visible list.
+    await setQueue(results, startIndex: clampedTap, shuffle: false);
+  }
+
+  /// Exit the current search session (B-014).
+  ///
+  /// Restores the original queue + index. The currently-playing track keeps
+  /// playing — we do NOT reload the transport. If the playing track happens
+  /// to also live in the restored queue, `currentIndex` is set to its
+  /// position there; otherwise it falls back to the snapshotted index.
+  /// Subsequent natural-end / explicit-skip events advance from that point.
+  ///
+  /// No-op if no session is active.
+  Future<void> exitSearchSession() async {
+    final session = _activeSearchSession;
+    if (session == null) return;
+    _activeSearchSession = null;
+
+    // Identify the currently-playing track so we can prefer its position
+    // inside the restored queue when re-anchoring `currentIndex`.
+    final currentIdx = _playlist.currentOrderIndexNotifier.value;
+    final activeTrack =
+        currentIdx == null ? null : _playlist.trackForOrderIndex(currentIdx);
+
+    // If the user emptied the prior queue (edge case), restore as empty.
+    if (session.savedQueue.isEmpty) {
+      // Reuse the playlist directly so we don't trigger transport reload.
+      await _playlist.setQueue(const <AudioTrack>[]);
+      _failedTrackPaths.clear();
+      _updateQueueWithNotFoundFlags();
+      _log('SearchSession exit: restored empty queue');
+      return;
+    }
+
+    // Pick the restore index. Prefer the playing track's position in the
+    // restored queue so the displayed song info matches what's audible.
+    var restoreIndex = session.savedIndex;
+    if (activeTrack != null) {
+      final idxInRestored = session.savedQueue.indexWhere(
+        (t) => t.path == activeTrack.path,
+      );
+      if (idxInRestored >= 0) {
+        restoreIndex = idxInRestored;
+      }
+    }
+    restoreIndex = restoreIndex
+        .clamp(0, session.savedQueue.length - 1)
+        .toInt();
+
+    // Reset transient "failed" markers — they belonged to the search-result
+    // tracks, not the original queue.
+    _failedTrackPaths.clear();
+
+    // Restore via the playlist directly so the transport is NOT reloaded.
+    // The active source continues playing until natural end or user skip.
+    await _playlist.setQueue(
+      session.savedQueue,
+      startBaseIndex: restoreIndex,
+    );
+    _updateQueueWithNotFoundFlags();
+    _log(
+      'SearchSession exit: restored queueLen=${session.savedQueue.length} '
+      'index=$restoreIndex (active=${activeTrack?.path ?? "null"})',
+    );
+    // Force a song-info emit so listeners see the updated queue/index. The
+    // transport stays untouched, so `isPlaying` is preserved.
+    await _emitSongInfo(force: true);
   }
 
   Future<void> setQueue(

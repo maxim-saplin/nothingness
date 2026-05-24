@@ -487,9 +487,13 @@ class _VoidBrowserState extends State<VoidBrowser> {
       );
     }
 
+    // B-014: tapping a search result installs the entire result list as a
+    // sub-queue and starts at the tapped track. Closing search restores the
+    // prior queue. We need the *index inside the result list* — locate the
+    // tapped track by path so re-orderings don't get out of sync.
     return GestureDetector(
       key: ValueKey('void-search:${track.path}'),
-      onTap: () => _playOneShot(track),
+      onTap: () => _playSearchResult(track),
       child: Container(
         constraints: BoxConstraints(minHeight: geometry.rowHeight),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -614,6 +618,20 @@ class _VoidBrowserState extends State<VoidBrowser> {
   void _playOneShot(AudioTrack track) {
     final player = context.read<AudioPlayerProvider>();
     player.playOneShot(track);
+  }
+
+  /// B-014: tapping a search result installs the visible result list as a
+  /// search-session sub-queue with the tapped track active. The prior queue
+  /// is preserved by [PlaybackController] and restored when search is
+  /// dismissed by [VoidScreen]. Routed via [AudioPlayerProvider] so the
+  /// Android handler can dispatch the same custom action.
+  void _playSearchResult(AudioTrack track) {
+    final player = context.read<AudioPlayerProvider>();
+    final results = _searchResults;
+    if (results.isEmpty) return;
+    final idx = results.indexWhere((t) => t.path == track.path);
+    final tappedIndex = idx < 0 ? 0 : idx;
+    player.enterSearchSession(results, tappedIndex);
   }
 
   Future<void> _playFolderRecursiveShuffled(String path) async {

@@ -307,6 +307,17 @@ class NothingAudioHandler extends BaseAudioHandler
       case 'previous':
         await _controller.previous();
         return null;
+      case 'enterSearchSession':
+        // B-014: search results install as a sub-queue while preserving the
+        // prior queue for restoration on dismissal.
+        final map = (extras as Map?) ?? const <String, Object?>{};
+        final tracks = _decodeTracks(map['tracks']);
+        final tappedIndex = (map['tappedIndex'] as num?)?.toInt() ?? 0;
+        await _controller.enterSearchSession(tracks, tappedIndex);
+        return null;
+      case 'exitSearchSession':
+        await _controller.exitSearchSession();
+        return null;
     }
 
     return super.customAction(name, extras);
