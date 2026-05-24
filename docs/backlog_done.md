@@ -128,3 +128,32 @@ full `_buildGroups` method.
 **Area**: settings
 
 **Closed**: 2026-05-24 — status strip (queue size + shuffle toggle) added above MODE group in void settings sheet.
+
+---
+
+## B-013 (minor): Search input font too small; close is a tiny faded ×
+
+**Symptom**: Entering search mode shrinks the input to `typography.crumbSize`
+(same as the path readout) — noticeably smaller than the search-result
+rows above it. Close is a single `×` glyph in `fgTertiary` (low-contrast)
+at the row end; easy to miss.
+
+**Repro**: long-press the crumb, type `the`. Screenshot at
+`.tmp/agent_shots/search_the.png` (this session): the input "? the" reads
+visibly smaller than each result row beside it, and the × glyph is
+identical to the result-row dividers in tone.
+
+**Desired**: Bump the search input to at least `typography.rowSize` (the
+same size as the result rows). Make dismissal more discoverable: enlarge
+the × hit target without changing the visual weight, accept swipe-down on
+the crumb as a dismissal gesture, and confirm `_onSearchFocusChanged`
+(`lib/screens/void_screen.dart:215-222`) really collapses search on
+focus-out (it does, but only when the query is empty — that may also be
+worth relaxing).
+
+**Notes**: `_buildSearchCrumb` lives at
+`lib/screens/void_screen.dart:579-613`.
+
+**Area**: chrome / search
+
+**Closed**: 2026-05-24 — search input bumped to `typography.rowSize` (parity with result rows); × kept at crumb-size/fgTertiary visual weight but wrapped in a 44×44 hit target keyed `void-search-close`; downward fling on the search crumb dismisses (gesture region keyed `void-search-crumb-region`); `_onSearchFocusChanged` now collapses on focus-out regardless of query (and clears the controller) — tap-away ends the session, re-tap resumes.

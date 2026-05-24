@@ -214,11 +214,17 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   void _onSearchFocusChanged() {
-    // Exiting focus while the query is empty collapses back to the crumb.
-    if (!_searchFocusNode.hasFocus &&
-        _searchController.text.isEmpty &&
-        _searchMode) {
+    // B-013: collapse on focus-out regardless of query. Tap-away ends the
+    // session; re-tapping the crumb resumes a fresh search. Previously
+    // this only collapsed when the query was empty, which left a stale
+    // input lingering after dismissal gestures (drag, settings tap, etc.).
+    if (!_searchFocusNode.hasFocus && _searchMode) {
       setState(() => _searchMode = false);
+      // Keep _searchController text intact for the next session if the
+      // dismissal was a focus loss without explicit clear — but the
+      // results panel keys off the controller, so empty it to mirror the
+      // visual collapse. _exitSearchMode already does this; mirror it here.
+      _searchController.clear();
     }
   }
 
@@ -577,38 +583,68 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   Widget _buildSearchCrumb(AppPalette palette, AppTypography typography) {
+    // B-013: input renders at row-size (visual parity with the result rows
+    // above), the × glyph keeps its tertiary tone but ships with a 44 px
+    // square hit target, and the whole row accepts a downward swipe as a
+    // dismissal gesture.
     final textStyle = TextStyle(
       color: palette.fgPrimary,
       fontFamily: typography.monoFamily,
+      fontSize: typography.rowSize,
+    );
+    // The × glyph itself stays at the same visual weight as before
+    // (typography.crumbSize, fgTertiary). Only its hit target grows.
+    final closeGlyphStyle = TextStyle(
+      color: palette.fgTertiary,
+      fontFamily: typography.monoFamily,
       fontSize: typography.crumbSize,
     );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text('? ',
-            style: textStyle.copyWith(color: palette.fgSecondary)),
-        Expanded(
-          child: TextField(
-            controller: _searchController,
-            focusNode: _searchFocusNode,
-            autofocus: true,
-            cursorColor: palette.fgPrimary,
-            cursorWidth: 1,
-            style: textStyle,
-            decoration: const InputDecoration.collapsed(hintText: ''),
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _exitSearchMode(),
+    return GestureDetector(
+      key: const ValueKey('void-search-crumb-region'),
+      behavior: HitTestBehavior.opaque,
+      // Downward fling / drag dismisses the search session, mirroring the
+      // × tap. We only act on a meaningfully-downward gesture so the
+      // TextField still gets to own intra-text scroll/long-press.
+      onVerticalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v > 200) _exitSearchMode();
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('? ',
+              style: textStyle.copyWith(color: palette.fgSecondary)),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              autofocus: true,
+              cursorColor: palette.fgPrimary,
+              cursorWidth: 1,
+              style: textStyle,
+              decoration: const InputDecoration.collapsed(hintText: ''),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _exitSearchMode(),
+            ),
           ),
-        ),
-        GestureDetector(
-          onTap: _exitSearchMode,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Text('×',
-                style: textStyle.copyWith(color: palette.fgTertiary)),
+          Semantics(
+            label: 'close search',
+            button: true,
+            child: GestureDetector(
+              key: const ValueKey('void-search-close'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _exitSearchMode,
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: Text('×', style: closeGlyphStyle),
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
