@@ -219,3 +219,49 @@ Current manifest has both `READ_EXTERNAL_STORAGE` and `READ_MEDIA_AUDIO`
 **Area**: permissions / build
 
 **Closed**: 2026-05-24 — minSdk 29; mic + storage dropped from OWN-mode gate; hasPermission keyed off audio only.
+
+---
+
+## B-018 (minor): Define a per-skin transport-row contract
+
+**Symptom**: There is no shared convention for how each hero integrates the
+chrome's transport row. Polo opts out entirely (bespoke LCD-style
+controls); Spectrum, Dot, and Void all *can* respect the global
+`transport` setting, but each has its own implicit layout assumption
+about how much vertical room the transport row consumes and where it
+sits relative to hero content. With `transport: off`, some heroes
+(Dot in particular) end up with no on-screen controls at all and no
+song info either.
+
+**Repro**: Screenshot `.tmp/agent_shots/dot_top_transport.png` — Dot with
+transport `top` renders the prev/play/next row beneath the pulsing dot.
+At `transport: off` the Dot screen becomes "just a dot" with no controls
+and no metadata, hero gestures only.
+
+**Desired — transport contract**:
+1. Each hero declares whether it **hosts** the chrome transport row
+   (Spectrum, Dot, Void) or is **bespoke** (Polo). Hosted heroes are
+   subject to the global `transport` setting (`top` / `bottom` / `off`).
+2. Hosted heroes lay out their content within a guaranteed *hero band*
+   (the region above the transport when `bottom`, below it when `top`,
+   the full hero area when `off`). The shell allocates the transport
+   slot; the hero never has to know its exact height.
+3. `VoidScreen` (the shell) is the single owner of transport-row
+   placement; heroes do not paint their own transport. Polo is the only
+   exception and stays exempt.
+
+**Implementation sketch**:
+- Add a `bool ScreenConfig.hostsChromeTransport` (or equivalent) so the
+  shell knows which heroes participate. Polo returns false; the others
+  return true.
+- The transport-position branch in `lib/screens/void_screen.dart:406-416`
+  already does the placement work — extend it to gate on
+  `hostsChromeTransport`, and pass the hero band size into the hero
+  through `LayoutBuilder` constraints so the hero doesn't guess.
+
+**Notes**: This is foundation for B-020 (Dot song info toggle) — both
+features want the hero to honour a stable band given to it by the shell.
+
+**Area**: heroes / chrome / transport
+
+**Closed**: 2026-05-24 — transport contract: ScreenConfig.hostsChromeTransport gates chrome transport; Polo bespoke; hosted heroes get hero-band via Expanded.

@@ -330,13 +330,21 @@ class _VoidScreenState extends State<VoidScreen>
                   // hairline above the Android gesture-nav bar (B-002).
                   final reservedBottom = bottomInset * (1 - t);
                   final showChildren = t < 0.999;
+                  // B-018 per-skin transport contract: hosted heroes
+                  // (Spectrum, Dot, Void) opt-in to chrome-owned transport
+                  // placement; bespoke heroes (Polo) opt-out and paint
+                  // their own controls. The shell suppresses the row
+                  // entirely when the active hero is bespoke, regardless
+                  // of the global transport setting.
+                  final activeConfig = _resolvedScreenConfig();
+                  final hostsTransport = activeConfig.hostsChromeTransport;
                   // Transport pins to either the top of the browser band
                   // (just below the hero) or to the bottom (just above the
                   // crumb), or it's hidden. The browser's vertical slot
                   // shrinks from whichever side the strip claims.
-                  final isTransportTop =
+                  final isTransportTop = hostsTransport &&
                       _transportPosition == TransportPosition.top;
-                  final isTransportBottom =
+                  final isTransportBottom = hostsTransport &&
                       _transportPosition == TransportPosition.bottom;
                   final hasTransport = isTransportTop || isTransportBottom;
                   final browserBottom = reservedBottom +

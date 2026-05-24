@@ -10,6 +10,19 @@ abstract class ScreenConfig {
 
   const ScreenConfig({required this.type, required this.name});
 
+  /// Whether this hero participates in the chrome-owned transport row
+  /// contract (B-018).
+  ///
+  /// Hosted heroes (Spectrum, Dot, Void) opt-in: the Void shell paints
+  /// the [TransportRow] at the position dictated by the global
+  /// `transport` setting (`top` / `bottom` / `off`) and the hero only
+  /// has to lay out content within the *hero band* it is handed.
+  ///
+  /// Bespoke heroes (Polo) opt-out by overriding to `false`: they paint
+  /// their own controls (Polo's LCD-style image overlay) and the shell
+  /// stays out of their way regardless of the global transport setting.
+  bool get hostsChromeTransport => true;
+
   Map<String, dynamic> toJson();
 
   static ScreenConfig fromJson(Map<String, dynamic> json) {
@@ -206,6 +219,12 @@ class PoloScreenConfig extends ScreenConfig {
       0xFF000000,
     ), // Usually LCDs are dark text on light bg or vice versa. Polo image LCD looks bright.
   }) : super(type: ScreenType.polo, name: 'Polo');
+
+  /// Polo is bespoke — it paints its own LCD-style controls as part of
+  /// the skin image and opts out of the chrome transport row contract
+  /// (B-018).
+  @override
+  bool get hostsChromeTransport => false;
 
   @override
   Map<String, dynamic> toJson() => {

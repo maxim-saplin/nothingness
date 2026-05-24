@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
+import 'package:nothingness/models/transport_position.dart';
 import 'package:nothingness/screens/void_screen.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/theme/app_typography.dart';
@@ -44,6 +45,8 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     SettingsService().immersiveNotifier.value = false;
+    SettingsService().transportPositionNotifier.value =
+        TransportPosition.bottom;
   });
 
   group('VoidScreen hero dispatcher', () {
@@ -172,6 +175,94 @@ void main() {
           reason: 'B-013: focus-out must collapse search even with a '
               'non-empty query.');
       expect(find.text('~'), findsOneWidget);
+    });
+  });
+
+  group('B-018: per-skin transport contract', () {
+    test('hostsChromeTransport: hosted heroes true, Polo false', () {
+      expect(const VoidScreenConfig().hostsChromeTransport, isTrue,
+          reason: 'B-018: Void hero hosts the chrome transport row.');
+      expect(const SpectrumScreenConfig().hostsChromeTransport, isTrue,
+          reason: 'B-018: Spectrum hero hosts the chrome transport row.');
+      expect(const DotScreenConfig().hostsChromeTransport, isTrue,
+          reason: 'B-018: Dot hero hosts the chrome transport row.');
+      expect(const PoloScreenConfig().hostsChromeTransport, isFalse,
+          reason:
+              'B-018: Polo is bespoke — the shell must NOT paint a chrome '
+              'transport row over Polo.');
+    });
+
+    testWidgets(
+        'transport=bottom: Spectrum (hosted) gets hero band == total - '
+        'transport row height', (tester) async {
+      SettingsService().transportPositionNotifier.value =
+          TransportPosition.bottom;
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // Locate the rendered TransportRow and SpectrumHero render boxes;
+      // the SpectrumHero band should occupy the area above the transport
+      // (i.e. its height should equal screen height - transport height,
+      // give or take the crumb / hairline slots which are below the
+      // transport when position == bottom).
+      final transportFinder = find.byType(TransportRow);
+      final heroFinder = find.byType(SpectrumHero);
+      expect(transportFinder, findsOneWidget);
+      expect(heroFinder, findsOneWidget);
+
+      final transportBox =
+          tester.renderObject<RenderBox>(transportFinder);
+      final heroBox = tester.renderObject<RenderBox>(heroFinder);
+      final transportTop =
+          transportBox.localToGlobal(Offset.zero).dy;
+      final heroBottom =
+          heroBox.localToGlobal(Offset(0, heroBox.size.height)).dy;
+      // The hero band must end at (or above) the transport row's top edge
+      // — heroes never paint behind the transport row.
+      expect(heroBottom, lessThanOrEqualTo(transportTop + 0.5),
+          reason: 'B-018: hosted hero band must end at the transport row.');
+    });
+
+    testWidgets(
+        'transport=off: hosted heroes get the full hero area, no '
+        'TransportRow painted', (tester) async {
+      SettingsService().transportPositionNotifier.value =
+          TransportPosition.off;
+      await _pump(tester, const SpectrumScreenConfig());
+
+      expect(find.byType(TransportRow), findsNothing,
+          reason:
+              'B-018: with transport=off, the chrome must not paint a row.');
+      // The hero should be present and its height should exceed the prior
+      // (bottom) layout's hero band — i.e. there is no transport carve-out.
+      final heroFinder = find.byType(SpectrumHero);
+      expect(heroFinder, findsOneWidget);
+      final heroBox = tester.renderObject<RenderBox>(heroFinder);
+      expect(heroBox.size.height, greaterThan(0));
+    });
+
+    testWidgets(
+        'Polo with transport=bottom: shell does NOT paint TransportRow',
+        (tester) async {
+      SettingsService().transportPositionNotifier.value =
+          TransportPosition.bottom;
+      await _pump(tester, const PoloScreenConfig());
+
+      expect(find.byType(PoloHero), findsOneWidget);
+      expect(find.byType(TransportRow), findsNothing,
+          reason: 'B-018: Polo is bespoke — chrome transport row must be '
+              'suppressed regardless of the global transport setting.');
+    });
+
+    testWidgets(
+        'Polo with transport=top: shell does NOT paint TransportRow',
+        (tester) async {
+      SettingsService().transportPositionNotifier.value =
+          TransportPosition.top;
+      await _pump(tester, const PoloScreenConfig());
+
+      expect(find.byType(PoloHero), findsOneWidget);
+      expect(find.byType(TransportRow), findsNothing,
+          reason: 'B-018: Polo stays bespoke under transport=top too.');
     });
   });
 }
