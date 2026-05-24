@@ -77,17 +77,23 @@ void main() {
       expect(eqJsonString, isNotNull);
     });
 
-    test('saveScreenConfig persists screen selection', () async {
+    test('saveScreenConfig persists screen selection under per-screen key',
+        () async {
       final config = PoloScreenConfig();
       await service.saveScreenConfig(config);
 
       final prefs = await SharedPreferences.getInstance();
-      final jsonString = prefs.getString('screen_config');
+      // B-028: per-screen key replaces the single composite blob.
+      final jsonString = prefs.getString('screen_config_polo');
 
       expect(jsonString, isNotNull);
       final json = jsonDecode(jsonString!);
       expect(json['type'], 'polo');
       expect(json['name'], 'Polo');
+      // Active-screen marker tracks which skin to boot into.
+      expect(prefs.getString('active_screen_id'), 'polo');
+      // Legacy composite key is NOT written.
+      expect(prefs.getString('screen_config'), isNull);
     });
 
     test('loadSettings retrieves saved data', () async {
@@ -222,6 +228,144 @@ void main() {
       final settings = await service.loadSettings();
 
       expect(settings.noiseGateDb, SettingsService.defaultNoiseGateDb);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // B-028: per-screen `screen_config_<id>` keys. Replaces the single
+  // `screen_config` blob, which caused cross-skin cycles to clobber
+  // per-skin fields (e.g. DotScreenConfig.showSongInfo from B-020).
+  // ---------------------------------------------------------------------------
+  group('B-028 per-screen screen_config persistence', () {
+    late SettingsService service;
+
+    setUp(() {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      service = SettingsService();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('com.saplin.nothingness/media'),
+        (MethodCall _) async => null,
+      );
+    });
+
+    test('saveScreenConfig writes to per-screen key (not legacy)', () async {
+      const dot = DotScreenConfig(showSongInfo: true);
+      await service.saveScreenConfig(dot);
+
+      final prefs = await SharedPreferences.getInstance();
+      // New per-screen key holds the blob.
+      final raw = prefs.getString('screen_config_dot');
+      expect(raw, isNotNull);
+      final json = jsonDecode(raw!) as Map<String, dynamic>;
+      expect(json['type'], 'dot');
+      expect(json['showSongInfo'], isTrue);
+
+      // The legacy composite key is NOT written by saveScreenConfig.
+      expect(prefs.getString('screen_config'), isNull);
+    });
+
+    test('loadScreenConfig returns the matching per-screen blob', () async {
+      const dot = DotScreenConfig(showSongInfo: true);
+      await service.saveScreenConfig(dot);
+
+      final loaded = await service.loadScreenConfig('dot');
+      expect(loaded, isA<DotScreenConfig>());
+      expect((loaded as DotScreenConfig).showSongInfo, isTrue);
+    });
+
+    test('cross-skin cycle preserves per-skin fields (the B-028 symptom)',
+        () async {
+      // Save Dot with a non-default field.
+      const dot = DotScreenConfig(showSongInfo: true);
+      await service.saveScreenConfig(dot);
+
+      // Save Spectrum on top — this used to overwrite the shared
+      // `screen_config` blob and lose the Dot field.
+      const spectrum = SpectrumScreenConfig();
+      await service.saveScreenConfig(spectrum);
+
+      // Re-read Dot's persisted config; the non-default must still be there.
+      final reloaded = await service.loadScreenConfig('dot');
+      expect(reloaded, isA<DotScreenConfig>());
+      expect((reloaded as DotScreenConfig).showSongInfo, isTrue);
+    });
+
+    test('loadScreenConfig with no persisted blob returns null', () async {
+      final loaded = await service.loadScreenConfig('dot');
+      expect(loaded, isNull);
+    });
+
+    test('migration: legacy `screen_config` is moved to per-screen key',
+        () async {
+      const dot = DotScreenConfig(showSongInfo: true, maxDotSize: 200);
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'screen_config': jsonEncode(dot.toJson()),
+      });
+
+      // First read after upgrade triggers the one-shot migration.
+      final loaded = await service.loadScreenConfig('dot');
+      expect(loaded, isA<DotScreenConfig>());
+      expect((loaded as DotScreenConfig).showSongInfo, isTrue);
+      expect(loaded.maxDotSize, 200);
+
+      final prefs = await SharedPreferences.getInstance();
+      // Legacy key is gone.
+      expect(prefs.getString('screen_config'), isNull);
+      // Migrated blob lives under the per-screen key now.
+      final migrated = prefs.getString('screen_config_dot');
+      expect(migrated, isNotNull);
+      final json = jsonDecode(migrated!) as Map<String, dynamic>;
+      expect(json['type'], 'dot');
+      expect(json['showSongInfo'], isTrue);
+    });
+
+    test('migration: corrupted legacy blob is silently dropped', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'screen_config': 'not json',
+      });
+
+      // Must not crash.
+      final loaded = await service.loadScreenConfig('dot');
+      expect(loaded, isNull);
+
+      final prefs = await SharedPreferences.getInstance();
+      // Corrupted legacy key removed so we don't retry on every load.
+      expect(prefs.getString('screen_config'), isNull);
+
+      // Subsequent saves still work normally.
+      const dot = DotScreenConfig(showSongInfo: true);
+      await service.saveScreenConfig(dot);
+      expect(prefs.getString('screen_config_dot'), isNotNull);
+    });
+
+    test('migration is idempotent across multiple calls', () async {
+      const dot = DotScreenConfig(showSongInfo: true);
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'screen_config': jsonEncode(dot.toJson()),
+      });
+
+      final first = await service.loadScreenConfig('dot');
+      final second = await service.loadScreenConfig('dot');
+      expect(first, isA<DotScreenConfig>());
+      expect(second, isA<DotScreenConfig>());
+      expect((first! as DotScreenConfig).showSongInfo, isTrue);
+      expect((second! as DotScreenConfig).showSongInfo, isTrue);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('screen_config'), isNull);
+    });
+
+    test('void key uses the `void` suffix (not `void_`)', () async {
+      const voidCfg = VoidScreenConfig();
+      await service.saveScreenConfig(voidCfg);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('screen_config_void'), isNotNull);
+      expect(prefs.getString('screen_config_void_'), isNull);
+
+      final loaded = await service.loadScreenConfig('void');
+      expect(loaded, isA<VoidScreenConfig>());
     });
   });
 }

@@ -539,21 +539,12 @@ class AgentService {
       return live;
     }
 
-    // Otherwise re-read the persisted JSON (the same path
-    // SettingsService.loadSettings uses).
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('screen_config');
-    if (raw != null) {
-      try {
-        final json = jsonDecode(raw) as Map<String, dynamic>;
-        final persisted = ScreenConfig.fromJson(json);
-        if (persisted.type == type) {
-          return persisted;
-        }
-      } catch (_) {
-        // Fall through to defaults.
-      }
-    }
+    // B-028: read the per-screen `screen_config_<id>` blob instead of
+    // the legacy composite key. SettingsService.loadScreenConfig also
+    // runs the one-shot legacy migration on first call.
+    final persisted = await SettingsService()
+        .loadScreenConfig(SettingsService.screenIdForType(type));
+    if (persisted != null) return persisted;
 
     // No persisted config of this type — return the const default.
     switch (type) {

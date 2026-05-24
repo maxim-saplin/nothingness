@@ -147,6 +147,55 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // B-028: a full screen cycle (dot -> spectrum -> dot) must not lose
+  // non-default per-skin fields. The previous single `screen_config` key
+  // was clobbered by the spectrum step; per-screen keys fix it.
+  // ---------------------------------------------------------------------------
+  group('B-028 setSetting screen cycle preserves per-skin config', () {
+    test(
+        'dot showSongInfo=true survives a dot -> spectrum -> dot hop via disk',
+        () async {
+      // Seed Dot's per-screen key on disk with the non-default field.
+      const persistedDot = DotScreenConfig(showSongInfo: true);
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'screen_config_dot': jsonEncode(persistedDot.toJson()),
+      });
+      // Active screen is Spectrum (the typical default) so the resolver
+      // is forced to consult disk for the Dot key.
+      SettingsService().screenConfigNotifier.value =
+          const SpectrumScreenConfig();
+
+      // 1) Switch to Dot — should load the persisted blob from per-screen key.
+      var resp = await AgentService.debugSetSetting(
+        const <String, String>{'name': 'screen', 'value': 'dot'},
+      );
+      expect(resp.isError(), isFalse);
+      var active = SettingsService().screenConfigNotifier.value;
+      expect(active, isA<DotScreenConfig>());
+      expect((active as DotScreenConfig).showSongInfo, isTrue);
+
+      // 2) Switch to Spectrum — this used to clobber the shared key.
+      resp = await AgentService.debugSetSetting(
+        const <String, String>{'name': 'screen', 'value': 'spectrum'},
+      );
+      expect(resp.isError(), isFalse);
+      expect(SettingsService().screenConfigNotifier.value,
+          isA<SpectrumScreenConfig>());
+
+      // 3) Switch back to Dot — must still see showSongInfo=true.
+      resp = await AgentService.debugSetSetting(
+        const <String, String>{'name': 'screen', 'value': 'dot'},
+      );
+      expect(resp.isError(), isFalse);
+      active = SettingsService().screenConfigNotifier.value;
+      expect(active, isA<DotScreenConfig>());
+      expect((active as DotScreenConfig).showSongInfo, isTrue,
+          reason:
+              'B-028 regression: Dot.showSongInfo lost after cross-skin cycle');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // B-024: openSettingsSheet must return promptly. The previous impl
   // awaited Navigator.push, whose Future doesn't complete until the route
   // pops — RPC hung forever.

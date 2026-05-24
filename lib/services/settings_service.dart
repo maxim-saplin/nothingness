@@ -22,7 +22,15 @@ class SettingsService {
 
   static const String _settingsKey = 'spectrum_settings';
   static const String _uiScaleKey = 'ui_scale';
-  static const String _screenConfigKey = 'screen_config';
+  /// Legacy single-blob key (pre-B-028). Kept only for one-shot migration.
+  static const String _legacyScreenConfigKey = 'screen_config';
+  /// Per-screen key prefix (B-028). Each screen persists its own blob
+  /// so cross-skin cycles don't clobber per-skin fields.
+  static const String _screenConfigKeyPrefix = 'screen_config_';
+  /// Records which screen is currently active across launches (B-028).
+  /// Without this, we couldn't tell which of the per-screen keys to load
+  /// on boot.
+  static const String _activeScreenIdKey = 'active_screen_id';
   static const String _fullScreenKey = 'full_screen';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
   static const String _eqSettingsKey = 'eq_settings';
@@ -234,19 +242,21 @@ class SettingsService {
       }
     }
 
-    // 3. Load Screen Config
-    final screenJsonString = prefs.getString(_screenConfigKey);
-    if (screenJsonString != null) {
-      try {
-        final json = jsonDecode(screenJsonString);
-        screenConfigNotifier.value = ScreenConfig.fromJson(json);
-      } catch (e) {
-        debugPrint('Error loading screen config: $e');
-        screenConfigNotifier.value = defaultScreenConfig;
-      }
-    } else {
-      screenConfigNotifier.value = defaultScreenConfig;
+    // 3. Load Screen Config.
+    //
+    // B-028: per-screen keys (`screen_config_<id>`) replace the single
+    // `screen_config` blob so cross-skin cycles don't clobber per-skin
+    // fields. Migrate the legacy key (if any) into its matching per-
+    // screen slot, then pick the active screen — whichever skin the
+    // user was last on. The legacy migration also records the active
+    // screen so boot-time selection survives the upgrade.
+    await _migrateLegacyScreenConfig(prefs);
+    final activeId = prefs.getString(_activeScreenIdKey);
+    ScreenConfig? activeScreen;
+    if (activeId != null) {
+      activeScreen = await loadScreenConfig(activeId);
     }
+    screenConfigNotifier.value = activeScreen ?? defaultScreenConfig;
 
     // 4. Load Full Screen
     final isFullScreen = prefs.getBool(_fullScreenKey) ?? defaultFullScreen;
@@ -441,11 +451,83 @@ class SettingsService {
     uiScaleNotifier.value = scale;
   }
 
-  /// Saves the screen configuration to persistence.
+  /// Maps a [ScreenType] to its stable per-screen storage suffix
+  /// (`spectrum`, `polo`, `dot`, `void`). The trailing-underscore Dart
+  /// keyword workaround in `ScreenType.void_` is stripped so the
+  /// storage key reads naturally as `screen_config_void`. (B-028)
+  static String screenIdForType(ScreenType type) {
+    final raw = type.name;
+    return raw.endsWith('_') ? raw.substring(0, raw.length - 1) : raw;
+  }
+
+  /// Storage key for the given [screenId]'s persisted config blob.
+  static String _keyForScreenId(String screenId) =>
+      '$_screenConfigKeyPrefix$screenId';
+
+  /// Saves the screen configuration to persistence under its per-screen
+  /// key (`screen_config_<id>`) and records it as the active screen.
+  ///
+  /// B-028: each screen has its own slot, so flipping between skins no
+  /// longer overwrites a sibling's blob.
   Future<void> saveScreenConfig(ScreenConfig config) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_screenConfigKey, jsonEncode(config.toJson()));
+    final id = screenIdForType(config.type);
+    await prefs.setString(_keyForScreenId(id), jsonEncode(config.toJson()));
+    await prefs.setString(_activeScreenIdKey, id);
     screenConfigNotifier.value = config;
+  }
+
+  /// Reads the persisted [ScreenConfig] for [screenId] (one of
+  /// `spectrum`, `polo`, `dot`, `void`). Returns `null` when no blob
+  /// has been saved for that screen yet (caller should fall back to the
+  /// const default). Runs the legacy `screen_config` migration on the
+  /// first call after upgrade. (B-028)
+  Future<ScreenConfig?> loadScreenConfig(String screenId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _migrateLegacyScreenConfig(prefs);
+    final raw = prefs.getString(_keyForScreenId(screenId));
+    if (raw == null) return null;
+    try {
+      return ScreenConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('[Settings] Bad per-screen config for "$screenId": $e');
+      return null;
+    }
+  }
+
+  /// One-shot migration from the legacy single `screen_config` key to
+  /// per-screen `screen_config_<id>` keys. Idempotent: subsequent calls
+  /// find the legacy key gone and return immediately. Corrupted legacy
+  /// blobs are dropped quietly so the next save can take over. (B-028)
+  Future<void> _migrateLegacyScreenConfig(SharedPreferences prefs) async {
+    if (!prefs.containsKey(_legacyScreenConfigKey)) return;
+    final raw = prefs.getString(_legacyScreenConfigKey);
+    if (raw == null || raw.isEmpty) {
+      await prefs.remove(_legacyScreenConfigKey);
+      return;
+    }
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final cfg = ScreenConfig.fromJson(json);
+      final id = screenIdForType(cfg.type);
+      // Don't clobber a per-screen key that already exists (e.g. if a
+      // partial migration ran previously and we're being re-invoked).
+      if (!prefs.containsKey(_keyForScreenId(id))) {
+        await prefs.setString(_keyForScreenId(id), jsonEncode(cfg.toJson()));
+      }
+      // Record as the active screen so loadSettings boots into the same
+      // skin the user had selected pre-upgrade.
+      if (!prefs.containsKey(_activeScreenIdKey)) {
+        await prefs.setString(_activeScreenIdKey, id);
+      }
+      debugPrint(
+        '[Settings] Migrated legacy screen_config -> ${_keyForScreenId(id)}',
+      );
+    } catch (e) {
+      debugPrint('[Settings] Corrupted legacy screen_config dropped: $e');
+    } finally {
+      await prefs.remove(_legacyScreenConfigKey);
+    }
   }
 
   /// Toggles or sets full screen mode.

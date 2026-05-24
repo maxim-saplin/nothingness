@@ -64,31 +64,3 @@ on real hardware where emulator JIT warmup doesn't dominate. The second
 skip-burst (~170-290 frames) is probably `flutter_soloud` native init,
 not `audio_service` — worth isolating before another attempt.
 
----
-
-## B-028 (minor): Per-screen `screen_config` persistence
-
-**Symptom**: Settings persistence uses a single `screen_config`
-SharedPreferences key holding the active screen's config blob. When the
-agent (or user) swaps from Dot → Spectrum → Dot, the Dot config is
-overwritten with Spectrum's blob during the middle step, so the second
-Dot switch loses any non-default fields (e.g. `showSongInfo` from B-020).
-
-**Repro**: surfaced during B-023 QA. Set Dot `showSongInfo=true`; switch
-to Spectrum via `ext.nothingness.setSetting name=screen value=spectrum`;
-switch back to Dot. The `showSongInfo=true` is gone.
-
-**Desired**: Persist per-screen configs under separate keys
-(`screen_config_dot`, `screen_config_spectrum`, `screen_config_polo`,
-`screen_config_void`). On `screen` swap, write the OUTGOING screen's
-config to its own key, read the INCOMING screen's persisted config (or
-default) from its key. Migration: on first read after upgrade, if the
-old `screen_config` key still exists, parse its `screenId` and write
-the blob to the matching per-screen key, then delete the old key.
-
-**Notes**: Look at `lib/services/settings_service.dart` for the current
-load/save paths. B-023's `_resolveScreenConfig` already has a live-
-notifier shortcut + persisted-JSON reload — the new keys plug in below
-that. Keep the migration small and idempotent.
-
-**Area**: settings / persistence
