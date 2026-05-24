@@ -96,6 +96,20 @@ class _VoidScreenState extends State<VoidScreen>
   // gesture velocity check from re-firing on top of a distance trip.
   bool _horizDragFired = false;
   Timer? _hintFadeTimer;
+  // B-031: hide-only debounce for the crumb's `⊙` jump glyph. The crumb
+  // rebuilds on every library/playback notification, and there is a brief
+  // race during track changes where `dirname(songInfo.path) == currentPath`
+  // for a frame or two even though the glyph should still be available.
+  //
+  // Mechanism: `_jumpGlyphLatched` reflects what the user sees right now.
+  // Each rebuild evaluates the raw divergence predicate. If true → latched
+  // true (immediate) and any pending hide timer is cancelled. If false →
+  // schedule a hide timer for [_jumpGlyphHideDebounce] from now (resetting
+  // any prior timer). The latch only flips to false when the timer fires,
+  // so a one-frame race never collapses the glyph.
+  bool _jumpGlyphLatched = false;
+  Timer? _jumpGlyphHideTimer;
+  static const Duration _jumpGlyphHideDebounce = Duration(milliseconds: 200);
   // B-012: GlobalKey on the hero feedback surface so horizontal-drag
   // accumulator (which lives in this state) can fire the directional
   // swipe flash exactly when prev/next actually triggers.
@@ -230,6 +244,7 @@ class _VoidScreenState extends State<VoidScreen>
   @override
   void dispose() {
     _hintFadeTimer?.cancel();
+    _jumpGlyphHideTimer?.cancel();
     _searchFocusNode.removeListener(_onSearchFocusChanged);
     _searchFocusNode.dispose();
     _searchController.dispose();
@@ -675,11 +690,20 @@ class _VoidScreenState extends State<VoidScreen>
             );
             // B-015: render the jump-to-now-playing glyph when the playing
             // track lives outside the currently-browsed folder.
+            //
+            // B-031: hide-only debounce. The crumb rebuilds on every
+            // library/playback notification and `currentPath` / `songInfo`
+            // can briefly agree mid-track-change. We treat the "should-be-
+            // visible" predicate as authoritative and only allow the glyph
+            // to flip to hidden once the predicate has been false for
+            // ~200 ms. A timer schedules a rebuild when the window expires
+            // so a genuine match still hides the glyph after the debounce.
             final player = context.watch<AudioPlayerProvider>();
             final playingPath = player.songInfo?.track.path;
-            final showJumpGlyph = playingPath != null &&
+            final divergent = playingPath != null &&
                 playingPath.isNotEmpty &&
                 p.dirname(playingPath) != (path ?? '');
+            final showJumpGlyph = _resolveJumpGlyphVisible(divergent);
             // The path readout keeps its 12-px vertical padding to preserve
             // the existing crumb baseline; the 44×44 glyph hit target lives
             // outside that padding so it can extend to the row edges and
@@ -696,7 +720,7 @@ class _VoidScreenState extends State<VoidScreen>
                     ),
                   ),
                 ),
-                if (showJumpGlyph)
+                if (showJumpGlyph && playingPath != null)
                   _buildJumpGlyph(palette, typography, playingPath)
                 else
                   const SizedBox(width: 20),
@@ -744,21 +768,66 @@ class _VoidScreenState extends State<VoidScreen>
     );
   }
 
-  /// B-015: navigate the browser to [playingPath]'s parent folder and centre
-  /// the now-playing row in view via `Scrollable.ensureVisible`. The
-  /// loadFolder + ensureVisible sequence is awaited so the row's
-  /// `GlobalKey.currentContext` is non-null when we scroll.
+  /// B-031: source-of-truth for the crumb glyph's visibility. Returns the
+  /// latched flag; flips it eagerly to `true` whenever the underlying
+  /// [divergent] predicate is true, and only flips it back to `false` once
+  /// the predicate has been false continuously for
+  /// [_jumpGlyphHideDebounce] (~200 ms). This filters out one-frame races
+  /// between `library.currentPath` and `playback.songInfo` updates around
+  /// track changes.
+  bool _resolveJumpGlyphVisible(bool divergent) {
+    if (divergent) {
+      _jumpGlyphHideTimer?.cancel();
+      _jumpGlyphHideTimer = null;
+      _jumpGlyphLatched = true;
+      return true;
+    }
+    if (!_jumpGlyphLatched) return false;
+    // Predicate is false but the latch is still true — schedule (or keep)
+    // a hide timer. We only arm a fresh timer if none is pending so the
+    // window doesn't keep getting reset by ordinary rebuilds.
+    _jumpGlyphHideTimer ??= Timer(_jumpGlyphHideDebounce, () {
+      _jumpGlyphHideTimer = null;
+      if (!mounted) return;
+      setState(() => _jumpGlyphLatched = false);
+    });
+    return true;
+  }
+
+  /// Duration of the swipe-up browser open animation. Must stay in sync
+  /// with [_browserExpanded] state changes: there's no explicit slide-in
+  /// animation; the browser swaps in atomically when `_browserExpanded`
+  /// flips, but we still await a short window so the new VoidBrowser has a
+  /// chance to mount and lay out its first frame before we navigate +
+  /// scroll. ~250 ms keeps the interaction reading as a single gesture.
+  static const Duration _browserOpenSettleDuration =
+      Duration(milliseconds: 250);
+
+  /// B-015 / B-031: navigate the browser to [playingPath]'s parent folder
+  /// and centre the now-playing row in view. The sequence:
+  ///
+  ///   1. If the browser is in swipe-up presentation AND dismissed, open it
+  ///      first and wait one settle window so its first frame is laid out.
+  ///   2. `loadFolder(parent)` if we aren't already there.
+  ///   3. Pump frames until the target row's `GlobalKey.currentContext` is
+  ///      non-null OR ~500 ms have elapsed (lazy-built lists may need a few
+  ///      frames before the SliverList builds the target row).
+  ///   4. Centre the row via `Scrollable.ensureVisible`. If the row never
+  ///      built, fall back to `ScrollController.animateTo(index * rowHeight)`
+  ///      so the user sees SOMETHING happen even for very long folders.
   Future<void> _jumpToNowPlaying(String playingPath) async {
     final parent = p.dirname(playingPath);
     if (parent.isEmpty) return;
+    // B-031 step 1: open the swipe-up browser if it's currently dismissed.
+    if (_browserPresentation == BrowserPresentation.swipeUp &&
+        !_browserExpanded) {
+      setState(() => _browserExpanded = true);
+      await Future<void>.delayed(_browserOpenSettleDuration);
+      if (!mounted) return;
+    }
     if (_libraryController.currentPath != parent) {
       await _libraryController.loadFolder(parent);
     }
-    if (!mounted) return;
-    // Wait one frame so the browser rebuilds with the new folder's rows
-    // (and per-track GlobalKeys) before we ask the scroll machinery to
-    // measure their geometry.
-    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     await _browserKey.currentState?.scrollToTrack(playingPath);
   }

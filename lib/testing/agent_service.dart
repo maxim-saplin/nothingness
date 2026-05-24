@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../controllers/library_controller.dart';
 import '../models/audio_track.dart';
+import '../models/browser_presentation.dart';
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
 import '../models/theme_variant.dart';
@@ -517,6 +518,25 @@ class AgentService {
             );
         }
         await s.setTransportPosition(pos);
+      case 'browserPresentation':
+      case 'browser_presentation':
+        // B-031: expose browser presentation toggle so smoke tests can
+        // exercise the swipe-up / fixed code paths without driving the
+        // settings sheet manually.
+        final BrowserPresentation bp;
+        switch (value) {
+          case 'fixed':
+            bp = BrowserPresentation.fixed;
+          case 'swipe_up':
+          case 'swipeUp':
+            bp = BrowserPresentation.swipeUp;
+          default:
+            return _error(
+              'unknown browserPresentation value "$value" '
+              '(expected fixed|swipe_up)',
+            );
+        }
+        await s.setBrowserPresentation(bp);
       default:
         return _error('unknown setting: $name');
     }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:path/path.dart' as p;
@@ -99,19 +101,111 @@ class VoidBrowserState extends State<VoidBrowser> {
     super.dispose();
   }
 
-  /// B-015: scroll the row for [path] into view, centered.
+  /// B-015 / B-031: scroll the row for [path] into view, centered.
   ///
-  /// Returns the future from [Scrollable.ensureVisible] (or completes
-  /// immediately when the row is not currently built — e.g. after a folder
-  /// swap that does not contain the track). Alignment 0.5 centres the row
-  /// regardless of the list's `reverse: true` axis direction.
+  /// Returns once the row is visible (or once the fallback animateTo
+  /// completes). Skips when the track is not in the current folder's
+  /// `tracks` list — that's a weird state we leave alone.
+  ///
+  /// Frame-pumping: a single `endOfFrame` is not enough for the SliverList
+  /// to lazy-build a row that lives far outside the current viewport. We
+  /// pump up to 30 frames (~500 ms at 60 fps) waiting for the per-row
+  /// `GlobalKey.currentContext` to materialise. If it does, we centre via
+  /// `Scrollable.ensureVisible` (alignment 0.5). If it never does — very
+  /// long folders, or a target row that lives beyond the cache extent —
+  /// we fall back to `ScrollController.animateTo` using
+  /// `(totalRows - index - 1) * rowHeight` as the offset (the list is
+  /// `reverse: true`, so offset 0 corresponds to the last visual row at
+  /// the bottom of the viewport).
   Future<void> scrollToTrack(String path) async {
-    final key = _fileRowKeys[path];
-    final context = key?.currentContext;
-    if (context == null) return;
-    await Scrollable.ensureVisible(
-      context,
-      alignment: 0.5,
+    if (!mounted) return;
+    final tracks = _controller.tracks;
+    final index = tracks.indexWhere((t) => t.path == path);
+    if (index < 0) {
+      // Track not in the current folder — caller is responsible for
+      // navigating first; nothing sane to scroll to here.
+      return;
+    }
+
+    // Wait for the target row to be lazy-built. We schedule a post-frame
+    // callback after each frame and check whether the row's GlobalKey has
+    // materialised; loop up to ~30 frames (~500 ms at 60 fps). Using
+    // `addPostFrameCallback` (rather than `endOfFrame`) keeps the test
+    // binding happy: the binding always schedules a frame in response to
+    // setState / scroll work, so each callback chain progresses without
+    // requiring a separate frame to be ticking.
+    BuildContext? rowContext = _fileRowKeys[path]?.currentContext;
+    for (int i = 0; i < 30 && rowContext == null; i++) {
+      if (!mounted) return;
+      final completer = Completer<void>();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!completer.isCompleted) completer.complete();
+      });
+      // Ensure the binding has a frame to schedule the callback against.
+      WidgetsBinding.instance.scheduleFrame();
+      await completer.future;
+      if (!mounted) return;
+      rowContext = _fileRowKeys[path]?.currentContext;
+    }
+
+    if (!mounted) return;
+    if (rowContext != null) {
+      // The context comes from a per-row GlobalKey we own; the loop above
+      // re-checks `mounted` on every iteration and only exits the loop with
+      // a non-null `rowContext` if we are still mounted. Safe to use.
+      await Scrollable.ensureVisible(
+        // ignore: use_build_context_synchronously
+        rowContext,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+
+    // Row never built — fall back to ScrollController.animateTo. The
+    // browser's children-list ordering is:
+    //
+    //   children = [upRow?, ...tracks.reversed, ...folders.reversed, ...]
+    //
+    // With `reverse: true`, scroll offset 0 corresponds to the FIRST
+    // child (visually at the bottom of the viewport). The visual children
+    // index of `tracks[index]` is therefore:
+    //
+    //   hasUp + (tracks.length - 1 - index)
+    //
+    // where hasUp is 1 when the up row is rendered (currentPath != null).
+    if (!_scrollController.hasClients) return;
+    final hasUp = _controller.currentPath != null ? 1 : 0;
+    final childIndex = hasUp + (tracks.length - 1 - index);
+    final viewport = _scrollController.position.viewportDimension;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final minScroll = _scrollController.position.minScrollExtent;
+    // Estimate the per-row pixel cost. We prefer measuring an existing
+    // mounted row (the row's RenderObject already knows its laid-out
+    // height) so the estimate accounts for padding + dividers + theme.
+    // Falls back to `AppGeometry.rowHeight` when no row is mounted yet.
+    final geometry = Theme.of(context).extension<AppGeometry>()!;
+    double rowHeight = geometry.rowHeight;
+    for (final entry in _fileRowKeys.values) {
+      final ctx = entry.currentContext;
+      if (ctx == null) continue;
+      // Contexts come from our own GlobalKey map; the outer `mounted`
+      // guards above cover the lifecycle. Safe to read across awaits.
+      // ignore: use_build_context_synchronously
+      final box = ctx.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        rowHeight = box.size.height;
+        break;
+      }
+    }
+    // Centre the row in the viewport: subtract half the viewport so the
+    // row lands near the middle rather than against an edge.
+    final rawOffset =
+        childIndex * rowHeight - (viewport / 2) + (rowHeight / 2);
+    final clamped = rawOffset.clamp(minScroll, maxScroll);
+    await _scrollController.animateTo(
+      clamped,
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
     );

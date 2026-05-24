@@ -410,10 +410,14 @@ void main() {
           reason: 'B-015: tap must navigate to the playing track\'s '
               'parent folder.');
 
-      // After the jump, the glyph must disappear (dirname == currentPath).
+      // After the jump, the glyph must eventually disappear (dirname ==
+      // currentPath). B-031 added a 200ms hide-only debounce so the glyph
+      // only vanishes after the predicate has been false continuously past
+      // the window — pump past it.
+      await tester.pump(const Duration(milliseconds: 250));
       expect(find.byKey(glyphKey), findsNothing,
           reason: 'B-015: glyph must vanish once we are in the playing '
-              'folder.');
+              'folder (after B-031 debounce window).');
     });
   });
 
@@ -544,6 +548,8 @@ void main() {
     });
   });
 
+  _b031Tests();
+
   group('B-030 follow-up: chrome tappables wear PressFeedback', () {
     testWidgets('settings ⋮ button has a PressFeedback ancestor',
         (tester) async {
@@ -603,4 +609,209 @@ class _RecordingTransportProvider extends FakeAudioPlayerProvider {
   Future<void> previous() async {
     previousCalls++;
   }
+}
+
+// ---------------------------------------------------------------------------
+// B-031 helpers + tests
+// ---------------------------------------------------------------------------
+
+/// Test seam for B-031: extends the recording controller with a settable
+/// path-only `notifyListeners()` hook so tests can simulate a transient race
+/// between `library.currentPath` and `playback.songInfo`.
+class _B031Controller extends _RecordingLibraryController {
+  _B031Controller({
+    super.currentPath,
+    super.tracks,
+  });
+
+  /// Imperatively update `currentPath` and fan out a notification — the
+  /// LibraryController listener inside [VoidScreen] rebuilds the crumb.
+  void simulatePathChange(String? next) {
+    currentPath = next;
+    notifyListeners();
+  }
+}
+
+void _b031Tests() {
+  group('B-031: jump-to-now-playing reliability', () {
+    const glyphKey = ValueKey('void-crumb-jump-to-playing');
+
+    testWidgets(
+      'glyph stays visible during a transient currentPath==dirname flip (<200ms)',
+      (tester) async {
+        // Start with a configuration where the glyph SHOULD be visible
+        // (currentPath != dirname of the playing track).
+        final controller = _B031Controller(
+          currentPath: '/lib/Music',
+          tracks: const <AudioTrack>[],
+        );
+        final provider = FakeAudioPlayerProvider(
+          songInfo: SongInfo(
+            track: const AudioTrack(
+              path: '/lib/Music/Indie/wake_up.mp3',
+              title: 'Wake Up',
+            ),
+            isPlaying: true,
+            position: 0,
+            duration: 1000,
+          ),
+        );
+        await _pump(tester, const SpectrumScreenConfig(),
+            provider: provider, libraryController: controller);
+
+        expect(find.byKey(glyphKey), findsOneWidget,
+            reason: 'B-031: precondition — glyph visible at start.');
+
+        // Simulate a brief race: currentPath flips to the playing folder for
+        // ~50ms. Without debounce the glyph would IMMEDIATELY disappear at
+        // this point because `dirname(playingPath) == currentPath`. With
+        // B-031's debounce it must stay visible during the window.
+        controller.simulatePathChange('/lib/Music/Indie');
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(find.byKey(glyphKey), findsOneWidget,
+            reason: 'B-031: glyph must NOT hide on a <200ms transient flip '
+                'between currentPath and songInfo updates.');
+
+        // Flip back BEFORE the 200ms window closes. The debounce timer should
+        // have nothing to do — the next-frame predicate is true again.
+        controller.simulatePathChange('/lib/Music');
+        await tester.pump(const Duration(milliseconds: 250));
+
+        expect(find.byKey(glyphKey), findsOneWidget,
+            reason: 'B-031: glyph must still be visible after the race '
+                'resolves back to the divergent state.');
+      },
+    );
+
+    testWidgets('glyph hides if currentPath==dirname persists past 200ms',
+        (tester) async {
+      final controller = _B031Controller(
+        currentPath: '/lib/Music',
+        tracks: const <AudioTrack>[],
+      );
+      final provider = FakeAudioPlayerProvider(
+        songInfo: SongInfo(
+          track: const AudioTrack(
+            path: '/lib/Music/Indie/wake_up.mp3',
+            title: 'Wake Up',
+          ),
+          isPlaying: true,
+          position: 0,
+          duration: 1000,
+        ),
+      );
+      await _pump(tester, const SpectrumScreenConfig(),
+          provider: provider, libraryController: controller);
+
+      expect(find.byKey(glyphKey), findsOneWidget,
+          reason: 'B-031: precondition — glyph visible at start.');
+
+      // Flip to the playing folder and stay there past the debounce window.
+      controller.simulatePathChange('/lib/Music/Indie');
+      await tester.pump();
+      // Let the debounce timer fire.
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(find.byKey(glyphKey), findsNothing,
+          reason: 'B-031: glyph must hide once the dirname match persists '
+              'past ~200ms.');
+    });
+
+    testWidgets(
+      'tap on glyph opens the swipe-up browser when it is dismissed',
+      (tester) async {
+        SettingsService().browserPresentationNotifier.value =
+            BrowserPresentation.swipeUp;
+        addTearDown(() {
+          SettingsService().browserPresentationNotifier.value =
+              SettingsService.defaultBrowserPresentation;
+        });
+
+        final controller = _B031Controller(
+          currentPath: '/lib/Music',
+          tracks: const <AudioTrack>[
+            AudioTrack(
+                path: '/lib/Music/Indie/wake_up.mp3', title: 'Wake Up'),
+          ],
+        );
+        final provider = FakeAudioPlayerProvider(
+          songInfo: SongInfo(
+            track: const AudioTrack(
+              path: '/lib/Music/Indie/wake_up.mp3',
+              title: 'Wake Up',
+            ),
+            isPlaying: true,
+            position: 0,
+            duration: 1000,
+          ),
+        );
+        await _pump(tester, const SpectrumScreenConfig(),
+            provider: provider, libraryController: controller);
+
+        // Browser is collapsed in swipe-up presentation by default — the
+        // hint band is rendered, the VoidBrowser is NOT mounted.
+        expect(find.text('↑ swipe to browse'), findsOneWidget,
+            reason: 'B-031: precondition — browser is in swipe-up dismissed '
+                'state at the start of the test.');
+
+        await tester.tap(find.byKey(glyphKey));
+        // Pump through the open animation (~250ms) and any subsequent
+        // loadFolder / scroll work.
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+
+        // After the jump, the browser must be visible (open path triggered)
+        // — the hint band is replaced by the VoidBrowser.
+        expect(find.text('↑ swipe to browse'), findsNothing,
+            reason: 'B-031: tapping the glyph while the swipe-up browser is '
+                'dismissed must trigger the open path.');
+      },
+    );
+
+    testWidgets(
+      'tap on glyph does NOT toggle browser state when it is already visible',
+      (tester) async {
+        // Fixed presentation — browser is always visible, no open/close
+        // state to flip. The jump action must NOT change presentation state.
+        SettingsService().browserPresentationNotifier.value =
+            BrowserPresentation.fixed;
+
+        final controller = _B031Controller(
+          currentPath: '/lib/Music',
+          tracks: const <AudioTrack>[
+            AudioTrack(
+                path: '/lib/Music/Indie/wake_up.mp3', title: 'Wake Up'),
+          ],
+        );
+        final provider = FakeAudioPlayerProvider(
+          songInfo: SongInfo(
+            track: const AudioTrack(
+              path: '/lib/Music/Indie/wake_up.mp3',
+              title: 'Wake Up',
+            ),
+            isPlaying: true,
+            position: 0,
+            duration: 1000,
+          ),
+        );
+        await _pump(tester, const SpectrumScreenConfig(),
+            provider: provider, libraryController: controller);
+
+        // The swipe-up hint band MUST not be present in fixed presentation.
+        expect(find.text('↑ swipe to browse'), findsNothing,
+            reason: 'B-031: precondition — fixed presentation never paints '
+                'the swipe-up hint.');
+
+        await tester.tap(find.byKey(glyphKey));
+        await tester.pumpAndSettle();
+
+        // After the jump the browser must STILL be visible (no spurious
+        // collapse) and the swipe-up hint band must STILL be absent.
+        expect(find.text('↑ swipe to browse'), findsNothing,
+            reason: 'B-031: tap on glyph in fixed presentation must not '
+                'toggle browser state.');
+      },
+    );
+  });
 }

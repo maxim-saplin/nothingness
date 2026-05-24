@@ -171,6 +171,94 @@ void main() {
     });
   });
 
+  group('B-031: VoidBrowser.scrollToTrack fallback for long folders', () {
+    testWidgets(
+      'falls back to ScrollController.animateTo when the row key has not built',
+      (tester) async {
+        // Small viewport + huge track list → lazy-built ListView, so the
+        // GlobalKey for a row deep in the list never has a currentContext.
+        await tester.binding.setSurfaceSize(const Size(400, 400));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        final tracks = List<AudioTrack>.generate(
+          200,
+          (i) => AudioTrack(
+            path: '/lib/folder/track_${i.toString().padLeft(3, '0')}.mp3',
+            title: 'Track $i',
+          ),
+        );
+        // Target a row far from the bottom-anchored visible window.
+        final targetPath = tracks[150].path;
+
+        final controller = _FakeLibraryController(
+          currentPath: '/lib/folder',
+          tracks: tracks,
+        );
+        final provider = FakeAudioPlayerProvider(
+          songInfo: SongInfo(
+            track: AudioTrack(path: targetPath, title: 'Track 150'),
+            isPlaying: true,
+            position: 0,
+            duration: 1000,
+          ),
+        );
+
+        final browserKey = GlobalKey<VoidBrowserState>();
+
+        await tester.pumpWidget(
+          wrapWithProvider(
+            provider,
+            ChangeNotifierProvider<LibraryController>.value(
+              value: controller,
+              child: SizedBox(
+                height: 400,
+                child: VoidBrowser(key: browserKey, controller: controller),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Sanity check the precondition: the target row is far enough
+        // outside the visible window that it has NOT been built yet.
+        final rowFinder =
+            find.byKey(ValueKey('void-file:$targetPath'));
+        expect(rowFinder, findsNothing,
+            reason: 'B-031: precondition — target row must be outside the '
+                'visible window with cacheExtent=0 + small viewport.');
+
+        // scrollToTrack waits on post-frame callbacks internally; in
+        // widget tests, frames only advance via `tester.pump`. Kick off
+        // the call as an unawaited future, pump frames so the binding
+        // can drain the wait loop, then await completion before asserting.
+        final future = browserKey.currentState!.scrollToTrack(targetPath);
+        // Drain the polling loop (up to ~30 frames) + any animateTo
+        // animation (~240 ms).
+        for (int i = 0; i < 60; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await future;
+        await tester.pumpAndSettle();
+
+        // After fallback the row should now be built and visible somewhere
+        // inside the viewport (either centred or at least laid out).
+        final rowFinderAfter =
+            find.byKey(ValueKey('void-file:$targetPath'));
+        expect(rowFinderAfter, findsOneWidget,
+            reason: 'B-031: animateTo fallback must scroll the lazy list '
+                'far enough that the target row is built.');
+        final box = tester.renderObject<RenderBox>(rowFinderAfter);
+        final topLeft = box.localToGlobal(Offset.zero);
+        expect(topLeft.dy, lessThan(400),
+            reason: 'B-031: target row must land inside the viewport after '
+                'animateTo fallback.');
+        expect(topLeft.dy + box.size.height, greaterThan(0),
+            reason: 'B-031: target row must land inside the viewport after '
+                'animateTo fallback.');
+      },
+    );
+  });
+
   group('B-030: VoidBrowser press feedback', () {
     testWidgets(
         'file rows are wrapped in PressFeedback and dip opacity on touch-down',
