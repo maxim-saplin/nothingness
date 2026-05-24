@@ -42,7 +42,11 @@ android {
         applicationId = "com.saplin.nothingness"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // B-017: Android 10 (API 29) floor. Scoped storage is universal from
+        // API 29, so Permission.audio (mapped to READ_MEDIA_AUDIO on 33+ and
+        // to legacy READ_EXTERNAL_STORAGE on 29-32) covers the library on
+        // every supported version. Do NOT lower below 29.
+        minSdk = 29
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

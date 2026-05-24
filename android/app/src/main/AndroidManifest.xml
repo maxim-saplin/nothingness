@@ -3,6 +3,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <!-- B-017: minSdk is 29, but permission_handler's Permission.audio still
+         requests READ_EXTERNAL_STORAGE under the hood on API 29-32 (it maps
+         to READ_MEDIA_AUDIO only on API 33+). Keep the legacy entry until we
+         raise minSdk to 33. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>

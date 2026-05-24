@@ -157,3 +157,65 @@ worth relaxing).
 **Area**: chrome / search
 
 **Closed**: 2026-05-24 — search input bumped to `typography.rowSize` (parity with result rows); × kept at crumb-size/fgTertiary visual weight but wrapped in a 44×44 hit target keyed `void-search-close`; downward fling on the search crumb dismisses (gesture region keyed `void-search-crumb-region`); `_onSearchFocusChanged` now collapses on focus-out regardless of query (and clears the controller) — tap-away ends the session, re-tap resumes.
+
+---
+
+## B-017 (major): Mic permission blocks the library in OWN mode; raise min SDK to 29
+
+**Symptom**: First-launch "tap to grant" gate requests microphone alongside
+storage/audio — but worse, **denying mic blocks the entire library** even
+when storage was granted.
+
+**Repro** (code-only — fresh install needed for an end-to-end repro):
+`LibraryController.requestPermission`
+(`lib/controllers/library_controller.dart:220-235`):
+
+```dart
+final statuses = await [
+  Permission.storage,
+  Permission.audio,
+  Permission.microphone,  // line 229 — bundled into the OWN-mode gate
+].request();
+
+hasPermission =
+    (statuses[Permission.storage]!.isGranted ||
+        statuses[Permission.audio]!.isGranted) &&
+    statuses[Permission.microphone]!.isGranted;  // line 235 — blocks library
+```
+
+So if the user denies the surprise mic prompt, the library is
+unreachable in OWN mode even with storage granted. Mic is not used in
+OWN mode — it's a BACKGROUND-mode dependency for audio capture.
+
+**Desired**:
+1. **Raise `minSdkVersion` to 29 (Android 10)** in
+   `android/app/build.gradle.kts`. With API 29 as the floor, scoped
+   storage is universal, and `Permission.audio` (which
+   `permission_handler` maps to `READ_MEDIA_AUDIO` on 33+ and to
+   `READ_EXTERNAL_STORAGE` on 29–32) covers the library on every
+   supported version. **Drop `Permission.storage` from the request and
+   from the manifest's `READ_EXTERNAL_STORAGE`** — note that on 29–32
+   `Permission.audio` will request the legacy `READ_EXTERNAL_STORAGE`
+   under the hood, so the manifest entry may still be needed depending
+   on `permission_handler` internals; verify before deleting.
+2. Drop `Permission.microphone` from the OWN-mode gate. Mic is
+   BACKGROUND-only.
+3. Make `hasPermission` depend only on the audio permission.
+4. Surface mic + notification-listener requests behind explicit buttons
+   in settings (the EXTERNAL group already has both for BACKGROUND mode
+   at `lib/widgets/void_settings_sheet.dart:527-546`). They only appear
+   in BACKGROUND today — that's correct; leave it.
+5. Keep `MediaControllerPage._ensureBackgroundPermissions`
+   (`lib/screens/media_controller_page.dart:203-219`) as the BACKGROUND
+   path — already gated on `_operatingMode == background`.
+
+**Notes**: Also re-check the OWN-mode `_checkPermissions` path
+(`lib/screens/media_controller_page.dart:265-267`) which silently
+requests `POST_NOTIFICATIONS`. That one is reasonable (lock-screen
+controls need it on API 33+); just document the intentional split.
+Current manifest has both `READ_EXTERNAL_STORAGE` and `READ_MEDIA_AUDIO`
+— prune the former if step 1 verification allows.
+
+**Area**: permissions / build
+
+**Closed**: 2026-05-24 — minSdk 29; mic + storage dropped from OWN-mode gate; hasPermission keyed off audio only.

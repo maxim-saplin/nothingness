@@ -104,6 +104,28 @@ class LibraryController extends ChangeNotifier {
   bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
   bool get isAndroid => _isAndroid;
 
+  /// Permissions requested by the OWN-mode library gate (B-017).
+  ///
+  /// OWN mode needs only audio access — `permission_handler` maps
+  /// `Permission.audio` to `READ_MEDIA_AUDIO` on API 33+ and to legacy
+  /// `READ_EXTERNAL_STORAGE` on API 29–32. Mic is a BACKGROUND-mode
+  /// dependency and is requested separately from settings, so it MUST NOT
+  /// appear here — otherwise denying mic blocks the entire library.
+  @visibleForTesting
+  static const List<Permission> ownModePermissionList = <Permission>[
+    Permission.audio,
+  ];
+
+  /// Returns the OWN-mode `hasPermission` derivation from a `permission_handler`
+  /// status map (B-017). Library access is gated on audio only; the mic /
+  /// notification permissions live behind explicit BACKGROUND-mode buttons.
+  @visibleForTesting
+  static bool computeOwnModeHasPermission(
+    Map<Permission, PermissionStatus> statuses,
+  ) {
+    return statuses[Permission.audio]?.isGranted ?? false;
+  }
+
   /// All MediaStore songs cached this session (Android only). Empty on
   /// other platforms or before [_ensureAndroidSongsLoaded] has run.
   ///
@@ -203,12 +225,10 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> _checkAndroidPermission() async {
     try {
-      final storageStatus = await Permission.storage.status;
-      final audioStatus = await Permission.audio.status;
-      final micStatus = await Permission.microphone.status;
-      hasPermission =
-          (storageStatus.isGranted || audioStatus.isGranted) &&
-          micStatus.isGranted;
+      final statuses = <Permission, PermissionStatus>{
+        for (final p in ownModePermissionList) p: await p.status,
+      };
+      hasPermission = computeOwnModeHasPermission(statuses);
       _safeNotifyListeners();
     } catch (e) {
       debugPrint('Failed to check permissions: $e');
@@ -223,22 +243,18 @@ class LibraryController extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
-      final statuses = await [
-        Permission.storage,
-        Permission.audio,
-        Permission.microphone,
-      ].request();
-
-      hasPermission =
-          (statuses[Permission.storage]!.isGranted ||
-              statuses[Permission.audio]!.isGranted) &&
-          statuses[Permission.microphone]!.isGranted;
+      // B-017: OWN-mode gate requests audio only. Mic + notification-listener
+      // are BACKGROUND-mode dependencies surfaced behind explicit buttons in
+      // settings — bundling them here used to block the library on a mic
+      // denial even though OWN mode doesn't capture audio.
+      final statuses = await ownModePermissionList.request();
+      hasPermission = computeOwnModeHasPermission(statuses);
 
       if (hasPermission) {
         await _ensureAndroidSongsLoaded();
         await loadRoot();
       } else {
-        error = 'Storage and microphone permissions are required';
+        error = 'Audio permission is required to browse your library';
       }
     } catch (e) {
       error = 'Failed to request permission: $e';
