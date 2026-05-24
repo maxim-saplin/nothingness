@@ -80,10 +80,10 @@ class VoidBrowserState extends State<VoidBrowser> {
   }
 
   @override
-  void didUpdateWidget(covariant VoidBrowser old) {
-    super.didUpdateWidget(old);
-    if (old.searchController != widget.searchController) {
-      old.searchController?.removeListener(_onSearchChanged);
+  void didUpdateWidget(covariant VoidBrowser oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchController != widget.searchController) {
+      oldWidget.searchController?.removeListener(_onSearchChanged);
       widget.searchController?.addListener(_onSearchChanged);
     }
   }

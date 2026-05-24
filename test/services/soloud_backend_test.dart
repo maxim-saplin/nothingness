@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/services/playback_controller.dart';
-import 'package:nothingness/services/soloud_transport.dart';
+import 'package:nothingness/testing/fake_audio_transport.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +21,7 @@ void main() {
       await f.writeAsString('dummy');
     }
 
-    final transport = SoLoudTransport();
+    final transport = FakeAudioTransport();
     final controller = PlaybackController(transport: transport);
     final tracks = await controller.scanFolder(tempDir.path);
 
@@ -30,5 +30,5 @@ void main() {
     expect(tracks.any((t) => t.path.endsWith('c.flac')), isTrue);
 
     await controller.dispose();
-  }, skip: Platform.isLinux);
+  });
 }
