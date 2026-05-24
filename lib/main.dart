@@ -13,6 +13,7 @@ import 'screens/media_controller_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
+import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
 import 'testing/agent_service.dart';
 import 'theme/themes.dart';
@@ -106,6 +107,12 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
     AgentService.register(provider: audioPlayerProvider);
     AgentService.registerNavigatorKey(rootNavigatorKey);
+
+    // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb).
+    // Drains any cold-start action that arrived before the handler attached.
+    if (Platform.isAndroid) {
+      unawaited(AutomationIntentService(audioPlayerProvider).start());
+    }
 
     if (!mounted) {
       // Hot restart raced us; drop the half-built provider rather than

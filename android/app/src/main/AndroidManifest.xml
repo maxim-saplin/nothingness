@@ -36,6 +36,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- B-031: automation entry points for MacroDroid/Tasker/adb.
+                 Each action launches MainActivity (singleTop), the action
+                 is decoded in onCreate / onNewIntent and forwarded to Dart
+                 via the com.saplin.nothingness/automation MethodChannel. -->
+            <intent-filter>
+                <action android:name="com.saplin.nothingness.action.PLAY"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.saplin.nothingness.action.PAUSE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.saplin.nothingness.action.PLAY_PAUSE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

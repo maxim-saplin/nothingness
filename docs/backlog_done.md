@@ -7,6 +7,37 @@ the shared conventions.
 Each closed entry preserves its original H2 (`## B-0NN (severity): title`)
 and body, plus a `**Closed**: YYYY-MM-DD — summary` line at the bottom.
 
+## B-031 (minor): Expose Android intents for play/pause automation
+
+**Symptom**: No third-party automation surface — MacroDroid/Tasker
+cannot start the app and toggle playback. The user wants two macros
+(BT device connected → resume, BT device disconnected → pause) and
+today must reach for the app by hand on every BT toggle.
+
+**Desired**: Three exported actions on `MainActivity`, dispatchable via
+`am start -a <action>` (and from MacroDroid's "Send Intent → Activity"):
+
+- `com.saplin.nothingness.action.PLAY` — resume if paused.
+- `com.saplin.nothingness.action.PAUSE` — pause if playing.
+- `com.saplin.nothingness.action.PLAY_PAUSE` — toggle.
+
+**Notes**: Intents arrive at `MainActivity` (singleTop), are decoded in
+Kotlin, and pushed to Dart via a new
+`com.saplin.nothingness/automation` MethodChannel. Dart side dispatches
+against `AudioPlayerProvider.playPause()`, gating on `isPlaying` —
+mirrors `ext.nothingness.play/pause` semantics
+(`lib/testing/agent_service.dart:423-441`). Cold-start delivery uses a
+pending-action buffer drained by Dart on startup; warm-start uses
+`onNewIntent` → `invokeMethod` push.
+
+**Area**: automation
+
+**Closed**: 2026-05-24 — Added PLAY/PAUSE/PLAY_PAUSE intent-filters on
+MainActivity, decoded in Kotlin and forwarded to Dart over a new
+`com.saplin.nothingness/automation` MethodChannel. Cold-start drain +
+warm-start push both covered; 8 new unit tests in
+`test/services/automation_intent_service_test.dart`.
+
 ## B-030 (major): No press feedback on most tappable surfaces
 
 **Symptom**: On a real device (not the emulator), tapping a track row in

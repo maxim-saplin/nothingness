@@ -32,9 +32,15 @@ class MainActivity : AudioServiceActivity() {
         private const val SPECTRUM_CHANNEL = "com.saplin.nothingness/spectrum"
         private const val MEDIASTORE_CHANNEL = "com.saplin.nothingness/mediastore"
         private const val MEDIASTORE_EVENTS_CHANNEL = "com.saplin.nothingness/mediastore/events"
+        private const val AUTOMATION_CHANNEL = "com.saplin.nothingness/automation"
         private const val PERMISSION_REQUEST_CODE = 1001
+
+        // B-031: external automation actions (MacroDroid / Tasker / adb).
+        private const val ACTION_PLAY = "com.saplin.nothingness.action.PLAY"
+        private const val ACTION_PAUSE = "com.saplin.nothingness.action.PAUSE"
+        private const val ACTION_PLAY_PAUSE = "com.saplin.nothingness.action.PLAY_PAUSE"
     }
-    
+
     private var audioCaptureService: AudioCaptureService? = null
     private var spectrumEventSink: EventChannel.EventSink? = null
     private var lastSpectrumSessionId: Int? = null
@@ -43,9 +49,36 @@ class MainActivity : AudioServiceActivity() {
     private var mediaStoreEventSink: EventChannel.EventSink? = null
     private var mediaStoreObserver: ContentObserver? = null
 
+    private var automationChannel: MethodChannel? = null
+    // Holds a decoded automation action that arrived before the Dart side
+    // attached its handler (cold start). Dart drains this via
+    // `consumePendingAutomationAction` on startup.
+    private var pendingAutomationAction: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // B-031: an automation intent that cold-starts the app is buffered
+        // here. The Flutter engine isn't attached yet, so we cannot push
+        // to Dart — Dart drains via `consumePendingAutomationAction` once
+        // its handler is registered.
+        pendingAutomationAction = extractAutomationAction(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // singleTop launch mode: subsequent automation intents re-deliver
+        // through here instead of recreating the activity.
+        setIntent(intent)
+        val action = extractAutomationAction(intent) ?: return
+        // Push to Dart immediately if it's already listening; also stash
+        // as pending in case the engine is mid-attach.
+        pendingAutomationAction = action
+        automationChannel?.invokeMethod("onAutomationAction", action)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         audioCaptureService = AudioCaptureService(this)
         
         // Method channel for media controls and song info
@@ -137,6 +170,25 @@ class MainActivity : AudioServiceActivity() {
                     result.success(null)
                 }
                 else -> result.notImplemented()
+            }
+        }
+
+        // B-031: automation channel for external intent dispatch.
+        // Kotlin → Dart: invokeMethod("onAutomationAction", "play"|"pause"|"playPause")
+        // Dart → Kotlin: consumePendingAutomationAction (drain on startup)
+        automationChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            AUTOMATION_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "consumePendingAutomationAction" -> {
+                        val pending = pendingAutomationAction
+                        pendingAutomationAction = null
+                        result.success(pending)
+                    }
+                    else -> result.notImplemented()
+                }
             }
         }
 
@@ -332,6 +384,18 @@ class MainActivity : AudioServiceActivity() {
         } catch (e: Exception) {
             Log.w(TAG, "dispatchExternalMediaKey AudioManager fallback failed", e)
             false
+        }
+    }
+
+    /// B-031: map an incoming intent's action to one of the short tokens
+    /// Dart understands (`play`, `pause`, `playPause`). Returns null for
+    /// MAIN/LAUNCHER and anything else we don't own.
+    private fun extractAutomationAction(intent: Intent?): String? {
+        return when (intent?.action) {
+            ACTION_PLAY -> "play"
+            ACTION_PAUSE -> "pause"
+            ACTION_PLAY_PAUSE -> "playPause"
+            else -> null
         }
     }
 
