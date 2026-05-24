@@ -65,3 +65,40 @@ settings cycle held down with hardware key repeat), we need a real fix.
 **Area**: testing / agent-service
 
 **Closed**: 2026-05-24 — diagnosis confirmed on emulator-5554: each `setSetting` RPC costs ~140 ms steady-state (awaits `SharedPreferences.setString`), so sustained send rates above ~7/s back up the response queue. At >500/s pipelined the queue grows beyond reasonable drain timeouts, matching the original "stops responding" symptom; isolate recovers once drained. No user-driven path can reach this cadence: the only write paths are `agent_service._setSetting` and `VoidSettingsSheet._cycleVariant` (tap-only, no hardware-key repeat or timer). Documented the cadence ceiling and recovery in `.claude/skills/agent-emulator-debugging/SKILL.md`; recommended ≤5/s for `setSetting`-style calls, with `test/p6_adversarial_test.dart` as the in-process equivalent for higher cadences.
+
+---
+
+## B-019 (minor): Crumb and browser rows truncate the tail
+
+**Symptom**: When text doesn't fit the row width, Flutter's default
+`TextOverflow.ellipsis` clips the **end**. For the crumb this hides the
+current folder name; for browser rows this hides the rest of the song
+title. Both are the more informative end.
+
+**Repro**: `drive.py call ext.nothingness.setSetting name=uiScale value=2.5`
+→ navigate to `/storage/emulated/0/Music/Russian Rock`. Screenshot
+`.tmp/agent_shots/crumb_scaled.png` shows:
+- Crumb: `/storage/emulated…` — current folder gone.
+- Browser rows: `Ария - Бесп…`, `Кино - Груп…` — song titles
+  truncated to the artist + the start of the title.
+
+**Desired**: Adopt a consistent "keep the meaningful tail" policy across
+the chrome:
+- Crumb: head-truncate, `…/Music/Russian Rock`.
+- Browser file rows: head-truncate, `…бесп ангел`. (Folder rows are
+  usually short enough not to matter, but the same rule should apply
+  for safety.)
+- Implement once as a small `MidEllipsis` widget that takes a
+  `keepEnd` length hint, used by both call sites.
+
+**Notes**:
+- Crumb: `lib/screens/void_screen.dart:563-572`.
+- Browser file rows: `lib/widgets/void_browser.dart:553-562, 469-487`
+  (search result rows have a similar issue at lines 458-487).
+- Watch RTL: the same trick that keeps the tail in LTR will keep the
+  head in RTL, which is what RTL users actually want — so the
+  implementation should respect ambient `TextDirection`.
+
+**Area**: chrome / crumb / browser
+
+**Closed**: 2026-05-24 — head-truncating widget added; wired into crumb + browser file rows + search result rows.

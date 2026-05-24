@@ -20,6 +20,7 @@ import '../widgets/heroes/dot_hero.dart';
 import '../widgets/heroes/polo_hero.dart';
 import '../widgets/heroes/spectrum_hero.dart';
 import '../widgets/heroes/void_hero.dart';
+import '../widgets/mid_ellipsis.dart';
 import '../widgets/transport_row.dart';
 import '../widgets/void_browser.dart';
 import '../widgets/void_settings_sheet.dart';
@@ -560,15 +561,14 @@ class _VoidScreenState extends State<VoidScreen>
               controller = null;
             }
             final path = controller?.currentPath;
-            return Text(
-              path == null || path.isEmpty ? '~' : path,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.fgSecondary,
-                fontFamily: typography.monoFamily,
-                fontSize: typography.crumbSize,
-              ),
+            final crumbStyle = TextStyle(
+              color: palette.fgSecondary,
+              fontFamily: typography.monoFamily,
+              fontSize: typography.crumbSize,
+            );
+            return MidEllipsis(
+              text: path == null || path.isEmpty ? '~' : path,
+              style: crumbStyle,
             );
           },
         ),

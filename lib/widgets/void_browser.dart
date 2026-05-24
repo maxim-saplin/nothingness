@@ -14,6 +14,7 @@ import '../services/smart_root_labels.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
+import 'mid_ellipsis.dart';
 
 /// A bottom-anchored file-tree browser used by [VoidScreen].
 ///
@@ -452,28 +453,26 @@ class _VoidBrowserState extends State<VoidBrowser> {
     final lowerTitle = title.toLowerCase();
     final matchIdx = lowerTitle.indexOf(term);
 
+    final titleStyle = TextStyle(
+      color: palette.fgSecondary,
+      fontFamily: typography.monoFamily,
+      fontSize: typography.rowSize,
+    );
     Widget labelWidget;
     if (matchIdx < 0) {
-      labelWidget = Text(
-        title,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: palette.fgSecondary,
-          fontFamily: typography.monoFamily,
-          fontSize: typography.rowSize,
-        ),
-      );
+      labelWidget = MidEllipsis(text: title, style: titleStyle);
     } else {
+      // Highlight path: a rich span with the match in fgPrimary. We can't
+      // run the head-ellipsis measurement across multi-style spans without
+      // significant complexity, so we keep this branch on the default
+      // tail-ellipsis. B-019 trade-off — the highlighted match remains
+      // visible from the start.
       final before = title.substring(0, matchIdx);
       final match = title.substring(matchIdx, matchIdx + term.length);
       final after = title.substring(matchIdx + term.length);
       labelWidget = Text.rich(
         TextSpan(
-          style: TextStyle(
-            color: palette.fgSecondary,
-            fontFamily: typography.monoFamily,
-            fontSize: typography.rowSize,
-          ),
+          style: titleStyle,
           children: <TextSpan>[
             TextSpan(text: before),
             TextSpan(
@@ -483,6 +482,7 @@ class _VoidBrowserState extends State<VoidBrowser> {
             TextSpan(text: after),
           ],
         ),
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
       );
     }
@@ -550,38 +550,24 @@ class _VoidBrowserState extends State<VoidBrowser> {
     final Color fg = isPlaying ? palette.background : palette.fgPrimary;
     final Color glyphColor = isPlaying ? palette.background : palette.fgTertiary;
 
+    final TextStyle labelStyle = TextStyle(
+      color: fg,
+      fontFamily: typography.monoFamily,
+      fontSize: typography.rowSize,
+    );
+    final TextStyle subLabelStyle = TextStyle(
+      color: palette.fgTertiary,
+      fontFamily: typography.monoFamily,
+      fontSize: typography.crumbSize,
+    );
     final Widget labelColumn = subLabel == null
-        ? Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: fg,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.rowSize,
-            ),
-          )
+        ? MidEllipsis(text: label, style: labelStyle)
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: fg,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.rowSize,
-                ),
-              ),
-              Text(
-                subLabel,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: palette.fgTertiary,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.crumbSize,
-                ),
-              ),
+              MidEllipsis(text: label, style: labelStyle),
+              MidEllipsis(text: subLabel, style: subLabelStyle),
             ],
           );
 
