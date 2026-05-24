@@ -440,3 +440,41 @@ needs a controller + `Scrollable.ensureVisible` on the row's key
 **Area**: chrome / browser / playback
 
 **Closed**: 2026-05-24 — crumb glyph ⊙ jumps to now-playing folder when dirname(playing) != currentPath; centers row via ensureVisible.
+
+## B-011 (major): Play/pause feels delayed on Android
+
+**Symptom**: Tapping play/pause (hero or transport row) takes ~half a second
+to start audio. With no visual confirmation (see B-012) the gesture reads as
+ignored.
+
+**Repro**: On emulator-5554 (x86_64, debug):
+```
+.../drive.py pause; sleep 1; .../drive.py resume
+```
+Logcat shows `MediaSessionService onSessionPlaybackStateChanged …
+state=PLAYING` ≈ 500 ms after the RPC fires. RPC itself (`drive.py resume`,
+which mirrors what an in-app `playPause()` does on Android) returns in
+~500–700 ms across three runs. Optimistic UI flip is already in place
+(`PlaybackController.playPause` at
+`lib/services/playback_controller.dart:464,469`), so the lag the user feels
+is the AudioHandler → AudioService → SoLoud chain, not the Dart state.
+
+**Desired**: Profile each hop (`NothingAudioHandler.onPlay`,
+`audio_service` plugin glue, native `AudioFocus`, SoLoud `play`) and shrink
+whichever dominates. If the chain is irreducible, lean on B-012 to mask the
+gap.
+
+**Notes**: Cross-ref B-012 (visual feedback) and B-018 (per-skin transport).
+
+**Area**: transport / playback
+
+**Closed**: 2026-05-24 — `SoLoudTransport.play()` was calling
+`AudioSession.setActive(true)` on every resume, triggering a redundant
+Android audio-focus IPC (~100 ms on emulator) even when the session was
+already active from `init()`. Cached the session instance and tracked
+activation state so the IPC only fires on transitions (init / resume from
+suspend / focus-loss recovery via the interruption stream). Median
+play→audible latency on emulator-5554 dropped from ~225 ms to ~107 ms
+(profiled across 5 pause→resume cycles in debug builds; SoLoud `setPause`
+AAudio stream restart still costs ~80 ms and is native, not Dart-addressable).
+Visual feedback from B-012 already masks the residual gap.

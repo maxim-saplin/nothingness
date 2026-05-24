@@ -40,10 +40,19 @@ class SoLoudTransport implements AudioTransport {
   String? _currentPath;
   String? _endedEmittedForPath;
   bool _suppressEndedEvent = false;
+
+  // Cache of audio session + activation state. `setActive(true)` requests
+  // Android audio focus via IPC (~100 ms on emulator). We previously called
+  // it on every `play()` even though the session was already active from
+  // `init()`. B-011: skip the redundant request once we know the session is
+  // active and was never explicitly deactivated.
+  AudioSession? _cachedSession;
+  bool _audioSessionActive = false;
   
   SpectrumProvider? _spectrumProvider;
   StreamSubscription<List<double>>? _spectrumSub;
   StreamSubscription<StreamSoundEvent>? _soundEventsSub;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
   SpectrumSettings _settings = const SpectrumSettings();
@@ -77,6 +86,22 @@ class SoLoudTransport implements AudioTransport {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
     await session.setActive(true);
+    _cachedSession = session;
+    _audioSessionActive = true;
+
+    // Track focus loss so the next play() correctly re-requests audio focus
+    // even after another app stole it. We only invalidate the cached flag —
+    // PlaybackController still owns the resume-on-gain policy.
+    _interruptionSub = session.interruptionEventStream.listen((event) {
+      if (!event.begin) return;
+      switch (event.type) {
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          _audioSessionActive = false;
+        case AudioInterruptionType.duck:
+          break;
+      }
+    });
 
     await _soloud.init();
     _soloud.setVisualizationEnabled(true);
@@ -127,7 +152,10 @@ class SoLoudTransport implements AudioTransport {
     _positionTimer?.cancel();
     _positionTimer = null;
     // Release the audio session so the AudioMix wake lock is freed.
-    AudioSession.instance.then((s) => s.setActive(false));
+    AudioSession.instance.then((s) {
+      s.setActive(false);
+      _audioSessionActive = false;
+    });
   }
 
   @override
@@ -138,7 +166,10 @@ class SoLoudTransport implements AudioTransport {
       (_) => _checkTrackEnded(),
     );
     // Re-activate the audio session for playback readiness.
-    AudioSession.instance.then((s) => s.setActive(true));
+    AudioSession.instance.then((s) {
+      s.setActive(true);
+      _audioSessionActive = true;
+    });
   }
 
   Future<void> _startSpectrum() async {
@@ -156,6 +187,7 @@ class SoLoudTransport implements AudioTransport {
     await _stopSpectrum();
     await _spectrumSub?.cancel();
     await _soundEventsSub?.cancel();
+    await _interruptionSub?.cancel();
     if (_currentHandle != null) {
       try {
         await _soloud.stop(_currentHandle!);
@@ -291,8 +323,16 @@ class SoLoudTransport implements AudioTransport {
       throw StateError('No source loaded. Call load() first.');
     }
 
-    final session = await AudioSession.instance;
-    await session.setActive(true);
+    // Avoid a redundant Android audio-focus IPC (~100 ms on emulator) when
+    // the session is already active. We track activation explicitly in
+    // init/suspend/resume, and trust the interruption stream to unset the
+    // flag if focus is lost asynchronously. B-011.
+    if (!_audioSessionActive) {
+      final session = _cachedSession ?? await AudioSession.instance;
+      _cachedSession ??= session;
+      await session.setActive(true);
+      _audioSessionActive = true;
+    }
 
     if (_currentHandle == null) {
       _currentHandle = _soloud.play(_currentSource!, paused: false);
