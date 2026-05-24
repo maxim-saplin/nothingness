@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import '../controllers/library_controller.dart';
@@ -45,7 +46,12 @@ import '../widgets/void_settings_sheet.dart';
 /// [SettingsService.immersiveNotifier] — there is no longer a drag-down
 /// gesture (replaced by a settings toggle).
 class VoidScreen extends StatefulWidget {
-  const VoidScreen({super.key, this.config, this.settings});
+  const VoidScreen({
+    super.key,
+    this.config,
+    this.settings,
+    this.libraryController,
+  });
 
   /// Active visualisation config; falls back to the value in
   /// [SettingsService.screenConfigNotifier] when null (legacy callers).
@@ -54,6 +60,12 @@ class VoidScreen extends StatefulWidget {
   /// Spectrum settings forwarded to the spectrum hero.
   final SpectrumSettings? settings;
 
+  /// Optional externally-owned [LibraryController]. When supplied the
+  /// screen does NOT create or dispose its own controller — used by tests
+  /// to pre-seed `currentPath` / `tracks` without touching the real
+  /// MediaStore or filesystem (B-015 jump-to-now-playing tests).
+  final LibraryController? libraryController;
+
   @override
   State<VoidScreen> createState() => _VoidScreenState();
 }
@@ -61,6 +73,7 @@ class VoidScreen extends StatefulWidget {
 class _VoidScreenState extends State<VoidScreen>
     with SingleTickerProviderStateMixin {
   late final LibraryController _libraryController;
+  late final bool _ownsLibraryController;
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
   late final AnimationController _immersiveCtrl;
@@ -82,17 +95,26 @@ class _VoidScreenState extends State<VoidScreen>
   // swipe flash exactly when prev/next actually triggers.
   final GlobalKey<HeroFeedbackSurfaceState> _heroFeedbackKey =
       GlobalKey<HeroFeedbackSurfaceState>();
+  // B-015: GlobalKey on the embedded VoidBrowser so the crumb's
+  // jump-to-now-playing tap can drive `scrollToTrack` on the browser's
+  // shared ScrollController after `loadFolder` settles.
+  final GlobalKey<VoidBrowserState> _browserKey =
+      GlobalKey<VoidBrowserState>();
 
   @override
   void initState() {
     super.initState();
-    _libraryController = LibraryController(
-      libraryBrowser: LibraryBrowser(
-        supportedExtensions: AudioPlayerProvider.supportedExtensions,
-      ),
-      libraryService: LibraryService(),
-    );
-    _bootstrapLibrary();
+    _ownsLibraryController = widget.libraryController == null;
+    _libraryController = widget.libraryController ??
+        LibraryController(
+          libraryBrowser: LibraryBrowser(
+            supportedExtensions: AudioPlayerProvider.supportedExtensions,
+          ),
+          libraryService: LibraryService(),
+        );
+    if (_ownsLibraryController) {
+      _bootstrapLibrary();
+    }
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
     _searchFocusNode.addListener(_onSearchFocusChanged);
@@ -215,7 +237,9 @@ class _VoidScreenState extends State<VoidScreen>
     _immersiveCtrl.dispose();
     AgentService.registerImmersiveLookup(null);
     AgentService.registerLibraryController(null);
-    _libraryController.dispose();
+    if (_ownsLibraryController) {
+      _libraryController.dispose();
+    }
     super.dispose();
   }
 
@@ -420,6 +444,7 @@ class _VoidScreenState extends State<VoidScreen>
                           child: ClipRect(
                             clipBehavior: Clip.hardEdge,
                             child: VoidBrowser(
+                              key: _browserKey,
                               controller: _libraryController,
                               searchController: _searchController,
                             ),
@@ -580,7 +605,6 @@ class _VoidScreenState extends State<VoidScreen>
     // search mode; tapping outside or clearing the query collapses back.
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: palette.divider, width: geometry.dividerThickness),
@@ -593,7 +617,15 @@ class _VoidScreenState extends State<VoidScreen>
         child: Builder(
           builder: (context) {
             if (_searchMode) {
-              return _buildSearchCrumb(palette, typography);
+              // Search crumb keeps its own 12-px vertical padding; the
+              // input + close glyph self-size around it.
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                child: _buildSearchCrumb(palette, typography),
+              );
             }
             LibraryController? controller;
             try {
@@ -607,14 +639,95 @@ class _VoidScreenState extends State<VoidScreen>
               fontFamily: typography.monoFamily,
               fontSize: typography.crumbSize,
             );
-            return MidEllipsis(
-              text: path == null || path.isEmpty ? '~' : path,
-              style: crumbStyle,
+            // B-015: render the jump-to-now-playing glyph when the playing
+            // track lives outside the currently-browsed folder.
+            final player = context.watch<AudioPlayerProvider>();
+            final playingPath = player.songInfo?.track.path;
+            final showJumpGlyph = playingPath != null &&
+                playingPath.isNotEmpty &&
+                p.dirname(playingPath) != (path ?? '');
+            // The path readout keeps its 12-px vertical padding to preserve
+            // the existing crumb baseline; the 44×44 glyph hit target lives
+            // outside that padding so it can extend to the row edges and
+            // satisfy the Material minimum (matches B-013's × pattern).
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
+                    child: MidEllipsis(
+                      text: path == null || path.isEmpty ? '~' : path,
+                      style: crumbStyle,
+                    ),
+                  ),
+                ),
+                if (showJumpGlyph)
+                  _buildJumpGlyph(palette, typography, playingPath)
+                else
+                  const SizedBox(width: 20),
+              ],
             );
           },
         ),
       ),
     );
+  }
+
+  /// B-015: tap target for "take me to what's playing right now".
+  ///
+  /// The glyph is `⊙` in `fgSecondary`. The hit target is a 44×44 square so
+  /// the control matches B-013's accessibility-minimum pattern. Visible only
+  /// when `dirname(playingPath) != currentPath` — the parent decides; this
+  /// widget just renders the affordance and wires the tap.
+  Widget _buildJumpGlyph(
+    AppPalette palette,
+    AppTypography typography,
+    String playingPath,
+  ) {
+    return Semantics(
+      label: 'jump to now-playing folder',
+      button: true,
+      child: GestureDetector(
+        key: const ValueKey('void-crumb-jump-to-playing'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _jumpToNowPlaying(playingPath),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Text(
+              '⊙', // ⊙ — CIRCLED DOT OPERATOR
+              style: TextStyle(
+                color: palette.fgSecondary,
+                fontFamily: typography.monoFamily,
+                fontSize: typography.crumbSize,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// B-015: navigate the browser to [playingPath]'s parent folder and centre
+  /// the now-playing row in view via `Scrollable.ensureVisible`. The
+  /// loadFolder + ensureVisible sequence is awaited so the row's
+  /// `GlobalKey.currentContext` is non-null when we scroll.
+  Future<void> _jumpToNowPlaying(String playingPath) async {
+    final parent = p.dirname(playingPath);
+    if (parent.isEmpty) return;
+    if (_libraryController.currentPath != parent) {
+      await _libraryController.loadFolder(parent);
+    }
+    if (!mounted) return;
+    // Wait one frame so the browser rebuilds with the new folder's rows
+    // (and per-track GlobalKeys) before we ask the scroll machinery to
+    // measure their geometry.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    await _browserKey.currentState?.scrollToTrack(playingPath);
   }
 
   Widget _buildSearchCrumb(AppPalette palette, AppTypography typography) {

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nothingness/controllers/library_controller.dart';
+import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/screen_config.dart';
+import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
 import 'package:nothingness/models/transport_position.dart';
 import 'package:nothingness/screens/void_screen.dart';
+import 'package:nothingness/services/library_browser.dart';
+import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/theme/app_typography.dart';
 import 'package:nothingness/widgets/heroes/dot_hero.dart';
@@ -18,19 +23,52 @@ import '../widgets/heroes/_test_helpers.dart';
 
 Future<void> _pump(
   WidgetTester tester,
-  ScreenConfig config,
-) async {
+  ScreenConfig config, {
+  FakeAudioPlayerProvider? provider,
+  LibraryController? libraryController,
+}) async {
   await tester.binding.setSurfaceSize(const Size(800, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  final provider = FakeAudioPlayerProvider();
+  final p = provider ?? FakeAudioPlayerProvider();
   await tester.pumpWidget(
     wrapWithProvider(
-      provider,
-      VoidScreen(config: config, settings: const SpectrumSettings()),
+      p,
+      VoidScreen(
+        config: config,
+        settings: const SpectrumSettings(),
+        libraryController: libraryController,
+      ),
     ),
   );
   await tester.pump();
+}
+
+/// Test seam for B-015: a LibraryController that publishes a preset
+/// `currentPath` + `tracks` without touching the real filesystem, and
+/// records calls to `loadFolder`.
+class _RecordingLibraryController extends LibraryController {
+  _RecordingLibraryController({
+    String? currentPath,
+    List<AudioTrack> tracks = const <AudioTrack>[],
+  }) : super(
+          libraryBrowser: LibraryBrowser(supportedExtensions: const {'mp3'}),
+          libraryService: LibraryService(),
+          isAndroidOverride: false,
+        ) {
+    this.currentPath = currentPath;
+    this.tracks = List<AudioTrack>.from(tracks);
+    hasPermission = true;
+  }
+
+  final List<String> loadFolderCalls = <String>[];
+
+  @override
+  Future<void> loadFolder(String path) async {
+    loadFolderCalls.add(path);
+    currentPath = path;
+    notifyListeners();
+  }
 }
 
 void main() {
@@ -263,6 +301,115 @@ void main() {
       expect(find.byType(PoloHero), findsOneWidget);
       expect(find.byType(TransportRow), findsNothing,
           reason: 'B-018: Polo stays bespoke under transport=top too.');
+    });
+  });
+
+  group('B-015: crumb jump-to-now-playing glyph', () {
+    const glyphKey = ValueKey('void-crumb-jump-to-playing');
+
+    testWidgets('hidden when nothing is playing', (tester) async {
+      final controller = _RecordingLibraryController(
+        currentPath: '/lib/Indie',
+        tracks: const <AudioTrack>[],
+      );
+      await _pump(tester, const SpectrumScreenConfig(),
+          libraryController: controller);
+      expect(find.byKey(glyphKey), findsNothing,
+          reason:
+              'B-015: glyph must be hidden when there is no song to jump to.');
+    });
+
+    testWidgets(
+        'hidden when dirname(playing) == currentPath (already in the folder)',
+        (tester) async {
+      final controller = _RecordingLibraryController(
+        currentPath: '/lib/Indie',
+        tracks: const <AudioTrack>[],
+      );
+      final provider = FakeAudioPlayerProvider(
+        songInfo: SongInfo(
+          track: const AudioTrack(
+            path: '/lib/Indie/wake_up.mp3',
+            title: 'Wake Up',
+          ),
+          isPlaying: true,
+          position: 0,
+          duration: 1000,
+        ),
+      );
+      await _pump(tester, const SpectrumScreenConfig(),
+          provider: provider, libraryController: controller);
+      expect(find.byKey(glyphKey), findsNothing,
+          reason:
+              'B-015: glyph must be hidden when already in the playing folder.');
+    });
+
+    testWidgets('visible when dirname(playing) != currentPath',
+        (tester) async {
+      final controller = _RecordingLibraryController(
+        currentPath: '/lib/Music',
+        tracks: const <AudioTrack>[],
+      );
+      final provider = FakeAudioPlayerProvider(
+        songInfo: SongInfo(
+          track: const AudioTrack(
+            path: '/lib/Music/Indie/wake_up.mp3',
+            title: 'Wake Up',
+          ),
+          isPlaying: true,
+          position: 0,
+          duration: 1000,
+        ),
+      );
+      await _pump(tester, const SpectrumScreenConfig(),
+          provider: provider, libraryController: controller);
+
+      final glyph = find.byKey(glyphKey);
+      expect(glyph, findsOneWidget,
+          reason:
+              'B-015: glyph must be visible when playing track is in a '
+              'different folder.');
+
+      // 44x44 hit target per Material guideline (matches B-013 pattern).
+      final box = tester.renderObject<RenderBox>(glyph);
+      expect(box.size.width, greaterThanOrEqualTo(44.0),
+          reason: 'B-015: hit target width must be >= 44px.');
+      expect(box.size.height, greaterThanOrEqualTo(44.0),
+          reason: 'B-015: hit target height must be >= 44px.');
+    });
+
+    testWidgets(
+        'tapping the glyph calls loadFolder(dirname(playing-track-path))',
+        (tester) async {
+      final controller = _RecordingLibraryController(
+        currentPath: '/lib/Music',
+        tracks: const <AudioTrack>[],
+      );
+      final provider = FakeAudioPlayerProvider(
+        songInfo: SongInfo(
+          track: const AudioTrack(
+            path: '/lib/Music/Indie/wake_up.mp3',
+            title: 'Wake Up',
+          ),
+          isPlaying: true,
+          position: 0,
+          duration: 1000,
+        ),
+      );
+      await _pump(tester, const SpectrumScreenConfig(),
+          provider: provider, libraryController: controller);
+
+      await tester.tap(find.byKey(glyphKey));
+      await tester.pumpAndSettle();
+
+      expect(controller.loadFolderCalls, contains('/lib/Music/Indie'),
+          reason: 'B-015: tap must navigate to the playing track\'s '
+              'parent folder.');
+
+      // After the jump, the glyph must disappear (dirname == currentPath).
+      expect(find.byKey(glyphKey), findsNothing,
+          reason: 'B-015: glyph must vanish once we are in the playing '
+              'folder.');
     });
   });
 }

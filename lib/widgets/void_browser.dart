@@ -44,15 +44,26 @@ class VoidBrowser extends StatefulWidget {
   final TextEditingController? searchController;
 
   @override
-  State<VoidBrowser> createState() => _VoidBrowserState();
+  State<VoidBrowser> createState() => VoidBrowserState();
 }
 
-class _VoidBrowserState extends State<VoidBrowser> {
+class VoidBrowserState extends State<VoidBrowser> {
   late final LibraryController _controller;
   late final bool _ownsController;
   bool _initStarted = false;
   String _searchTerm = '';
   List<AudioTrack> _searchResults = const <AudioTrack>[];
+
+  // B-015: a single ScrollController feeds both the folder ListView and the
+  // search-results ListView. The lists are mutually exclusive (search mode
+  // swaps one for the other) so they can share state without conflict.
+  final ScrollController _scrollController = ScrollController();
+
+  // B-015: GlobalKey per visible file row, indexed by track path. The
+  // browser keeps these alive across rebuilds (and across the swap to
+  // search results) so `Scrollable.ensureVisible` always has a context
+  // for the now-playing row when the user taps the crumb glyph.
+  final Map<String, GlobalKey> _fileRowKeys = <String, GlobalKey>{};
 
   @override
   void initState() {
@@ -80,11 +91,33 @@ class _VoidBrowserState extends State<VoidBrowser> {
   @override
   void dispose() {
     widget.searchController?.removeListener(_onSearchChanged);
+    _scrollController.dispose();
     if (_ownsController) {
       _controller.dispose();
     }
     super.dispose();
   }
+
+  /// B-015: scroll the row for [path] into view, centered.
+  ///
+  /// Returns the future from [Scrollable.ensureVisible] (or completes
+  /// immediately when the row is not currently built — e.g. after a folder
+  /// swap that does not contain the track). Alignment 0.5 centres the row
+  /// regardless of the list's `reverse: true` axis direction.
+  Future<void> scrollToTrack(String path) async {
+    final key = _fileRowKeys[path];
+    final context = key?.currentContext;
+    if (context == null) return;
+    await Scrollable.ensureVisible(
+      context,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  GlobalKey _keyForTrack(String path) =>
+      _fileRowKeys.putIfAbsent(path, GlobalKey.new);
 
   void _kickOffInit() {
     if (_initStarted) return;
@@ -282,6 +315,7 @@ class _VoidBrowserState extends State<VoidBrowser> {
     // Stack/Opacity composition) would otherwise ghost-render those rows
     // into the hero area sitting above the browser.
     return ListView(
+      controller: _scrollController,
       reverse: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
       scrollCacheExtent: const ScrollCacheExtent.pixels(0),
@@ -299,6 +333,7 @@ class _VoidBrowserState extends State<VoidBrowser> {
       return _empty('no matches', palette, typography);
     }
     return ListView.builder(
+      controller: _scrollController,
       reverse: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
       scrollCacheExtent: const ScrollCacheExtent.pixels(0),
@@ -373,7 +408,7 @@ class _VoidBrowserState extends State<VoidBrowser> {
   ) {
     final player = context.watch<AudioPlayerProvider>();
     final isPlaying = player.songInfo?.track.path == track.path;
-    return _row(
+    final row = _row(
       key: ValueKey('void-file:${track.path}'),
       label: track.title,
       glyph: '.',
@@ -384,6 +419,14 @@ class _VoidBrowserState extends State<VoidBrowser> {
       onTap: () => _playFileFromFolder(track, controller),
       onLongPress: () => _playOneShot(track),
       previewGlyph: '↩', // ↩ — one-shot return marker
+    );
+    // B-015: wrap each file row in a KeyedSubtree carrying a per-track
+    // GlobalKey so `Scrollable.ensureVisible` has a stable BuildContext
+    // target when the crumb-jump tap asks us to centre the now-playing row.
+    // The ValueKey on the inner row still drives QA taps and identity.
+    return KeyedSubtree(
+      key: _keyForTrack(track.path),
+      child: row,
     );
   }
 

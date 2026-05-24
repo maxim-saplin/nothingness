@@ -413,6 +413,9 @@ class AgentService {
               'artist': p.songInfo!.artist,
               'position': p.songInfo!.position,
               'duration': p.songInfo!.duration,
+              // B-015: expose the playing track's path so smoke tests can
+              // compute dirname(path) and compare against library.currentPath.
+              'path': p.songInfo!.track.path,
             }
           : null,
       'spectrumDataLength': p.spectrumData.length,
