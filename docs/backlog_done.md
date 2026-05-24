@@ -642,3 +642,37 @@ at `lib/widgets/hero_feedback_surface.dart` and the gesture wiring in
 **Area**: chrome / heroes / transport
 
 **Closed**: 2026-05-24 — velocity escape (>300 px/s) fires prev/next even when drag distance is under 60 dp. `_VoidScreenState._onHeroHorizontalDragEnd` reads `DragEndDetails.primaryVelocity` and routes positive sign → `next()` / negative → `previous()`; a `_horizDragFired` latch guards against double-firing when a single gesture both trips the 60-dp distance accumulator AND ends with high velocity. Six widget tests in `test/screens/void_screen_test.dart` cover: slow short (no-fire), slow long (existing distance fire), fast short rightward + leftward (velocity-escape fire with direction = sign of velocity), low-velocity short (no-fire), and the no-double-fire latch.
+
+---
+
+## B-029 (minor): `drive.py reset` kills the live `flutter run`
+
+**Symptom**: `drive.py reset` internally calls
+`adb shell am force-stop com.saplin.nothingness` + `pm clear`, which
+crashes any attached `flutter run` session with `Lost connection to
+device` and forces a 60-90 s rebuild. The SKILL.md note added for
+B-021..B-025 warns about `force-stop` and `pm revoke RECORD_AUDIO` but
+does not name `reset` directly, so an agent reading the skill can
+trigger the hazard via the wrapper without noticing.
+
+**Repro**: surfaced during B-027 implementer work. With flutter run
+attached, running `drive.py reset` ended the session and the running
+APK reverted to the pre-fix binary.
+
+**Desired**:
+1. Update `drive.py reset` to detect a live flutter run session (check
+   `/tmp/flutter_run.log` mtime + VM service responding via the cached
+   WS URI). If alive, refuse with a clear message; accept `--force` to
+   override.
+2. Update `.claude/skills/agent-emulator-debugging/SKILL.md` to:
+   - Name `drive.py reset` explicitly in the "Do not kill the live
+     flutter run" note (point at the `--force` flag).
+   - Add a short note that **ADB synthetic-event swipes do not reliably
+     hit Flutter's velocity thresholds**, so hero/swipe gestures should
+     be verified with `tester.fling` in widget tests rather than chased
+     via `adb shell input swipe X1 Y X2 Y duration` (surfaced during
+     B-027 live verification).
+
+**Area**: testing / agent-skill / drive
+
+**Closed**: 2026-05-24 — drive.py reset refuses when flutter run alive (--force override); SKILL.md names reset by name and warns about ADB synthetic-event velocity unreliability.

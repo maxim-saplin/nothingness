@@ -477,8 +477,54 @@ def cmd_restart(args) -> int:
     return 0
 
 
+def _flutter_run_alive(max_age_s: float = 300.0) -> bool:
+    """Best-effort detection of a live `flutter run` session.
+
+    Returns True when:
+      1. `/tmp/flutter_run.log` exists and was modified within the last
+         ``max_age_s`` seconds (default 5 min — flutter run keeps tickling
+         the log via heartbeat / progress lines), AND
+      2. The cached VM service URI (``.vm_ws.txt``) still answers a quick
+         ``ext.nothingness.getRouterState`` probe.
+
+    Both signals are required: the log alone can linger from a crashed
+    session, and the WS cache alone could point at a stand-alone debug
+    APK with no flutter run attached.
+    """
+    try:
+        if not FLUTTER_RUN_LOG.exists():
+            return False
+        if (time.time() - FLUTTER_RUN_LOG.stat().st_mtime) > max_age_s:
+            return False
+    except OSError:
+        return False
+    if not WS_CACHE.exists():
+        return False
+    try:
+        ws = WS_CACHE.read_text().strip()
+        if not ws:
+            return False
+        # Short-circuit probe: if the extension responds, the session is up.
+        _ext(ws, "ext.nothingness.getRouterState")
+        return True
+    except Exception:
+        return False
+
+
 def cmd_reset(args) -> int:
     """Force-stop, clear app data, cold launch, wait for VM service."""
+    if _flutter_run_alive() and not getattr(args, "force", False):
+        print(json.dumps({
+            "reset": False,
+            "reason": (
+                "live `flutter run` session detected "
+                "(/tmp/flutter_run.log fresh + VM service responsive). "
+                "`drive.py reset` would force-stop the app and crash the "
+                "session, forcing a 60-90 s rebuild. Use `drive.py restart` "
+                "for a hot restart, or pass `--force` to override."
+            ),
+        }, indent=2))
+        return 1
     adb("shell", "am", "force-stop", APP_ID, check=False)
     adb("shell", "pm", "clear", APP_ID)
     WS_CACHE.unlink(missing_ok=True)
@@ -610,7 +656,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--clear", action="store_true")
     sp.set_defaults(func=cmd_overflows)
 
-    sub.add_parser("reset").set_defaults(func=cmd_reset)
+    sp = sub.add_parser(
+        "reset",
+        help="force-stop + clear data + cold launch (refuses when a live "
+        "`flutter run` is attached; pass --force to override)")
+    sp.add_argument(
+        "--force", action="store_true",
+        help="reset even when a live `flutter run` session is detected "
+        "(this will crash that session and trigger a 60-90 s rebuild)")
+    sp.set_defaults(func=cmd_reset)
 
     sp = sub.add_parser("reload", help="hot reload via `flutter run` fifo")
     sp.add_argument("--delay", type=float, help="seconds to wait after sending r")

@@ -92,35 +92,3 @@ notifier shortcut + persisted-JSON reload — the new keys plug in below
 that. Keep the migration small and idempotent.
 
 **Area**: settings / persistence
-
----
-
-## B-029 (minor): `drive.py reset` kills the live `flutter run`
-
-**Symptom**: `drive.py reset` internally calls
-`adb shell am force-stop com.saplin.nothingness` + `pm clear`, which
-crashes any attached `flutter run` session with `Lost connection to
-device` and forces a 60-90 s rebuild. The SKILL.md note added for
-B-021..B-025 warns about `force-stop` and `pm revoke RECORD_AUDIO` but
-does not name `reset` directly, so an agent reading the skill can
-trigger the hazard via the wrapper without noticing.
-
-**Repro**: surfaced during B-027 implementer work. With flutter run
-attached, running `drive.py reset` ended the session and the running
-APK reverted to the pre-fix binary.
-
-**Desired**:
-1. Update `drive.py reset` to detect a live flutter run session (check
-   `/tmp/flutter_run.log` mtime + VM service responding via the cached
-   WS URI). If alive, refuse with a clear message; accept `--force` to
-   override.
-2. Update `.claude/skills/agent-emulator-debugging/SKILL.md` to:
-   - Name `drive.py reset` explicitly in the "Do not kill the live
-     flutter run" note (point at the `--force` flag).
-   - Add a short note that **ADB synthetic-event swipes do not reliably
-     hit Flutter's velocity thresholds**, so hero/swipe gestures should
-     be verified with `tester.fling` in widget tests rather than chased
-     via `adb shell input swipe X1 Y X2 Y duration` (surfaced during
-     B-027 live verification).
-
-**Area**: testing / agent-skill / drive
