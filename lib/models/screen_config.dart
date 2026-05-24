@@ -147,12 +147,19 @@ class DotScreenConfig extends ScreenConfig {
   final double textOpacity;
   final double sensitivity;
 
+  /// Whether the Dot hero overlays the currently-playing track's title and
+  /// parent folder above the pulsing dot. Default `false` preserves the
+  /// minimalist identity (see B-020); users opt-in from the DISPLAY group
+  /// of the settings sheet.
+  final bool showSongInfo;
+
   const DotScreenConfig({
     this.minDotSize = 20.0,
     this.maxDotSize = 120.0,
     this.dotOpacity = 1.0,
     this.textOpacity = 1.0,
     this.sensitivity = 1.5,
+    this.showSongInfo = false,
   }) : super(type: ScreenType.dot, name: 'Dot');
 
   @override
@@ -164,6 +171,7 @@ class DotScreenConfig extends ScreenConfig {
     'dotOpacity': dotOpacity,
     'textOpacity': textOpacity,
     'sensitivity': sensitivity,
+    'showSongInfo': showSongInfo,
   };
 
   factory DotScreenConfig.fromJson(Map<String, dynamic> json) {
@@ -173,6 +181,7 @@ class DotScreenConfig extends ScreenConfig {
       dotOpacity: (json['dotOpacity'] as num?)?.toDouble() ?? 1.0,
       textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
       sensitivity: (json['sensitivity'] as num?)?.toDouble() ?? 1.5,
+      showSongInfo: json['showSongInfo'] as bool? ?? false,
     );
   }
 
@@ -182,6 +191,7 @@ class DotScreenConfig extends ScreenConfig {
     double? dotOpacity,
     double? textOpacity,
     double? sensitivity,
+    bool? showSongInfo,
   }) {
     return DotScreenConfig(
       minDotSize: minDotSize ?? this.minDotSize,
@@ -189,6 +199,7 @@ class DotScreenConfig extends ScreenConfig {
       dotOpacity: dotOpacity ?? this.dotOpacity,
       textOpacity: textOpacity ?? this.textOpacity,
       sensitivity: sensitivity ?? this.sensitivity,
+      showSongInfo: showSongInfo ?? this.showSongInfo,
     );
   }
 }

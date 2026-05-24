@@ -196,37 +196,3 @@ needs a controller + `Scrollable.ensureVisible` on the row's key
 (alignment math is inverted by the reverse axis).
 
 **Area**: chrome / browser / playback
-
----
-
-## B-020 (minor): Toggleable song info on Dot screen
-
-**Symptom**: Dot screen renders only a pulsing dot. The currently-playing
-track's title and parent folder are invisible — the user can't see what
-is playing without leaving the screen or watching the lock-screen
-notification.
-
-**Repro**: Screenshot `.tmp/agent_shots/dot_top_transport.png` —
-empty above the dot, empty below it (transport row aside). No metadata
-anywhere.
-
-**Desired**: A toggleable song-info overlay for Dot, the same fields that
-Spectrum and Void show (title, parent folder). Default off (preserves
-the minimalist identity). Toggle lives in DISPLAY group of settings
-under the Dot config, alongside the existing sensitivity / max size /
-opacity sliders (`lib/widgets/void_settings_sheet.dart:734-806`).
-
-**Implementation sketch**:
-- Extend `DotScreenConfig` with `bool showSongInfo` (default false).
-- In `DotHero`, when `showSongInfo == true`, render the same widget
-  that Spectrum uses for title + parent folder, positioned within the
-  hero band (per B-018).
-- Add a `_toggleRow` for `show song info` to `_buildDotDisplayRows`
-  (`lib/widgets/void_settings_sheet.dart:734`).
-
-**Notes**: Cross-ref B-018 (transport contract) — both features want the
-hero band to be a stable, shell-allocated rectangle. Build B-018 first
-if both land in the same arc, otherwise B-020 has to assume layout it
-will later have to redo.
-
-**Area**: heroes / dot

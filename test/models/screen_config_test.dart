@@ -117,6 +117,32 @@ void main() {
         expect(config.dotOpacity, 1.0);
         expect(config.textOpacity, 1.0);
         expect(config.sensitivity, 1.5);
+        // B-020: showSongInfo defaults to false (minimalist identity).
+        expect(config.showSongInfo, isFalse);
+      });
+
+      test('showSongInfo round-trips through toJson / fromJson (B-020)', () {
+        const config = DotScreenConfig(showSongInfo: true);
+        final json = config.toJson();
+        expect(json['showSongInfo'], isTrue);
+
+        final restored = ScreenConfig.fromJson(json) as DotScreenConfig;
+        expect(restored.showSongInfo, isTrue);
+      });
+
+      test('copyWith preserves and overrides showSongInfo (B-020)', () {
+        const config = DotScreenConfig();
+        expect(config.showSongInfo, isFalse);
+
+        final flipped = config.copyWith(showSongInfo: true);
+        expect(flipped.showSongInfo, isTrue);
+        // Other fields preserved.
+        expect(flipped.sensitivity, config.sensitivity);
+        expect(flipped.maxDotSize, config.maxDotSize);
+
+        // Passing null in copyWith preserves the existing value.
+        final unchanged = flipped.copyWith();
+        expect(unchanged.showSongInfo, isTrue);
       });
     });
 

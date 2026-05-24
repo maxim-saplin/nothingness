@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/operating_mode.dart';
+import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/theme_id.dart';
 import 'package:nothingness/providers/audio_player_provider.dart';
 import 'package:nothingness/services/settings_service.dart';
@@ -341,6 +342,35 @@ void main() {
         expect(provider.disableCalls, 1);
       },
     );
+
+    testWidgets(
+        'dot screen exposes show-song-info toggle that persists the flip (B-020)',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      // Force the active screen to dot so the DISPLAY group renders the
+      // Dot rows (which now include the show-song-info toggle).
+      await SettingsService().saveScreenConfig(const DotScreenConfig());
+
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+      final toggleFinder = find.byKey(
+        const ValueKey('void-settings-dot-show-song-info'),
+        skipOffstage: false,
+      );
+      expect(toggleFinder, findsOneWidget);
+
+      // Initial state: off (DotScreenConfig default).
+      final initialCfg =
+          SettingsService().screenConfigNotifier.value as DotScreenConfig;
+      expect(initialCfg.showSongInfo, isFalse);
+
+      await tester.tap(toggleFinder);
+      await tester.pump();
+
+      final updatedCfg =
+          SettingsService().screenConfigNotifier.value as DotScreenConfig;
+      expect(updatedCfg.showSongInfo, isTrue);
+    });
 
     testWidgets('status strip hides when queue is empty',
         (tester) async {

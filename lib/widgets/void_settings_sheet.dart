@@ -804,6 +804,23 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     AppGeometry geometry,
   ) {
     return [
+      // B-020 — opt-in title + parent-folder overlay (default off preserves
+      // Dot's minimalist identity). Persists through the same
+      // `saveScreenConfig` path as the rest of the Dot config.
+      _toggleRow(
+        key: const ValueKey('void-settings-dot-show-song-info'),
+        label: 'show song info',
+        value: cfg.showSongInfo,
+        onToggle: () {
+          _settings.saveScreenConfig(
+            cfg.copyWith(showSongInfo: !cfg.showSongInfo),
+          );
+          setState(() {});
+        },
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
       _sliderRow(
         key: const ValueKey('void-settings-dot-sensitivity'),
         label: 'sensitivity',
