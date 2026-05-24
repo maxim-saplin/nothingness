@@ -550,6 +550,8 @@ void main() {
 
   _b031Tests();
 
+  _b032Tests();
+
   group('B-030 follow-up: chrome tappables wear PressFeedback', () {
     testWidgets('settings ⋮ button has a PressFeedback ancestor',
         (tester) async {
@@ -813,5 +815,182 @@ void _b031Tests() {
                 'toggle browser state.');
       },
     );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// B-032 tests — drag-down-to-close affordance on the open browser.
+// ---------------------------------------------------------------------------
+
+/// Helper: open the swipe-up browser via the hint band tap so each B-032 test
+/// starts from the canonical "browser expanded" state.
+Future<void> _openSwipeUpBrowser(WidgetTester tester) async {
+  expect(find.text('↑ swipe to browse'), findsOneWidget,
+      reason: 'B-032: precondition — hint band visible before opening.');
+  await tester.tap(find.text('↑ swipe to browse'));
+  await tester.pumpAndSettle();
+  expect(find.text('↑ swipe to browse'), findsNothing,
+      reason: 'B-032: browser must be open after the hint tap.');
+}
+
+void _b032Tests() {
+  group('B-032: drag-down-to-close', () {
+    const handleKey = ValueKey('void-browser-drag-handle');
+    const closeGestureKey = ValueKey('void-browser-close-drag-region');
+
+    setUp(() {
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.swipeUp;
+    });
+
+    tearDown(() {
+      SettingsService().browserPresentationNotifier.value =
+          SettingsService.defaultBrowserPresentation;
+    });
+
+    testWidgets('drag handle visible only after the browser opens',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // Closed (hint band visible) — handle absent.
+      expect(find.byKey(handleKey), findsNothing,
+          reason: 'B-032: handle must NOT render when the browser is closed.');
+
+      await _openSwipeUpBrowser(tester);
+
+      // After open, handle must be on screen.
+      expect(find.byKey(handleKey), findsOneWidget,
+          reason: 'B-032: handle must render once the browser is open in '
+              'swipe-up presentation.');
+    });
+
+    testWidgets('drag DOWN > 60 dp on the handle closes the browser',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+      await _openSwipeUpBrowser(tester);
+
+      final regionFinder = find.byKey(closeGestureKey);
+      expect(regionFinder, findsOneWidget,
+          reason: 'B-032: close-drag region must be present once expanded.');
+
+      // Slow long drag: 120 dp over 1500 ms → ~80 px/s velocity (below the
+      // 300 px/s threshold). Exercises the DISTANCE branch of the dual
+      // threshold.
+      await tester.timedDragFrom(
+        tester.getCenter(regionFinder),
+        const Offset(0, 120),
+        const Duration(milliseconds: 1500),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('↑ swipe to browse'), findsOneWidget,
+          reason: 'B-032: distance-threshold drag DOWN on the handle '
+              'region must close the browser.');
+    });
+
+    testWidgets('fast short flick DOWN (<60 dp, >300 dp/s) closes the browser',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+      await _openSwipeUpBrowser(tester);
+
+      final regionFinder = find.byKey(closeGestureKey);
+      expect(regionFinder, findsOneWidget);
+
+      // 50 px at 1500 px/s — distance under 60 dp, velocity well over the
+      // 300 px/s threshold (4x). Exercises the VELOCITY branch of the dual
+      // threshold.
+      await tester.flingFrom(
+        tester.getCenter(regionFinder),
+        const Offset(0, 50),
+        1500,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('↑ swipe to browse'), findsOneWidget,
+          reason: 'B-032: velocity-escape flick DOWN must close the browser.');
+    });
+
+    testWidgets('vertical drag UP (negative dy) does NOT close',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+      await _openSwipeUpBrowser(tester);
+
+      final regionFinder = find.byKey(closeGestureKey);
+      expect(regionFinder, findsOneWidget);
+
+      // Long upward drag, well past 60 dp. Must NOT close — sign check.
+      await tester.timedDragFrom(
+        tester.getCenter(regionFinder),
+        const Offset(0, -200),
+        const Duration(milliseconds: 1500),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('↑ swipe to browse'), findsNothing,
+          reason: 'B-032: upward drag must NOT collapse the browser '
+              '(sign check: only downward drags close).');
+    });
+
+    testWidgets('drag DOWN on the scrollable list does NOT close',
+        (tester) async {
+      final controller = _RecordingLibraryController(
+        currentPath: '/lib/folder',
+        tracks: List<AudioTrack>.generate(
+          40,
+          (i) => AudioTrack(
+            path: '/lib/folder/track_${i.toString().padLeft(2, '0')}.mp3',
+            title: 'Track $i',
+          ),
+        ),
+      );
+      await _pump(
+        tester,
+        const SpectrumScreenConfig(),
+        libraryController: controller,
+      );
+      await _openSwipeUpBrowser(tester);
+
+      // Drag down INSIDE the list area (a visible row). The list scrolls;
+      // the browser must stay open.
+      final rowFinder =
+          find.byKey(const ValueKey('void-file:/lib/folder/track_00.mp3'));
+      // Some rows may be off-screen depending on layout — pick any visible
+      // row by querying the first PressFeedback inside the list.
+      final firstRowFinder = rowFinder.evaluate().isNotEmpty
+          ? rowFinder
+          : find.byKey(
+              const ValueKey('void-file:/lib/folder/track_39.mp3'),
+            );
+      expect(firstRowFinder, findsOneWidget,
+          reason: 'B-032: precondition — at least one list row visible.');
+
+      await tester.timedDragFrom(
+        tester.getCenter(firstRowFinder),
+        const Offset(0, 200),
+        const Duration(milliseconds: 1500),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('↑ swipe to browse'), findsNothing,
+          reason: 'B-032: vertical drag inside the scrollable list region '
+              'must NOT close the browser (list scrolls instead).');
+    });
+
+    testWidgets('fixed presentation: no drag handle, drag has no effect',
+        (tester) async {
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.fixed;
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // Fixed presentation: browser always visible, hint band absent.
+      expect(find.text('↑ swipe to browse'), findsNothing,
+          reason: 'B-032: fixed presentation never paints the hint band.');
+      expect(find.byKey(handleKey), findsNothing,
+          reason: 'B-032: fixed presentation must NOT render the drag '
+              'handle — the browser cannot be closed by drag in fixed mode.');
+      expect(find.byKey(closeGestureKey), findsNothing,
+          reason: 'B-032: fixed presentation must NOT wire the close '
+              'gesture region.');
+    });
   });
 }

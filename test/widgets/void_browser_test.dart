@@ -6,6 +6,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/services/library_browser.dart';
 import 'package:nothingness/services/library_service.dart';
+import 'package:nothingness/theme/app_palette.dart';
 import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/void_browser.dart';
 import 'package:provider/provider.dart';
@@ -257,6 +258,131 @@ void main() {
                 'animateTo fallback.');
       },
     );
+  });
+
+  group('B-032: VoidBrowser drag handle', () {
+    const handleKey = ValueKey('void-browser-drag-handle');
+
+    testWidgets('renders when isDismissable=true', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final controller = _FakeLibraryController(
+        currentPath: '/lib/folder',
+        tracks: const <AudioTrack>[
+          AudioTrack(path: '/lib/folder/a.mp3', title: 'A'),
+        ],
+      );
+      final provider = FakeAudioPlayerProvider();
+
+      await tester.pumpWidget(
+        wrapWithProvider(
+          provider,
+          ChangeNotifierProvider<LibraryController>.value(
+            value: controller,
+            child: SizedBox(
+              height: 600,
+              child: VoidBrowser(
+                controller: controller,
+                isDismissable: true,
+                onDragDownClose: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(handleKey), findsOneWidget,
+          reason: 'B-032: drag handle must render when isDismissable=true.');
+    });
+
+    testWidgets('absent when isDismissable=false', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final controller = _FakeLibraryController(
+        currentPath: '/lib/folder',
+        tracks: const <AudioTrack>[
+          AudioTrack(path: '/lib/folder/a.mp3', title: 'A'),
+        ],
+      );
+      final provider = FakeAudioPlayerProvider();
+
+      await tester.pumpWidget(
+        wrapWithProvider(
+          provider,
+          ChangeNotifierProvider<LibraryController>.value(
+            value: controller,
+            child: SizedBox(
+              height: 600,
+              child: VoidBrowser(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(handleKey), findsNothing,
+          reason: 'B-032: drag handle must NOT render with the default '
+              'isDismissable=false (i.e. fixed presentation).');
+    });
+
+    testWidgets('drag handle uses palette fgTertiary and ~32x4 px',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final controller = _FakeLibraryController(
+        currentPath: '/lib/folder',
+        tracks: const <AudioTrack>[
+          AudioTrack(path: '/lib/folder/a.mp3', title: 'A'),
+        ],
+      );
+      final provider = FakeAudioPlayerProvider();
+
+      await tester.pumpWidget(
+        wrapWithProvider(
+          provider,
+          ChangeNotifierProvider<LibraryController>.value(
+            value: controller,
+            child: SizedBox(
+              height: 600,
+              child: VoidBrowser(
+                controller: controller,
+                isDismissable: true,
+                onDragDownClose: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final handleFinder = find.byKey(handleKey);
+      expect(handleFinder, findsOneWidget);
+
+      // The pill itself is a Container — locate its RenderBox to verify size.
+      final pillFinder = find.descendant(
+        of: handleFinder,
+        matching: find.byKey(const ValueKey('void-browser-drag-handle-pill')),
+      );
+      expect(pillFinder, findsOneWidget,
+          reason: 'B-032: handle must expose a keyed pill child.');
+      final pillBox = tester.renderObject<RenderBox>(pillFinder);
+      expect(pillBox.size.width, closeTo(32.0, 0.5),
+          reason: 'B-032: pill must be ~32 px wide.');
+      expect(pillBox.size.height, closeTo(4.0, 0.5),
+          reason: 'B-032: pill must be ~4 px tall.');
+
+      final pillWidget = tester.widget<Container>(pillFinder);
+      final decoration = pillWidget.decoration as BoxDecoration;
+      final ctx = tester.element(handleFinder);
+      final palette =
+          Theme.of(ctx).extension<AppPalette>()!;
+      expect(decoration.color, equals(palette.fgTertiary),
+          reason: 'B-032: pill must use palette.fgTertiary.');
+    });
   });
 
   group('B-030: VoidBrowser press feedback', () {

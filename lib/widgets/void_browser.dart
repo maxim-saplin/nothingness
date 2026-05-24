@@ -35,6 +35,8 @@ class VoidBrowser extends StatefulWidget {
     super.key,
     this.controller,
     this.searchController,
+    this.isDismissable = false,
+    this.onDragDownClose,
   });
 
   /// Optional externally-owned controller. When provided, the parent owns the
@@ -45,6 +47,18 @@ class VoidBrowser extends StatefulWidget {
   /// its text and render search results when it is non-empty. When null we
   /// only render the tree.
   final TextEditingController? searchController;
+
+  /// B-032: When `true`, the browser renders a drag handle pill at the top
+  /// and wraps the non-scrolling header band in a vertical-drag-down close
+  /// gesture. Set by the parent ([VoidScreen]) only when the browser is in
+  /// swipe-up presentation AND currently expanded — fixed presentation never
+  /// flips this on because there's no close affordance to surface.
+  final bool isDismissable;
+
+  /// B-032: Callback fired when the user crosses the drag-down threshold on
+  /// the non-scrolling header band. The parent collapses the browser. Ignored
+  /// (effectively absent) when [isDismissable] is `false`.
+  final VoidCallback? onDragDownClose;
 
   @override
   State<VoidBrowser> createState() => VoidBrowserState();
@@ -277,7 +291,7 @@ class VoidBrowserState extends State<VoidBrowser> {
 
     _kickOffInit();
 
-    final body = Consumer<LibraryController>(
+    final listBody = Consumer<LibraryController>(
       builder: (context, controller, _) {
         final isPermissionGate = controller.isAndroid && !controller.hasPermission;
 
@@ -293,6 +307,24 @@ class VoidBrowserState extends State<VoidBrowser> {
         );
       },
     );
+
+    // B-032: When the browser is presented as a dismissable sheet (swipe-up
+    // mode, currently expanded), stack a drag handle + close-gesture region
+    // on top of the scrollable list. The gesture region wraps ONLY the
+    // header band so vertical drags inside the list keep scrolling instead
+    // of accidentally collapsing the browser.
+    final Widget body = widget.isDismissable
+        ? Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              _DragHandleAndCloseRegion(
+                palette: palette,
+                onDragDownClose: widget.onDragDownClose,
+              ),
+              Expanded(child: listBody),
+            ],
+          )
+        : listBody;
 
     if (_ownsController) {
       return ChangeNotifierProvider<LibraryController>.value(
@@ -793,6 +825,93 @@ class VoidBrowserState extends State<VoidBrowser> {
         message: 'Recursive shuffle failed for $path: $e',
       );
     }
+  }
+}
+
+/// B-032: header band painted at the top of the open swipe-up browser. Renders
+/// the drag-handle pill and owns the vertical-drag-down-to-close gesture.
+///
+/// The gesture uses the same dual-threshold pattern as B-027's horizontal
+/// hero swipe: fires the close callback when either the accumulated downward
+/// distance crosses [_dragDistanceThreshold], or the end-of-drag velocity
+/// exceeds [_dragVelocityThreshold]. A `_fired` latch on the State prevents
+/// the velocity escape from double-firing on top of a distance trip.
+///
+/// Only the header band hosts the gesture — the scrollable list below it
+/// keeps its own ScrollController-driven vertical scrolling untouched.
+class _DragHandleAndCloseRegion extends StatefulWidget {
+  const _DragHandleAndCloseRegion({
+    required this.palette,
+    required this.onDragDownClose,
+  });
+
+  final AppPalette palette;
+  final VoidCallback? onDragDownClose;
+
+  @override
+  State<_DragHandleAndCloseRegion> createState() =>
+      _DragHandleAndCloseRegionState();
+}
+
+class _DragHandleAndCloseRegionState extends State<_DragHandleAndCloseRegion> {
+  // B-032 / B-027: matched thresholds for the dual-threshold close gesture.
+  // 60 dp distance OR > 300 dp/s end-velocity, whichever fires first.
+  static const double _dragDistanceThreshold = 60.0;
+  static const double _dragVelocityThreshold = 300.0;
+
+  double _accum = 0;
+  bool _fired = false;
+
+  void _onUpdate(DragUpdateDetails d) {
+    if (_fired) return;
+    _accum += d.primaryDelta ?? 0;
+    // Positive y delta = downward = close.
+    if (_accum > _dragDistanceThreshold) {
+      _fired = true;
+      _accum = 0;
+      widget.onDragDownClose?.call();
+    }
+  }
+
+  void _onEnd(DragEndDetails d) {
+    if (!_fired) {
+      final v = d.primaryVelocity ?? 0;
+      // Positive velocity = downward fling.
+      if (v > _dragVelocityThreshold) {
+        _fired = true;
+        widget.onDragDownClose?.call();
+      }
+    }
+    _accum = 0;
+    _fired = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Full-width hit region so the user can start the drag-down close
+    // anywhere along the header band, not just on the 32-px pill itself.
+    return GestureDetector(
+      key: const ValueKey('void-browser-close-drag-region'),
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: _onUpdate,
+      onVerticalDragEnd: _onEnd,
+      child: Container(
+        key: const ValueKey('void-browser-drag-handle'),
+        width: double.infinity,
+        // Margin sits the pill in a clear 8-px band above the list.
+        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        alignment: Alignment.center,
+        child: Container(
+          key: const ValueKey('void-browser-drag-handle-pill'),
+          width: 32,
+          height: 4,
+          decoration: BoxDecoration(
+            color: widget.palette.fgTertiary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+    );
   }
 }
 

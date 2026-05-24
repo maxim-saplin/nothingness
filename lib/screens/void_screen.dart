@@ -496,6 +496,14 @@ class _VoidScreenState extends State<VoidScreen>
                               key: _browserKey,
                               controller: _libraryController,
                               searchController: _searchController,
+                              // B-032: swipe-up presentation gives the
+                              // browser a drag-down close affordance. Fixed
+                              // presentation keeps the browser anchored —
+                              // no handle, no close gesture.
+                              isDismissable: _browserPresentation ==
+                                      BrowserPresentation.swipeUp &&
+                                  _browserExpanded,
+                              onDragDownClose: _collapseSwipeUpBrowser,
                             ),
                           ),
                         ),
@@ -557,6 +565,16 @@ class _VoidScreenState extends State<VoidScreen>
       ),
       ),
     );
+  }
+
+  /// B-032: collapse the swipe-up browser. Mirrors the back-button branch
+  /// of [_onPopInvoked] so the drag-down close gesture and Android back
+  /// converge on a single code path. No-op outside the swipe-up presentation.
+  void _collapseSwipeUpBrowser() {
+    if (!mounted) return;
+    if (_browserPresentation != BrowserPresentation.swipeUp) return;
+    if (!_browserExpanded) return;
+    setState(() => _browserExpanded = false);
   }
 
   /// Android back: collapse the swipe-up browser, then exit search, then
