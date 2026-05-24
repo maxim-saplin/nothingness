@@ -27,3 +27,21 @@ the `ui-revamp` branch's history) recovers it.
   whole library.
 
 **Closed**: 2026-05-22 — shipped together in merge `4fb5d27`.
+
+---
+
+## B-007 (minor): Android Back exits Void silently — verify
+
+**Symptom** (historical): Pressing Android Back from `VoidScreen` exited the
+app silently. Audio kept playing but UI state was lost.
+
+**Status**: Plausibly already fixed — `PopScope` is wired at
+`lib/screens/void_screen.dart:302` with `_onPopInvoked` at line 454
+that collapses the swipe-up browser, exits search, then walks the
+library tree up before letting the OS pop. **Needs an explicit live
+verification** before closing: on the emulator, press Back from various
+chrome states and confirm the order above holds.
+
+**Area**: chrome / navigation
+
+**Closed**: 2026-05-24 — verified on emulator-5554, PopScope order holds across all five chrome states (root → background; subfolder → folder up; expanded swipe-up browser → collapse; search mode → exits search after the standard IME-dismiss tap; settings sheet → closes via Navigator pop).

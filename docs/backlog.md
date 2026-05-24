@@ -25,22 +25,6 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
 
 ---
 
-## B-007 (minor): Android Back exits Void silently — verify
-
-**Symptom** (historical): Pressing Android Back from `VoidScreen` exited the
-app silently. Audio kept playing but UI state was lost.
-
-**Status**: Plausibly already fixed — `PopScope` is wired at
-`lib/screens/void_screen.dart:302` with `_onPopInvoked` at line 454
-that collapses the swipe-up browser, exits search, then walks the
-library tree up before letting the OS pop. **Needs an explicit live
-verification** before closing: on the emulator, press Back from various
-chrome states and confirm the order above holds.
-
-**Area**: chrome / navigation
-
----
-
 ## B-008 (minor): Choreographer skips ~140 frames at cold launch
 
 **Symptom**: First frame logs `Choreographer: Skipped 140 frames` — cold
