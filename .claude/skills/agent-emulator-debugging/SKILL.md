@@ -89,6 +89,10 @@ $D replay smoke.txt                           # one drive.py invocation per line
 
 For extensions not yet wrapped, `drive.py call <ext> k=v k=v …` calls any `ext.nothingness.<name>` with arbitrary params.
 
+### Cadence limits
+
+VM-service extension calls are not free — `setSetting` (and any other handler that writes through `SharedPreferences`) costs ~140 ms per RPC on emulator-5554. Sustained send rates above ~7/s back up the response queue; agents that fire-and-forget at >15/s observe what looks like a wedged isolate but is just unbounded backpressure (the queue eventually drains; at ~1000/s pipelined it never catches up within a reasonable timeout). Keep driver loops at **≤5/s with small jitter** for `setSetting`-style calls; reserve higher cadences for read-only extensions. Recovery if a session does hang: `rm .claude/skills/agent-emulator-debugging/scripts/.vm_ws.txt && drive.py restart`. If a test needs to hammer the same code path faster (20+ flips in <100 ms), use the in-process widget test pattern in `test/p6_adversarial_test.dart` instead of going through the VM service.
+
 ## WSL2 + Host Emulator
 
 When Flutter runs in WSL2 and the emulator runs on the Windows host:

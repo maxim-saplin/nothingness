@@ -45,3 +45,23 @@ chrome states and confirm the order above holds.
 **Area**: chrome / navigation
 
 **Closed**: 2026-05-24 — verified on emulator-5554, PopScope order holds across all five chrome states (root → background; subfolder → folder up; expanded swipe-up browser → collapse; search mode → exits search after the standard IME-dismiss tap; settings sheet → closes via Navigator pop).
+
+---
+
+## B-010 (major): Rapid `setSetting(themeVariant)` saturates the VM service
+
+**Symptom**: Driving `ext.nothingness.setSetting name=themeVariant ...`
+at >15 calls/second over the VM service stops the isolate responding.
+
+**Likely cause**: VM-service RPC saturation, not user-facing logic. The
+in-tree widget test `test/p6_adversarial_test.dart` exercises the same
+code path at the same cadence in-process and passes.
+
+**Desired**: Either rate-limit the extension handler, or document that the
+test agent must throttle. No user-facing fix needed if the diagnosis
+holds — but if a user-driven path can reach the same cadence (e.g. a
+settings cycle held down with hardware key repeat), we need a real fix.
+
+**Area**: testing / agent-service
+
+**Closed**: 2026-05-24 — diagnosis confirmed on emulator-5554: each `setSetting` RPC costs ~140 ms steady-state (awaits `SharedPreferences.setString`), so sustained send rates above ~7/s back up the response queue. At >500/s pipelined the queue grows beyond reasonable drain timeouts, matching the original "stops responding" symptom; isolate recovers once drained. No user-driven path can reach this cadence: the only write paths are `agent_service._setSetting` and `VoidSettingsSheet._cycleVariant` (tap-only, no hardware-key repeat or timer). Documented the cadence ceiling and recovery in `.claude/skills/agent-emulator-debugging/SKILL.md`; recommended ≤5/s for `setSetting`-style calls, with `test/p6_adversarial_test.dart` as the in-process equivalent for higher cadences.

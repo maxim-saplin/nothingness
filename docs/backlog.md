@@ -42,24 +42,6 @@ completes. Acceptable to show a black void for ~one frame.
 
 ---
 
-## B-010 (major): Rapid `setSetting(themeVariant)` saturates the VM service
-
-**Symptom**: Driving `ext.nothingness.setSetting name=themeVariant ...`
-at >15 calls/second over the VM service stops the isolate responding.
-
-**Likely cause**: VM-service RPC saturation, not user-facing logic. The
-in-tree widget test `test/p6_adversarial_test.dart` exercises the same
-code path at the same cadence in-process and passes.
-
-**Desired**: Either rate-limit the extension handler, or document that the
-test agent must throttle. No user-facing fix needed if the diagnosis
-holds — but if a user-driven path can reach the same cadence (e.g. a
-settings cycle held down with hardware key repeat), we need a real fix.
-
-**Area**: testing / agent-service
-
----
-
 ## B-011 (major): Play/pause feels delayed on Android
 
 **Symptom**: Tapping play/pause (hero or transport row) takes ~half a second
