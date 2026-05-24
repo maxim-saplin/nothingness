@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
+import '../widgets/press_feedback.dart';
 
 /// Inline cheat-sheet describing every gesture / control available across
 /// the Void chrome. Reached from the ABOUT group of [VoidSettingsSheet].
@@ -88,8 +89,7 @@ class HelpScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          PressFeedback(
             onTap: () => Navigator.of(context).maybePop(),
             child: Padding(
               padding: const EdgeInsets.all(8),

@@ -15,6 +15,7 @@ import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
 import 'mid_ellipsis.dart';
+import 'press_feedback.dart';
 
 /// A bottom-anchored file-tree browser used by [VoidScreen].
 ///
@@ -230,7 +231,7 @@ class VoidBrowserState extends State<VoidBrowser> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            GestureDetector(
+            PressFeedback(
               onTap: controller.requestPermission,
               child: Text(
                 'tap to grant',
@@ -534,7 +535,7 @@ class VoidBrowserState extends State<VoidBrowser> {
     // sub-queue and starts at the tapped track. Closing search restores the
     // prior queue. We need the *index inside the result list* — locate the
     // tapped track by path so re-orderings don't get out of sync.
-    return GestureDetector(
+    return PressFeedback(
       key: ValueKey('void-search:${track.path}'),
       onTap: () => _playSearchResult(track),
       child: Container(
@@ -731,16 +732,16 @@ class _VoidRowState extends State<_VoidRow> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressFeedback(
       key: widget.rowKey,
       onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       onLongPressStart: widget.onLongPress == null
           ? null
           : (_) => setState(() => _showPreview = true),
       onLongPressEnd: widget.onLongPress == null
           ? null
           : (_) => setState(() => _showPreview = false),
-      onLongPress: widget.onLongPress,
       child: Container(
         decoration: BoxDecoration(
           border: Border(

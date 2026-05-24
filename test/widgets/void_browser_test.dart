@@ -6,6 +6,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/services/library_browser.dart';
 import 'package:nothingness/services/library_service.dart';
+import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/void_browser.dart';
 import 'package:provider/provider.dart';
 
@@ -167,6 +168,64 @@ void main() {
       expect(centerY, inInclusiveRange(150.0, 450.0),
           reason: 'B-015: alignment=0.5 must land the row near the vertical '
               'center even on a reverse:true list.');
+    });
+  });
+
+  group('B-030: VoidBrowser press feedback', () {
+    testWidgets(
+        'file rows are wrapped in PressFeedback and dip opacity on touch-down',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final tracks = <AudioTrack>[
+        const AudioTrack(path: '/lib/folder/a.mp3', title: 'A'),
+        const AudioTrack(path: '/lib/folder/b.mp3', title: 'B'),
+      ];
+      final controller = _FakeLibraryController(
+        currentPath: '/lib/folder',
+        tracks: tracks,
+      );
+      final provider = FakeAudioPlayerProvider();
+
+      await tester.pumpWidget(
+        wrapWithProvider(
+          provider,
+          ChangeNotifierProvider<LibraryController>.value(
+            value: controller,
+            child: SizedBox(
+              height: 600,
+              child: VoidBrowser(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Adoption: every browser row sits under a PressFeedback wrapper.
+      expect(find.byType(PressFeedback), findsAtLeastNWidgets(tracks.length));
+
+      // Press dip: target a known row by ValueKey and verify the embedded
+      // AnimatedOpacity flips to PressFeedback.pressedOpacity on touch-down.
+      final rowFinder = find.byKey(const ValueKey('void-file:/lib/folder/a.mp3'));
+      expect(rowFinder, findsOneWidget);
+      final opacityFinder = find.descendant(
+        of: rowFinder,
+        matching: find.byType(AnimatedOpacity),
+      );
+      expect(tester.widget<AnimatedOpacity>(opacityFinder).opacity, 1.0);
+
+      final gesture =
+          await tester.startGesture(tester.getCenter(rowFinder));
+      // _VoidRow registers a long-press handler, so the GestureDetector
+      // arena waits past kPressTimeout (100 ms) before firing onTapDown.
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(
+        tester.widget<AnimatedOpacity>(opacityFinder).opacity,
+        PressFeedback.pressedOpacity,
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
   });
 }

@@ -21,6 +21,7 @@ import '../services/settings_service.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
+import 'press_feedback.dart';
 
 /// Themed settings surface for the Void chrome.
 ///
@@ -909,7 +910,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     required AppPalette palette,
     required AppTypography typography,
   }) {
-    return GestureDetector(
+    return PressFeedback(
       onTap: () {
         _settings.saveUiScale(-1.0);
         setState(() {});
@@ -944,8 +945,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          PressFeedback(
             onTap: () => Navigator.of(context).maybePop(),
             child: Padding(
               padding: const EdgeInsets.all(8),
@@ -1005,44 +1005,50 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   }) {
     final labelColor = enabled ? palette.fgPrimary : palette.fgTertiary;
     final valueColor = enabled ? palette.fgSecondary : palette.fgTertiary;
-    return GestureDetector(
-      key: key,
-      onTap: enabled ? onTap : null,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        constraints: BoxConstraints(minHeight: geometry.rowHeight),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: palette.divider,
-              width: geometry.dividerThickness,
-            ),
+    final container = Container(
+      constraints: BoxConstraints(minHeight: geometry.rowHeight),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: palette.divider,
+            width: geometry.dividerThickness,
           ),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: labelColor,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.rowSize,
-                ),
-              ),
-            ),
-            Text(
-              value,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
               style: TextStyle(
-                color: valueColor,
+                color: labelColor,
                 fontFamily: typography.monoFamily,
                 fontSize: typography.rowSize,
               ),
             ),
-          ],
-        ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor,
+              fontFamily: typography.monoFamily,
+              fontSize: typography.rowSize,
+            ),
+          ),
+        ],
       ),
+    );
+
+    // Disabled (info-only) rows skip the press dip — there's no action to
+    // confirm. They still need the ValueKey so QA can find them.
+    if (!enabled) {
+      return KeyedSubtree(key: key, child: container);
+    }
+    return PressFeedback(
+      key: key,
+      onTap: onTap,
+      child: container,
     );
   }
 

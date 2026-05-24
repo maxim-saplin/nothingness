@@ -35,13 +35,18 @@ class MediaButton extends StatefulWidget {
   static const Key touchDownDimKey =
       ValueKey<String>('media-button-touch-dim');
 
-  /// Opacity applied while a touch is held. Calibrated to be perceptible on
-  /// both light and dark themes without losing legibility.
-  static const double pressedOpacity = 0.55;
+  /// Opacity applied while a touch is held. B-030 recalibrated this from
+  /// 0.55 → 0.4 because the original dip was sub-threshold on the user's
+  /// real phone (the strong accent backdrop swallowed it).
+  static const double pressedOpacity = 0.4;
 
-  /// Fade duration each direction — short enough to feel instantaneous,
-  /// long enough to register as motion rather than a flicker.
-  static const Duration fadeDuration = Duration(milliseconds: 80);
+  /// Fade-in duration when the press is registered. B-030 widened this
+  /// from 80 ms → 120 ms so the dip reads as motion rather than a flicker.
+  static const Duration fadeInDuration = Duration(milliseconds: 120);
+
+  /// Fade-out duration on release. Longer than the fade-in so a brief
+  /// tap still produces a visible dip before bouncing back to 1.0.
+  static const Duration fadeOutDuration = Duration(milliseconds: 200);
 
   @override
   State<MediaButton> createState() => _MediaButtonState();
@@ -72,7 +77,9 @@ class _MediaButtonState extends State<MediaButton> {
       child: AnimatedOpacity(
         key: MediaButton.touchDownDimKey,
         opacity: _pressed ? MediaButton.pressedOpacity : 1.0,
-        duration: MediaButton.fadeDuration,
+        duration: _pressed
+            ? MediaButton.fadeInDuration
+            : MediaButton.fadeOutDuration,
         curve: Curves.easeOut,
         child: Container(
           width: widget.size,

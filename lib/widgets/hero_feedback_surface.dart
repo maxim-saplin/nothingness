@@ -47,6 +47,16 @@ class HeroFeedbackSurface extends StatefulWidget {
   /// Diameter of the tap ring at the end of its expansion.
   static const double ringMaxDiameter = 96.0;
 
+  /// B-030: stroke width of the tap ring outline. Doubled from the
+  /// original 1.5 dp because the hairline ring was effectively invisible
+  /// against a busy hero on real-hardware testing.
+  static const double ringStrokeWidth = 3.0;
+
+  /// B-030: multiplier applied to the painter's `fgSecondary` alpha so the
+  /// ring reads against a busy hero. Clamped at the call site so a fully-
+  /// opaque source colour stays opaque.
+  static const double ringOpacityMultiplier = 1.5;
+
   @override
   State<HeroFeedbackSurface> createState() => HeroFeedbackSurfaceState();
 }
@@ -201,13 +211,19 @@ class _TapRingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Expand from 0 → ringMaxDiameter/2 while fading 1 → 0. Stroke stays at
-    // 1.5 dp so the ring reads as a hairline even at maximum diameter.
+    // Expand from 0 → ringMaxDiameter/2 while fading 1 → 0. B-030: stroke
+    // doubled (1.5 → 3 dp) and the alpha boosted 1.5× so the ring is
+    // visible on a hand-held device against any hero visualisation.
     final radius = (HeroFeedbackSurface.ringMaxDiameter / 2) * progress;
-    final alpha = (1 - progress).clamp(0.0, 1.0);
+    final fade = (1 - progress).clamp(0.0, 1.0);
+    final baseAlpha = color.a;
+    final boosted = (baseAlpha *
+            fade *
+            HeroFeedbackSurface.ringOpacityMultiplier)
+        .clamp(0.0, 1.0);
     final paint = Paint()
-      ..color = color.withValues(alpha: alpha)
-      ..strokeWidth = 1.5
+      ..color = color.withValues(alpha: boosted)
+      ..strokeWidth = HeroFeedbackSurface.ringStrokeWidth
       ..style = PaintingStyle.stroke;
     canvas.drawCircle(center, radius, paint);
   }

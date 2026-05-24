@@ -33,8 +33,9 @@ void main() {
     expect(dimFinder(), findsOneWidget);
   });
 
-  testWidgets('idle opacity is 1.0; drops below 1.0 on touch-down; restores '
-      'on release',
+  testWidgets(
+      'idle opacity is 1.0; touch-down sets it to the calibrated pressedOpacity; '
+      'release restores 1.0',
       (tester) async {
     await tester.pumpWidget(
       host(MediaButton(
@@ -47,16 +48,23 @@ void main() {
     // Idle: full opacity.
     expect(currentOpacity(tester), 1.0);
 
-    // Touch down (do NOT release) — opacity should drop.
+    // Touch down (do NOT release) — opacity should target pressedOpacity
+    // exactly. B-030 calibrated this to 0.4 for real-hardware visibility.
     final gesture =
         await tester.startGesture(tester.getCenter(find.byType(MediaButton)));
     await tester.pump(const Duration(milliseconds: 16));
-    expect(currentOpacity(tester), lessThan(1.0));
+    expect(currentOpacity(tester), MediaButton.pressedOpacity);
 
     // Release — opacity restores.
     await gesture.up();
     await tester.pump(const Duration(milliseconds: 16));
     expect(currentOpacity(tester), 1.0);
+  });
+
+  test('B-030 calibration constants', () {
+    expect(MediaButton.pressedOpacity, 0.4);
+    expect(MediaButton.fadeInDuration, const Duration(milliseconds: 120));
+    expect(MediaButton.fadeOutDuration, const Duration(milliseconds: 200));
   });
 
   testWidgets('cancel restores opacity', (tester) async {

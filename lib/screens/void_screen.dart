@@ -23,6 +23,7 @@ import '../widgets/heroes/polo_hero.dart';
 import '../widgets/heroes/spectrum_hero.dart';
 import '../widgets/heroes/void_hero.dart';
 import '../widgets/mid_ellipsis.dart';
+import '../widgets/press_feedback.dart';
 import '../widgets/transport_row.dart';
 import '../widgets/void_browser.dart';
 import '../widgets/void_settings_sheet.dart';
@@ -721,9 +722,8 @@ class _VoidScreenState extends State<VoidScreen>
     return Semantics(
       label: 'jump to now-playing folder',
       button: true,
-      child: GestureDetector(
+      child: PressFeedback(
         key: const ValueKey('void-crumb-jump-to-playing'),
-        behavior: HitTestBehavior.opaque,
         onTap: () => _jumpToNowPlaying(playingPath),
         child: SizedBox(
           width: 44,
@@ -811,9 +811,8 @@ class _VoidScreenState extends State<VoidScreen>
           Semantics(
             label: 'close search',
             button: true,
-            child: GestureDetector(
+            child: PressFeedback(
               key: const ValueKey('void-search-close'),
-              behavior: HitTestBehavior.opaque,
               onTap: _exitSearchMode,
               child: SizedBox(
                 width: 44,
