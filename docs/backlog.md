@@ -63,3 +63,64 @@ keeps the engine in cheap-render mode until init returns, or (c) measure
 on real hardware where emulator JIT warmup doesn't dominate. The second
 skip-burst (~170-290 frames) is probably `flutter_soloud` native init,
 not `audio_service` — worth isolating before another attempt.
+
+---
+
+## B-028 (minor): Per-screen `screen_config` persistence
+
+**Symptom**: Settings persistence uses a single `screen_config`
+SharedPreferences key holding the active screen's config blob. When the
+agent (or user) swaps from Dot → Spectrum → Dot, the Dot config is
+overwritten with Spectrum's blob during the middle step, so the second
+Dot switch loses any non-default fields (e.g. `showSongInfo` from B-020).
+
+**Repro**: surfaced during B-023 QA. Set Dot `showSongInfo=true`; switch
+to Spectrum via `ext.nothingness.setSetting name=screen value=spectrum`;
+switch back to Dot. The `showSongInfo=true` is gone.
+
+**Desired**: Persist per-screen configs under separate keys
+(`screen_config_dot`, `screen_config_spectrum`, `screen_config_polo`,
+`screen_config_void`). On `screen` swap, write the OUTGOING screen's
+config to its own key, read the INCOMING screen's persisted config (or
+default) from its key. Migration: on first read after upgrade, if the
+old `screen_config` key still exists, parse its `screenId` and write
+the blob to the matching per-screen key, then delete the old key.
+
+**Notes**: Look at `lib/services/settings_service.dart` for the current
+load/save paths. B-023's `_resolveScreenConfig` already has a live-
+notifier shortcut + persisted-JSON reload — the new keys plug in below
+that. Keep the migration small and idempotent.
+
+**Area**: settings / persistence
+
+---
+
+## B-029 (minor): `drive.py reset` kills the live `flutter run`
+
+**Symptom**: `drive.py reset` internally calls
+`adb shell am force-stop com.saplin.nothingness` + `pm clear`, which
+crashes any attached `flutter run` session with `Lost connection to
+device` and forces a 60-90 s rebuild. The SKILL.md note added for
+B-021..B-025 warns about `force-stop` and `pm revoke RECORD_AUDIO` but
+does not name `reset` directly, so an agent reading the skill can
+trigger the hazard via the wrapper without noticing.
+
+**Repro**: surfaced during B-027 implementer work. With flutter run
+attached, running `drive.py reset` ended the session and the running
+APK reverted to the pre-fix binary.
+
+**Desired**:
+1. Update `drive.py reset` to detect a live flutter run session (check
+   `/tmp/flutter_run.log` mtime + VM service responding via the cached
+   WS URI). If alive, refuse with a clear message; accept `--force` to
+   override.
+2. Update `.claude/skills/agent-emulator-debugging/SKILL.md` to:
+   - Name `drive.py reset` explicitly in the "Do not kill the live
+     flutter run" note (point at the `--force` flag).
+   - Add a short note that **ADB synthetic-event swipes do not reliably
+     hit Flutter's velocity thresholds**, so hero/swipe gestures should
+     be verified with `tester.fling` in widget tests rather than chased
+     via `adb shell input swipe X1 Y X2 Y duration` (surfaced during
+     B-027 live verification).
+
+**Area**: testing / agent-skill / drive
