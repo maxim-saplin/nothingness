@@ -4,6 +4,10 @@ Welcome to the documentation for the Nothingness project.
 
 ## 📚 Contents
 
+- **Backlog**
+  - [Open issues](backlog.md) - Single-file UX/bug tracker (`B-NNN`).
+  - [Closed items](backlog_done.md) - Append-only trail of resolved bugs.
+
 - **Architecture**
   - [System Overview](architecture/overview.md) - High-level system design and components.
   - [Audio Playback & Spectrum](architecture/audio-playback-spectrum.md) - In-depth audio pipeline and visualization flows.
