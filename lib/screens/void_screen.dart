@@ -89,6 +89,11 @@ class _VoidScreenState extends State<VoidScreen>
   bool _hintFaded = false;
   bool _searchMode = false;
   double _horizDragAccum = 0;
+  // B-027: latched while the current horizontal drag has already produced a
+  // prev/next event (either via the 60-dp distance accumulator below or via
+  // the velocity escape in `_onHeroHorizontalDragEnd`). Prevents the end-of-
+  // gesture velocity check from re-firing on top of a distance trip.
+  bool _horizDragFired = false;
   Timer? _hintFadeTimer;
   // B-012: GlobalKey on the hero feedback surface so horizontal-drag
   // accumulator (which lives in this state) can fire the directional
@@ -300,24 +305,52 @@ class _VoidScreenState extends State<VoidScreen>
     });
   }
 
+  /// Velocity threshold (px/s) for the B-027 escape hatch. A short flick
+  /// whose distance never crosses [_horizDistanceThreshold] still fires
+  /// prev/next if its end velocity exceeds this value. Tuned to match
+  /// PageView's flick feel — anything noticeably faster than a casual drag.
+  static const double _horizVelocityThreshold = 300.0;
+  static const double _horizDistanceThreshold = 60.0;
+
   void _onHeroHorizontalDrag(DragUpdateDetails d) {
     _horizDragAccum += d.primaryDelta ?? 0;
     final player = context.read<AudioPlayerProvider>();
-    if (_horizDragAccum > 60) {
+    if (_horizDragAccum > _horizDistanceThreshold) {
       // Right-ward swipe → next track.
       player.next();
       _heroFeedbackKey.currentState?.flashSwipe(1);
       _horizDragAccum = 0;
-    } else if (_horizDragAccum < -60) {
+      _horizDragFired = true;
+    } else if (_horizDragAccum < -_horizDistanceThreshold) {
       // Left-ward swipe → previous track.
       player.previous();
       _heroFeedbackKey.currentState?.flashSwipe(-1);
       _horizDragAccum = 0;
+      _horizDragFired = true;
     }
   }
 
-  void _onHeroHorizontalDragEnd(DragEndDetails _) {
+  /// B-027: velocity escape. If the gesture ended without crossing the
+  /// 60-dp distance threshold but the user clearly flicked (|v| > 300 px/s),
+  /// fire prev/next based on the sign of the velocity. The `_horizDragFired`
+  /// guard prevents a long+fast drag from double-firing (once on distance,
+  /// once on velocity).
+  void _onHeroHorizontalDragEnd(DragEndDetails d) {
+    if (!_horizDragFired) {
+      final v = d.primaryVelocity ?? 0;
+      if (v.abs() > _horizVelocityThreshold) {
+        final player = context.read<AudioPlayerProvider>();
+        if (v > 0) {
+          player.next();
+          _heroFeedbackKey.currentState?.flashSwipe(1);
+        } else {
+          player.previous();
+          _heroFeedbackKey.currentState?.flashSwipe(-1);
+        }
+      }
+    }
     _horizDragAccum = 0;
+    _horizDragFired = false;
   }
 
   /// Upward drag on the (expanded) hero while the swipe-up browser is

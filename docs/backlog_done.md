@@ -615,3 +615,30 @@ Pre-existing; would have been a tip-of-iceberg if the rounding grew.
 **Area**: heroes / spectrum
 
 **Closed**: 2026-05-24 — `SpectrumHero` outer Column now reserves typography-derived text height (+ small safety buffer) and caps the visualiser slot to remaining space via `floorToDouble()`; the visualiser is hidden entirely when the squeezed slot falls below the threshold needed to host its own bars + labels Column. Live `drive.py overflows` reports zero overflows at `uiScale=2.5` (was: 19+31 px RenderFlex exceptions) and stays clean at `uiScale=1.5`.
+
+---
+
+## B-027 (minor): Hero swipe misses fast-but-short flicks
+
+**Symptom**: B-012 added a 60-dp horizontal-drag accumulator on the hero
+to fire prev/next. A short fast flick (e.g. 40 dp in 80 ms) never crosses
+the distance threshold and silently does nothing — even though the user
+clearly intended a swipe.
+
+**Repro**: `adb shell input swipe 200 1200 350 1200 80` on Spectrum.
+Distance 150 px ≈ 50 dp at 1× density. Accumulator never crosses 60 dp.
+Compare with PageView's swipe: also tracks velocity, fires when either
+distance OR velocity threshold passes.
+
+**Desired**: In the hero's horizontal drag handler, also track the final
+velocity. If velocity at end exceeds ~300 dp/s (tune to feel), fire
+prev/next even when distance is under 60 dp. Direction is sign of
+velocity.
+
+**Notes**: Implementer of B-012 flagged this as a separate ticket. Look
+at `lib/widgets/hero_feedback_surface.dart` and the gesture wiring in
+`lib/screens/void_screen.dart`.
+
+**Area**: chrome / heroes / transport
+
+**Closed**: 2026-05-24 — velocity escape (>300 px/s) fires prev/next even when drag distance is under 60 dp. `_VoidScreenState._onHeroHorizontalDragEnd` reads `DragEndDetails.primaryVelocity` and routes positive sign → `next()` / negative → `previous()`; a `_horizDragFired` latch guards against double-firing when a single gesture both trips the 60-dp distance accumulator AND ends with high velocity. Six widget tests in `test/screens/void_screen_test.dart` cover: slow short (no-fire), slow long (existing distance fire), fast short rightward + leftward (velocity-escape fire with direction = sign of velocity), low-velocity short (no-fire), and the no-double-fire latch.

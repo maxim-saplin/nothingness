@@ -63,28 +63,3 @@ keeps the engine in cheap-render mode until init returns, or (c) measure
 on real hardware where emulator JIT warmup doesn't dominate. The second
 skip-burst (~170-290 frames) is probably `flutter_soloud` native init,
 not `audio_service` — worth isolating before another attempt.
-
----
-
-## B-027 (minor): Hero swipe misses fast-but-short flicks
-
-**Symptom**: B-012 added a 60-dp horizontal-drag accumulator on the hero
-to fire prev/next. A short fast flick (e.g. 40 dp in 80 ms) never crosses
-the distance threshold and silently does nothing — even though the user
-clearly intended a swipe.
-
-**Repro**: `adb shell input swipe 200 1200 350 1200 80` on Spectrum.
-Distance 150 px ≈ 50 dp at 1× density. Accumulator never crosses 60 dp.
-Compare with PageView's swipe: also tracks velocity, fires when either
-distance OR velocity threshold passes.
-
-**Desired**: In the hero's horizontal drag handler, also track the final
-velocity. If velocity at end exceeds ~300 dp/s (tune to feel), fire
-prev/next even when distance is under 60 dp. Direction is sign of
-velocity.
-
-**Notes**: Implementer of B-012 flagged this as a separate ticket. Look
-at `lib/widgets/hero_feedback_surface.dart` and the gesture wiring in
-`lib/screens/void_screen.dart`.
-
-**Area**: chrome / heroes / transport

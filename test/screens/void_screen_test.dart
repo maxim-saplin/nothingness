@@ -412,4 +412,149 @@ void main() {
               'folder.');
     });
   });
+
+  group('B-027: hero swipe velocity escape', () {
+    // The hero band sits at the top of the screen — pick a point well inside
+    // it for our flings. MaterialApp's MediaQuery is driven by the engine
+    // window (not setSurfaceSize), so the hero ends up ~192 px tall in
+    // widget tests. y=80 is safely inside that band.
+    const Offset heroPoint = Offset(400, 80);
+
+    testWidgets('slow short swipe (<60 dp, low velocity) does NOT fire',
+        (tester) async {
+      final provider = _RecordingTransportProvider();
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      // 40 px over 800 ms ≈ 50 px/s — well under the 300 px/s threshold.
+      await tester.timedDragFrom(
+        heroPoint,
+        const Offset(40, 0),
+        const Duration(milliseconds: 800),
+      );
+      await tester.pumpAndSettle();
+
+      expect(provider.nextCalls, 0,
+          reason: 'B-027: slow short swipe must not fire next.');
+      expect(provider.previousCalls, 0,
+          reason: 'B-027: slow short swipe must not fire previous.');
+    });
+
+    testWidgets('slow long swipe (>60 dp) still fires (distance threshold)',
+        (tester) async {
+      final provider = _RecordingTransportProvider();
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      // 200 px over 1500 ms ≈ 130 px/s. Velocity is well under 300 px/s,
+      // but distance crosses 60 dp, so the existing accumulator must fire.
+      await tester.timedDragFrom(
+        heroPoint,
+        const Offset(200, 0),
+        const Duration(milliseconds: 1500),
+      );
+      await tester.pumpAndSettle();
+
+      expect(provider.nextCalls, greaterThanOrEqualTo(1),
+          reason: 'B-027: long slow rightward swipe must fire next '
+              '(existing 60-dp accumulator behaviour preserved).');
+      expect(provider.previousCalls, 0);
+    });
+
+    testWidgets('fast short flick (<60 dp, high velocity) FIRES — rightward',
+        (tester) async {
+      final provider = _RecordingTransportProvider();
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      // 50 px at 800 px/s — distance under 60 dp, velocity over 300 px/s.
+      await tester.flingFrom(
+        heroPoint,
+        const Offset(50, 0),
+        800,
+      );
+      await tester.pumpAndSettle();
+
+      expect(provider.nextCalls, 1,
+          reason: 'B-027: fast short rightward flick must fire next via '
+              'the velocity escape, even when distance is under 60 dp.');
+      expect(provider.previousCalls, 0);
+    });
+
+    testWidgets('fast short flick (<60 dp, high velocity) FIRES — leftward',
+        (tester) async {
+      final provider = _RecordingTransportProvider();
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      await tester.flingFrom(
+        heroPoint,
+        const Offset(-50, 0),
+        800,
+      );
+      await tester.pumpAndSettle();
+
+      expect(provider.previousCalls, 1,
+          reason: 'B-027: fast short leftward flick must fire previous via '
+              'the velocity escape; direction = sign of velocity.');
+      expect(provider.nextCalls, 0);
+    });
+
+    testWidgets('low-velocity short swipe (<60 dp, <300 px/s) does NOT fire',
+        (tester) async {
+      final provider = _RecordingTransportProvider();
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      // 50 px at 100 px/s — both distance and velocity under their
+      // thresholds, so neither branch should fire.
+      await tester.flingFrom(
+        heroPoint,
+        const Offset(50, 0),
+        100,
+      );
+      await tester.pumpAndSettle();
+
+      expect(provider.nextCalls, 0,
+          reason: 'B-027: velocity below ~300 px/s threshold must not fire.');
+      expect(provider.previousCalls, 0);
+    });
+
+    testWidgets('velocity escape does not double-fire after distance trip',
+        (tester) async {
+      final provider = _RecordingTransportProvider();
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      // 80 px at 800 px/s — distance crosses 60 dp exactly once during the
+      // drag (accumulator resets after firing, then has only 20 px left, so
+      // no second distance trip). End velocity is ~800 px/s, well over the
+      // 300 px/s velocity threshold. With the fired-guard in place the
+      // gesture must still produce exactly one next() — not two.
+      await tester.flingFrom(
+        heroPoint,
+        const Offset(80, 0),
+        800,
+      );
+      await tester.pumpAndSettle();
+
+      expect(provider.nextCalls, 1,
+          reason: 'B-027: when a single drag both trips distance AND ends '
+              'above the velocity threshold, the velocity escape must NOT '
+              're-fire — exactly one transport event per gesture.');
+      expect(provider.previousCalls, 0);
+    });
+  });
+}
+
+/// Records calls to `next()` / `previous()` so B-027 tests can assert which
+/// transport action a swipe / flick produced. Inherits the rest of the
+/// player surface from [FakeAudioPlayerProvider].
+class _RecordingTransportProvider extends FakeAudioPlayerProvider {
+  int nextCalls = 0;
+  int previousCalls = 0;
+
+  @override
+  Future<void> next() async {
+    nextCalls++;
+  }
+
+  @override
+  Future<void> previous() async {
+    previousCalls++;
+  }
 }
