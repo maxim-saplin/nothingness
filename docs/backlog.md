@@ -66,28 +66,6 @@ not `audio_service` — worth isolating before another attempt.
 
 ---
 
-## B-026 (minor): Spectrum sub-pixel overflow at uiScale=2.5
-
-**Symptom**: At `uiScale=2.5` on Spectrum, a RenderFlex reports a 0.453 px
-overflow. Visually negligible but noisy in logs and a latent bug if
-the rounding error grows on different devices.
-
-**Repro**: `drive.py call ext.nothingness.setSetting name=uiScale value=2.5`,
-`drive.py screen spectrum`. `drive.py overflows` (or check logcat) reports
-the 0.453 px overflow. At `uiScale=1.0` no overflow.
-
-**Desired**: Find the offending RenderFlex (probably the Spectrum hero's
-song-info column) and either wrap the inner child with `Flexible`/
-`Expanded`, add `mainAxisSize: MainAxisSize.min`, or round the affected
-size up via `ceil`/`floor`. Sub-pixel-stable layout.
-
-**Notes**: Surfaced during B-019 and B-018 QA — not introduced by either.
-Pre-existing; would have been a tip-of-iceberg if the rounding grew.
-
-**Area**: heroes / spectrum
-
----
-
 ## B-027 (minor): Hero swipe misses fast-but-short flicks
 
 **Symptom**: B-012 added a 60-dp horizontal-drag accumulator on the hero

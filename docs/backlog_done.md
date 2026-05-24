@@ -591,3 +591,27 @@ gesture handler be anywhere in the descendant subtree.
 **Area**: testing / agent-service
 
 **Closed**: 2026-05-24 — `_tapByKey` now (1) walks descendants for a `GestureDetector`/`InkResponse` callback, (2) falls back to synthetic `PointerAdded/Down/Up/Removed` dispatch via `GestureBinding`, (3) keeps the legacy ancestor walk; `drive.py tap transport-play` now toggles playback (live-verified pause).
+
+---
+
+## B-026 (minor): Spectrum sub-pixel overflow at uiScale=2.5
+
+**Symptom**: At `uiScale=2.5` on Spectrum, a RenderFlex reports a 0.453 px
+overflow. Visually negligible but noisy in logs and a latent bug if
+the rounding error grows on different devices.
+
+**Repro**: `drive.py call ext.nothingness.setSetting name=uiScale value=2.5`,
+`drive.py screen spectrum`. `drive.py overflows` (or check logcat) reports
+the 0.453 px overflow. At `uiScale=1.0` no overflow.
+
+**Desired**: Find the offending RenderFlex (probably the Spectrum hero's
+song-info column) and either wrap the inner child with `Flexible`/
+`Expanded`, add `mainAxisSize: MainAxisSize.min`, or round the affected
+size up via `ceil`/`floor`. Sub-pixel-stable layout.
+
+**Notes**: Surfaced during B-019 and B-018 QA — not introduced by either.
+Pre-existing; would have been a tip-of-iceberg if the rounding grew.
+
+**Area**: heroes / spectrum
+
+**Closed**: 2026-05-24 — `SpectrumHero` outer Column now reserves typography-derived text height (+ small safety buffer) and caps the visualiser slot to remaining space via `floorToDouble()`; the visualiser is hidden entirely when the squeezed slot falls below the threshold needed to host its own bars + labels Column. Live `drive.py overflows` reports zero overflows at `uiScale=2.5` (was: 19+31 px RenderFlex exceptions) and stays clean at `uiScale=1.5`.
