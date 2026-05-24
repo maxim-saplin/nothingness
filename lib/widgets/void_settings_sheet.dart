@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 
 import '../models/browser_presentation.dart';
 import '../models/operating_mode.dart';
@@ -12,6 +13,7 @@ import '../models/spectrum_settings.dart';
 import '../models/theme_id.dart';
 import '../models/theme_variant.dart';
 import '../models/transport_position.dart';
+import '../providers/audio_player_provider.dart';
 import '../screens/help_screen.dart';
 import '../screens/log_screen.dart';
 import '../services/platform_channels.dart';
@@ -28,8 +30,14 @@ import '../theme/app_typography.dart';
 /// mode and the active home-screen (visualisation) so per-visualisation
 /// knobs only appear when they're relevant.
 ///
+/// A pinned status strip (queue size + shuffle toggle) sits between the
+/// header and the MODE group when the queue is non-empty. The strip is
+/// non-scrolling so playback state stays visible while the rest of the
+/// list scrolls.
+///
 /// Three row primitives:
-///   * [_row]: cycle row — label, current value, tap to cycle.
+///   * [_row]: cycle/info row — label, current value, tap to cycle (or
+///     pass `enabled: false` to render as a read-only info row).
 ///   * [_sliderRow]: label + current value, slider below.
 ///   * [_toggleRow]: label, on/off state, tap to flip.
 class VoidSettingsSheet extends StatefulWidget {
@@ -282,25 +290,85 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     final typography = Theme.of(context).extension<AppTypography>()!;
     final geometry = Theme.of(context).extension<AppGeometry>()!;
 
+    // The status strip + header live OUTSIDE the scrolling ListView so they
+    // stay pinned at the top of the sheet. The provider is nullable here so
+    // unit tests that don't wrap the sheet in a ChangeNotifierProvider keep
+    // working — the strip is simply omitted in that case.
+    final player = context.watch<AudioPlayerProvider?>();
+
     return Scaffold(
       backgroundColor: palette.background,
       body: SafeArea(
         child: ValueListenableBuilder<OperatingMode>(
           valueListenable: _settings.operatingModeNotifier,
           builder: (context, mode, _) {
-            return ListView(
-              padding: EdgeInsets.zero,
-              children: _buildGroups(
-                mode: mode,
-                palette: palette,
-                typography: typography,
-                geometry: geometry,
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _header(palette, typography),
+                if (player != null && player.queue.isNotEmpty)
+                  ..._statusStrip(
+                    player: player,
+                    palette: palette,
+                    typography: typography,
+                    geometry: geometry,
+                  ),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: _buildGroups(
+                      mode: mode,
+                      palette: palette,
+                      typography: typography,
+                      geometry: geometry,
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
       ),
     );
+  }
+
+  /// Non-scrolling status rows inserted between the header and the MODE group.
+  /// Renders the queue size (read-only) and a live shuffle toggle that calls
+  /// into [AudioPlayerProvider.shuffleQueue] / [AudioPlayerProvider.disableShuffle].
+  List<Widget> _statusStrip({
+    required AudioPlayerProvider player,
+    required AppPalette palette,
+    required AppTypography typography,
+    required AppGeometry geometry,
+  }) {
+    final count = player.queue.length;
+    return [
+      _row(
+        key: const ValueKey('void-settings-status-queue'),
+        label: 'queue',
+        value: '$count ${count == 1 ? 'track' : 'tracks'}',
+        onTap: () {},
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+        enabled: false,
+      ),
+      _toggleRow(
+        key: const ValueKey('void-settings-status-shuffle'),
+        label: 'shuffle',
+        value: player.shuffle,
+        onToggle: () {
+          if (player.shuffle) {
+            player.disableShuffle();
+          } else {
+            player.shuffleQueue();
+          }
+        },
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
+    ];
   }
 
   List<Widget> _buildGroups({
@@ -321,8 +389,6 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     final spectrum = _settings.settingsNotifier.value;
 
     return [
-      _header(palette, typography),
-
       // ------------------------------------------------------------------- MODE
       _groupHeader('MODE', palette, typography),
       _row(

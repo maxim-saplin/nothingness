@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/operating_mode.dart';
 import 'package:nothingness/models/theme_id.dart';
+import 'package:nothingness/providers/audio_player_provider.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/theme/themes.dart';
 import 'package:nothingness/widgets/void_settings_sheet.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget _wrap(Widget child) {
@@ -187,4 +190,231 @@ void main() {
       );
     });
   });
+
+  group('VoidSettingsSheet — status strip (B-016)', () {
+    testWidgets(
+      'status strip is visible above the MODE group when queue is non-empty',
+      (tester) async {
+        SettingsService().operatingModeNotifier.value = OperatingMode.own;
+        final provider = _StubAudioProvider(
+          queue: const [
+            AudioTrack(path: '/a.mp3', title: 'a', artist: 'A'),
+            AudioTrack(path: '/b.mp3', title: 'b', artist: 'B'),
+          ],
+          shuffle: false,
+        );
+
+        await _pumpInTallViewport(
+          tester,
+          _wrap(
+            ChangeNotifierProvider<AudioPlayerProvider>.value(
+              value: provider,
+              child: const VoidSettingsSheet(),
+            ),
+          ),
+        );
+
+        final queueRow = find.byKey(
+          const ValueKey('void-settings-status-queue'),
+          skipOffstage: false,
+        );
+        final shuffleRow = find.byKey(
+          const ValueKey('void-settings-status-shuffle'),
+          skipOffstage: false,
+        );
+        final modeHeader = find.text('MODE', skipOffstage: false);
+
+        expect(queueRow, findsOneWidget);
+        expect(shuffleRow, findsOneWidget);
+        expect(modeHeader, findsOneWidget);
+
+        // The status rows must sit above the MODE group header visually.
+        final queueY =
+            tester.getTopLeft(queueRow).dy;
+        final shuffleY =
+            tester.getTopLeft(shuffleRow).dy;
+        final modeY = tester.getTopLeft(modeHeader).dy;
+
+        expect(queueY < modeY, isTrue,
+            reason: 'queue row should be above MODE header');
+        expect(shuffleY < modeY, isTrue,
+            reason: 'shuffle row should be above MODE header');
+      },
+    );
+
+    testWidgets('queue count text matches provider queue length',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      final provider = _StubAudioProvider(
+        queue: const [
+          AudioTrack(path: '/a.mp3', title: 'a'),
+          AudioTrack(path: '/b.mp3', title: 'b'),
+          AudioTrack(path: '/c.mp3', title: 'c'),
+        ],
+        shuffle: false,
+      );
+
+      await _pumpInTallViewport(
+        tester,
+        _wrap(
+          ChangeNotifierProvider<AudioPlayerProvider>.value(
+            value: provider,
+            child: const VoidSettingsSheet(),
+          ),
+        ),
+      );
+
+      // Locate the queue row by stable key, then confirm the value text shows
+      // the queue length.
+      final queueRow = find.byKey(
+        const ValueKey('void-settings-status-queue'),
+        skipOffstage: false,
+      );
+      expect(queueRow, findsOneWidget);
+
+      // The value column on a row contains a "3 tracks" string when length is 3.
+      expect(
+        find.descendant(
+          of: queueRow,
+          matching: find.text('3 tracks'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'shuffle toggle reflects provider state and tapping calls correct method',
+      (tester) async {
+        SettingsService().operatingModeNotifier.value = OperatingMode.own;
+        final provider = _StubAudioProvider(
+          queue: const [
+            AudioTrack(path: '/a.mp3', title: 'a'),
+            AudioTrack(path: '/b.mp3', title: 'b'),
+          ],
+          shuffle: false,
+        );
+
+        await _pumpInTallViewport(
+          tester,
+          _wrap(
+            ChangeNotifierProvider<AudioPlayerProvider>.value(
+              value: provider,
+              child: const VoidSettingsSheet(),
+            ),
+          ),
+        );
+
+        final shuffleRow = find.byKey(
+          const ValueKey('void-settings-status-shuffle'),
+          skipOffstage: false,
+        );
+        expect(shuffleRow, findsOneWidget);
+
+        // Initial state: off, no calls.
+        expect(
+          find.descendant(of: shuffleRow, matching: find.text('off')),
+          findsOneWidget,
+        );
+        expect(provider.shuffleCalls, 0);
+        expect(provider.disableCalls, 0);
+
+        // Tap to enable shuffle.
+        await tester.tap(shuffleRow);
+        await tester.pump();
+
+        expect(provider.shuffleCalls, 1);
+        expect(provider.disableCalls, 0);
+
+        // Re-render with shuffle on → label flips to "on".
+        provider.setShuffle(true);
+        await tester.pump();
+        expect(
+          find.descendant(of: shuffleRow, matching: find.text('on')),
+          findsOneWidget,
+        );
+
+        // Tap again to disable.
+        await tester.tap(shuffleRow);
+        await tester.pump();
+
+        expect(provider.shuffleCalls, 1);
+        expect(provider.disableCalls, 1);
+      },
+    );
+
+    testWidgets('status strip hides when queue is empty',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      final provider = _StubAudioProvider(
+        queue: const <AudioTrack>[],
+        shuffle: false,
+      );
+
+      await _pumpInTallViewport(
+        tester,
+        _wrap(
+          ChangeNotifierProvider<AudioPlayerProvider>.value(
+            value: provider,
+            child: const VoidSettingsSheet(),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(
+          const ValueKey('void-settings-status-queue'),
+          skipOffstage: false,
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const ValueKey('void-settings-status-shuffle'),
+          skipOffstage: false,
+        ),
+        findsNothing,
+      );
+    });
+  });
+}
+
+/// Minimal AudioPlayerProvider stub that exposes a controllable queue + shuffle
+/// state and counts calls to the shuffle/disable shuffle entry points.
+class _StubAudioProvider extends AudioPlayerProvider {
+  _StubAudioProvider({
+    required List<AudioTrack> queue,
+    required bool shuffle,
+  })  : _queueOverride = queue,
+        _shuffleOverride = shuffle;
+
+  List<AudioTrack> _queueOverride;
+  bool _shuffleOverride;
+  int shuffleCalls = 0;
+  int disableCalls = 0;
+
+  @override
+  List<AudioTrack> get queue => _queueOverride;
+
+  @override
+  bool get shuffle => _shuffleOverride;
+
+  void setShuffle(bool value) {
+    _shuffleOverride = value;
+    notifyListeners();
+  }
+
+  void setQueueTracks(List<AudioTrack> tracks) {
+    _queueOverride = tracks;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> shuffleQueue() async {
+    shuffleCalls += 1;
+  }
+
+  @override
+  Future<void> disableShuffle() async {
+    disableCalls += 1;
+  }
 }

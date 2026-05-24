@@ -102,3 +102,29 @@ the chrome:
 **Area**: chrome / crumb / browser
 
 **Closed**: 2026-05-24 — head-truncating widget added; wired into crumb + browser file rows + search result rows.
+
+---
+
+## B-016 (minor): Settings sheet has no at-a-glance status
+
+**Symptom**: Opening settings drops the user straight into the MODE group.
+No queue size, no shuffle state — both require leaving settings to check.
+
+**Repro**: Screenshot `.tmp/agent_shots/settings_top.png` — header reads
+`< settings`, then MODE → operating mode. Nothing surfaces queue length
+or shuffle.
+
+**Desired**: A non-scrolling status strip above the MODE group:
+- queue size (e.g. `queue · 47 tracks`)
+- shuffle toggle (live; toggling here calls
+  `AudioPlayerProvider.shuffleQueue` / `disableShuffle`)
+
+**Notes**: Header lives at `lib/widgets/void_settings_sheet.dart:858-891`.
+Insert the new row between `_header` and the first `_groupHeader`. Use
+`_toggleRow` for shuffle to match existing visual language. There is no
+shuffle row anywhere else in settings today — confirmed by reading the
+full `_buildGroups` method.
+
+**Area**: settings
+
+**Closed**: 2026-05-24 — status strip (queue size + shuffle toggle) added above MODE group in void settings sheet.
