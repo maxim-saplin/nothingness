@@ -71,32 +71,6 @@ gap.
 
 ---
 
-## B-012 (minor): No tap/swipe affordance on hero or transport buttons
-
-**Symptom**: Tapping the hero or transport buttons (play / prev / next) gives
-zero visual feedback at the moment of touch — the only change is the play
-icon swap, ~200 ms later. Horizontal hero swipe for prev/next is equally
-silent.
-
-**Repro**: Captured three frames around an `adb shell input tap 540 388`
-on the spectrum hero. Pre-tap and during-tap PNGs were
-**byte-identical**; post-tap (200 ms) differs only because the play→pause
-icon had flipped. Confirmed `MediaButton`
-(`lib/widgets/media_button.dart:34-35`) uses a plain `GestureDetector` —
-no `InkWell`, no Material ripple — and the hero surface
-(`lib/screens/void_screen.dart:515-529`) uses `HitTestBehavior.opaque`
-with no `Material` ancestor either.
-
-**Desired**: Immediate touch-down indication everywhere a tap or swipe is
-accepted. Keep it monochrome / typography-driven to fit the Void
-aesthetic — e.g. a brief opacity dip on the button glyph, a 100 ms ring
-ripple under the tap point on the hero, or a directional flash for
-horizontal swipes.
-
-**Area**: chrome / heroes / transport
-
----
-
 ## B-014 (major): Search results destroy the queue; needs sub-queue model
 
 **Symptom**: Tap a result while searching → the queue becomes a one-track

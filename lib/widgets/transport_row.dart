@@ -162,10 +162,9 @@ class _IconRow extends StatelessWidget {
         child: Semantics(
           label: label,
           button: true,
-          child: InkResponse(
+          child: _TouchDownDimmer(
             key: key,
             onTap: onTap,
-            radius: 28,
             child: SizedBox(
               height: TransportRow._iconRowHeight,
               child: Icon(icon, color: glyphColor, size: 22),
@@ -196,6 +195,60 @@ class _IconRow extends StatelessWidget {
           label: 'next',
         ),
       ],
+    );
+  }
+}
+
+/// B-012 — touch-down affordance for the transport icons.
+///
+/// Wraps an icon (or any glyph) in a `GestureDetector` + `AnimatedOpacity`
+/// so the child dips while a touch is held, then restores on release or
+/// cancel. Replaces the prior `InkResponse` so we get a typography-driven
+/// monochrome feedback instead of a Material ripple. The animated opacity
+/// is tagged with a stable key so widget tests can assert the dip without
+/// reaching into private state.
+class _TouchDownDimmer extends StatefulWidget {
+  const _TouchDownDimmer({
+    super.key,
+    required this.onTap,
+    required this.child,
+  });
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  /// Opacity applied while the touch is held.
+  static const double pressedOpacity = 0.45;
+
+  /// Fade duration each direction.
+  static const Duration fadeDuration = Duration(milliseconds: 80);
+
+  @override
+  State<_TouchDownDimmer> createState() => _TouchDownDimmerState();
+}
+
+class _TouchDownDimmerState extends State<_TouchDownDimmer> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedOpacity(
+        opacity: _pressed ? _TouchDownDimmer.pressedOpacity : 1.0,
+        duration: _TouchDownDimmer.fadeDuration,
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
     );
   }
 }

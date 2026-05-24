@@ -16,6 +16,7 @@ import '../testing/agent_service.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
+import '../widgets/hero_feedback_surface.dart';
 import '../widgets/heroes/dot_hero.dart';
 import '../widgets/heroes/polo_hero.dart';
 import '../widgets/heroes/spectrum_hero.dart';
@@ -76,6 +77,11 @@ class _VoidScreenState extends State<VoidScreen>
   bool _searchMode = false;
   double _horizDragAccum = 0;
   Timer? _hintFadeTimer;
+  // B-012: GlobalKey on the hero feedback surface so horizontal-drag
+  // accumulator (which lives in this state) can fire the directional
+  // swipe flash exactly when prev/next actually triggers.
+  final GlobalKey<HeroFeedbackSurfaceState> _heroFeedbackKey =
+      GlobalKey<HeroFeedbackSurfaceState>();
 
   @override
   void initState() {
@@ -262,10 +268,12 @@ class _VoidScreenState extends State<VoidScreen>
     if (_horizDragAccum > 60) {
       // Right-ward swipe → next track.
       player.next();
+      _heroFeedbackKey.currentState?.flashSwipe(1);
       _horizDragAccum = 0;
     } else if (_horizDragAccum < -60) {
       // Left-ward swipe → previous track.
       player.previous();
+      _heroFeedbackKey.currentState?.flashSwipe(-1);
       _horizDragAccum = 0;
     }
   }
@@ -527,13 +535,18 @@ class _VoidScreenState extends State<VoidScreen>
   /// the player regardless of which visualisation is rendered inside.
   /// Vertical drag is wired only when the swipe-up browser is collapsed —
   /// the same arena where the hint band lives.
+  ///
+  /// B-012: the surface also paints a tap-ring at the touch point and a
+  /// directional flash when a horizontal swipe trips prev / next, so taps
+  /// and swipes get immediate visual feedback instead of waiting on
+  /// downstream state changes.
   Widget _buildHeroGestureSurface({required Widget child}) {
     final player = context.read<AudioPlayerProvider>();
     final bool acceptVertical =
         _browserPresentation == BrowserPresentation.swipeUp &&
             !_browserExpanded;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return HeroFeedbackSurface(
+      key: _heroFeedbackKey,
       onTap: () => player.playPause(),
       onHorizontalDragUpdate: _onHeroHorizontalDrag,
       onHorizontalDragEnd: _onHeroHorizontalDragEnd,
