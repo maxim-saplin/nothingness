@@ -478,3 +478,116 @@ play→audible latency on emulator-5554 dropped from ~225 ms to ~107 ms
 (profiled across 5 pause→resume cycles in debug builds; SoLoud `setPause`
 AAudio stream restart still costs ~80 ms and is native, not Dart-addressable).
 Visual feedback from B-012 already masks the residual gap.
+
+---
+
+## B-021 (minor): `requestLibraryPermission` side-channel bundles mic+storage
+
+**Symptom**: After B-017 the production OWN-mode gate is audio-only, but
+the QA-only `ext.nothingness.requestLibraryPermission` extension still
+calls a list that includes `Permission.microphone` and `Permission.storage`.
+QA runs that trigger it see misleading 3-permission dialogs and report
+spurious mic prompts.
+
+**Desired**: Drop mic and storage from the side-channel's request list in
+`lib/testing/agent_service.dart`. The probe should mirror the production
+controller (`LibraryController.requestPermission` → audio-only) so QA
+runs see the same gate the user sees.
+
+**Notes**: Surfaced during B-017 QA. The production path is correct; only
+the test-extension probe drifted.
+
+**Area**: testing / agent-service
+
+**Closed**: 2026-05-24 — `_requestLibraryPermission` now requests only `Permission.audio` (mirrors `LibraryController.ownModePermissionList`); list exposed as `AgentService.requestLibraryPermissionList` for regression coverage.
+
+---
+
+## B-022 (minor): `setSetting` has no `transport` case
+
+**Symptom**: `ext.nothingness.setSetting` switches `screen`,
+`themeVariant`, `operatingMode`, `fullScreen`, `debugLayout`, `uiScale`,
+`immersive` — but **not** `transport`. Driving transport position
+(top/bottom/off) from the agent requires writing the underlying
+SharedPreferences key + a `restart`, which is two extra hops.
+
+**Repro**: B-018 smoke test required this; QA fell back to settings-sheet
+tap, which only works when the sheet isn't blocked by F-024.
+
+**Desired**: Add a `transport` case to the switch in `_setSetting`
+(`lib/testing/agent_service.dart`). Route it through the same notifier
+the in-app settings UI uses for the transport row, so changes propagate
+live without restart.
+
+**Area**: testing / agent-service
+
+**Closed**: 2026-05-24 — `setSetting name=transport value=<top|bottom|off>` routes through `SettingsService.setTransportPosition`; chrome updates live without restart.
+
+---
+
+## B-023 (minor): `screen` setSetting clobbers per-skin configs
+
+**Symptom**: `ext.nothingness.setSetting name=screen value=dot` (or any
+hero) constructs `const DotScreenConfig()` (and equivalent for other
+heroes), discarding any persisted per-skin settings — including B-020's
+`showSongInfo`. After a `screen` swap via the agent, the active config
+is whatever the constructor literal says, not what's on disk.
+
+**Repro**: surfaced during B-020 QA when toggling `showSongInfo` via
+preference then `screen dot` reset it back to default false.
+
+**Desired**: The `screen` case should change the active screen identity
+without recreating the screen's config from scratch. Load the persisted
+config (or the in-memory one if already loaded) and reapply.
+
+**Notes**: `lib/testing/agent_service.dart` around the `screen` case in
+`_setSetting`. Should reuse whatever load path `main.dart` uses on
+startup.
+
+**Area**: testing / agent-service
+
+**Closed**: 2026-05-24 — added `_resolveScreenConfig` (live-notifier shortcut + persisted-JSON reload mirroring main.dart's load path); per-skin fields like `showSongInfo` now survive a `screen` swap when a matching config is on disk.
+
+---
+
+## B-024 (minor): `openSettingsSheet` extension hangs the RPC
+
+**Symptom**: `ext.nothingness.openSettingsSheet` awaits
+`Navigator.push(...)`. `push` does not complete until the route pops, so
+the VM-service call never returns. `drive.py settings open` times out
+even though the sheet IS visible on the device.
+
+**Repro**: noticed in B-007 QA (benign stderr leak) and re-confirmed in
+B-020 implementer work (forced a tooling workaround).
+
+**Desired**: Detach the push from the await. `unawaited(Navigator.push(...))`
+returns immediately, while the route is still scheduled. The extension's
+response payload (`{"opened": true}`) can fire right after `push` is
+called.
+
+**Area**: testing / agent-service
+
+**Closed**: 2026-05-24 — `_openSettingsSheet` now `unawaited`s the opener and returns immediately; `drive.py settings open` round-trips in ~0.5 s (was: hung indefinitely).
+
+---
+
+## B-025 (minor): `tapByKey` requires the keyed widget to handle the tap
+
+**Symptom**: `ext.nothingness.tapByKey` walks the widget tree for a
+`ValueKey<String>` match and then looks for a `GestureDetector` /
+`InkResponse` at that node. B-012's `_TouchDownDimmer` carries the
+`void-settings-…` keys but the gesture handler is a descendant
+(`GestureDetector` inside the dimmer); `tap` errors `no tappable
+ancestor`.
+
+**Repro**: B-012 QA hit this trying `drive.py tap transport-play`.
+Workaround was raw `adb input tap` at coordinates.
+
+**Desired**: Locate the keyed widget's `RenderBox` and dispatch a
+synthetic tap event at its center via `GestureBinding.instance`. This
+keeps `ValueKey` as the addressing scheme while letting the actual
+gesture handler be anywhere in the descendant subtree.
+
+**Area**: testing / agent-service
+
+**Closed**: 2026-05-24 — `_tapByKey` now (1) walks descendants for a `GestureDetector`/`InkResponse` callback, (2) falls back to synthetic `PointerAdded/Down/Up/Removed` dispatch via `GestureBinding`, (3) keeps the legacy ancestor walk; `drive.py tap transport-play` now toggles playback (live-verified pause).

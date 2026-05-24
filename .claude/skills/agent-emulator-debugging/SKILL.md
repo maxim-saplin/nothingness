@@ -93,6 +93,10 @@ For extensions not yet wrapped, `drive.py call <ext> k=v k=v …` calls any `ext
 
 VM-service extension calls are not free — `setSetting` (and any other handler that writes through `SharedPreferences`) costs ~140 ms per RPC on emulator-5554. Sustained send rates above ~7/s back up the response queue; agents that fire-and-forget at >15/s observe what looks like a wedged isolate but is just unbounded backpressure (the queue eventually drains; at ~1000/s pipelined it never catches up within a reasonable timeout). Keep driver loops at **≤5/s with small jitter** for `setSetting`-style calls; reserve higher cadences for read-only extensions. Recovery if a session does hang: `rm .claude/skills/agent-emulator-debugging/scripts/.vm_ws.txt && drive.py restart`. If a test needs to hammer the same code path faster (20+ flips in <100 ms), use the in-process widget test pattern in `test/p6_adversarial_test.dart` instead of going through the VM service.
 
+### Do not kill the live flutter run session
+
+Sub-agents driving the emulator MUST NOT use `adb shell am force-stop com.saplin.nothingness`, `adb shell pm revoke com.saplin.nothingness android.permission.RECORD_AUDIO`, or any other platform-level kill against the live `flutter run` session — they reliably trigger `Lost connection to device` and force a 60-90 s rebuild + reinstall. To exercise the same code paths without losing the session, use `drive.py call ext.nothingness.simulateInterruption phase=begin kind=pause` (and matching `phase=end`) for audio-focus loss, `drive.py pause` / `drive.py resume` for transport state, and `drive.py reset` (force-stop + clear-data + cold launch via the **same** flutter run) only when persisted state must be wiped. The audio side-channel (`ext.nothingness.simulateInterruption`, `simulateNoisy`) is purpose-built for this and is cheap.
+
 ## WSL2 + Host Emulator
 
 When Flutter runs in WSL2 and the emulator runs on the Windows host:

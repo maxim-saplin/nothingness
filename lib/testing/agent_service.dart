@@ -5,6 +5,7 @@ import 'dart:developer' as developer;
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ import '../models/audio_track.dart';
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
 import '../models/theme_variant.dart';
+import '../models/transport_position.dart';
 import '../providers/audio_player_provider.dart';
 import '../services/settings_service.dart';
 
@@ -267,15 +269,107 @@ class AgentService {
       return _error('no widget found with key "$keyValue"');
     }
 
-    // Walk up to find the nearest GestureDetector / InkWell / button callback.
-    final tapped = _tryInvokeOnTap(element);
-    if (!tapped) {
-      return _error(
-        'widget with key "$keyValue" found but has no tappable ancestor',
-      );
+    // B-025: prefer a descendant-subtree callback walk. This covers
+    // B-012's _TouchDownDimmer pattern (keyed wrapper, GestureDetector
+    // inside) without depending on the live binding's pointer pipeline.
+    if (_tryInvokeOnTapInSubtree(element)) {
+      return _ok({'tapped': keyValue, 'mode': 'descendant-callback'});
     }
-    return _ok({'tapped': keyValue});
+
+    // Fallback: dispatch a synthetic tap at the keyed widget's RenderBox
+    // center via GestureBinding. Useful when the keyed node uses a
+    // non-GestureDetector hit target (Listener, MouseRegion, etc.).
+    final dispatched = _dispatchSyntheticTap(element);
+    if (dispatched != null) {
+      return _ok({'tapped': keyValue, 'mode': 'synthetic', 'at': dispatched});
+    }
+
+    // Legacy ancestor walk for nodes with no RenderBox and no descendant
+    // callback (rare; e.g. the keyed widget IS the GestureDetector).
+    if (_tryInvokeOnTap(element)) {
+      return _ok({'tapped': keyValue, 'mode': 'ancestor-callback'});
+    }
+
+    return _error(
+      'widget with key "$keyValue" found but has no descendant callback, '
+      'no RenderBox, and no tappable ancestor',
+    );
   }
+
+  /// Walk the descendant element subtree of [root] looking for the first
+  /// `GestureDetector.onTap` / `InkResponse.onTap` to invoke. Returns true
+  /// if a callback was fired.
+  static bool _tryInvokeOnTapInSubtree(Element root) {
+    bool invoked = false;
+    void visitor(Element el) {
+      if (invoked) return;
+      final w = el.widget;
+      if (w is GestureDetector && w.onTap != null) {
+        w.onTap!();
+        invoked = true;
+        return;
+      }
+      if (w is InkResponse && w.onTap != null) {
+        w.onTap!();
+        invoked = true;
+        return;
+      }
+      el.visitChildren(visitor);
+    }
+    root.visitChildren(visitor);
+    return invoked;
+  }
+
+  /// Dispatches a synthetic pointer-down/up at the center of [element]'s
+  /// `RenderBox` (in global coordinates). Returns the dispatch point as a
+  /// `{x, y}` map on success, or `null` when the element has no usable
+  /// `RenderBox` (e.g. unattached, no size).
+  static Map<String, double>? _dispatchSyntheticTap(Element element) {
+    final ro = element.findRenderObject();
+    if (ro is! RenderBox || !ro.attached || !ro.hasSize) {
+      return null;
+    }
+    final size = ro.size;
+    if (size.isEmpty) return null;
+    final center = ro.localToGlobal(size.center(Offset.zero));
+
+    final binding = GestureBinding.instance;
+    // Use a monotonically-increasing synthetic pointer id so consecutive
+    // taps don't collide in the gesture arena (the engine reuses pointer
+    // ids across distinct touches too, but we re-issue per call).
+    _syntheticPointerSeq++;
+    final pointer = 0x70000 | (_syntheticPointerSeq & 0xFFFF);
+    final t0 = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+
+    // PointerAdded → Down → Up → Removed mirrors what the engine emits for
+    // a real touch; the down/up pair alone is not always enough for the
+    // gesture arena to recognise the tap on the live binding (works in
+    // flutter_test, but unreliable under WidgetsFlutterBinding).
+    binding.handlePointerEvent(PointerAddedEvent(
+      pointer: pointer,
+      position: center,
+      timeStamp: t0,
+    ));
+    binding.handlePointerEvent(PointerDownEvent(
+      pointer: pointer,
+      position: center,
+      timeStamp: t0,
+    ));
+    binding.handlePointerEvent(PointerUpEvent(
+      pointer: pointer,
+      position: center,
+      timeStamp: t0 + const Duration(milliseconds: 16),
+    ));
+    binding.handlePointerEvent(PointerRemovedEvent(
+      pointer: pointer,
+      position: center,
+      timeStamp: t0 + const Duration(milliseconds: 16),
+    ));
+
+    return {'x': center.dx, 'y': center.dy};
+  }
+
+  static int _syntheticPointerSeq = 0;
 
   static Future<developer.ServiceExtensionResponse> _getSettings(
     String method,
@@ -300,6 +394,30 @@ class AgentService {
     });
   }
 
+  /// Test-only handle on [_setSetting] so unit tests can exercise the
+  /// switch (transport, screen, etc.) without going through the VM service.
+  @visibleForTesting
+  static Future<developer.ServiceExtensionResponse> debugSetSetting(
+    Map<String, String> params,
+  ) =>
+      _setSetting('debugSetSetting', params);
+
+  /// Test-only handle on [_openSettingsSheet] so unit tests can assert the
+  /// RPC returns promptly (B-024) without spinning up a Navigator.
+  @visibleForTesting
+  static Future<developer.ServiceExtensionResponse> debugOpenSettingsSheet(
+    Map<String, String> params,
+  ) =>
+      _openSettingsSheet('debugOpenSettingsSheet', params);
+
+  /// Test-only handle on [_tapByKey] so widget tests can drive the
+  /// synthetic-tap dispatcher directly (B-025).
+  @visibleForTesting
+  static Future<developer.ServiceExtensionResponse> debugTapByKey(
+    Map<String, String> params,
+  ) =>
+      _tapByKey('debugTapByKey', params);
+
   static Future<developer.ServiceExtensionResponse> _setSetting(
     String method,
     Map<String, String> params,
@@ -321,22 +439,29 @@ class AgentService {
       case 'audioDiagnosticsOverlay':
         await s.setAudioDiagnosticsOverlay(value == 'true');
       case 'screen':
-        final ScreenConfig cfg;
+        final ScreenType? targetType;
         switch (value) {
           case 'spectrum':
-            cfg = const SpectrumScreenConfig();
+            targetType = ScreenType.spectrum;
           case 'polo':
-            cfg = const PoloScreenConfig();
+            targetType = ScreenType.polo;
           case 'dot':
-            cfg = const DotScreenConfig();
+            targetType = ScreenType.dot;
           case 'void':
           case 'void_':
-            cfg = const VoidScreenConfig();
+            targetType = ScreenType.void_;
           default:
             return _error(
               'unknown screen value "$value" (expected spectrum|polo|dot|void)',
             );
         }
+        // B-023: do NOT recreate the config from scratch — that would
+        // discard persisted per-skin fields (e.g. DotScreenConfig.showSongInfo).
+        // Resolve via the same load path main.dart uses on startup: read the
+        // persisted screen_config JSON and, if it matches the requested type,
+        // re-save it (which fires the notifier). Only fall back to the const
+        // default constructor when there's nothing persisted for that type.
+        final cfg = await _resolveScreenConfig(targetType);
         await s.saveScreenConfig(cfg);
       case 'themeVariant':
         final ThemeVariant v;
@@ -374,10 +499,73 @@ class AgentService {
         await s.saveUiScale(parsed);
       case 'immersive':
         await s.setImmersive(value == 'true');
+      case 'transport':
+        // B-022: route through the same notifier the in-app settings UI
+        // uses (SettingsService.setTransportPosition), so the chrome
+        // updates live without an app restart.
+        final TransportPosition pos;
+        switch (value) {
+          case 'top':
+            pos = TransportPosition.top;
+          case 'bottom':
+            pos = TransportPosition.bottom;
+          case 'off':
+            pos = TransportPosition.off;
+          default:
+            return _error(
+              'unknown transport value "$value" (expected top|bottom|off)',
+            );
+        }
+        await s.setTransportPosition(pos);
       default:
         return _error('unknown setting: $name');
     }
     return _ok({'set': name, 'value': value});
+  }
+
+  /// Resolve the [ScreenConfig] for the requested [type] by re-reading the
+  /// persisted JSON, so per-skin fields survive a `setSetting name=screen`
+  /// hop (B-023). Falls back to the const default constructor when no
+  /// matching persisted config exists.
+  @visibleForTesting
+  static Future<ScreenConfig> resolveScreenConfig(ScreenType type) =>
+      _resolveScreenConfig(type);
+
+  static Future<ScreenConfig> _resolveScreenConfig(ScreenType type) async {
+    // First, prefer the live in-memory config if it already matches the
+    // target type — that captures unsaved-to-disk runtime mutations too.
+    final live = SettingsService().screenConfigNotifier.value;
+    if (live.type == type) {
+      return live;
+    }
+
+    // Otherwise re-read the persisted JSON (the same path
+    // SettingsService.loadSettings uses).
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('screen_config');
+    if (raw != null) {
+      try {
+        final json = jsonDecode(raw) as Map<String, dynamic>;
+        final persisted = ScreenConfig.fromJson(json);
+        if (persisted.type == type) {
+          return persisted;
+        }
+      } catch (_) {
+        // Fall through to defaults.
+      }
+    }
+
+    // No persisted config of this type — return the const default.
+    switch (type) {
+      case ScreenType.spectrum:
+        return const SpectrumScreenConfig();
+      case ScreenType.polo:
+        return const PoloScreenConfig();
+      case ScreenType.dot:
+        return const DotScreenConfig();
+      case ScreenType.void_:
+        return const VoidScreenConfig();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -745,7 +933,14 @@ class AgentService {
   ) async {
     final opener = _settingsOpener;
     if (opener == null) return _error('no settings opener registered');
-    await opener();
+    // B-024: detach from the await. Settings openers do `Navigator.push`,
+    // whose Future does not complete until the route pops — awaiting it
+    // hangs the RPC indefinitely. Fire-and-forget so the response can
+    // return immediately after the push is scheduled. We still surface
+    // errors via debugPrint to keep developer signal on unexpected throws.
+    unawaited(opener().catchError((Object e, StackTrace st) {
+      debugPrint('[AgentService] openSettingsSheet opener threw: $e\n$st');
+    }));
     return _ok({'opened': true});
   }
 
@@ -823,18 +1018,24 @@ class AgentService {
     return _ok({'cleared': key});
   }
 
+  /// Permissions requested by the QA-only library-permission probe.
+  ///
+  /// B-021: must mirror [LibraryController.ownModePermissionList] exactly
+  /// (audio-only) so the probe sees the same gate the production OWN-mode
+  /// controller sees. Mic and storage previously appeared here and caused
+  /// misleading multi-permission dialogs in QA runs.
+  @visibleForTesting
+  static const List<Permission> requestLibraryPermissionList = <Permission>[
+    Permission.audio,
+  ];
+
   static Future<developer.ServiceExtensionResponse> _requestLibraryPermission(
     String method,
     Map<String, String> params,
   ) async {
     try {
-      final results = await [
-        Permission.storage,
-        Permission.audio,
-        Permission.microphone,
-      ].request();
-      final granted = (results[Permission.storage]?.isGranted ?? false) ||
-          (results[Permission.audio]?.isGranted ?? false);
+      final results = await requestLibraryPermissionList.request();
+      final granted = results[Permission.audio]?.isGranted ?? false;
       // Also drive the controller so its state updates.
       final c = _libraryController;
       if (c != null) {
@@ -842,9 +1043,7 @@ class AgentService {
       }
       return _ok({
         'granted': granted,
-        'storage': results[Permission.storage]?.name,
         'audio': results[Permission.audio]?.name,
-        'microphone': results[Permission.microphone]?.name,
       });
     } catch (e) {
       return _error('requestLibraryPermission failed: $e');
