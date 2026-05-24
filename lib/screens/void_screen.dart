@@ -856,9 +856,8 @@ class _VoidScreenState extends State<VoidScreen>
       child: Semantics(
         label: 'settings',
         button: true,
-        child: GestureDetector(
+        child: PressFeedback(
           key: const ValueKey('void-settings-button'),
-          behavior: HitTestBehavior.opaque,
           onTap: () => VoidSettingsSheet.push(context),
           child: Container(
             width: 48,
@@ -890,16 +889,18 @@ class _VoidScreenState extends State<VoidScreen>
         }
       },
       onVerticalDragEnd: (_) => _swipeUpAccum = 0,
-      onTap: () => setState(() => _browserExpanded = true),
-      child: Container(
-        alignment: Alignment.center,
-        child: Text(
-          '↑ swipe to browse',
-          style: TextStyle(
-            color: palette.fgTertiary,
-            fontFamily: typography.monoFamily,
-            fontSize: typography.hintSize,
-            letterSpacing: 0.2,
+      child: PressFeedback(
+        onTap: () => setState(() => _browserExpanded = true),
+        child: Container(
+          alignment: Alignment.center,
+          child: Text(
+            '↑ swipe to browse',
+            style: TextStyle(
+              color: palette.fgTertiary,
+              fontFamily: typography.monoFamily,
+              fontSize: typography.hintSize,
+              letterSpacing: 0.2,
+            ),
           ),
         ),
       ),

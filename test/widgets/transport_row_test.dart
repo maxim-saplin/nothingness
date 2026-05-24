@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/transport_row.dart';
 
 import 'heroes/_test_helpers.dart';
@@ -64,5 +65,47 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     opacity = tester.widget<AnimatedOpacity>(opacityFinder);
     expect(opacity.opacity, 1.0);
+  });
+
+  // B-030 follow-up: the transport row must use the universal
+  // PressFeedback wrapper (0.4 dip, 120 ms / 200 ms fade), not the legacy
+  // _TouchDownDimmer constants (0.45 / 80 ms). All three icon buttons
+  // (prev / play / next) must be wrapped.
+  testWidgets('transport buttons use PressFeedback with 0.4 pressed opacity',
+      (tester) async {
+    final provider = FakeAudioPlayerProvider(isPlaying: false);
+    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+
+    for (final key in const [
+      TransportRow.prevKey,
+      TransportRow.playKey,
+      TransportRow.nextKey,
+    ]) {
+      final btn = find.byKey(key);
+      expect(btn, findsOneWidget);
+      // The key is hoisted onto the PressFeedback itself (single source
+      // of truth for press feedback — option (a)).
+      expect(tester.widget(btn), isA<PressFeedback>(),
+          reason: 'B-030 follow-up: $key must BE a PressFeedback widget.');
+    }
+
+    // Touch-down on play and assert the pressed opacity equals
+    // PressFeedback.pressedOpacity (0.4), not the legacy 0.45.
+    final playFinder = find.byKey(TransportRow.playKey);
+    final opacityFinder = find.descendant(
+      of: playFinder,
+      matching: find.byType(AnimatedOpacity),
+    );
+    final gesture = await tester.startGesture(tester.getCenter(playFinder));
+    await tester.pump(const Duration(milliseconds: 16));
+    final opacity = tester.widget<AnimatedOpacity>(opacityFinder);
+    expect(opacity.opacity, PressFeedback.pressedOpacity,
+        reason: 'B-030 follow-up: transport press dip must match the '
+            'universal PressFeedback.pressedOpacity (0.4), not the legacy '
+            '_TouchDownDimmer 0.45.');
+    expect(PressFeedback.pressedOpacity, 0.4,
+        reason: 'Calibration constant must remain 0.4 per B-030.');
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 }

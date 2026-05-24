@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/controllers/library_controller.dart';
 import 'package:nothingness/models/audio_track.dart';
+import 'package:nothingness/models/browser_presentation.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
@@ -16,6 +17,7 @@ import 'package:nothingness/widgets/heroes/dot_hero.dart';
 import 'package:nothingness/widgets/heroes/polo_hero.dart';
 import 'package:nothingness/widgets/heroes/spectrum_hero.dart';
 import 'package:nothingness/widgets/heroes/void_hero.dart';
+import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/transport_row.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -85,6 +87,8 @@ void main() {
     SettingsService().immersiveNotifier.value = false;
     SettingsService().transportPositionNotifier.value =
         TransportPosition.bottom;
+    SettingsService().browserPresentationNotifier.value =
+        SettingsService.defaultBrowserPresentation;
   });
 
   group('VoidScreen hero dispatcher', () {
@@ -537,6 +541,48 @@ void main() {
               'above the velocity threshold, the velocity escape must NOT '
               're-fire — exactly one transport event per gesture.');
       expect(provider.previousCalls, 0);
+    });
+  });
+
+  group('B-030 follow-up: chrome tappables wear PressFeedback', () {
+    testWidgets('settings ⋮ button has a PressFeedback ancestor',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+      final btn = find.byKey(const ValueKey('void-settings-button'));
+      expect(btn, findsOneWidget);
+      // The settings button itself is now a PressFeedback (the ValueKey is
+      // attached to the PressFeedback), so find it directly.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('void-settings-button')),
+          matching: find.byType(AnimatedOpacity),
+        ),
+        findsWidgets,
+        reason: 'B-030 follow-up: settings ⋮ must wear PressFeedback so '
+            'taps produce the universal touch-down dip.',
+      );
+      expect(tester.widget(btn), isA<PressFeedback>(),
+          reason: 'B-030 follow-up: settings ⋮ must BE a PressFeedback (the '
+              'ValueKey is hoisted onto it).');
+    });
+
+    testWidgets('swipe-up hint has a PressFeedback wrapping its onTap',
+        (tester) async {
+      // The hint is only rendered when the user has opted into the
+      // swipe-up browser presentation (settings default is `fixed`).
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.swipeUp;
+      await _pump(tester, const SpectrumScreenConfig());
+      final hint = find.text('↑ swipe to browse');
+      expect(hint, findsOneWidget,
+          reason: 'B-030 follow-up: swipe-up hint must be rendered with '
+              'BrowserPresentation.swipeUp and the browser collapsed.');
+      expect(
+        find.ancestor(of: hint, matching: find.byType(PressFeedback)),
+        findsOneWidget,
+        reason: 'B-030 follow-up: the swipe-up hint\'s tap target must be '
+            'wrapped in PressFeedback so the tap dips its opacity.',
+      );
     });
   });
 }
