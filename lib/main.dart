@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -16,46 +17,21 @@ import 'services/nothing_audio_handler.dart';
 import 'testing/agent_service.dart';
 import 'theme/themes.dart';
 
-Future<void> main() async {
+/// Boot stopwatch (B-008) — measures time from `main` entry to first frame.
+/// Kept top-level so [_BootstrapAppState] can stamp the swap-from-splash
+/// timing against the same origin.
+final Stopwatch _bootSw = Stopwatch()..start();
+
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Hive
-  await Hive.initFlutter();
-
-  // Initialize LibraryService to restore file permissions
-  await LibraryService().init();
-
-  // Load user settings early so we can choose decoder before starting AudioService
-  final settingsService = SettingsService();
-  try {
-    await settingsService.loadSettings();
-  } catch (e) {
-    debugPrint('[main] loadSettings failed, falling back to defaults: $e');
-  }
-
-  NothingAudioHandler? handler;
-  if (Platform.isAndroid) {
-    handler = await AudioService.init(
-      builder: () => NothingAudioHandler(),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.saplin.nothingness.channel.audio',
-        androidNotificationChannelName: 'Audio playback',
-        // Allow foreground service to stop when paused so the wake lock
-        // and notification are released, saving battery.  The service is
-        // re-promoted when playback resumes.
-        androidStopForegroundOnPause: true,
-      ),
-    );
-  }
-
-  // Initialize audio player before app starts to avoid init races
-  final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
-  await audioPlayerProvider.init();
-
-  AgentService.register(provider: audioPlayerProvider);
-  AgentService.registerNavigatorKey(rootNavigatorKey);
-
-  runApp(NothingApp(audioPlayerProvider: audioPlayerProvider));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    debugPrint('[boot] first-frame=${_bootSw.elapsedMilliseconds}ms');
+  });
+  debugPrint('[boot] runApp=${_bootSw.elapsedMilliseconds}ms');
+  // B-008: keep `runApp` synchronous so the engine paints a cheap first
+  // frame (black [ColoredBox]) before heavy init runs.  All awaits live
+  // inside [_BootstrapAppState.initState] below.
+  runApp(const _BootstrapApp());
 }
 
 /// Top-level [NavigatorState] key used by [AgentService.closeSettingsSheet]
@@ -63,6 +39,96 @@ Future<void> main() async {
 /// scope so it is created exactly once per process.
 final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
+
+/// Splash + init host (B-008).
+///
+/// Renders a black [ColoredBox] for the first frame so the Flutter engine
+/// has cheap work to do while the heavy bootstrap (Hive, LibraryService,
+/// AudioService, AudioPlayerProvider) runs in a microtask. Swaps to the
+/// real [NothingApp] once init completes.
+///
+/// Intentionally minimal: no fonts, no images, no service lookups — the
+/// goal is for `build` to be effectively free on the first frame.
+class _BootstrapApp extends StatefulWidget {
+  const _BootstrapApp();
+
+  @override
+  State<_BootstrapApp> createState() => _BootstrapAppState();
+}
+
+class _BootstrapAppState extends State<_BootstrapApp> {
+  AudioPlayerProvider? _audioPlayerProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    // Kick the heavy bootstrap off the synchronous build path. A
+    // microtask runs after the current event-loop turn, by which point
+    // the engine has already scheduled and rendered the splash frame.
+    scheduleMicrotask(_bootstrap);
+  }
+
+  Future<void> _bootstrap() async {
+    await Hive.initFlutter();
+
+    // Initialize LibraryService to restore file permissions
+    await LibraryService().init();
+
+    // Load user settings early so we can choose decoder before starting
+    // AudioService.
+    final settingsService = SettingsService();
+    try {
+      await settingsService.loadSettings();
+    } catch (e) {
+      debugPrint('[main] loadSettings failed, falling back to defaults: $e');
+    }
+
+    NothingAudioHandler? handler;
+    if (Platform.isAndroid) {
+      handler = await AudioService.init(
+        builder: () => NothingAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId:
+              'com.saplin.nothingness.channel.audio',
+          androidNotificationChannelName: 'Audio playback',
+          // Allow foreground service to stop when paused so the wake lock
+          // and notification are released, saving battery.  The service
+          // is re-promoted when playback resumes.
+          androidStopForegroundOnPause: true,
+        ),
+      );
+    }
+
+    // Initialize audio player before swapping the splash so the first
+    // real frame has live data.
+    final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
+    await audioPlayerProvider.init();
+
+    AgentService.register(provider: audioPlayerProvider);
+    AgentService.registerNavigatorKey(rootNavigatorKey);
+
+    if (!mounted) {
+      // Hot restart raced us; drop the half-built provider rather than
+      // leaving it dangling.
+      audioPlayerProvider.dispose();
+      return;
+    }
+    debugPrint('[boot] swap=${_bootSw.elapsedMilliseconds}ms');
+    setState(() {
+      _audioPlayerProvider = audioPlayerProvider;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = _audioPlayerProvider;
+    if (provider == null) {
+      // Cheap-render path. No MaterialApp, no theme, no fonts.
+      return const ColoredBox(color: Color(0xFF000000));
+    }
+    return NothingApp(audioPlayerProvider: provider);
+  }
+}
 
 class NothingApp extends StatefulWidget {
   const NothingApp({super.key, required this.audioPlayerProvider});
