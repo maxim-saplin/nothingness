@@ -16,8 +16,10 @@ Originally inspired by a need for digital minimalism in modern cars (specificall
     -   **Folder Picker**: Select folders to play.
     -   **Recursive Enqueue**: "Play All" adds all tracks in a folder and its subfolders.
     -   **Queue Control**: Reorder, remove, and manage your Now Playing queue.
+    -   **Global Search**: Type-ahead match across the entire library. Tapping a result installs the result list as a temporary sub-queue and restores the original queue when you dismiss search.
+    -   **Jump to Now-Playing**: A glyph appears in the path crumb whenever the browser is in a different folder than the playing track; tap to teleport the browser there (opens it first if currently dismissed) and center the row.
 -   **Platform Integration**:
-    -   **Android**: Full media session support, background playback, lock screen controls, and notification controls.
+    -   **Android**: Full media session support, background playback, lock screen controls, and notification controls. Cached audio-session avoids redundant focus IPC on every play/pause — sub-150 ms transport response in the common case.
     -   **macOS**: Native playback via SoLoud.
 
 ### 📊 Spectrum Visualizer
@@ -33,13 +35,17 @@ Originally inspired by a need for digital minimalism in modern cars (specificall
 -   **Four Distinct Skins**:
     -   **Spectrum**: Clean, modern visualizer focus.
     -   **Polo**: Skeuomorphic retro car dashboard with LCD font.
-    -   **Dot**: Minimalist, fluctuating dot interface.
+    -   **Dot**: Minimalist, fluctuating dot interface with an optional song-info overlay (toggle in settings).
     -   **Void**: Text-driven minimalist home with an integrated sliding library browser and full-name recursive search.
--   **Unified Chrome**: All skins are pluggable "heroes" hosted by a single shell (`VoidScreen`); skin switching no longer changes the navigation surface.
+-   **Unified Chrome**: All skins are pluggable "heroes" hosted by a single shell (`VoidScreen`); skin switching no longer changes the navigation surface. Each hero declares whether it hosts the chrome transport row (Spectrum / Dot / Void) or is bespoke (Polo).
 -   **Theming**: Dark / light / auto theme variant, light/dark palettes under `lib/theme/palettes/`.
--   **Configurable Transport**: Prev/play/next row position (top/bottom/off) plus horizontal swipe gestures on the hero.
+-   **Configurable Transport**: Prev/play/next row position (top/bottom/off) plus horizontal swipe gestures (distance OR velocity threshold) on the hero.
 -   **UI Scaling**: "Smart Scale" automatically adjusts button sizes and text for automotive head units and high-DPI displays.
 -   **Full Screen Mode**: Settings-driven immersive mode hiding system bars.
+-   **Universal Press Feedback**: Every tappable surface — rows, buttons, glyphs, toggles — responds to touch-down with a perceptible opacity dip (calibrated for real-device visibility, 120 ms in / 200 ms out).
+-   **Browser Presentation**: Two modes — *fixed* (always visible alongside the hero) or *swipe-up* (hidden until pulled up). In swipe-up mode the open browser sports a drag handle and dismisses on a downward drag of the header band (back button still works).
+-   **Tail-Preserving Text**: Long folder paths and track titles head-truncate (`…/Music/Russian Rock`, `…ечный ангел`) so the meaningful end stays on-screen at any UI scale; RTL-aware.
+-   **At-a-Glance Settings Status**: Settings sheet opens with a pinned strip showing queue size and a live shuffle toggle above the rest of the groups.
 
 ## Skins
 
@@ -64,12 +70,16 @@ Nothingness uses a unified provider architecture:
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a deep dive.
 
+### Bootstrap
+
+`main` runs synchronously to `runApp` — heavy init (settings load, audio handler, library scan) runs in a microtask while the engine paints a black `ColoredBox` splash. The real UI swaps in when init completes. First frame lands in ~300 ms on debug-build emulator, compared to ~4.5 s when init blocked the platform thread before `runApp`.
+
 ## Permissions
 
--   **Android**:
-    -   `READ_MEDIA_AUDIO` / `READ_EXTERNAL_STORAGE`: Required to access and play local music files.
-    -   `RECORD_AUDIO`: Required only if using the "Microphone" spectrum source.
-    -   `POST_NOTIFICATIONS`: For playback controls in the notification shade.
+-   **Android** (minimum **Android 10 / API 29**):
+    -   `READ_MEDIA_AUDIO` (API 33+) / `READ_EXTERNAL_STORAGE` (API 29–32): Required to access and play local music files. The first-launch gate requests only the audio permission — denying microphone or notifications does **not** block library access.
+    -   `RECORD_AUDIO`: Required only if using the "Microphone" spectrum source (background mode); requested behind an explicit button in settings.
+    -   `POST_NOTIFICATIONS`: Requested silently on API 33+ for playback controls in the notification shade.
 -   **macOS**:
     -   File access permissions may be requested by the OS when selecting folders.
 
