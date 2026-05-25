@@ -898,16 +898,20 @@ class _DragHandleAndCloseRegionState extends State<_DragHandleAndCloseRegion> {
       child: Container(
         key: const ValueKey('void-browser-drag-handle'),
         width: double.infinity,
-        // Margin sits the pill in a clear 8-px band above the list.
-        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        // B-033: margin bumped to 10 px so the bigger pill still reads as
+        // sitting in its own clear band above the list.
+        padding: const EdgeInsets.only(top: 10, bottom: 10),
         alignment: Alignment.center,
         child: Container(
           key: const ValueKey('void-browser-drag-handle-pill'),
-          width: 32,
-          height: 4,
+          // B-033: visibility bump — 40×6 in fgSecondary (was 32×4 in
+          // fgTertiary, which was nearly invisible on real hardware against
+          // the dark void chrome).
+          width: 40,
+          height: 6,
           decoration: BoxDecoration(
-            color: widget.palette.fgTertiary,
-            borderRadius: BorderRadius.circular(2),
+            color: widget.palette.fgSecondary,
+            borderRadius: BorderRadius.circular(3),
           ),
         ),
       ),

@@ -12,6 +12,7 @@ import 'package:nothingness/screens/void_screen.dart';
 import 'package:nothingness/services/library_browser.dart';
 import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
+import 'package:nothingness/theme/app_palette.dart';
 import 'package:nothingness/theme/app_typography.dart';
 import 'package:nothingness/widgets/heroes/dot_hero.dart';
 import 'package:nothingness/widgets/heroes/polo_hero.dart';
@@ -19,6 +20,7 @@ import 'package:nothingness/widgets/heroes/spectrum_hero.dart';
 import 'package:nothingness/widgets/heroes/void_hero.dart';
 import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/transport_row.dart';
+import 'package:nothingness/widgets/void_browser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/heroes/_test_helpers.dart';
@@ -552,6 +554,8 @@ void main() {
 
   _b032Tests();
 
+  _b033Tests();
+
   group('B-030 follow-up: chrome tappables wear PressFeedback', () {
     testWidgets('settings ⋮ button has a PressFeedback ancestor',
         (tester) async {
@@ -991,6 +995,126 @@ void _b032Tests() {
       expect(find.byKey(closeGestureKey), findsNothing,
           reason: 'B-032: fixed presentation must NOT wire the close '
               'gesture region.');
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// B-033 tests — swipe-up browser slide animation + glyph visibility bump.
+// ---------------------------------------------------------------------------
+
+void _b033Tests() {
+  group('B-033: swipe-up browser slide animation', () {
+    setUp(() {
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.swipeUp;
+    });
+
+    tearDown(() {
+      SettingsService().browserPresentationNotifier.value =
+          SettingsService.defaultBrowserPresentation;
+    });
+
+    testWidgets('collapsed swipe-up: VoidBrowser is in tree but parked '
+        'offscreen below the viewport', (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // B-033 requirement: rather than conditionally rendering the
+      // Positioned(browser), we ALWAYS include the browser and slide it via
+      // AnimatedPositioned. While collapsed it must sit fully below the
+      // viewport.
+      final browser = find.byType(VoidBrowser);
+      expect(browser, findsOneWidget,
+          reason: 'B-033: VoidBrowser must remain in the tree while '
+              'collapsed (offscreen) so the slide animation has a target.');
+
+      final topLeft = tester.getTopLeft(browser);
+      // Test surface is 800x1600.
+      expect(topLeft.dy, greaterThanOrEqualTo(1600.0 - 1.0),
+          reason: 'B-033: collapsed browser must be parked at or below the '
+              'viewport bottom (no visible chrome pop).');
+    });
+
+    testWidgets(
+        'expanding the swipe-up browser slides it up into view over ~280 ms',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // Start the open animation by tapping the hint band.
+      final browser = find.byType(VoidBrowser);
+      final startTop = tester.getTopLeft(browser).dy;
+      expect(startTop, greaterThanOrEqualTo(1600.0 - 1.0),
+          reason: 'B-033: precondition — browser offscreen pre-expand.');
+
+      expect(find.text('↑ swipe to browse'), findsOneWidget,
+          reason: 'B-033: hint band must be tappable in the collapsed state.');
+      await tester.tap(find.text('↑ swipe to browse'));
+      // First pump (zero duration) lets the tap callback run + builds the
+      // first frame of the animation.
+      await tester.pump();
+      // Mid-animation pump: ~half the 280 ms duration.
+      await tester.pump(const Duration(milliseconds: 140));
+      final midTop = tester.getTopLeft(browser).dy;
+      expect(midTop, lessThan(startTop),
+          reason: 'B-033: mid-animation the browser must have moved upward '
+              '(slide-in in progress, not a pop).');
+      expect(midTop, greaterThan(0.0),
+          reason: 'B-033: mid-animation the browser must not yet be at its '
+              'final resting position.');
+
+      // Let the animation finish.
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      final endTop = tester.getTopLeft(browser).dy;
+      expect(endTop, lessThan(startTop - 100.0),
+          reason: 'B-033: post-animation the browser must be visible '
+              'on-screen (well above its parked offscreen position).');
+    });
+  });
+
+  group('B-033: jump-to-now-playing glyph visibility bump', () {
+    const glyphKey = ValueKey('void-crumb-jump-to-playing');
+
+    testWidgets('glyph renders at typography.rowSize in palette.fgPrimary',
+        (tester) async {
+      final controller = _RecordingLibraryController(
+        currentPath: '/lib/Music',
+        tracks: const <AudioTrack>[],
+      );
+      final provider = FakeAudioPlayerProvider(
+        songInfo: SongInfo(
+          track: const AudioTrack(
+            path: '/lib/Music/Indie/wake_up.mp3',
+            title: 'Wake Up',
+          ),
+          isPlaying: true,
+          position: 0,
+          duration: 1000,
+        ),
+      );
+      await _pump(tester, const SpectrumScreenConfig(),
+          provider: provider, libraryController: controller);
+
+      final glyph = find.byKey(glyphKey);
+      expect(glyph, findsOneWidget,
+          reason: 'B-033: precondition — glyph visible when divergent.');
+
+      // Inspect the Text widget rendering the ⊙ character.
+      final textFinder = find.descendant(of: glyph, matching: find.text('⊙'));
+      expect(textFinder, findsOneWidget);
+      final textWidget = tester.widget<Text>(textFinder);
+      final style = textWidget.style!;
+
+      final ctx = tester.element(glyph);
+      final palette = Theme.of(ctx).extension<AppPalette>()!;
+      final typography = Theme.of(ctx).extension<AppTypography>()!;
+
+      expect(style.fontSize, equals(typography.rowSize),
+          reason: 'B-033: glyph must render at typography.rowSize '
+              '(was crumbSize — too small on real hardware).');
+      expect(style.color, equals(palette.fgPrimary),
+          reason: 'B-033: glyph must render in palette.fgPrimary '
+              '(was fgSecondary — too low contrast).');
     });
   });
 }

@@ -328,7 +328,7 @@ void main() {
               'isDismissable=false (i.e. fixed presentation).');
     });
 
-    testWidgets('drag handle uses palette fgTertiary and ~32x4 px',
+    testWidgets('drag handle uses palette fgSecondary and ~40x6 px (B-033)',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -368,20 +368,22 @@ void main() {
         matching: find.byKey(const ValueKey('void-browser-drag-handle-pill')),
       );
       expect(pillFinder, findsOneWidget,
-          reason: 'B-032: handle must expose a keyed pill child.');
+          reason: 'B-032/B-033: handle must expose a keyed pill child.');
       final pillBox = tester.renderObject<RenderBox>(pillFinder);
-      expect(pillBox.size.width, closeTo(32.0, 0.5),
-          reason: 'B-032: pill must be ~32 px wide.');
-      expect(pillBox.size.height, closeTo(4.0, 0.5),
-          reason: 'B-032: pill must be ~4 px tall.');
+      // B-033 bump: handle is 40 px wide × 6 px tall (was 32×4).
+      expect(pillBox.size.width, closeTo(40.0, 0.5),
+          reason: 'B-033: pill must be 40 px wide (was 32).');
+      expect(pillBox.size.height, closeTo(6.0, 0.5),
+          reason: 'B-033: pill must be 6 px tall (was 4).');
 
       final pillWidget = tester.widget<Container>(pillFinder);
       final decoration = pillWidget.decoration as BoxDecoration;
       final ctx = tester.element(handleFinder);
       final palette =
           Theme.of(ctx).extension<AppPalette>()!;
-      expect(decoration.color, equals(palette.fgTertiary),
-          reason: 'B-032: pill must use palette.fgTertiary.');
+      // B-033 bump: handle uses fgSecondary (mid contrast) — was fgTertiary.
+      expect(decoration.color, equals(palette.fgSecondary),
+          reason: 'B-033: pill must use palette.fgSecondary (was fgTertiary).');
     });
   });
 
