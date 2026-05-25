@@ -79,7 +79,10 @@ class DotHero extends StatelessWidget {
                   left: 0,
                   right: 0,
                   top: 12,
-                  child: _DotSongInfo(opacity: config.textOpacity),
+                  child: _DotSongInfo(
+                    opacity: config.textOpacity,
+                    textScale: config.textScale,
+                  ),
                 ),
             ],
           ),
@@ -98,9 +101,10 @@ class DotHero extends StatelessWidget {
 /// [AudioPlayerProvider]; falls back to the "nothingness" idle headline
 /// when no track is loaded (matches [VoidHero]'s idle treatment).
 class _DotSongInfo extends StatelessWidget {
-  const _DotSongInfo({required this.opacity});
+  const _DotSongInfo({required this.opacity, required this.textScale});
 
   final double opacity;
+  final double textScale;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +132,7 @@ class _DotSongInfo extends StatelessWidget {
               style: TextStyle(
                 color: palette.fgPrimary,
                 fontFamily: typography.monoFamily,
-                fontSize: typography.heroSize,
+                fontSize: typography.heroSize * textScale,
                 letterSpacing: typography.heroLetterSpacing,
                 fontWeight: FontWeight.w300,
                 height: 1.18,
@@ -144,7 +148,7 @@ class _DotSongInfo extends StatelessWidget {
                 style: TextStyle(
                   color: palette.fgTertiary,
                   fontFamily: typography.monoFamily,
-                  fontSize: typography.hintSize,
+                  fontSize: typography.hintSize * textScale,
                   letterSpacing: 0.18,
                 ),
               ),

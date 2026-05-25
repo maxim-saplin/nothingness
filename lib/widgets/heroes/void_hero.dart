@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
+import '../../models/screen_config.dart';
 import '../../providers/audio_player_provider.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_typography.dart';
@@ -16,8 +17,12 @@ import '../../theme/app_typography.dart';
 ///   - `songInfo.track.title` → big mono headline (or "nothingness" idle).
 ///   - `songInfo.track.path`  → parent folder name for the subtitle.
 ///   - `isOneShot` / `shuffle` → subtitle decoration (`↩` / `≈`).
+///
+/// [config.textScale] (B-035) scales the title + subtitle typography.
 class VoidHero extends StatelessWidget {
-  const VoidHero({super.key});
+  const VoidHero({super.key, this.config = const VoidScreenConfig()});
+
+  final VoidScreenConfig config;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +72,7 @@ class VoidHero extends StatelessWidget {
               style: TextStyle(
                 color: palette.fgPrimary,
                 fontFamily: typography.monoFamily,
-                fontSize: typography.heroSize,
+                fontSize: typography.heroSize * config.textScale,
                 letterSpacing: typography.heroLetterSpacing,
                 fontWeight: FontWeight.w300,
                 height: 1.18,
@@ -84,7 +89,7 @@ class VoidHero extends StatelessWidget {
               style: TextStyle(
                 color: palette.fgTertiary,
                 fontFamily: typography.monoFamily,
-                fontSize: typography.hintSize,
+                fontSize: typography.hintSize * config.textScale,
                 letterSpacing: 0.18,
               ),
             ),

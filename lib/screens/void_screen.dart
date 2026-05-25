@@ -711,7 +711,7 @@ class _VoidScreenState extends State<VoidScreen>
   Widget _buildHeroFor(ScreenConfig config) {
     switch (config.type) {
       case ScreenType.void_:
-        return const VoidHero();
+        return VoidHero(config: config as VoidScreenConfig);
       case ScreenType.spectrum:
         return SpectrumHero(
           config: config as SpectrumScreenConfig,

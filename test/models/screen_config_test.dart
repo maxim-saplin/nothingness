@@ -214,5 +214,97 @@ void main() {
 
       expect(config, isA<SpectrumScreenConfig>());
     });
+
+    // -------------------------------------------------------------------------
+    // B-034 — usesVisualizer per-hero gate
+    // -------------------------------------------------------------------------
+    group('usesVisualizer (B-034)', () {
+      test('SpectrumScreenConfig.usesVisualizer == true', () {
+        expect(const SpectrumScreenConfig().usesVisualizer, isTrue);
+      });
+
+      test('PoloScreenConfig.usesVisualizer == true', () {
+        expect(const PoloScreenConfig().usesVisualizer, isTrue);
+      });
+
+      test('DotScreenConfig.usesVisualizer == false', () {
+        expect(const DotScreenConfig().usesVisualizer, isFalse);
+      });
+
+      test('VoidScreenConfig.usesVisualizer == false', () {
+        expect(const VoidScreenConfig().usesVisualizer, isFalse);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // B-035 — per-hero textScale on Dot and Void
+    // -------------------------------------------------------------------------
+    group('DotScreenConfig textScale (B-035)', () {
+      test('defaults to 1.0', () {
+        expect(const DotScreenConfig().textScale, 1.0);
+      });
+
+      test('copyWith preserves existing value', () {
+        const cfg = DotScreenConfig(textScale: 1.25);
+        final copy = cfg.copyWith();
+        expect(copy.textScale, 1.25);
+      });
+
+      test('copyWith overrides textScale and preserves siblings', () {
+        const cfg = DotScreenConfig(sensitivity: 2.0, showSongInfo: true);
+        final copy = cfg.copyWith(textScale: 0.75);
+        expect(copy.textScale, 0.75);
+        expect(copy.sensitivity, 2.0);
+        expect(copy.showSongInfo, isTrue);
+      });
+
+      test('JSON round-trip preserves textScale', () {
+        const cfg = DotScreenConfig(textScale: 1.4);
+        final json = cfg.toJson();
+        expect(json['textScale'], 1.4);
+
+        final restored = ScreenConfig.fromJson(json) as DotScreenConfig;
+        expect(restored.textScale, 1.4);
+      });
+
+      test('fromJson uses default 1.0 when textScale missing', () {
+        final restored =
+            ScreenConfig.fromJson({'type': 'dot'}) as DotScreenConfig;
+        expect(restored.textScale, 1.0);
+      });
+    });
+
+    group('VoidScreenConfig textScale (B-035)', () {
+      test('defaults to 1.0', () {
+        expect(const VoidScreenConfig().textScale, 1.0);
+      });
+
+      test('copyWith preserves existing value', () {
+        const cfg = VoidScreenConfig(textScale: 1.3);
+        final copy = cfg.copyWith();
+        expect(copy.textScale, 1.3);
+      });
+
+      test('copyWith overrides textScale', () {
+        const cfg = VoidScreenConfig();
+        final copy = cfg.copyWith(textScale: 0.6);
+        expect(copy.textScale, 0.6);
+      });
+
+      test('JSON round-trip preserves textScale', () {
+        const cfg = VoidScreenConfig(textScale: 1.5);
+        final json = cfg.toJson();
+        expect(json['textScale'], 1.5);
+
+        final restored = ScreenConfig.fromJson(json) as VoidScreenConfig;
+        expect(restored.textScale, 1.5);
+      });
+
+      test('fromJson uses default 1.0 when textScale missing', () {
+        final restored =
+            ScreenConfig.fromJson({'type': 'void_'}) as VoidScreenConfig;
+        expect(restored.textScale, 1.0);
+      });
+    });
   });
 }

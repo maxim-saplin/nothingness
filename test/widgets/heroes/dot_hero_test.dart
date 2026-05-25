@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/song_info.dart';
+import 'package:nothingness/theme/app_typography.dart';
 import 'package:nothingness/widgets/heroes/dot_hero.dart';
 
 import '_test_helpers.dart';
@@ -115,6 +116,50 @@ void main() {
 
     expect(find.text('Wake Up'), findsOneWidget);
     expect(find.text('Indie'), findsOneWidget);
+  });
+
+  // ---------------------------------------------------------------------------
+  // B-035 — textScale applied to title typography when showSongInfo is on
+  // ---------------------------------------------------------------------------
+  testWidgets(
+      'showSongInfo + textScale=1.5 scales title fontSize by 1.5x',
+      (tester) async {
+    final provider = FakeAudioPlayerProvider(
+      songInfo: const SongInfo(
+        track: AudioTrack(
+          path: '/sdcard/Music/Indie/Wake Up.mp3',
+          title: 'Wake Up',
+          artist: 'Arcade Fire',
+        ),
+        isPlaying: true,
+        position: 0,
+        duration: 200000,
+      ),
+    );
+    const config = DotScreenConfig(showSongInfo: true, textScale: 1.5);
+
+    await tester.pumpWidget(
+      wrapWithProvider(
+        provider,
+        const SizedBox(
+          width: 400,
+          height: 400,
+          child: DotHero(config: config),
+        ),
+      ),
+    );
+
+    final titleFinder = find.text('Wake Up');
+    expect(titleFinder, findsOneWidget);
+
+    final titleWidget = tester.widget<Text>(titleFinder);
+    final BuildContext ctx = tester.element(find.byType(DotHero));
+    final typography = Theme.of(ctx).extension<AppTypography>()!;
+
+    expect(
+      titleWidget.style?.fontSize,
+      closeTo(typography.heroSize * 1.5, 0.01),
+    );
   });
 
   testWidgets(

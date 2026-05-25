@@ -23,6 +23,16 @@ abstract class ScreenConfig {
   /// stays out of their way regardless of the global transport setting.
   bool get hostsChromeTransport => true;
 
+  /// Whether this hero renders the spectrum visualizer (B-034).
+  ///
+  /// Default `true` so new heroes opt in by default — the SOUND group's
+  /// visualizer-specific rows (`bar count`, `bar style`, `decay speed`,
+  /// `visualizer color`) make sense for them. Heroes that don't paint
+  /// the visualizer (Dot, Void) override this to `false`; the settings
+  /// sheet then hides those rows because tweaking them has no visible
+  /// effect on the active screen.
+  bool get usesVisualizer => true;
+
   Map<String, dynamic> toJson();
 
   static ScreenConfig fromJson(Map<String, dynamic> json) {
@@ -46,16 +56,34 @@ abstract class ScreenConfig {
 }
 
 class VoidScreenConfig extends ScreenConfig {
-  const VoidScreenConfig() : super(type: ScreenType.void_, name: 'Void');
+  /// Multiplier applied to the title + parent-folder typography (B-035).
+  /// Range 0.5..1.5; default 1.0 keeps the existing visual.
+  final double textScale;
+
+  const VoidScreenConfig({this.textScale = 1.0})
+      : super(type: ScreenType.void_, name: 'Void');
+
+  /// Void renders a typographic hero (track title) only — no spectrum
+  /// visualizer (B-034). The SOUND group hides the visualizer-only rows
+  /// while this is the active screen.
+  @override
+  bool get usesVisualizer => false;
 
   @override
   Map<String, dynamic> toJson() => {
     'type': type.name,
     'name': name,
+    'textScale': textScale,
   };
 
-  factory VoidScreenConfig.fromJson(Map<String, dynamic> _) =>
-      const VoidScreenConfig();
+  factory VoidScreenConfig.fromJson(Map<String, dynamic> json) =>
+      VoidScreenConfig(
+        textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+      );
+
+  VoidScreenConfig copyWith({double? textScale}) {
+    return VoidScreenConfig(textScale: textScale ?? this.textScale);
+  }
 }
 
 class SpectrumScreenConfig extends ScreenConfig {
@@ -153,6 +181,11 @@ class DotScreenConfig extends ScreenConfig {
   /// of the settings sheet.
   final bool showSongInfo;
 
+  /// Multiplier applied to the song-info title + parent-folder typography
+  /// (B-035). Only meaningful when [showSongInfo] is true.
+  /// Range 0.5..1.5; default 1.0 keeps the existing visual.
+  final double textScale;
+
   const DotScreenConfig({
     this.minDotSize = 20.0,
     this.maxDotSize = 120.0,
@@ -160,7 +193,14 @@ class DotScreenConfig extends ScreenConfig {
     this.textOpacity = 1.0,
     this.sensitivity = 1.5,
     this.showSongInfo = false,
+    this.textScale = 1.0,
   }) : super(type: ScreenType.dot, name: 'Dot');
+
+  /// Dot paints a pulsing circle, not a spectrum visualizer (B-034).
+  /// SOUND-group visualizer rows are hidden while Dot is the active
+  /// screen.
+  @override
+  bool get usesVisualizer => false;
 
   @override
   Map<String, dynamic> toJson() => {
@@ -172,6 +212,7 @@ class DotScreenConfig extends ScreenConfig {
     'textOpacity': textOpacity,
     'sensitivity': sensitivity,
     'showSongInfo': showSongInfo,
+    'textScale': textScale,
   };
 
   factory DotScreenConfig.fromJson(Map<String, dynamic> json) {
@@ -182,6 +223,7 @@ class DotScreenConfig extends ScreenConfig {
       textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
       sensitivity: (json['sensitivity'] as num?)?.toDouble() ?? 1.5,
       showSongInfo: json['showSongInfo'] as bool? ?? false,
+      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
@@ -192,6 +234,7 @@ class DotScreenConfig extends ScreenConfig {
     double? textOpacity,
     double? sensitivity,
     bool? showSongInfo,
+    double? textScale,
   }) {
     return DotScreenConfig(
       minDotSize: minDotSize ?? this.minDotSize,
@@ -200,6 +243,7 @@ class DotScreenConfig extends ScreenConfig {
       textOpacity: textOpacity ?? this.textOpacity,
       sensitivity: sensitivity ?? this.sensitivity,
       showSongInfo: showSongInfo ?? this.showSongInfo,
+      textScale: textScale ?? this.textScale,
     );
   }
 }

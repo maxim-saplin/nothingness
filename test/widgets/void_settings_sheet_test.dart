@@ -372,6 +372,125 @@ void main() {
       expect(updatedCfg.showSongInfo, isTrue);
     });
 
+    // -------------------------------------------------------------------------
+    // B-034 — SOUND visualizer rows gated on active hero's usesVisualizer
+    // -------------------------------------------------------------------------
+    group('B-034 — SOUND visualizer-row gating', () {
+      const visualizerRowKeys = <String>[
+        'void-settings-bar-count',
+        'void-settings-bar-style',
+        'void-settings-decay-speed',
+        'void-settings-visualizer-color',
+      ];
+
+      Future<void> pumpWithScreen(
+        WidgetTester tester,
+        ScreenConfig cfg,
+      ) async {
+        SettingsService().operatingModeNotifier.value = OperatingMode.own;
+        await SettingsService().saveScreenConfig(cfg);
+        await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+      }
+
+      testWidgets('spectrum: all four visualizer rows are present',
+          (tester) async {
+        await pumpWithScreen(tester, const SpectrumScreenConfig());
+        for (final k in visualizerRowKeys) {
+          expect(
+            find.byKey(ValueKey(k), skipOffstage: false),
+            findsOneWidget,
+            reason: '$k must be visible on spectrum',
+          );
+        }
+        // The eq placeholder always stays.
+        expect(
+          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('polo: all four visualizer rows are present',
+          (tester) async {
+        await pumpWithScreen(tester, const PoloScreenConfig());
+        for (final k in visualizerRowKeys) {
+          expect(
+            find.byKey(ValueKey(k), skipOffstage: false),
+            findsOneWidget,
+            reason: '$k must be visible on polo',
+          );
+        }
+      });
+
+      testWidgets('dot: visualizer rows are hidden, eq stays',
+          (tester) async {
+        await pumpWithScreen(tester, const DotScreenConfig());
+        for (final k in visualizerRowKeys) {
+          expect(
+            find.byKey(ValueKey(k), skipOffstage: false),
+            findsNothing,
+            reason: '$k must NOT be visible on dot',
+          );
+        }
+        expect(
+          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('void: visualizer rows are hidden, eq stays',
+          (tester) async {
+        await pumpWithScreen(tester, const VoidScreenConfig());
+        for (final k in visualizerRowKeys) {
+          expect(
+            find.byKey(ValueKey(k), skipOffstage: false),
+            findsNothing,
+            reason: '$k must NOT be visible on void',
+          );
+        }
+        expect(
+          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
+          findsOneWidget,
+        );
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // B-035 — text-size sliders on Dot and Void DISPLAY group
+    // -------------------------------------------------------------------------
+    group('B-035 — text-size slider in DISPLAY group', () {
+      testWidgets('dot screen exposes the void-settings-dot-text-size slider',
+          (tester) async {
+        SettingsService().operatingModeNotifier.value = OperatingMode.own;
+        await SettingsService().saveScreenConfig(const DotScreenConfig());
+
+        await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+        expect(
+          find.byKey(
+            const ValueKey('void-settings-dot-text-size'),
+            skipOffstage: false,
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('void screen exposes the void-settings-void-text-size slider',
+          (tester) async {
+        SettingsService().operatingModeNotifier.value = OperatingMode.own;
+        await SettingsService().saveScreenConfig(const VoidScreenConfig());
+
+        await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+        expect(
+          find.byKey(
+            const ValueKey('void-settings-void-text-size'),
+            skipOffstage: false,
+          ),
+          findsOneWidget,
+        );
+      });
+    });
+
     testWidgets('status strip hides when queue is empty',
         (tester) async {
       SettingsService().operatingModeNotifier.value = OperatingMode.own;

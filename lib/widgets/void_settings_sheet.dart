@@ -380,13 +380,12 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   }) {
     final isOwn = mode == OperatingMode.own;
     final isBackground = mode == OperatingMode.background;
-    final type = _settings.screenConfigNotifier.value.type;
-    final spectrumCfg = _settings.screenConfigNotifier.value is SpectrumScreenConfig
-        ? _settings.screenConfigNotifier.value as SpectrumScreenConfig
-        : null;
-    final dotCfg = _settings.screenConfigNotifier.value is DotScreenConfig
-        ? _settings.screenConfigNotifier.value as DotScreenConfig
-        : null;
+    final activeConfig = _settings.screenConfigNotifier.value;
+    final type = activeConfig.type;
+    final spectrumCfg =
+        activeConfig is SpectrumScreenConfig ? activeConfig : null;
+    final dotCfg = activeConfig is DotScreenConfig ? activeConfig : null;
+    final voidCfg = activeConfig is VoidScreenConfig ? activeConfig : null;
     final spectrum = _settings.settingsNotifier.value;
 
     return [
@@ -510,42 +509,47 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
       // ------------------------------------------------------------------ SOUND
       if (isOwn) ...[
         _groupHeader('SOUND', palette, typography),
-        _row(
-          key: const ValueKey('void-settings-bar-count'),
-          label: 'bar count',
-          value: '${spectrum.barCount.count}',
-          onTap: _cycleBarCount,
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-        ),
-        _row(
-          key: const ValueKey('void-settings-bar-style'),
-          label: 'bar style',
-          value: spectrum.barStyle.name,
-          onTap: _cycleBarStyle,
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-        ),
-        _row(
-          key: const ValueKey('void-settings-decay-speed'),
-          label: 'decay speed',
-          value: spectrum.decaySpeed.name,
-          onTap: _cycleDecaySpeed,
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-        ),
-        _row(
-          key: const ValueKey('void-settings-visualizer-color'),
-          label: 'visualizer color',
-          value: spectrum.colorScheme.label,
-          onTap: _cycleVisualizerColor,
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-        ),
+        // Visualizer-only rows (B-034): hidden when the active hero
+        // doesn't paint the spectrum (Dot, Void). The `eq` placeholder is
+        // a generic audio control and stays regardless.
+        if (activeConfig.usesVisualizer) ...[
+          _row(
+            key: const ValueKey('void-settings-bar-count'),
+            label: 'bar count',
+            value: '${spectrum.barCount.count}',
+            onTap: _cycleBarCount,
+            palette: palette,
+            typography: typography,
+            geometry: geometry,
+          ),
+          _row(
+            key: const ValueKey('void-settings-bar-style'),
+            label: 'bar style',
+            value: spectrum.barStyle.name,
+            onTap: _cycleBarStyle,
+            palette: palette,
+            typography: typography,
+            geometry: geometry,
+          ),
+          _row(
+            key: const ValueKey('void-settings-decay-speed'),
+            label: 'decay speed',
+            value: spectrum.decaySpeed.name,
+            onTap: _cycleDecaySpeed,
+            palette: palette,
+            typography: typography,
+            geometry: geometry,
+          ),
+          _row(
+            key: const ValueKey('void-settings-visualizer-color'),
+            label: 'visualizer color',
+            value: spectrum.colorScheme.label,
+            onTap: _cycleVisualizerColor,
+            palette: palette,
+            typography: typography,
+            geometry: geometry,
+          ),
+        ],
         _row(
           key: const ValueKey('void-settings-eq'),
           label: 'eq',
@@ -659,17 +663,8 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
           geometry: geometry,
           enabled: false,
         ),
-      if (type == ScreenType.void_)
-        _row(
-          key: const ValueKey('void-settings-void-display'),
-          label: 'void',
-          value: 'no options',
-          onTap: () {},
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-          enabled: false,
-        ),
+      if (type == ScreenType.void_ && voidCfg != null)
+        ..._buildVoidDisplayRows(voidCfg, palette, typography, geometry),
 
       // ----------------------------------------------------------------- ABOUT
       _groupHeader('ABOUT', palette, typography),
@@ -880,6 +875,54 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         currentValue: cfg.textOpacity,
         onChanged: (v) {
           _settings.saveScreenConfig(cfg.copyWith(textOpacity: v));
+          setState(() {});
+        },
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
+      // B-035 — per-hero text-size slider, only meaningful when the
+      // song-info overlay is enabled but always shown so users can tune
+      // before flipping the toggle on.
+      _sliderRow(
+        key: const ValueKey('void-settings-dot-text-size'),
+        label: 'text size',
+        valueText: '${(cfg.textScale * 100).round()}%',
+        min: 0.5,
+        max: 1.5,
+        divisions: 10,
+        currentValue: cfg.textScale,
+        onChanged: (v) {
+          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
+          setState(() {});
+        },
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
+    ];
+  }
+
+  /// Void DISPLAY rows (B-035). Currently a single text-size slider —
+  /// Void's hero has fewer knobs than Spectrum's, but the typography
+  /// scale benefits from the same per-screen control.
+  List<Widget> _buildVoidDisplayRows(
+    VoidScreenConfig cfg,
+    AppPalette palette,
+    AppTypography typography,
+    AppGeometry geometry,
+  ) {
+    return [
+      _sliderRow(
+        key: const ValueKey('void-settings-void-text-size'),
+        label: 'text size',
+        valueText: '${(cfg.textScale * 100).round()}%',
+        min: 0.5,
+        max: 1.5,
+        divisions: 10,
+        currentValue: cfg.textScale,
+        onChanged: (v) {
+          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
           setState(() {});
         },
         palette: palette,
