@@ -18,11 +18,11 @@ class MockOnAudioQueryEmpty extends OnAudioQuery {
 }
 
 void main() {
-  group('MacOSMetadataExtractor', () {
-    late MacOSMetadataExtractor extractor;
+  group('DesktopMetadataExtractor', () {
+    late DesktopMetadataExtractor extractor;
 
     setUp(() {
-      extractor = MacOSMetadataExtractor();
+      extractor = DesktopMetadataExtractor();
     });
 
     test('parses filename with dash separator', () async {
@@ -76,10 +76,10 @@ void main() {
   });
 
   group('Filename Parsing Edge Cases', () {
-    late MacOSMetadataExtractor extractor;
+    late DesktopMetadataExtractor extractor;
 
     setUp(() {
-      extractor = MacOSMetadataExtractor();
+      extractor = DesktopMetadataExtractor();
     });
 
     test('handles files with no extension', () async {

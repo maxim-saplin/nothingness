@@ -174,8 +174,9 @@ class AndroidMetadataExtractor implements MetadataExtractor {
   }
 }
 
-/// macOS implementation using filename parsing (extensible for future metadata library).
-class MacOSMetadataExtractor implements MetadataExtractor {
+/// Desktop (macOS/Linux) implementation using filename parsing
+/// (extensible for future metadata library).
+class DesktopMetadataExtractor implements MetadataExtractor {
   @override
   Future<AudioTrack> extractMetadata(String filePath) async {
     // Use filename parsing only (extensible design allows future metadata library integration)
@@ -299,7 +300,7 @@ MetadataExtractor createMetadataExtractor() {
       useFilenameOverride: useFilenameOverride,
     );
   } else {
-    return MacOSMetadataExtractor();
+    return DesktopMetadataExtractor();
   }
 }
 

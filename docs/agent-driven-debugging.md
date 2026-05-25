@@ -118,42 +118,42 @@ A Dart VM Service on sdk gphone64 arm64 is available at: http://127.0.0.1:PORT/A
 
 Fresh-installed Android builds stop at the in-app `Permissions Required` overlay until the user taps `Grant Permissions` and approves the OS dialog. SoLoud also can't open shared-storage paths like `/sdcard/...` on emulators (raises `SoLoudFileNotFoundException`) — files have to live under the app's private dir.
 
-The `agent_prepare.sh` helper handles both, is idempotent, and works pre- or post-launch:
+Use raw `adb` for both — idempotent and works pre- or post-launch:
 
 ```bash
-# Grant all runtime perms only
-.claude/skills/agent-emulator-debugging/scripts/agent_prepare.sh -d emulator-5554
+# Grant runtime perms (idempotent)
+for P in RECORD_AUDIO READ_MEDIA_AUDIO READ_EXTERNAL_STORAGE POST_NOTIFICATIONS; do
+  adb -s emulator-5554 shell pm grant com.saplin.nothingness "android.permission.$P" || true
+done
 
-# Grant perms + stage one or more host audio files into the app sandbox
-.claude/skills/agent-emulator-debugging/scripts/agent_prepare.sh \
-  -d emulator-5554 \
-  --stage .tmp/test_tone.wav \
-  --stage /path/to/another.mp3
+# Stage one or more host audio files into the app sandbox
+adb -s emulator-5554 push .tmp/test_tone.wav \
+    /data/user/0/com.saplin.nothingness/files/test_tone.wav
+adb -s emulator-5554 push /path/to/another.mp3 \
+    /data/user/0/com.saplin.nothingness/files/another.mp3
 ```
 
 After staging `foo.wav`, queue it as `/data/user/0/com.saplin.nothingness/files/foo.wav`.
 
-Permissions granted: `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`. The script uses `adb shell pm grant`, which requires no UI interaction.
+Permissions granted: `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`. `pm grant` requires no UI interaction.
+
+Linux/macOS desktop has no sandbox — skip both steps and pass any readable absolute host path to `drive.py play` directly.
 
 ### 2. Extract the base URL
 
 From the flutter run output, extract:
 - `BASE=http://127.0.0.1:<port>/<auth>=`
 
-### 2b. Helper script (optional)
+### 2b. Helper script (preferred)
 
-The helper script avoids manual isolate lookups and URL-encodes `setQueue` paths.
-Requires `python3`.
+`drive.py` covers every common workflow (state inspection, queue setup, widget tree, screenshots, hot reload, replay scripts) for both Android and Linux/macOS desktop. See `.claude/skills/agent-emulator-debugging/SKILL.md` for the full subcommand surface.
 
 ```bash
-chmod +x .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh
+D=.claude/skills/agent-emulator-debugging/scripts/drive.py
 
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh state
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh set-queue \
-  --paths /sdcard/Music/track1.mp3,/sdcard/Music/track2.mp3 \
-  --start-index 0
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh play
-BASE=http://127.0.0.1:PORT/AUTH= .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh widget-tree --depth 20
+$D inspect                                       # router/library/playback/overflows
+$D play /data/user/0/com.saplin.nothingness/files/track1.mp3
+$D tree 20                                       # widget tree, depth-capped
 ```
 
 ### 3. Get the isolate ID

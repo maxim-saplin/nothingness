@@ -292,19 +292,14 @@ From the `flutter run` output, copy the VM service base URL:
 http://127.0.0.1:<PORT>/<AUTH>=/
 ```
 
-Then use the helper script:
+Then drive it through `drive.py`:
 
 ```bash
-chmod +x .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh
+D=.claude/skills/agent-emulator-debugging/scripts/drive.py
 
-BASE=http://127.0.0.1:<PORT>/<AUTH>= \
-  .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh state
-
-BASE=http://127.0.0.1:<PORT>/<AUTH>= \
-  .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh settings
-
-BASE=http://127.0.0.1:<PORT>/<AUTH>= \
-  .claude/skills/agent-emulator-debugging/scripts/agent_drive.sh widget-tree --depth 60
+$D inspect                # router/library/playback/overflow snapshot
+$D call ext.nothingness.getSettings    # full settings map
+$D tree 60                # widget tree
 ```
 
 Combine this with the ADB loop above to correlate **observed state** (playing/paused, spectrum non-zero) with **evidence** (CPU/services/wakelocks).

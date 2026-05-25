@@ -6,7 +6,17 @@
 """drive.py — CLI driver for the Nothingness app's VM service surface.
 
 Wraps `ext.nothingness.*` extensions exposed by `lib/testing/agent_service.dart`
-so a human or agent can puppet the live emulator without writing one-off scripts.
+so a human or agent can puppet the live app without writing one-off scripts.
+
+Targets:
+  - **android** (default) — drives an emulator/device through `adb`.
+  - **linux** / **macos** — drives a Flutter desktop build of the app. ADB
+    is bypassed; the VM service URI is read from `/tmp/flutter_run.log` and
+    `shoot` rasterizes via `ext.nothingness.screenshot` (no `adb screencap`).
+
+The target is picked from `--target` / `DRIVE_TARGET`; if neither is set
+drive.py sniffs `/tmp/flutter_run.log` ("...on Linux in debug mode") and
+falls back to `android`.
 
 Subcommands print structured JSON on stdout and exit 0 on success, non-zero on
 RPC error.
@@ -19,17 +29,17 @@ Usage (a few examples):
   drive.py nav /storage/emulated/0/Music # navigate Void to a path
   drive.py up                            # navigateVoidUp
   drive.py settings open|close
-  drive.py play /sdcard/Music/foo.mp3
+  drive.py play /absolute/path/foo.mp3
   drive.py pause | resume | next | prev
   drive.py pref void_hint_shown=false:bool
   drive.py clearpref void_hint_shown
   drive.py permit                        # request library permissions
-  drive.py shoot before_b001             # adb screencap -> .tmp/agent_shots/before_b001.png
+  drive.py shoot before_b001             # PNG -> .tmp/agent_shots/before_b001.png
   drive.py tree [depth]
   drive.py tap <key>
-  drive.py logcat [lines]
+  drive.py logcat [lines]                # desktop: tails /tmp/flutter_run.log
   drive.py overflows [--clear]
-  drive.py reset                         # force-stop, clear data, cold launch
+  drive.py reset                         # Android only; on desktop, restart `flutter run`
   drive.py replay <script.txt>           # newline-separated drive.py invocations
 """
 
@@ -37,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import os
 import re
@@ -61,6 +72,40 @@ LOCAL_FORWARD_PORT = int(os.environ.get("DRIVE_LOCAL_PORT", "8181"))
 
 # Where we cache the discovered VM service WebSocket URI between runs.
 WS_CACHE = Path(__file__).with_name(".vm_ws.txt")
+
+FLUTTER_RUN_LOG = Path("/tmp/flutter_run.log")
+
+# Valid `flutter run -d <id>` targets we know how to drive. "android" covers
+# any adb-attached device; "linux" / "macos" cover Flutter desktop builds.
+TARGETS = ("android", "linux", "macos")
+
+
+def _resolve_target() -> str:
+    """Pick the active target: explicit env var first, then sniff the running
+    `flutter run` log, then default to `android` for backward compatibility."""
+    env = os.environ.get("DRIVE_TARGET", "").strip().lower()
+    if env in TARGETS:
+        return env
+    if FLUTTER_RUN_LOG.exists():
+        try:
+            text = FLUTTER_RUN_LOG.read_text(errors="ignore")[:4000]
+        except OSError:
+            text = ""
+        # `flutter run` prints "Launching lib/main.dart on Linux in debug mode"
+        # at boot — match the device name to map back to our target enum.
+        m = re.search(r"on\s+(Linux|macOS|Android|.*Android.*)\s+in\s+debug", text, re.I)
+        if m:
+            dev = m.group(1).lower()
+            if "linux" in dev:
+                return "linux"
+            if "macos" in dev or "darwin" in dev:
+                return "macos"
+            return "android"
+    return "android"
+
+
+TARGET = _resolve_target()
+IS_DESKTOP = TARGET in ("linux", "macos")
 
 
 # ---------------------------------------------------------------------------
@@ -124,9 +169,6 @@ def _ws_uri(local_port: int, token: str) -> str:
     return f"ws://127.0.0.1:{local_port}/{token}/ws"
 
 
-FLUTTER_RUN_LOG = Path("/tmp/flutter_run.log")
-
-
 def _scan_flutter_run_log_for_vm_uri() -> str | None:
     """If `flutter run` is active, extract the host-side VM service URI from
     its stdout log. Flutter forwards the device port automatically so this
@@ -145,7 +187,12 @@ def _scan_flutter_run_log_for_vm_uri() -> str | None:
 
 
 def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
-    """Discover (or load cached) WebSocket URI and ensure adb forwarding is up."""
+    """Discover (or load cached) WebSocket URI.
+
+    On Android, sets up an adb port forward when only logcat exposes the URI.
+    On desktop (linux/macos), `flutter run` always logs a local 127.0.0.1
+    URI directly, so the adb path is skipped entirely.
+    """
     if not force and WS_CACHE.exists():
         cached = WS_CACHE.read_text().strip()
         if cached:
@@ -156,15 +203,18 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
             except Exception:
                 pass
 
-    # Prefer `flutter run`'s stdout log because it both lists the URI and
-    # already established the adb port forward. Only fall back to logcat if
-    # we're driving a stand-alone debug APK (no flutter run attached).
+    # `flutter run`'s stdout log always has a host-local URI (Android: forwarded
+    # by flutter; desktop: native). Prefer this everywhere.
     uri = _scan_flutter_run_log_for_vm_uri()
     if uri:
-        # flutter run's URI is already the host-side port; just rewrite scheme.
         ws = uri.replace("http://", "ws://").rstrip("/") + "/ws"
         WS_CACHE.write_text(ws)
         return ws
+
+    if IS_DESKTOP:
+        raise RuntimeError(
+            f"could not find Dart VM service URI in {FLUTTER_RUN_LOG}. "
+            f"Is `flutter run -d {TARGET}` running in debug mode?")
 
     uri = _scan_logcat_for_vm_uri(serial)
     if not uri:
@@ -370,8 +420,25 @@ def cmd_permit(args) -> int:
 
 def cmd_shoot(args) -> int:
     out = SHOTS_DIR / f"{args.name}.png"
-    # Try `adb exec-out screencap -p` first (binary, fast). Falls back to a
-    # device-side write + pull on platforms where exec-out is finicky.
+    if IS_DESKTOP:
+        # Desktop has no adb screencap; ask the app to rasterize its current
+        # frame via ext.nothingness.screenshot. Returns base64 PNG bytes.
+        params: dict[str, Any] = {}
+        if getattr(args, "pixel_ratio", None) is not None:
+            params["pixelRatio"] = str(args.pixel_ratio)
+        res = _ext_resilient("ext.nothingness.screenshot", params)
+        b64 = (res or {}).get("png_base64") if isinstance(res, dict) else None
+        if not b64:
+            print(json.dumps({"shot": False, "error": "no png_base64 in response",
+                              "response": res}, indent=2))
+            return 1
+        out.write_bytes(base64.b64decode(b64))
+        info = {"path": str(out),
+                "width": res.get("width"), "height": res.get("height")}
+        print(json.dumps(info, indent=2))
+        return 0
+    # Android: prefer fast binary path via `adb exec-out screencap -p`. Falls
+    # back to a device-side write + pull on platforms where exec-out is finicky.
     try:
         proc = subprocess.run(
             ["adb", "-s", DEFAULT_SERIAL, "exec-out", "screencap", "-p"],
@@ -380,7 +447,7 @@ def cmd_shoot(args) -> int:
             timeout=20,
         )
         out.write_bytes(proc.stdout)
-    except Exception as e:
+    except Exception:
         device_tmp = f"/sdcard/{args.name}.png"
         adb("shell", "screencap", "-p", device_tmp)
         adb("pull", device_tmp, str(out))
@@ -410,6 +477,19 @@ def cmd_tap(args) -> int:
 
 def cmd_logcat(args) -> int:
     n = args.lines or 200
+    if IS_DESKTOP:
+        # No logcat on desktop; tail the `flutter run` log instead.
+        if not FLUTTER_RUN_LOG.exists():
+            print(f"{FLUTTER_RUN_LOG} does not exist; is `flutter run -d {TARGET}` "
+                  "redirecting stdout there?", file=sys.stderr)
+            return 1
+        try:
+            lines = FLUTTER_RUN_LOG.read_text(errors="ignore").splitlines()
+        except OSError as e:
+            print(f"failed to read {FLUTTER_RUN_LOG}: {e}", file=sys.stderr)
+            return 1
+        sys.stdout.write("\n".join(lines[-n:]) + "\n")
+        return 0
     proc = adb("logcat", "-d", "-v", "brief", "-t", str(n), check=False)
     sys.stdout.write(proc.stdout)
     return 0
@@ -513,6 +593,17 @@ def _flutter_run_alive(max_age_s: float = 300.0) -> bool:
 
 def cmd_reset(args) -> int:
     """Force-stop, clear app data, cold launch, wait for VM service."""
+    if IS_DESKTOP:
+        print(json.dumps({
+            "reset": False,
+            "reason": (
+                f"`drive.py reset` is Android-only (uses adb force-stop + "
+                f"pm clear). On {TARGET} desktop, stop and restart "
+                f"`flutter run -d {TARGET}` manually to wipe state, or use "
+                f"`drive.py restart` for a hot restart."
+            ),
+        }, indent=2))
+        return 1
     if _flutter_run_alive() and not getattr(args, "force", False):
         print(json.dumps({
             "reset": False,
@@ -638,6 +729,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("shoot")
     sp.add_argument("name")
+    sp.add_argument(
+        "--pixel-ratio", type=float, default=None,
+        help="raster scale for the screenshot (default 1.0; "
+        "desktop / VM-service path only)")
     sp.set_defaults(func=cmd_shoot)
 
     sp = sub.add_parser("tree")

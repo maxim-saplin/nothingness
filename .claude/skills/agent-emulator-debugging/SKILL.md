@@ -1,10 +1,13 @@
 ---
 name: agent-emulator-debugging
-description: Efficient app-driving workflow for the real Flutter app on emulator via VM service extensions, including common blocker recovery.
+description: Efficient app-driving workflow for the real Flutter app on emulator or Linux/macOS desktop via VM service extensions, including common blocker recovery.
 ---
 # Agent App Driving
 
-Use this skill to drive the real app quickly, inspect runtime state, and unblock UI/action dead-ends.
+Use this skill to drive the real app quickly, inspect runtime state, and unblock UI/action dead-ends. Works against:
+
+- An Android emulator/device through `adb` (the default).
+- A Flutter **desktop** build (`-d linux` or `-d macos`) when the emulator path is flaky — common in WSL2. Desktop driving bypasses ADB entirely; everything else (the 27 `ext.nothingness.*` extensions, hot reload, screenshots) is identical.
 
 Always use the real app entrypoint: `lib/main.dart` (never `main_test.dart` — that's reserved for deterministic `integration_test/` runs with fake transport).
 
@@ -20,54 +23,95 @@ uv sync   # creates .venv at the repo root and installs websockets
 
 ## Fast Setup
 
+### Android (emulator or device)
+
 ```bash
 flutter run -d emulator-5554 --debug
 ```
 
-After install, **prepare the device** so the first-launch UI doesn't stall on permission dialogs and SoLoud has a playable file in its sandbox:
+After install, **prepare the device** so the first-launch UI doesn't stall on permission dialogs and SoLoud has a playable file in its sandbox. Granting library permissions and staging an audio file is a one-time idempotent step:
 
 ```bash
-.claude/skills/agent-emulator-debugging/scripts/agent_prepare.sh \
-  -d emulator-5554 \
-  --stage .tmp/test_tone.wav   # optional, repeatable
+# Grant runtime permissions (idempotent, fine to re-run after every reinstall)
+for P in RECORD_AUDIO READ_MEDIA_AUDIO READ_EXTERNAL_STORAGE POST_NOTIFICATIONS; do
+  adb -s emulator-5554 shell pm grant com.saplin.nothingness "android.permission.$P" || true
+done
+# Stage a host audio file into the app sandbox so SoLoud can load it
+adb -s emulator-5554 push .tmp/test_tone.wav \
+    /data/user/0/com.saplin.nothingness/files/test_tone.wav
 ```
 
-This grants `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`, and (optionally) copies host audio files into `/data/user/0/com.saplin.nothingness/files/`. The script is idempotent — run it any time the app is reinstalled. After staging `foo.mp3`, queue it via:
+After staging `foo.mp3`, queue it via:
 
 ```bash
-.claude/skills/agent-emulator-debugging/scripts/drive.py play /data/user/0/com.saplin.nothingness/files/foo.mp3
+.claude/skills/agent-emulator-debugging/scripts/drive.py play \
+    /data/user/0/com.saplin.nothingness/files/foo.mp3
+```
+
+### Linux / macOS desktop (no ADB)
+
+Use this path when the emulator is flaky (a recurring WSL2 issue on x86 hosts). Run the app under `flutter run` with stdout going to `/tmp/flutter_run.log` and stdin attached to a fifo so `drive.py reload/restart` keeps working:
+
+```bash
+# One-time per host: create the fifo and a writer that holds it open
+[ -p /tmp/flutter_input ] || mkfifo /tmp/flutter_input
+nohup sleep infinity > /tmp/flutter_input &
+# Launch the desktop build (Linux shown; `-d macos` works the same)
+nohup flutter run -d linux --debug \
+    < /tmp/flutter_input > /tmp/flutter_run.log 2>&1 &
+# Drive it
+export DRIVE_TARGET=linux        # or `macos`; auto-detected from the log too
+$D inspect
+```
+
+Library permissions are a no-op on desktop. Stage an audio file by passing any absolute host path to `drive.py play`:
+
+```bash
+$D play /home/user/Music/foo.mp3      # any readable absolute path works
 ```
 
 ## Primary driver: `scripts/drive.py`
 
 `scripts/drive.py` is the recommended way to puppet the app. It:
 
-- Discovers the VM service WebSocket from logcat or `/tmp/flutter_run.log`.
+- Discovers the VM service WebSocket from `/tmp/flutter_run.log` (any target) or `adb logcat` (Android only).
 - Caches the WS URI next to itself (`.vm_ws.txt`) so subsequent calls are instant.
-- Sets up the ADB port-forward and resolves the main isolate.
-- Wraps every `ext.nothingness.*` extension (26 of them) as a typed subcommand.
-- Adds conveniences: screenshots into `.tmp/agent_shots/`, hot reload/restart via the `/tmp/flutter_input` fifo, force-stop + clear-data + cold launch, and a `replay` mode for newline-separated scripts.
+- Sets up the ADB port-forward and resolves the main isolate (Android only — desktop skips ADB entirely).
+- Wraps every `ext.nothingness.*` extension (27 of them) as a typed subcommand.
+- Adds conveniences: screenshots into `.tmp/agent_shots/`, hot reload/restart via the `/tmp/flutter_input` fifo, force-stop + clear-data + cold launch (Android only), and a `replay` mode for newline-separated scripts.
+
+### Target selection
+
+`drive.py` picks its target from, in order:
+
+1. `DRIVE_TARGET={android|linux|macos}` environment variable.
+2. Sniffing `/tmp/flutter_run.log` for `Launching … on Linux|macOS|Android` (works for the common case where you only have one `flutter run` going).
+3. Default: `android`.
+
+On `linux` / `macos`, ADB calls are bypassed, `shoot` rasterizes via `ext.nothingness.screenshot` (no `adb screencap`), `logcat` tails `/tmp/flutter_run.log`, and `reset` refuses (restart the `flutter run` process to wipe state).
 
 ```bash
 D=.claude/skills/agent-emulator-debugging/scripts/drive.py
+export DRIVE_TARGET=linux   # or `macos`; or unset for Android default
 
 # State + UI
 $D inspect            # router + library + playback + overflow ring buffer
 $D tree 40            # widget tree as text
 $D overflows          # FlutterError.onError ring buffer
-$D shoot before_x     # adb screencap → .tmp/agent_shots/before_x.png
+$D shoot before_x     # PNG → .tmp/agent_shots/before_x.png (adb screencap on android,
+                      # ext.nothingness.screenshot on desktop)
 
 # Navigation (Void shell)
 $D screen void                                # set active hero: spectrum|polo|dot|void
 $D variant dark                               # dark|light|system
 $D mode own                                   # own|background
-$D nav /storage/emulated/0/Music              # navigate the library to a path
+$D nav /home/user/Music                       # navigate the library to a path
 $D up                                         # navigateVoidUp
 $D settings open                              # settings sheet open|close
-$D permit                                     # programmatic library permission grant
+$D permit                                     # programmatic library permission grant (no-op on desktop)
 
 # Playback
-$D play /data/user/0/com.saplin.nothingness/files/foo.mp3
+$D play /home/user/Music/foo.mp3              # any absolute readable path
 $D pause | $D resume | $D next | $D prev
 
 # Preferences (broader than legacy setSetting)
@@ -77,13 +121,13 @@ $D clearpref void_hint_shown
 # Lifecycle
 $D reload                                     # hot reload (sends `r` to /tmp/flutter_input)
 $D restart                                    # hot restart
-$D reset                                      # force-stop, clear app data, cold launch
+$D reset                                      # Android only; refuses on desktop
 
 # Audio diagnostics
 $D call simulateInterruption phase=begin kind=pause
 $D call simulateNoisy
 $D call setSetting name=audioDiagnosticsOverlay value=true
-$D logcat 500
+$D logcat 500                                 # adb logcat (android); /tmp/flutter_run.log (desktop)
 $D replay smoke.txt                           # one drive.py invocation per line
 ```
 
@@ -119,6 +163,8 @@ ADB_SERVER_SOCKET=tcp:${HOST_IP}:5037 CI_EMULATOR_ABI=x86_64 flutter run -d emul
 
 If `adb devices` shows nothing from WSL2, run the `wsl2-adb-setup` skill first.
 
+**Emulator flaky on this x86 WSL2 host?** Use the Linux desktop path instead (see Fast Setup → Linux/macOS desktop). The 27 `ext.nothingness.*` extensions are platform-agnostic, so every drive.py command except `reset` and Android-specific perm grants works identically without ADB. The only feature gap is MediaStore-backed library scans (Android-only); on desktop the library is folder-based and stages files via any readable host path.
+
 ## Common Blockers (Fast Recovery)
 
 1. **`drive.py` says "could not find Dart VM service URI"**:
@@ -129,14 +175,14 @@ If `adb devices` shows nothing from WSL2, run the `wsl2-adb-setup` skill first.
    - Uninstall the existing package, then re-run `flutter run`.
 
 3. **Queue is empty after reinstall**:
-   - State shows `queueLen/queueLength = 0`. Set a queue with real files from `/sdcard/Music` or stage one via `agent_prepare.sh --stage`.
+   - State shows `queueLen/queueLength = 0`. Set a queue with real files from `/sdcard/Music` (Android) / any readable host path (desktop), or stage one via the Fast Setup `adb push` snippet.
 
 4. **SoLoud cannot load shared-storage file on emulator**:
    - Logcat shows `SoLoudFileNotFoundException` for `/sdcard/...` even though the file exists.
-   - Fix: `agent_prepare.sh --stage <host_file>` (preferred), then `drive.py play /data/user/0/com.saplin.nothingness/files/<name>`.
+   - Fix: push a host file with `adb -s <device> push <host> /data/user/0/com.saplin.nothingness/files/<name>` (see Fast Setup), then `drive.py play /data/user/0/com.saplin.nothingness/files/<name>`.
 
-5. **`Permissions Required` overlay blocks panel actions**:
-   - Fix A (preferred): `agent_prepare.sh -d <device>` — grants all runtime permissions in one shot.
+5. **`Permissions Required` overlay blocks panel actions** (Android only):
+   - Fix A (preferred): run the Fast Setup `pm grant` loop for all four perms in one shot.
    - Fix B: `drive.py permit` — triggers the in-app permission request flow.
 
 6. **Cannot tap a control via `tapByKey`**:

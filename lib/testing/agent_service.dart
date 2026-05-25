@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -147,9 +150,13 @@ class AgentService {
       'ext.nothingness.getOverflowReports',
       _getOverflowReports,
     );
+    developer.registerExtension(
+      'ext.nothingness.screenshot',
+      _screenshot,
+    );
 
     _registered = true;
-    debugPrint('[AgentService] registered 26 VM service extensions');
+    debugPrint('[AgentService] registered 27 VM service extensions');
   }
 
   // ---------------------------------------------------------------------------
@@ -1072,5 +1079,43 @@ class AgentService {
         .toList(growable: false);
     if (clear) _overflowReports.clear();
     return _ok({'reports': reports, 'count': reports.length});
+  }
+
+  /// Key for a top-level [RepaintBoundary] that wraps the app's visible
+  /// tree. The boundary is installed by [AgentRoot] in main.dart so the
+  /// screenshot extension can rasterize the current frame on any platform —
+  /// works on desktop where `adb screencap` is unavailable.
+  static final GlobalKey screenshotBoundaryKey =
+      GlobalKey(debugLabel: 'agent-screenshot-boundary');
+
+  /// Captures the current screen as a PNG via the [screenshotBoundaryKey]
+  /// repaint boundary. Returns base64-encoded bytes; drive.py writes them
+  /// to `.tmp/agent_shots/<name>.png`. Optional `pixelRatio` param defaults
+  /// to 1.0; pass e.g. `2.0` for retina-quality captures.
+  static Future<developer.ServiceExtensionResponse> _screenshot(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final pixelRatio = double.tryParse(params['pixelRatio'] ?? '') ?? 1.0;
+    final renderObject =
+        screenshotBoundaryKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary) {
+      return _error('screenshot boundary not mounted yet');
+    }
+    try {
+      final image = await renderObject.toImage(pixelRatio: pixelRatio);
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      final width = image.width;
+      final height = image.height;
+      image.dispose();
+      if (png == null) return _error('toByteData returned null');
+      return _ok({
+        'png_base64': base64Encode(png.buffer.asUint8List()),
+        'width': width,
+        'height': height,
+      });
+    } catch (e) {
+      return _error('screenshot failed: $e');
+    }
   }
 }

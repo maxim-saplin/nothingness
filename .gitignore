@@ -38,3 +38,6 @@ android/key.properties
 .venv/
 __pycache__/
 *.pyc
+
+# IDE folders
+.idea/

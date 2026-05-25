@@ -173,6 +173,17 @@ class _NothingAppState extends State<NothingApp> {
             builder: (context, child) {
               if (child == null) return const SizedBox.shrink();
 
+              // In debug builds AgentService rasterizes the current frame
+              // through this RepaintBoundary so drive.py can grab a PNG on
+              // desktop (where `adb screencap` does not apply). The wrapper
+              // is debug-only to keep release builds untouched.
+              if (kDebugMode) {
+                child = RepaintBoundary(
+                  key: AgentService.screenshotBoundaryKey,
+                  child: child,
+                );
+              }
+
               // On automotive OEM displays (e.g. Zeekr DHU) the platform
               // ignores statusBarIconBrightness/statusBarColor.  Draw a
               // Flutter scrim over the status-bar area so dark OEM icons

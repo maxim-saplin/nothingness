@@ -13,6 +13,11 @@ class LibraryService {
   static const String _rootsKey = 'roots';
   static const String _lastScanTimestampKey = 'lastScanTimestamp';
 
+  /// Desktop OSes use a folder-backed library with persisted roots. macOS
+  /// additionally wraps each root in a security-scoped bookmark; Linux has
+  /// no sandbox so a raw path round-trips.
+  static bool get _isDesktopRoots => Platform.isMacOS || Platform.isLinux;
+
   final SecureBookmarks? _secureBookmarks =
       Platform.isMacOS ? SecureBookmarks() : null;
   
@@ -28,16 +33,20 @@ class LibraryService {
   }
 
   Future<void> addRoot(String path) async {
-    if (!Platform.isMacOS) return;
-    
+    if (!_isDesktopRoots) return;
+
     try {
-      final bookmark = await _secureBookmarks!.bookmark(File(path));
+      // Linux has no sandbox — store the path itself as the "bookmark" so the
+      // persistence schema stays uniform across desktop OSes.
+      final bookmark = Platform.isMacOS
+          ? await _secureBookmarks!.bookmark(File(path))
+          : path;
       final currentRoots = Map<String, String>.from(rootsNotifier.value);
       currentRoots[path] = bookmark;
       rootsNotifier.value = currentRoots;
       await _persistRoots();
     } catch (e) {
-      debugPrint('Failed to create bookmark for $path: $e');
+      debugPrint('Failed to add root $path: $e');
     }
   }
 
