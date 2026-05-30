@@ -6,6 +6,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
 
+import '../support/pump_until.dart';
 import 'mock_audio_transport.dart';
 
 void main() {
@@ -230,8 +231,8 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      // Allow async event handlers to process
-      await Future.delayed(const Duration(milliseconds: 50));
+      // Wait for the load failure to be reflected on the queue.
+      await pumpUntil(() => controller.queueNotifier.value[0].isNotFound);
 
       // First track should be marked as not found
       final queue = controller.queueNotifier.value;
@@ -244,8 +245,8 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      // Allow async event handlers to process the error and skip
-      await Future.delayed(const Duration(milliseconds: 50));
+      // Wait for the error to be handled and the skip to land on track 1.
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       // Should have skipped to track 1
       expect(controller.currentIndexNotifier.value, 1);
@@ -272,8 +273,8 @@ void main() {
       transport.pathsToFailOnLoad.add('/path/track_0.mp3');
       final tracks = createTracks(3);
       await controller.setQueue(tracks);
-      await Future.delayed(const Duration(milliseconds: 50));
-      
+      await pumpUntil(() => controller.queueNotifier.value[0].isNotFound);
+
       expect(controller.queueNotifier.value[0].isNotFound, true);
 
       // Now simulate: file is restored, user tries again
@@ -282,7 +283,7 @@ void main() {
       
       // Go back to track 0
       await controller.playFromQueueIndex(0);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => !controller.queueNotifier.value[0].isNotFound);
 
       // Track should no longer be marked as not found
       expect(
@@ -302,8 +303,10 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      // Allow async error handling chain to complete
-      await Future.delayed(const Duration(milliseconds: 100));
+      // Wait for the whole queue to be exhausted and marked not-found.
+      await pumpUntil(
+        () => controller.queueNotifier.value.every((t) => t.isNotFound),
+      );
 
       // All tracks should be marked as not found
       expect(controller.queueNotifier.value.every((t) => t.isNotFound), true);
@@ -316,11 +319,11 @@ void main() {
       transport.pathsToFailOnLoad.add('/path/track_1.mp3');
       final tracks = createTracks(3);
       await controller.setQueue(tracks);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.isPlayingNotifier.value);
 
       // First, reach track 1 via Next so it becomes known-failed.
       await controller.next(); // tries track 1, fails, advances to 2
-      await Future.delayed(const Duration(milliseconds: 80));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
 
       expect(controller.queueNotifier.value[1].isNotFound, true);
       expect(controller.currentIndexNotifier.value, 2);
@@ -330,7 +333,7 @@ void main() {
       // playable track (track 2), keeping playback running.
       transport.resetCalls();
       await controller.playFromQueueIndex(1);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
 
       expect(controller.queueNotifier.value[1].isNotFound, true);
       expect(controller.currentIndexNotifier.value, 2);
@@ -342,11 +345,11 @@ void main() {
       transport.pathsToFailOnLoad.add('/path/track_2.mp3');
       final tracks = createTracks(5);
       await controller.setQueue(tracks, startIndex: 3);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 3);
 
       // Going previous should attempt track 2, mark it not found, then land on 1.
       await controller.previous();
-      await Future.delayed(const Duration(milliseconds: 100));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       expect(controller.queueNotifier.value[2].isNotFound, true);
       expect(controller.currentIndexNotifier.value, 1);
@@ -359,11 +362,11 @@ void main() {
       final tracks = createTracks(5);
 
       await controller.setQueue(tracks, startIndex: 1);
-      await Future.delayed(const Duration(milliseconds: 30));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       // Simulate natural end of track 1
       transport.emitTrackEnded();
-      await Future.delayed(const Duration(milliseconds: 80));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 3);
 
       // Should mark track 2 as not found and land on track 3 playing
       expect(controller.currentIndexNotifier.value, 3);
@@ -386,8 +389,8 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      // Allow async error handling to complete
-      await Future.delayed(const Duration(milliseconds: 50));
+      // Wait for the auto-skip past the failed track 0 to settle on track 1.
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       // Should have skipped to track 1 and be PLAYING
       expect(
@@ -432,8 +435,11 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      // Give more time for async error chain to complete
-      await Future.delayed(const Duration(milliseconds: 100));
+      // Wait for the async error chain (loadDelay + skip) to settle on track 1
+      // AND for the transport to actually be playing it (index commits before
+      // load()+play(), and this test has a loadDelay).
+      await pumpUntil(() =>
+          controller.currentIndexNotifier.value == 1 && transport.isPlaying);
 
       // Should be on track 1, playing
       expect(
@@ -464,7 +470,7 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       // Should be on track 1, playing
       expect(controller.currentIndexNotifier.value, 1);
@@ -504,7 +510,7 @@ void main() {
       final tracks = createTracks(4);
 
       await controller.setQueue(tracks);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.isPlayingNotifier.value);
 
       // Should be on track 0, playing
       expect(controller.currentIndexNotifier.value, 0);
@@ -512,7 +518,7 @@ void main() {
 
       // Simulate track 0 ending naturally
       transport.emitTrackEnded();
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
 
       // Should have skipped track 1 (failed) and be on track 2, playing
       expect(
@@ -553,14 +559,14 @@ void main() {
     test('delayed error for skipped track still marks it as failed', () async {
       final tracks = createTracks(5);
       await controller.setQueue(tracks);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 0);
 
       // Start at track 0
       expect(controller.currentIndexNotifier.value, 0);
 
       // Advance to track 2 (simulating track 1 ending and going to 2)
       await controller.playFromQueueIndex(2);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
       expect(controller.currentIndexNotifier.value, 2);
 
       // Simulate a delayed error event for track 1 (which we already passed)
@@ -573,7 +579,7 @@ void main() {
       
       // Advance from track 2 - will try track 3, fail, skip to track 4
       transport.emitTrackEnded();
-      await Future.delayed(const Duration(milliseconds: 100));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 4);
 
       // Should be on track 4
       expect(
@@ -608,14 +614,14 @@ void main() {
       final tracks = createTracks(3);
 
       await controller.setQueue(tracks);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       // Reset call tracking to see what happens when we click next
       transport.resetCalls();
-      
+
       // Now explicitly go to track 2
       await controller.next();
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
 
       // Should be on track 2 and playing
       expect(controller.currentIndexNotifier.value, 2);
@@ -633,17 +639,17 @@ void main() {
       
       // Start playing Track 2
       await controller.playFromQueueIndex(1);
-      await Future.delayed(const Duration(milliseconds: 50));
-      
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
+
       expect(controller.currentIndexNotifier.value, 1, reason: 'Should be on Track 2');
       expect(controller.isPlayingNotifier.value, true, reason: 'Track 2 should be playing');
 
       // Simulate Track 2 ending naturally
       // This triggers: Load Track 3 -> Fail -> Skip -> Load Track 4
       transport.emitTrackEnded();
-      
-      // Allow async operations to complete (load failure, skip, load success)
-      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Wait for the load failure → skip → load success chain to settle.
+      await pumpUntil(() => controller.currentIndexNotifier.value == 3);
 
       // Verify we are now on Track 4
       expect(controller.currentIndexNotifier.value, 3, reason: 'Should have skipped Track 3 and be on Track 4');
@@ -691,8 +697,8 @@ void main() {
       // Simulate track ending
       transport.emitTrackEnded();
 
-      // Allow async handlers to complete
-      await Future.delayed(const Duration(milliseconds: 50));
+      // Wait for the auto-advance to land on track 1.
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       expect(controller.currentIndexNotifier.value, 1);
       expect(transport.loadCalls.last, '/path/track_1.mp3');
@@ -704,7 +710,7 @@ void main() {
       expect(controller.currentIndexNotifier.value, 1);
 
       transport.emitTrackEnded();
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => !controller.isPlayingNotifier.value);
 
       // Should stop, not wrap around
       expect(controller.isPlayingNotifier.value, false);

@@ -7,6 +7,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
 
+import '../support/pump_until.dart';
 import 'mock_audio_transport.dart';
 
 /// Tests for B-014: search results should install as a sub-queue (a "search
@@ -105,7 +106,7 @@ void main() {
 
       // Natural end of the first search-result track.
       transport.emitTrackEnded();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       expect(controller.isInSearchSession, isTrue);
       expect(controller.currentIndexNotifier.value, 1);
@@ -189,7 +190,7 @@ void main() {
       // RESTORED queue (C), not anything from the search list.
       transport.resetCalls();
       transport.emitTrackEnded();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
 
       expect(controller.currentIndexNotifier.value, 2);
       expect(transport.loadedPath, '/queue/c.mp3');

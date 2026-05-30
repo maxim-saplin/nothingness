@@ -32,6 +32,9 @@ class FakeAudioTransport implements AudioTransport {
   bool _playing = false;
   Duration _position = Duration.zero;
 
+  /// Paths passed to [preload], in call order (test verification).
+  final List<String> preloadCalls = <String>[];
+
   FakeAudioTransport({
     Map<String, FakeLoadOutcome>? outcomesByPath,
     this.fixedDuration = const Duration(seconds: 10),
@@ -74,6 +77,11 @@ class FakeAudioTransport implements AudioTransport {
         _events.add(TransportErrorEvent(path: path, error: err));
         throw err;
     }
+  }
+
+  @override
+  Future<void> preload(String path) async {
+    preloadCalls.add(path);
   }
 
   @override

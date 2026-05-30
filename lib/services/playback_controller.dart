@@ -98,6 +98,11 @@ class PlaybackController {
   // Operation generation to ignore stale async continuations (rapid taps).
   int _opGeneration = 0;
 
+  // True while an end-of-track event is driving an advance. Guards against
+  // duplicate/stale `ended` events double-advancing and skipping a track
+  // (B-036).
+  bool _handlingEnded = false;
+
   _SelectionReason _lastSelectionReason = _SelectionReason.other;
   int _lastSelectionDirection = 1;
 
@@ -401,19 +406,30 @@ class PlaybackController {
   void _handleTrackEnded(String? path) {
     _logAudioEvent('transportEnded', {'path': path ?? ''});
 
+    // B-036: the transport can emit `ended` for the same track twice within a
+    // single transition window (a 300 ms position poll plus a `soundEvents`
+    // notification). `_handleTrackEnded` advances from the *current* index, so
+    // a second event arriving before the first advance commits would drive a
+    // second advance — loading the next track and then immediately skipping it.
+    // Ignore any ended event while an end-triggered advance is already running.
+    if (_handlingEnded) {
+      _log('Ignore ended: advance already in flight path=${path ?? 'null'}');
+      return;
+    }
+
     // One-shot: either loop in place (repeat-one) or restore the queue.
     if (_oneShot) {
-      if (_oneShotRepeatOne) {
-        unawaited(_restartOneShot());
-        return;
-      }
-      unawaited(_finishOneShot(manual: false));
+      _handlingEnded = true;
+      final future =
+          _oneShotRepeatOne ? _restartOneShot() : _finishOneShot(manual: false);
+      unawaited(future.whenComplete(() => _handlingEnded = false));
       return;
     }
 
     // Advance to next track if user wants to play
     if (_userIntent == PlayIntent.play) {
-      _skipToNext();
+      _handlingEnded = true;
+      unawaited(_skipToNext().whenComplete(() => _handlingEnded = false));
     } else {
       isPlayingNotifier.value = false;
     }
@@ -448,6 +464,20 @@ class PlaybackController {
       _log('SkipToNext: end of queue, paused');
       _emitSongInfo(force: true);
     }
+  }
+
+  /// Best-effort gapless look-ahead (B-037): ask the transport to preload the
+  /// track auto-advance will play next, so the eventual transition is an
+  /// in-memory swap rather than a fresh file read + decode. No-op at the queue
+  /// tail, during a one-shot, or for a track already known to have failed.
+  void _preloadNext() {
+    if (_oneShot) return;
+    final nextIdx = _playlist.nextOrderIndex();
+    if (nextIdx == null) return;
+    final track = _playlist.trackForOrderIndex(nextIdx);
+    if (track == null) return;
+    if (_failedTrackPaths.contains(track.path)) return;
+    unawaited(_transport.preload(track.path));
   }
 
   List<AudioTrack> _getQueueWithNotFoundFlags() {
@@ -752,6 +782,7 @@ class PlaybackController {
         }
 
         _emitSongInfo(force: true);
+        _preloadNext();
         return;
       } catch (e) {
         if (op != _opGeneration) return;

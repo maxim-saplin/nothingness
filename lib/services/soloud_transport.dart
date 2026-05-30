@@ -41,6 +41,12 @@ class SoLoudTransport implements AudioTransport {
   String? _endedEmittedForPath;
   bool _suppressEndedEvent = false;
 
+  // Look-ahead cache of at most one upcoming source (B-037). Populated by
+  // [preload]; consumed by [load] when the requested path matches, turning the
+  // track transition into an instant in-memory swap instead of a file read.
+  AudioSource? _preloadedSource;
+  String? _preloadedPath;
+
   // Cache of audio session + activation state. `setActive(true)` requests
   // Android audio focus via IPC (~100 ms on emulator). We previously called
   // it on every `play()` even though the session was already active from
@@ -202,6 +208,7 @@ class SoLoudTransport implements AudioTransport {
         debugPrint('Error disposing source: $e');
       }
     }
+    await _disposePreloaded();
     await _eventController.close();
     await _spectrumController.close();
   }
@@ -283,21 +290,17 @@ class SoLoudTransport implements AudioTransport {
     _currentPath = path;
 
     try {
-      if (p.extension(path).toLowerCase() == '.opus') {
-        final file = File(path);
-        final bytes = await file.readAsBytes();
-
-        _currentSource = _soloud.setBufferStream(
-          bufferingType: BufferingType.preserved,
-          format: BufferType.auto,
-          channels: Channels.stereo,
-          sampleRate: 44100,
-        );
-
-        _soloud.addAudioDataStream(_currentSource!, bytes);
-        _soloud.setDataIsEnded(_currentSource!);
+      if (_preloadedSource != null && _preloadedPath == path) {
+        // Gapless promotion (B-037): the upcoming track was already decoded by
+        // a prior [preload], so adopt it directly — no file read, no decode.
+        _currentSource = _preloadedSource;
+        _preloadedSource = null;
+        _preloadedPath = null;
       } else {
-        _currentSource = await _soloud.loadFile(path);
+        // The requested path isn't the preloaded one; any stale preload is now
+        // useless — drop it so it doesn't leak.
+        await _disposePreloaded();
+        _currentSource = await _openSource(path);
       }
 
       if (_currentSource != null) {
@@ -314,6 +317,64 @@ class SoLoudTransport implements AudioTransport {
       ));
       _suppressEndedEvent = false;
       rethrow;
+    }
+  }
+
+  @override
+  Future<void> preload(String path) async {
+    // Already current or already preloaded — nothing to do.
+    if (path == _currentPath) return;
+    if (path == _preloadedPath && _preloadedSource != null) return;
+
+    // A different track is queued than what we hold cached: dispose the stale
+    // cache before decoding the new look-ahead target.
+    await _disposePreloaded();
+
+    try {
+      final source = await _openSource(path);
+      // A concurrent load()/preload() may have moved on while we were decoding.
+      // Only keep the cache if it's still wanted and nothing else claimed it.
+      if (path == _currentPath || _preloadedSource != null) {
+        await _soloud.disposeSource(source);
+        return;
+      }
+      _preloadedSource = source;
+      _preloadedPath = path;
+    } catch (e) {
+      // Best-effort: a failed preload is silent. The real load() will surface
+      // the error if the user actually reaches this track.
+      debugPrint('[SoLoudTransport] preload failed for $path: $e');
+      _preloadedSource = null;
+      _preloadedPath = null;
+    }
+  }
+
+  /// Decode [path] into a SoLoud [AudioSource] without playing it.
+  Future<AudioSource> _openSource(String path) async {
+    if (p.extension(path).toLowerCase() == '.opus') {
+      final bytes = await File(path).readAsBytes();
+      final source = _soloud.setBufferStream(
+        bufferingType: BufferingType.preserved,
+        format: BufferType.auto,
+        channels: Channels.stereo,
+        sampleRate: 44100,
+      );
+      _soloud.addAudioDataStream(source, bytes);
+      _soloud.setDataIsEnded(source);
+      return source;
+    }
+    return _soloud.loadFile(path);
+  }
+
+  Future<void> _disposePreloaded() async {
+    final source = _preloadedSource;
+    _preloadedSource = null;
+    _preloadedPath = null;
+    if (source == null) return;
+    try {
+      await _soloud.disposeSource(source);
+    } catch (e) {
+      debugPrint('[SoLoudTransport] Error disposing preloaded source: $e');
     }
   }
 

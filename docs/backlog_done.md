@@ -1076,3 +1076,62 @@ to `_buildDotDisplayRows`, and replaced the Void `no options`
 placeholder with a `_buildVoidDisplayRows` helper containing
 `void-settings-void-text-size`. Both sliders are 50%..150% with 10
 divisions, matching the Spectrum UX.
+
+## B-036 (major): duplicate `transportEnded` silently skips a track on auto-advance
+
+- **Symptom** — During normal queue auto-advance, a track occasionally never
+  plays: the player jumps straight past it to the following track. Intermittent
+  (~15–20% of fresh-queue runs in driving).
+- **Repro** — Linux desktop driver (`DRIVE_TARGET=linux`), 2026-05-29. Audio-event
+  ring buffer for one failing run: `Ended t1` at 21:25:58.113 then a DUPLICATE
+  `Ended t1` 38 ms later → two advances (`Loaded t2` then `Loaded t3` 295 ms
+  later), so t2 was loaded then skipped before it played.
+- **Notes** — `PlaybackController._handleTrackEnded` ignored the event path and
+  advanced from the current index unconditionally; a duplicate ended (300 ms
+  poll + `soundEvents` notification) drove a second advance.
+- **Area** — transport
+
+**Closed**: 2026-05-29 — added an `_handlingEnded` in-flight guard in
+`PlaybackController._handleTrackEnded`: while an end-triggered advance is
+running (one-shot or queue), further ended events are ignored until the advance
+future completes. Verified on the live Linux app — a duplicate ended still
+fires at the transport level but `skips=0` across all trials. Regression test:
+`test/services/playback_controller_skip_bug_test.dart` ("B-036: duplicate ended
+event does not double-advance / skip a track").
+
+## B-037 (minor): ~430 ms audible gap on every track transition (no look-ahead/preload)
+
+- **Symptom** — Noticeable silence between consecutive tracks on auto-advance,
+  next, and prev. Not gapless.
+- **Repro** — Linux desktop driver, 2026-05-29. `ended → next loaded` deltas
+  averaged ~426 ms (228/456/594 ms in one pristine 5-track run).
+- **Notes** — Two contributors: (1) the transport loaded the next track on
+  demand (file read + decode) with no preload; (2) `setCurrentOrderIndex`
+  awaited a Hive `box.put` (resume-index persist) in the transition hot path.
+- **Area** — transport
+
+**Closed**: 2026-05-29 — (1) added `AudioTransport.preload(path)` and a
+one-slot look-ahead cache in `SoLoudTransport`: `load()` promotes the preloaded
+source instantly instead of re-reading the file; `PlaybackController._preloadNext()`
+preloads `nextOrderIndex()` after each successful play. (2) `PlaylistStore.setCurrentOrderIndex`
+now updates the index notifier synchronously and persists in the background
+(tracked via `_pendingPersist`, awaited in `dispose`). Verified on the live
+Linux app: mean transition gap ~426 ms → ~108 ms (max 306, no 400–600 ms
+spikes), no skips/regressions. Tests: "B-037: controller preloads the upcoming
+track after play" and "B-037: no preload at the queue tail" in
+`playback_controller_skip_bug_test.dart`.
+
+## B-038 (minor): visualizer bars stay frozen (non-zero) while paused
+
+- **Symptom** — When paused, the spectrum/visualizer held its last frame instead
+  of settling to flat, so the screen looked like audio was still playing.
+- **Repro** — Linux desktop driver, 2026-05-29: play, pause, poll
+  `getPlaybackState`; `spectrumNonZero` stayed `true` 5 s+ after pause.
+- **Area** — heroes
+
+**Closed**: 2026-05-29 — `SoLoudSpectrumProvider._poll` now checks
+`_soloud.getPause(handle)`: while paused it feeds a zeroed FFT through the
+analyzer so the existing smoothing decays the bars to flat, then emits one
+clean zero frame and stops until playback resumes. Verified on the live Linux
+app: `spectrumNonZero` decays to `false` ~1.5–1.8 s after pause and returns to
+`true` on resume.

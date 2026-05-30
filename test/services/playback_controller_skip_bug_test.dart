@@ -6,6 +6,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
 
+import '../support/pump_until.dart';
 import 'mock_audio_transport.dart';
 
 class MockPlaylistStore extends PlaylistStore {
@@ -135,8 +136,11 @@ void main() {
     // 2. playFromQueueIndex(1) -> load -> error -> handleTrackError -> _skipToNext -> playFromQueueIndex(2)
     // 3. playFromQueueIndex(2) -> load -> play
     
-    // We need to give enough time for all microtasks and timers
-    await Future.delayed(const Duration(milliseconds: 100));
+    // Wait for the error → skip → load → play chain to fully settle on Track 2.
+    // The index commits before load()+play(); also wait for the transport to be
+    // actually playing (this test has a loadDelay) before asserting on it.
+    await pumpUntil(() =>
+        controller.currentIndexNotifier.value == 2 && transport.isPlaying);
 
     // Expectation: Should be playing Track 2
     expect(controller.currentIndexNotifier.value, 2, reason: 'Should have skipped to Track 2');
@@ -146,5 +150,77 @@ void main() {
     
     // Also check if transport is actually playing
     expect(transport.isPlaying, true, reason: 'Transport should be playing');
+  });
+
+  test('B-036: duplicate ended during an in-flight advance does not skip a track',
+      () async {
+    final tracks = createTracks(4);
+    // Keep the advance in load() long enough that the duplicate `ended`
+    // deterministically arrives *while the first advance is still in flight* —
+    // that is the real B-036 race (a 300 ms poll + a `soundEvents` notification
+    // for the same track). A wide window removes timing luck from the test.
+    transport.loadDelay = const Duration(milliseconds: 80);
+
+    await controller.setQueue(tracks);
+    await pumpUntil(() => controller.currentIndexNotifier.value == 0);
+
+    // Track 0 ends → the advance to track 1 begins and parks in load().
+    transport.emitTrackEnded();
+    // The advance commits the index to 1 (set before load) while still loading.
+    await pumpUntil(() => controller.currentIndexNotifier.value == 1);
+
+    // Duplicate/stale ended arrives mid-advance. The guard must ignore it;
+    // without it, `_handleTrackEnded` advances again from the current index
+    // (1 → 2), loading and skipping track 1 before it ever plays.
+    transport.emitTrackEnded();
+
+    // Let the single legitimate advance finish, then give any erroneous second
+    // advance its full chance to manifest before asserting it never happened
+    // (a "did NOT skip" check needs a settle window, not a positive pumpUntil).
+    await pumpUntil(() => controller.isPlayingNotifier.value &&
+        controller.currentIndexNotifier.value == 1);
+    await Future.delayed(const Duration(milliseconds: 150));
+
+    expect(controller.currentIndexNotifier.value, 1,
+        reason: 'duplicate ended must not skip track 1');
+    expect(transport.loadCalls, isNot(contains('/path/track_2.mp3')),
+        reason: 'no second advance should have loaded track 2');
+
+    // A genuine later end still advances normally (guard is cleared).
+    transport.emitTrackEnded();
+    await pumpUntil(() => controller.currentIndexNotifier.value == 2);
+    expect(controller.currentIndexNotifier.value, 2,
+        reason: 'a real later ended still advances');
+  });
+
+  test('B-037: controller preloads the upcoming track after play', () async {
+    final tracks = createTracks(3);
+    await controller.setQueue(tracks);
+    // After starting track 0, the next track (track 1) should be preloaded.
+    await pumpUntil(() => transport.preloadCalls.contains('/path/track_1.mp3'));
+    expect(transport.preloadCalls, contains('/path/track_1.mp3'),
+        reason: 'Should look ahead and preload the next track');
+
+    // Advance; now track 2 should become the preload target.
+    transport.emitTrackEnded();
+    await pumpUntil(() => transport.preloadCalls.contains('/path/track_2.mp3'));
+    expect(controller.currentIndexNotifier.value, 1);
+    expect(transport.preloadCalls, contains('/path/track_2.mp3'));
+  });
+
+  test('B-037: no preload at the queue tail', () async {
+    final tracks = createTracks(2);
+    await controller.setQueue(tracks);
+    await pumpUntil(() => controller.currentIndexNotifier.value == 0);
+    // setQueue auto-plays index 0 (which preloads index 1); isolate the
+    // tail-play behaviour by clearing that first.
+    transport.preloadCalls.clear();
+
+    await controller.playFromQueueIndex(1); // last track
+    // Negative assertion: give a would-be preload its chance, then confirm none.
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    expect(transport.preloadCalls, isEmpty,
+        reason: 'Nothing to preload past the tail');
   });
 }

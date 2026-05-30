@@ -28,6 +28,7 @@ class MockAudioTransport implements AudioTransport {
   
   // Call tracking for verification
   final List<String> loadCalls = [];
+  final List<String> preloadCalls = [];
   final List<String> playCalls = [];
   final List<String> pauseCalls = [];
   final List<Duration> seekCalls = [];
@@ -85,6 +86,11 @@ class MockAudioTransport implements AudioTransport {
     if (autoEmitLoadedEvent) {
       _eventController.add(TransportLoadedEvent(path: path));
     }
+  }
+
+  @override
+  Future<void> preload(String path) async {
+    preloadCalls.add(path);
   }
 
   @override
@@ -158,6 +164,7 @@ class MockAudioTransport implements AudioTransport {
   /// Reset all call tracking
   void resetCalls() {
     loadCalls.clear();
+    preloadCalls.clear();
     playCalls.clear();
     pauseCalls.clear();
     seekCalls.clear();

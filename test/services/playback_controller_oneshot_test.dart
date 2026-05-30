@@ -7,6 +7,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
 
+import '../support/pump_until.dart';
 import 'mock_audio_transport.dart';
 
 void main() {
@@ -86,7 +87,9 @@ void main() {
 
       // Natural end: should restore queue at index 2.
       transport.emitTrackEnded();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(
+        () => !controller.isOneShot && controller.currentIndexNotifier.value == 2,
+      );
 
       expect(controller.isOneShot, isFalse);
       expect(controller.isOneShotNotifier.value, isFalse);
@@ -104,7 +107,7 @@ void main() {
       expect(controller.isOneShot, isTrue);
 
       transport.emitTrackEnded();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => !controller.isOneShot);
 
       // Should stop — no advance past the tail.
       expect(controller.isOneShot, isFalse);
@@ -140,7 +143,8 @@ void main() {
 
       transport.resetCalls();
       transport.emitTrackEnded();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // repeat-one reloads the same track in place; wait for that reload.
+      await pumpUntil(() => transport.loadCalls.contains(track.path));
 
       // Still in one-shot, looped back to the same track.
       expect(controller.isOneShot, isTrue);

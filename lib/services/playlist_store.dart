@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -29,6 +30,11 @@ class PlaylistStore {
   final Future<Box<dynamic>> Function(HiveInterface) _openBox;
   final Random _random;
 
+  // Tracks an in-flight background persist so [dispose] can await it before
+  // closing the box (B-037 — the resume-index write is kept off the playback
+  // hot path but must not be lost on shutdown).
+  Future<void>? _pendingPersist;
+
   final ValueNotifier<List<AudioTrack>> queueNotifier =
       ValueNotifier<List<AudioTrack>>(<AudioTrack>[]);
   final ValueNotifier<int?> currentOrderIndexNotifier = ValueNotifier<int?>(null);
@@ -56,6 +62,10 @@ class PlaylistStore {
   }
 
   Future<void> dispose() async {
+    // Let any background resume-index write land before we close the box.
+    try {
+      await _pendingPersist;
+    } catch (_) {}
     await _box?.flush();
     await _box?.close();
   }
@@ -117,7 +127,13 @@ class PlaylistStore {
     if (_playOrder.isEmpty) return;
     final clamped = orderIndex.clamp(0, _playOrder.length - 1).toInt();
     currentOrderIndexNotifier.value = clamped;
-    await _persistState();
+    // B-037: persist the resume index off the playback hot path. A track
+    // transition must not stall on a Hive disk write (~hundreds of ms on some
+    // hosts); the notifier above is updated synchronously, the write trails.
+    _pendingPersist = _persistState();
+    unawaited(_pendingPersist!.catchError((Object e) {
+      debugPrint('[PlaylistStore] background persist failed: $e');
+    }));
   }
 
   Future<void> setCurrentBaseIndex(int baseIndex) async {

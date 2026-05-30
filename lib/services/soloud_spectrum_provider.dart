@@ -58,11 +58,29 @@ class SoLoudSpectrumProvider implements SpectrumProvider {
     if (handle == null) return;
 
     try {
-      _audioData.updateSamples();
-      final samples = _audioData.getAudioData();
-      if (samples.length < 256) return;
+      // B-038: while the voice is paused the FFT buffer holds its last frame,
+      // so bars would freeze mid-air and read as "still playing". Feed a zeroed
+      // spectrum through the analyzer instead so the existing smoothing decays
+      // the bars to flat; once effectively silent, emit one clean zero frame
+      // and stop emitting until playback resumes.
+      List<double> fft;
+      if (_soloud.getPause(handle)) {
+        if (_lastValues.every((v) => v < 0.01)) {
+          if (_lastValues.any((v) => v != 0.0)) {
+            final flat = List<double>.filled(_lastValues.length, 0.0);
+            _controller.add(flat);
+            _lastValues = flat;
+          }
+          return;
+        }
+        fft = List<double>.filled(256, 0.0);
+      } else {
+        _audioData.updateSamples();
+        final samples = _audioData.getAudioData();
+        if (samples.length < 256) return;
+        fft = samples.sublist(0, 256);
+      }
 
-      final fft = samples.sublist(0, 256);
       final bars = _analyzer.transform(
         fft: fft,
         barCount: _settings.barCount.count,

@@ -72,6 +72,13 @@ abstract class AudioTransport {
   /// Emits TransportLoadedEvent on success, TransportErrorEvent on failure.
   Future<void> load(String path, {String? title, String? artist});
 
+  /// Preload an upcoming track so the next [load] of the same path is a
+  /// near-instant source swap rather than a fresh file read + decode (gapless
+  /// transitions, B-037). Best-effort: implementations may no-op, and a
+  /// preload that fails must not surface an error — the eventual [load] is the
+  /// authoritative attempt that reports success/failure.
+  Future<void> preload(String path) async {}
+
   /// Start playback.
   Future<void> play();
 

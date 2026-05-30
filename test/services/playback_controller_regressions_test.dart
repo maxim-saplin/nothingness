@@ -7,6 +7,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
 
+import '../support/pump_until.dart';
 import 'mock_audio_transport.dart';
 
 void main() {
@@ -68,7 +69,8 @@ void main() {
     await controller.setQueue(tracks, startIndex: 4);
 
     transport.emitTrackEnded();
-    await Future.delayed(const Duration(milliseconds: 50));
+    // At the tail with no repeat, the end-of-track stops playback.
+    await pumpUntil(() => !controller.isPlayingNotifier.value);
     expect(controller.isPlayingNotifier.value, isFalse);
     expect(controller.currentIndexNotifier.value, 4);
 

@@ -6,6 +6,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
 
+import '../support/pump_until.dart';
 import 'mock_audio_transport.dart';
 
 void main() {
@@ -88,12 +89,13 @@ void main() {
         AudioTrack(path: '/missing.mp3', title: 'missing'),
         AudioTrack(path: '/ok.mp3', title: 'ok'),
       ], startIndex: 1);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
       seenIndices.clear();
 
       await controller.playFromQueueIndex(0);
-      await Future.delayed(const Duration(milliseconds: 80));
+      // Tapping the missing track 0 marks it not-found and skips back to 1.
+      await pumpUntil(() => controller.queueNotifier.value[0].isNotFound);
 
       expect(controller.currentIndexNotifier.value, 1);
       expect(controller.queueNotifier.value[0].isNotFound, true);
@@ -103,7 +105,10 @@ void main() {
 
   test('songInfo notifier does not emit when state is unchanged', () async {
     await controller.setQueue(const [AudioTrack(path: '/ok.mp3', title: 'ok')]);
-    await Future.delayed(const Duration(milliseconds: 80));
+    // Inherently time-based test (the position timer is the only emitter).
+    // A fixed settle lets the initial emissions flush before we attach the
+    // listener; the assertion below then observes a quiet, unchanged window.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
 
     var emissions = 0;
     void listener() {
@@ -111,6 +116,9 @@ void main() {
     }
 
     controller.songInfoNotifier.addListener(listener);
+    // Absence assertion: observe across several 300 ms position-timer ticks and
+    // confirm no emission fires while the state is unchanged. This is an
+    // intentional fixed observation window, not a settle-for-a-result wait.
     await Future.delayed(const Duration(milliseconds: 900));
     controller.songInfoNotifier.removeListener(listener);
 
@@ -119,7 +127,9 @@ void main() {
 
   test('songInfo notifier emits when position changes', () async {
     await controller.setQueue(const [AudioTrack(path: '/ok.mp3', title: 'ok')]);
-    await Future.delayed(const Duration(milliseconds: 80));
+    // Flush initial settle emissions before attaching the listener, so the
+    // count below reflects only the position-change emit.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
 
     var emissions = 0;
     void listener() {
@@ -128,7 +138,7 @@ void main() {
 
     controller.songInfoNotifier.addListener(listener);
     transport.emitPosition(const Duration(seconds: 1));
-    await Future.delayed(const Duration(milliseconds: 400));
+    await pumpUntil(() => emissions >= 1);
     controller.songInfoNotifier.removeListener(listener);
 
     expect(emissions, greaterThanOrEqualTo(1));

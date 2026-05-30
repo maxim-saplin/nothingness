@@ -58,3 +58,40 @@ flutter test test/path/to/file_test.dart
 
 
 
+
+## Async unit tests: wait for conditions, not wall-clock budgets
+
+`flutter test` runs **one isolate per test file in parallel** (default
+concurrency = CPU cores). Under that oversubscription a starved isolate's
+timers fire late, so the classic pattern
+
+```dart
+someAsyncTrigger();
+await Future.delayed(const Duration(milliseconds: 50)); // wall-clock budget
+expect(controller.currentIndexNotifier.value, 2);       // may run too early → flaky
+```
+
+fails non-deterministically: the fixed delay can elapse before the async chain
+settles. Use `test/support/pump_until.dart` instead — it returns as soon as a
+condition holds (fast when idle) and tolerates a slow scheduler (parallel-safe):
+
+```dart
+import '../support/pump_until.dart';
+
+someAsyncTrigger();
+await pumpUntil(() => controller.currentIndexNotifier.value == 2);
+expect(controller.currentIndexNotifier.value, 2);
+```
+
+Guidance:
+*   **Positive ("reaches state") assertions** → `pumpUntil(condition)`. Wait on
+    the *terminal* signal you assert on. Note the controller commits its index
+    *before* `load()`/`play()`, so when a test asserts transport-level state
+    (`transport.isPlaying`, `loadedPath`) under a `loadDelay`, include that in
+    the condition: `pumpUntil(() => index == 2 && transport.isPlaying)`.
+*   **Negative ("stays unchanged" / "event ignored") assertions** → keep a fixed
+    settle delay. A late timer can't break a "no change" check, and the delay
+    gives an *erroneous* change a chance to surface (see the B-036 regression and
+    the interruption tests).
+*   **Inherently time-based tests** (e.g. counting periodic-timer emissions over
+    a window) stay on fixed delays — there is no single condition to await.
