@@ -62,12 +62,10 @@ class VoidBrowserState extends State<VoidBrowser> {
   List<AudioTrack> _searchResults = const <AudioTrack>[];
 
   // B-015: one ScrollController shared by the folder + search-results ListViews
-  // (mutually exclusive, so no conflict).
-  final ScrollController _scrollController = ScrollController();
-
-  // B-015: GlobalKey per file row, indexed by track path; kept alive across
-  // rebuilds so Scrollable.ensureVisible has a context for the crumb-jump.
-  final Map<String, GlobalKey> _fileRowKeys = <String, GlobalKey>{};
+  // (mutually exclusive, so no conflict). The per-track GlobalKeys (KeyedSubtree
+  // wrappers) give Scrollable.ensureVisible a stable target across rebuilds.
+  final ScrollController _scroll = ScrollController();
+  final Map<String, GlobalKey> _rowKeys = <String, GlobalKey>{};
 
   @override
   void initState() {
@@ -95,10 +93,8 @@ class VoidBrowserState extends State<VoidBrowser> {
   @override
   void dispose() {
     widget.searchController?.removeListener(_onSearchChanged);
-    _scrollController.dispose();
-    if (_ownsController) {
-      _controller.dispose();
-    }
+    _scroll.dispose();
+    if (_ownsController) _controller.dispose();
     super.dispose();
   }
 
@@ -113,21 +109,18 @@ class VoidBrowserState extends State<VoidBrowser> {
     if (index < 0) return;
 
     // addPostFrameCallback (vs endOfFrame) keeps the test binding progressing.
-    BuildContext? rowContext = _fileRowKeys[path]?.currentContext;
-    for (int i = 0; i < 30 && rowContext == null; i++) {
+    BuildContext? rowContext = _rowKeys[path]?.currentContext;
+    for (var i = 0; i < 30 && rowContext == null; i++) {
       if (!mounted) return;
       final completer = Completer<void>();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!completer.isCompleted) completer.complete();
-      });
-      // Ensure the binding has a frame to schedule the callback against.
-      WidgetsBinding.instance.scheduleFrame();
+      WidgetsBinding.instance.addPostFrameCallback((_) => completer.complete());
+      WidgetsBinding.instance.scheduleFrame(); // give the binding a frame
       await completer.future;
       if (!mounted) return;
-      rowContext = _fileRowKeys[path]?.currentContext;
+      rowContext = _rowKeys[path]?.currentContext;
     }
-
     if (!mounted) return;
+
     if (rowContext != null) {
       // Per-row GlobalKey context; the loop re-checks mounted each iteration.
       await Scrollable.ensureVisible(
@@ -142,56 +135,43 @@ class VoidBrowserState extends State<VoidBrowser> {
 
     // Row never built — fall back to animateTo. With reverse: true, offset 0 is
     // the visual bottom, so child index is hasUp + (tracks.length - 1 - index).
-    if (!_scrollController.hasClients) return;
+    if (!_scroll.hasClients) return;
     final hasUp = _controller.currentPath != null ? 1 : 0;
     final childIndex = hasUp + (tracks.length - 1 - index);
-    final viewport = _scrollController.position.viewportDimension;
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    final minScroll = _scrollController.position.minScrollExtent;
-    // Per-row pixel cost: prefer measuring a mounted row (accounts for padding +
-    // dividers + theme), else AppGeometry.rowHeight.
-    final geometry = Theme.of(context).extension<AppGeometry>()!;
-    double rowHeight = geometry.rowHeight;
-    for (final entry in _fileRowKeys.values) {
-      final ctx = entry.currentContext;
-      if (ctx == null) continue;
+    final pos = _scroll.position;
+    // Per-row pixel cost: prefer a measured mounted row (padding + dividers +
+    // theme), else AppGeometry.rowHeight.
+    var rowHeight = Theme.of(context).extension<AppGeometry>()!.rowHeight;
+    for (final key in _rowKeys.values) {
       // Our own GlobalKey context; outer mounted guards cover the lifecycle.
       // ignore: use_build_context_synchronously
-      final box = ctx.findRenderObject();
+      final box = key.currentContext?.findRenderObject();
       if (box is RenderBox && box.hasSize) {
         rowHeight = box.size.height;
         break;
       }
     }
     // Centre the row: subtract half the viewport so it lands near the middle.
-    final rawOffset =
-        childIndex * rowHeight - (viewport / 2) + (rowHeight / 2);
-    final clamped = rawOffset.clamp(minScroll, maxScroll);
-    await _scrollController.animateTo(
-      clamped,
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeOutCubic,
-    );
+    final target = (childIndex * rowHeight -
+            pos.viewportDimension / 2 +
+            rowHeight / 2)
+        .clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    await _scroll.animateTo(target,
+        duration: const Duration(milliseconds: 240), curve: Curves.easeOutCubic);
   }
-
-  GlobalKey _keyForTrack(String path) =>
-      _fileRowKeys.putIfAbsent(path, GlobalKey.new);
 
   void _kickOffInit() {
     if (_initStarted) return;
     _initStarted = true;
     // When the parent supplies the controller it owns init (sequencing restore
     // before paint); skip here to avoid racing two concurrent init() calls.
-    if (!_ownsController) return;
-    _controller.init();
+    if (_ownsController) _controller.init();
   }
 
   void _onSearchChanged() {
     final term = widget.searchController?.text.trim() ?? '';
     if (term == _searchTerm) return;
-    setState(() {
-      _searchTerm = term;
-    });
+    setState(() => _searchTerm = term);
     if (term.isNotEmpty) {
       _runSearch(term);
     } else {
@@ -203,18 +183,13 @@ class VoidBrowserState extends State<VoidBrowser> {
     // B-009: search spans the whole library — Android MediaStore cache on
     // Android, currently-loaded tracks elsewhere.
     final lower = term.toLowerCase();
-    final List<AudioTrack> haystack;
-    if (_controller.isAndroid) {
-      // Display the on-disk filename (sans extension), matching browser/hero.
-      haystack = _controller.androidSongs
-          .map((s) => AudioTrack(
-                path: s.path,
-                title: p.basenameWithoutExtension(s.path),
-              ))
-          .toList(growable: false);
-    } else {
-      haystack = await _controller.tracksForCurrentPath();
-    }
+    final haystack = _controller.isAndroid
+        // Display the on-disk filename (sans extension), matching browser/hero.
+        ? _controller.androidSongs
+            .map((s) => AudioTrack(
+                path: s.path, title: p.basenameWithoutExtension(s.path)))
+            .toList(growable: false)
+        : await _controller.tracksForCurrentPath();
     final matches = haystack
         .where((t) =>
             t.title.toLowerCase().contains(lower) ||
@@ -226,24 +201,18 @@ class VoidBrowserState extends State<VoidBrowser> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<AppPalette>()!;
-    final typography = Theme.of(context).extension<AppTypography>()!;
-    final geometry = Theme.of(context).extension<AppGeometry>()!;
-
+    final theme = _BrowserTheme.of(context);
     _kickOffInit();
 
     final listBody = Consumer<LibraryController>(
       builder: (context, controller, _) {
-        final isPermissionGate = controller.isAndroid && !controller.hasPermission;
-
-        if (isPermissionGate) {
-          return _buildPermissionGate(controller, palette, typography);
+        if (controller.isAndroid && !controller.hasPermission) {
+          return _permissionGate(controller, theme);
         }
-        // Rebuild when the smart-folders toggle flips so labels swap within a frame.
+        // Rebuild when the smart-folders toggle flips so labels swap in a frame.
         return ValueListenableBuilder<bool>(
           valueListenable: SettingsService().smartFoldersPresentationNotifier,
-          builder: (_, _, _) =>
-              _buildList(controller, palette, typography, geometry),
+          builder: (_, _, _) => _list(controller, theme),
         );
       },
     );
@@ -251,52 +220,36 @@ class VoidBrowserState extends State<VoidBrowser> {
     // B-032: when dismissable, stack a drag handle + close-gesture header above
     // the list; the gesture wraps only the header so list drags keep scrolling.
     final Widget body = widget.isDismissable
-        ? Column(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              _DragHandleAndCloseRegion(
-                palette: palette,
-                onDragDownClose: widget.onDragDownClose,
-              ),
-              Expanded(child: listBody),
-            ],
-          )
+        ? Column(children: [
+            _DragHandleAndCloseRegion(
+              palette: theme.palette,
+              onDragDownClose: widget.onDragDownClose,
+            ),
+            Expanded(child: listBody),
+          ])
         : listBody;
 
-    if (_ownsController) {
-      return ChangeNotifierProvider<LibraryController>.value(
-        value: _controller,
-        child: body,
-      );
-    }
-    return body;
+    return _ownsController
+        ? ChangeNotifierProvider<LibraryController>.value(
+            value: _controller, child: body)
+        : body;
   }
 
-  Widget _buildPermissionGate(
-    LibraryController controller,
-    AppPalette palette,
-    AppTypography typography,
-  ) {
+  Widget _permissionGate(LibraryController controller, _BrowserTheme t) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'permissions required',
-              style: _mono(typography, palette.fgPrimary, typography.rowSize),
-              textAlign: TextAlign.center,
-            ),
+            Text('permissions required',
+                style: t.mono(t.palette.fgPrimary, t.type.rowSize),
+                textAlign: TextAlign.center),
             const SizedBox(height: 12),
             PressFeedback(
               onTap: controller.requestPermission,
-              child: Text(
-                'tap to grant',
-                style:
-                    _mono(typography, palette.fgSecondary, typography.rowSize),
-              ),
+              child: Text('tap to grant',
+                  style: t.mono(t.palette.fgSecondary, t.type.rowSize)),
             ),
           ],
         ),
@@ -304,100 +257,41 @@ class VoidBrowserState extends State<VoidBrowser> {
     );
   }
 
-  Widget _buildList(
-    LibraryController controller,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    if (_searchTerm.isNotEmpty) {
-      return _buildSearchResults(palette, typography, geometry);
-    }
-
-    final List<Widget> rows = <Widget>[];
+  Widget _list(LibraryController controller, _BrowserTheme t) {
+    if (_searchTerm.isNotEmpty) return _searchList(t);
 
     // Folders, then files, then the up row anchored at the list bottom (just
     // above the crumb) so it stays within thumb reach.
-    for (final folder in controller.folders) {
-      // Folder row: '>' glyph, tap to open, long-press recursive shuffle (≈).
-      rows.add(_row(
-        key: ValueKey('void-folder:${folder.path}'),
-        label: folder.name,
-        glyph: '>',
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-        isPlaying: false,
-        onTap: () => controller.loadFolder(folder.path),
-        onLongPress: () => _playFolderRecursiveShuffled(folder.path),
-        previewGlyph: '≈',
-      ));
-    }
-    for (final track in controller.tracks) {
-      rows.add(_fileRow(track, controller, palette, typography, geometry));
-    }
-    if (controller.currentPath != null) {
-      // Up row, anchored at the bottom of the reversed list.
-      rows.add(_row(
-        key: const ValueKey('void-up'),
-        label: '..',
-        glyph: '<',
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-        isPlaying: false,
-        onTap: () => controller.navigateUp(),
-      ));
-    }
-
-    // Roots (top-level when no path): Android smart roots or filesystem roots.
-    if (controller.currentPath == null) {
-      if (controller.isAndroid) {
-        final friendly =
-            SettingsService().smartFoldersPresentationNotifier.value;
-        for (final section in controller.androidSmartRootSections) {
-          final isFallback = section.entries.length == 1 &&
-              section.entries.single == section.deviceRoot;
-          for (final path in section.entries) {
-            rows.add(_smartRootRow(
-              path,
-              controller,
-              palette,
-              typography,
-              geometry,
-              friendly: friendly,
-              isDeviceRootFallback: isFallback,
-            ));
-          }
-        }
-      } else {
-        final roots = LibraryService().rootsNotifier.value;
-        for (final root in roots.keys) {
-          // Filesystem root row: keyed by full path, labelled by basename.
-          rows.add(_row(
-            key: ValueKey('void-root:$root'),
-            label: p.basename(root),
+    final rows = <Widget>[
+      for (final folder in controller.folders)
+        // Folder row: '>' glyph, tap to open, long-press recursive shuffle (≈).
+        _row(t,
+            key: ValueKey('void-folder:${folder.path}'),
+            label: folder.name,
             glyph: '>',
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-            isPlaying: false,
-            onTap: () => controller.loadFolder(root),
-          ));
-        }
-      }
-    }
+            onTap: () => controller.loadFolder(folder.path),
+            onLongPress: () => _playFolderRecursiveShuffled(folder.path),
+            previewGlyph: '≈'),
+      for (final track in controller.tracks) _fileRow(track, controller, t),
+      // Up row, anchored at the bottom of the reversed list.
+      if (controller.currentPath != null)
+        _row(t,
+            key: const ValueKey('void-up'),
+            label: '..',
+            glyph: '<',
+            onTap: controller.navigateUp),
+      // Roots (top-level when no path): Android smart roots or filesystem roots.
+      if (controller.currentPath == null) ..._rootRows(controller, t),
+    ];
 
-    if (rows.isEmpty) {
-      return _empty('empty', palette, typography);
-    }
+    if (rows.isEmpty) return _empty('empty', t);
 
     // Bottom-anchored: reverse so the first DOM child sits at the visual bottom,
     // and reverse the children so on-screen order matches reading order. B-006:
     // cacheExtent 0 + hardEdge clip stop the reverse-axis cache pre-painting rows
     // above the viewport that would ghost into the hero area.
     return ListView(
-      controller: _scrollController,
+      controller: _scroll,
       reverse: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
       scrollCacheExtent: const ScrollCacheExtent.pixels(0),
@@ -406,81 +300,76 @@ class VoidBrowserState extends State<VoidBrowser> {
     );
   }
 
-  Widget _buildSearchResults(
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    if (_searchResults.isEmpty) {
-      return _empty('no matches', palette, typography);
+  Iterable<Widget> _rootRows(LibraryController controller, _BrowserTheme t) sync* {
+    if (controller.isAndroid) {
+      final friendly = SettingsService().smartFoldersPresentationNotifier.value;
+      for (final section in controller.androidSmartRootSections) {
+        final isFallback = section.entries.length == 1 &&
+            section.entries.single == section.deviceRoot;
+        for (final path in section.entries) {
+          yield _smartRootRow(path, controller, t,
+              friendly: friendly, isDeviceRootFallback: isFallback);
+        }
+      }
+    } else {
+      for (final root in LibraryService().rootsNotifier.value.keys) {
+        // Filesystem root row: keyed by full path, labelled by basename.
+        yield _row(t,
+            key: ValueKey('void-root:$root'),
+            label: p.basename(root),
+            glyph: '>',
+            onTap: () => controller.loadFolder(root));
+      }
     }
+  }
+
+  Widget _searchList(_BrowserTheme t) {
+    if (_searchResults.isEmpty) return _empty('no matches', t);
     return ListView.builder(
-      controller: _scrollController,
+      controller: _scroll,
       reverse: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
       scrollCacheExtent: const ScrollCacheExtent.pixels(0),
       clipBehavior: Clip.hardEdge,
       itemCount: _searchResults.length,
-      itemBuilder: (context, index) {
-        final reversedIndex = _searchResults.length - 1 - index;
-        final track = _searchResults[reversedIndex];
-        return _searchResultRow(track, palette, typography, geometry);
-      },
+      itemBuilder: (_, index) =>
+          _searchResultRow(_searchResults[_searchResults.length - 1 - index], t),
     );
   }
 
-  Widget _empty(String text, AppPalette palette, AppTypography typography) {
-    return Center(
-      child: Text(
-        text,
-        style: _mono(typography, palette.fgTertiary, typography.rowSize),
-      ),
-    );
-  }
+  Widget _empty(String text, _BrowserTheme t) => Center(
+        child: Text(text, style: t.mono(t.palette.fgTertiary, t.type.rowSize)),
+      );
 
-  Widget _fileRow(
-    AudioTrack track,
-    LibraryController controller,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    final player = context.watch<AudioPlayerProvider>();
-    final isPlaying = player.songInfo?.track.path == track.path;
-    final row = _row(
-      key: ValueKey('void-file:${track.path}'),
-      label: track.title,
-      glyph: '.',
-      palette: palette,
-      typography: typography,
-      geometry: geometry,
-      isPlaying: isPlaying,
-      onTap: () => _playFileFromFolder(track, controller),
-      onLongPress: () => _playOneShot(track),
-      previewGlyph: '↩', // ↩ — one-shot return marker
-    );
+  Widget _fileRow(AudioTrack track, LibraryController controller, _BrowserTheme t) {
+    final isPlaying =
+        context.watch<AudioPlayerProvider>().songInfo?.track.path == track.path;
     // B-015: per-track GlobalKey via KeyedSubtree gives Scrollable.ensureVisible
     // a stable target; the inner row's ValueKey still drives QA taps + identity.
     return KeyedSubtree(
-      key: _keyForTrack(track.path),
-      child: row,
+      key: _rowKeys.putIfAbsent(track.path, GlobalKey.new),
+      child: _row(t,
+          key: ValueKey('void-file:${track.path}'),
+          label: track.title,
+          glyph: '.',
+          isPlaying: isPlaying,
+          onTap: () => _playFileFromFolder(track, controller),
+          onLongPress: () => _playOneShot(track),
+          previewGlyph: '↩'), // ↩ — one-shot return marker
     );
   }
 
   Widget _smartRootRow(
     String path,
     LibraryController controller,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry, {
+    _BrowserTheme t, {
     required bool friendly,
     required bool isDeviceRootFallback,
   }) {
-    final String label;
-    final String? subLabel;
+    String label;
+    String? subLabel;
     if (!friendly) {
       label = path;
-      subLabel = null;
     } else if (isDeviceRootFallback) {
       label = fallbackDeviceLabel(path);
       subLabel = path;
@@ -489,113 +378,78 @@ class VoidBrowserState extends State<VoidBrowser> {
       label = l.display;
       subLabel = l.subtitle;
     }
-    return _row(
-      key: ValueKey('void-smart:$path'),
-      label: label,
-      subLabel: subLabel,
-      glyph: '>',
-      palette: palette,
-      typography: typography,
-      geometry: geometry,
-      isPlaying: false,
-      onTap: () => controller.loadFolder(path),
-    );
+    return _row(t,
+        key: ValueKey('void-smart:$path'),
+        label: label,
+        subLabel: subLabel,
+        glyph: '>',
+        onTap: () => controller.loadFolder(path));
   }
 
   /// Search title: plain mid-ellipsis when unmatched, else a rich span with the
   /// match in fgPrimary. B-019: the highlight branch uses tail-ellipsis.
-  Widget _searchTitleLabel(String title, String term, TextStyle titleStyle,
-      AppPalette palette) {
-    final matchIdx = title.toLowerCase().indexOf(term);
-    if (matchIdx < 0) {
-      return MidEllipsis(text: title, style: titleStyle);
-    }
+  Widget _searchTitleLabel(
+      String title, String term, TextStyle style, AppPalette palette) {
+    final i = title.toLowerCase().indexOf(term);
+    if (i < 0) return MidEllipsis(text: title, style: style);
     return Text.rich(
-      TextSpan(
-        style: titleStyle,
-        children: <TextSpan>[
-          TextSpan(text: title.substring(0, matchIdx)),
-          TextSpan(
-            text: title.substring(matchIdx, matchIdx + term.length),
-            style: TextStyle(color: palette.fgPrimary),
-          ),
-          TextSpan(text: title.substring(matchIdx + term.length)),
-        ],
-      ),
+      TextSpan(style: style, children: [
+        TextSpan(text: title.substring(0, i)),
+        TextSpan(
+            text: title.substring(i, i + term.length),
+            style: TextStyle(color: palette.fgPrimary)),
+        TextSpan(text: title.substring(i + term.length)),
+      ]),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
   }
 
-  Widget _searchResultRow(
-    AudioTrack track,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
+  Widget _searchResultRow(AudioTrack track, _BrowserTheme t) {
     final parent = p.basename(p.dirname(track.path));
-    final titleStyle =
-        _mono(typography, palette.fgSecondary, typography.rowSize);
-    final labelWidget = _searchTitleLabel(
-        track.title, _searchTerm.toLowerCase(), titleStyle, palette);
-
     // B-014: tapping installs the result list as a sub-queue starting at the
     // tapped track (located by path); see [_playSearchResult]. Shares the row
     // scaffold with [_row] via [titleWidget] — only the title span (search
     // highlight) and the trailing parent-folder hint differ.
-    return _row(
-      key: ValueKey('void-search:${track.path}'),
-      label: track.title,
-      titleWidget: labelWidget,
-      glyph: '.',
-      palette: palette,
-      typography: typography,
-      geometry: geometry,
-      isPlaying: false,
-      onTap: () => _playSearchResult(track),
-      trailing: parent.isEmpty
-          ? null
-          : Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Text(
-                '— $parent',
-                style:
-                    _mono(typography, palette.fgTertiary, typography.hintSize),
-              ),
-            ),
-    );
+    return _row(t,
+        key: ValueKey('void-search:${track.path}'),
+        label: track.title,
+        titleWidget: _searchTitleLabel(track.title, _searchTerm.toLowerCase(),
+            t.mono(t.palette.fgSecondary, t.type.rowSize), t.palette),
+        glyph: '.',
+        onTap: () => _playSearchResult(track),
+        trailing: parent.isEmpty
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Text('— $parent',
+                    style: t.mono(t.palette.fgTertiary, t.type.hintSize)),
+              ));
   }
 
-  /// Mono text style helper — every row glyph/label shares the same family.
-  TextStyle _mono(AppTypography typography, Color color, double size) =>
-      TextStyle(color: color, fontFamily: typography.monoFamily, fontSize: size);
-
-  Widget _row({
+  Widget _row(
+    _BrowserTheme t, {
     required Key key,
     required String label,
     required String glyph,
-    required AppPalette palette,
-    required AppTypography typography,
-    required AppGeometry geometry,
-    required bool isPlaying,
     required VoidCallback onTap,
+    bool isPlaying = false,
     VoidCallback? onLongPress,
     String? previewGlyph,
     String? subLabel,
     // When supplied, used verbatim as the title (e.g. the search-highlight
-    // span); otherwise the title is built from [label] exactly as before.
+    // span); otherwise the title is built from [label].
     Widget? titleWidget,
     // Optional trailing widget after the title (e.g. the search parent hint).
     Widget? trailing,
   }) {
-    final Color bg = isPlaying ? palette.inverted : Colors.transparent;
-    final Color fg = isPlaying ? palette.background : palette.fgPrimary;
-    final Color glyphColor = isPlaying ? palette.background : palette.fgTertiary;
+    final palette = t.palette;
+    final bg = isPlaying ? palette.inverted : Colors.transparent;
+    final fg = isPlaying ? palette.background : palette.fgPrimary;
+    final glyphColor = isPlaying ? palette.background : palette.fgTertiary;
+    final labelStyle = t.mono(fg, t.type.rowSize);
 
-    final TextStyle labelStyle = _mono(typography, fg, typography.rowSize);
-    final TextStyle subLabelStyle =
-        _mono(typography, palette.fgTertiary, typography.crumbSize);
-    final Widget labelColumn = titleWidget ??
+    final labelColumn = titleWidget ??
         (subLabel == null
             ? MidEllipsis(text: label, style: labelStyle)
             : Column(
@@ -603,7 +457,9 @@ class VoidBrowserState extends State<VoidBrowser> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   MidEllipsis(text: label, style: labelStyle),
-                  MidEllipsis(text: subLabel, style: subLabelStyle),
+                  MidEllipsis(
+                      text: subLabel,
+                      style: t.mono(palette.fgTertiary, t.type.crumbSize)),
                 ],
               ));
 
@@ -613,58 +469,50 @@ class VoidBrowserState extends State<VoidBrowser> {
       onLongPress: onLongPress,
       previewGlyph: previewGlyph,
       palette: palette,
-      typography: typography,
-      geometry: geometry,
+      typography: t.type,
+      geometry: t.geometry,
       child: Container(
-        constraints: BoxConstraints(minHeight: geometry.rowHeight),
+        constraints: BoxConstraints(minHeight: t.geometry.rowHeight),
         color: bg,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: Row(
-          children: [
-            SizedBox(
+        child: Row(children: [
+          SizedBox(
               width: 16,
-              child: Text(
-                glyph,
-                style: _mono(typography, glyphColor, typography.rowSize),
-              ),
-            ),
-            Expanded(child: labelColumn),
-            ?trailing,
-          ],
-        ),
+              child: Text(glyph, style: t.mono(glyphColor, t.type.rowSize))),
+          Expanded(child: labelColumn),
+          ?trailing,
+        ]),
       ),
     );
   }
 
   void _playFileFromFolder(AudioTrack track, LibraryController controller) {
-    final player = context.read<AudioPlayerProvider>();
     final tracks = controller.tracks;
     final index = tracks.indexWhere((t) => t.path == track.path);
-    final startIndex = index < 0 ? 0 : index;
-    player.setQueue(tracks, startIndex: startIndex);
+    context
+        .read<AudioPlayerProvider>()
+        .setQueue(tracks, startIndex: index < 0 ? 0 : index);
   }
 
-  void _playOneShot(AudioTrack track) {
-    final player = context.read<AudioPlayerProvider>();
-    player.playOneShot(track);
-  }
+  void _playOneShot(AudioTrack track) =>
+      context.read<AudioPlayerProvider>().playOneShot(track);
 
   /// B-014: install the visible result list as a search-session sub-queue with
   /// the tapped track active; the prior queue is restored on search dismiss.
   void _playSearchResult(AudioTrack track) {
-    final player = context.read<AudioPlayerProvider>();
     final results = _searchResults;
     if (results.isEmpty) return;
     final idx = results.indexWhere((t) => t.path == track.path);
-    final tappedIndex = idx < 0 ? 0 : idx;
-    player.enterSearchSession(results, tappedIndex);
+    context
+        .read<AudioPlayerProvider>()
+        .enterSearchSession(results, idx < 0 ? 0 : idx);
   }
 
   Future<void> _playFolderRecursiveShuffled(String path) async {
     try {
       final player = context.read<AudioPlayerProvider>();
       // Android loads via tracksForCurrentPath after loadFolder; else scanFolder.
-      List<AudioTrack> tracks;
+      final List<AudioTrack> tracks;
       if (_controller.isAndroid) {
         await _controller.loadFolder(path);
         tracks = await _controller.tracksForCurrentPath();
@@ -675,16 +523,36 @@ class VoidBrowserState extends State<VoidBrowser> {
       await player.setQueue(tracks, startIndex: 0, shuffle: true);
     } catch (e) {
       LoggingService().log(
-        tag: 'VoidBrowser',
-        message: 'Recursive shuffle failed for $path: $e',
-      );
+          tag: 'VoidBrowser', message: 'Recursive shuffle failed for $path: $e');
     }
   }
 }
 
+/// Resolved theme extensions + the shared mono text-style helper — every row
+/// glyph/label uses the same family, so we thread one bundle through builders.
+class _BrowserTheme {
+  const _BrowserTheme(this.palette, this.type, this.geometry);
+
+  final AppPalette palette;
+  final AppTypography type;
+  final AppGeometry geometry;
+
+  factory _BrowserTheme.of(BuildContext context) {
+    final theme = Theme.of(context);
+    return _BrowserTheme(
+      theme.extension<AppPalette>()!,
+      theme.extension<AppTypography>()!,
+      theme.extension<AppGeometry>()!,
+    );
+  }
+
+  TextStyle mono(Color color, double size) =>
+      TextStyle(color: color, fontFamily: type.monoFamily, fontSize: size);
+}
+
 /// B-032: header band atop the open swipe-up browser — drag-handle pill + a
 /// dual-threshold drag-down-to-close gesture (B-027 pattern: fires on distance
-/// [_dragDistanceThreshold] OR velocity [_dragVelocityThreshold], `_fired` latch
+/// [_distanceThreshold] OR velocity [_velocityThreshold], `_fired` latch
 /// prevents double-firing). Only the band hosts the gesture; the list scrolls free.
 class _DragHandleAndCloseRegion extends StatefulWidget {
   const _DragHandleAndCloseRegion({
@@ -702,17 +570,16 @@ class _DragHandleAndCloseRegion extends StatefulWidget {
 
 class _DragHandleAndCloseRegionState extends State<_DragHandleAndCloseRegion> {
   // B-032 / B-027: 60 dp distance OR > 300 dp/s end-velocity, whichever first.
-  static const double _dragDistanceThreshold = 60.0;
-  static const double _dragVelocityThreshold = 300.0;
+  static const double _distanceThreshold = 60;
+  static const double _velocityThreshold = 300;
 
   double _accum = 0;
   bool _fired = false;
 
   void _onUpdate(DragUpdateDetails d) {
     if (_fired) return;
-    _accum += d.primaryDelta ?? 0;
-    // Positive y delta = downward = close.
-    if (_accum > _dragDistanceThreshold) {
+    _accum += d.primaryDelta ?? 0; // positive y delta = downward = close
+    if (_accum > _distanceThreshold) {
       _fired = true;
       _accum = 0;
       widget.onDragDownClose?.call();
@@ -720,13 +587,9 @@ class _DragHandleAndCloseRegionState extends State<_DragHandleAndCloseRegion> {
   }
 
   void _onEnd(DragEndDetails d) {
-    if (!_fired) {
-      final v = d.primaryVelocity ?? 0;
-      // Positive velocity = downward fling.
-      if (v > _dragVelocityThreshold) {
-        _fired = true;
-        widget.onDragDownClose?.call();
-      }
+    // Positive velocity = downward fling.
+    if (!_fired && (d.primaryVelocity ?? 0) > _velocityThreshold) {
+      widget.onDragDownClose?.call();
     }
     _accum = 0;
     _fired = false;
@@ -744,7 +607,7 @@ class _DragHandleAndCloseRegionState extends State<_DragHandleAndCloseRegion> {
         key: const ValueKey('void-browser-drag-handle'),
         width: double.infinity,
         // B-033: 10 px band so the pill reads as separate from the list.
-        padding: const EdgeInsets.only(top: 10, bottom: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         alignment: Alignment.center,
         child: Container(
           key: const ValueKey('void-browser-drag-handle-pill'),
@@ -761,6 +624,8 @@ class _DragHandleAndCloseRegionState extends State<_DragHandleAndCloseRegion> {
   }
 }
 
+/// One browser row: a divider-underlined [PressFeedback] that overlays a faint
+/// [previewGlyph] while a long-press is held (B-030 press feedback).
 class _VoidRow extends StatefulWidget {
   const _VoidRow({
     required this.rowKey,
@@ -791,16 +656,15 @@ class _VoidRowState extends State<_VoidRow> {
 
   @override
   Widget build(BuildContext context) {
+    final hasLongPress = widget.onLongPress != null;
     return PressFeedback(
       key: widget.rowKey,
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
-      onLongPressStart: widget.onLongPress == null
-          ? null
-          : (_) => setState(() => _showPreview = true),
-      onLongPressEnd: widget.onLongPress == null
-          ? null
-          : (_) => setState(() => _showPreview = false),
+      onLongPressStart:
+          hasLongPress ? (_) => setState(() => _showPreview = true) : null,
+      onLongPressEnd:
+          hasLongPress ? (_) => setState(() => _showPreview = false) : null,
       child: Container(
         decoration: BoxDecoration(
           border: Border(
@@ -810,27 +674,25 @@ class _VoidRowState extends State<_VoidRow> {
             ),
           ),
         ),
-        child: Stack(
-          children: [
-            widget.child,
-            if (_showPreview && widget.previewGlyph != null)
-              Positioned(
-                right: 18,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Text(
-                    widget.previewGlyph!,
-                    style: TextStyle(
-                      color: widget.palette.fgTertiary,
-                      fontFamily: widget.typography.monoFamily,
-                      fontSize: widget.typography.hintSize,
-                    ),
+        child: Stack(children: [
+          widget.child,
+          if (_showPreview && widget.previewGlyph != null)
+            Positioned(
+              right: 18,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Text(
+                  widget.previewGlyph!,
+                  style: TextStyle(
+                    color: widget.palette.fgTertiary,
+                    fontFamily: widget.typography.monoFamily,
+                    fontSize: widget.typography.hintSize,
                   ),
                 ),
               ),
-          ],
-        ),
+            ),
+        ]),
       ),
     );
   }

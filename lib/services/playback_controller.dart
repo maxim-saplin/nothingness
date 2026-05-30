@@ -16,21 +16,25 @@ import 'soloud_transport.dart';
 /// The user's explicit intent for playback state.
 enum PlayIntent { play, pause }
 
-/// Queue + index snapshot for a search session (B-014); restored on
-/// `exitSearchSession` without reloading the playing track.
-class _SearchSession {
-  _SearchSession({required this.savedQueue, required this.savedIndex});
-
-  final List<AudioTrack> savedQueue;
-  final int savedIndex;
-}
-
 /// Why a selection/play attempt is happening.
 enum _SelectionReason { userTap, previous, autoAdvance, setQueue, other }
 
 /// Single source of truth for playback: user intent, queue, error recovery,
-/// and coordination with the AudioTransport.
+/// and coordination with the [AudioTransport].
 class PlaybackController {
+  PlaybackController({
+    required AudioTransport transport,
+    PlaylistStore? playlist,
+    this.debugPlaybackLogs = false,
+    this.preflightFileExists = true,
+    Future<bool> Function(String path)? fileExists,
+    this.captureRecentLogs = false,
+    this.recentLogCapacity = 50,
+  })  : _transport = transport,
+        _playlist = playlist ?? PlaylistStore(),
+        _fileExists = fileExists ?? _defaultFileExists,
+        _supportedExtensions = _getSupportedExtensions(transport);
+
   final AudioTransport _transport;
   final PlaylistStore _playlist;
   final bool debugPlaybackLogs;
@@ -38,26 +42,34 @@ class PlaybackController {
   final Future<bool> Function(String path) _fileExists;
   final bool captureRecentLogs;
   final int recentLogCapacity;
-  final List<String> _recentLogs = <String>[];
+  final Set<String> _supportedExtensions;
+
+  final ValueNotifier<SongInfo?> songInfoNotifier = ValueNotifier(null);
+  final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> isOneShotNotifier = ValueNotifier(false);
+  final ValueNotifier<List<AudioTrack>> queueNotifier = ValueNotifier(const []);
 
   PlayIntent _userIntent = PlayIntent.pause;
   PlayIntent get userIntent => _userIntent;
-  final ValueNotifier<SongInfo?> songInfoNotifier = ValueNotifier(null);
-  final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
+
+  ValueNotifier<int?> get currentIndexNotifier =>
+      _playlist.currentOrderIndexNotifier;
+  ValueNotifier<bool> get shuffleNotifier => _playlist.shuffleNotifier;
 
   // One-shot: a track played outside the queue. On natural end the queue is
-  // restored at `_queueIndexAtOneShotStart + 1`; explicit prev/next clears it.
+  // restored at `_oneShotResumeIndex + 1`; explicit prev/next clears it.
   bool _oneShot = false;
-  int? _queueIndexAtOneShotStart;
+  int? _oneShotResumeIndex;
   AudioTrack? _oneShotTrack;
   bool _oneShotRepeatOne = false;
-  final ValueNotifier<bool> isOneShotNotifier = ValueNotifier(false);
   bool get isOneShot => _oneShot;
   AudioTrack? get oneShotTrack => _oneShotTrack;
 
   // Search-session state (B-014): original queue/index preserved for restore.
-  _SearchSession? _activeSearchSession;
-  bool get isInSearchSession => _activeSearchSession != null;
+  // Snapshot taken on first enter only; null when no session is active.
+  List<AudioTrack>? _savedQueue;
+  int _savedIndex = 0;
+  bool get isInSearchSession => _savedQueue != null;
 
   // Paths of files that failed to load (backend-agnostic).
   final Set<String> _failedTrackPaths = <String>{};
@@ -65,7 +77,6 @@ class PlaybackController {
   // Path being loaded; only errors matching it are acted on (transports emit
   // late/spurious errors for a path after we've moved on).
   String? _pendingLoadPath;
-  // Transient error streak guard, to avoid burning through the queue.
   int _transientErrorCount = 0;
   DateTime? _transientWindowStart;
 
@@ -77,7 +88,7 @@ class PlaybackController {
   _SelectionReason _lastSelectionReason = _SelectionReason.other;
   int _lastSelectionDirection = 1;
 
-  // Diagnostics: last-error attribution.
+  // Diagnostics: last-error attribution + queue-tail latch.
   String? _lastErrorPath;
   String? _lastErrorReason;
   String? _lastErrorMessage;
@@ -91,51 +102,30 @@ class PlaybackController {
   bool _pausedByInterruption = false;
   Timer? _positionTimer;
 
-  // Audio-event ring buffer for diagnosing route changes / interruptions.
+  final List<String> _recentLogs = <String>[];
   final List<String> _audioEvents = <String>[];
   static const int _audioEventsCap = 300;
-  // Queue mirror including isNotFound flags.
-  final ValueNotifier<List<AudioTrack>> queueNotifier = ValueNotifier(const []);
-  final Set<String> _supportedExtensions;
 
-  PlaybackController({
-    required AudioTransport transport,
-    PlaylistStore? playlist,
-    this.debugPlaybackLogs = false,
-    this.preflightFileExists = true,
-    Future<bool> Function(String path)? fileExists,
-    this.captureRecentLogs = false,
-    this.recentLogCapacity = 50,
-  }) : _transport = transport,
-       _playlist = playlist ?? PlaylistStore(),
-       _fileExists = fileExists ?? _defaultFileExists,
-       _supportedExtensions = _getSupportedExtensions(transport);
+  static Future<bool> _defaultFileExists(String path) => File(path).exists();
 
   static void _appendCapped(List<String> buffer, String entry, int cap) {
     buffer.add(entry);
-    if (buffer.length > cap) {
-      buffer.removeRange(0, buffer.length - cap);
-    }
+    if (buffer.length > cap) buffer.removeRange(0, buffer.length - cap);
   }
 
   void _log(String message) {
     if (captureRecentLogs || debugPlaybackLogs) {
       _appendCapped(_recentLogs, message, max(1, recentLogCapacity));
     }
-    if (debugPlaybackLogs) {
-      debugPrint('[PlaybackController] $message');
-    }
+    if (debugPlaybackLogs) debugPrint('[PlaybackController] $message');
   }
 
-  static Future<bool> _defaultFileExists(String path) => File(path).exists();
-
-  Future<void> _loadTrack(AudioTrack track) =>
-      _transport.load(track.path, title: track.title, artist: track.artist);
-
-  // The track at the current order index, or null if none is selected.
-  AudioTrack? get _currentTrack {
-    final idx = _playlist.currentOrderIndexNotifier.value;
-    return idx == null ? null : _playlist.trackForOrderIndex(idx);
+  void _logAudioEvent(String tag, [Map<String, Object?>? data]) {
+    final ts = DateTime.now().toIso8601String();
+    final dataStr = (data == null || data.isEmpty)
+        ? ''
+        : ' ${data.entries.map((e) => '${e.key}=${e.value}').join(' ')}';
+    _appendCapped(_audioEvents, '$ts $tag$dataStr', _audioEventsCap);
   }
 
   void _recordError(String path, String reason, String message) {
@@ -148,9 +138,17 @@ class PlaybackController {
   /// Recent controller logs (if enabled), for test/diagnostics.
   List<String> recentLogs() => List<String>.unmodifiable(_recentLogs);
 
-  ValueNotifier<int?> get currentIndexNotifier =>
-      _playlist.currentOrderIndexNotifier;
-  ValueNotifier<bool> get shuffleNotifier => _playlist.shuffleNotifier;
+  /// Audio-event ring buffer (interruption / route / load / error).
+  List<String> audioEvents() => List<String>.unmodifiable(_audioEvents);
+
+  Future<void> _loadTrack(AudioTrack track) =>
+      _transport.load(track.path, title: track.title, artist: track.artist);
+
+  // The track at the current order index, or null if none is selected.
+  AudioTrack? get _currentTrack {
+    final idx = _playlist.currentOrderIndexNotifier.value;
+    return idx == null ? null : _playlist.trackForOrderIndex(idx);
+  }
 
   Future<void> init() async {
     await _playlist.init();
@@ -162,12 +160,9 @@ class PlaybackController {
     // Audio focus / interruption events; unavailable in some test/host envs.
     try {
       final session = await AudioSession.instance;
-      _interruptionSub = session.interruptionEventStream.listen(
-        _onInterruption,
-      );
-      _noisySub = session.becomingNoisyEventStream.listen(
-        (_) => _onBecomingNoisy(),
-      );
+      _interruptionSub = session.interruptionEventStream.listen(_onInterruption);
+      _noisySub =
+          session.becomingNoisyEventStream.listen((_) => _onBecomingNoisy());
       _devicesSub = session.devicesChangedEventStream.listen(_onDevicesChanged);
       _log('Initialized: subscribed to audio session events');
     } catch (e) {
@@ -176,12 +171,11 @@ class PlaybackController {
 
     _playlist.queueNotifier.addListener(_updateQueueWithNotFoundFlags);
     _playlist.currentOrderIndexNotifier.addListener(_onIndexChanged);
-    _playlist.shuffleNotifier.addListener(_onShuffleChanged);
+    _playlist.shuffleNotifier.addListener(_updateQueueWithNotFoundFlags);
 
     _positionTimer = _newPositionTimer();
     _updateQueueWithNotFoundFlags();
 
-    // Preload the current track so it's ready to play.
     final track = _currentTrack;
     if (track != null) {
       try {
@@ -191,7 +185,6 @@ class PlaybackController {
         debugPrint('Failed to load initial track: $e');
       }
     }
-
     await _emitSongInfo(force: true);
   }
 
@@ -219,7 +212,7 @@ class PlaybackController {
     await _devicesSub?.cancel();
     _playlist.queueNotifier.removeListener(_updateQueueWithNotFoundFlags);
     _playlist.currentOrderIndexNotifier.removeListener(_onIndexChanged);
-    _playlist.shuffleNotifier.removeListener(_onShuffleChanged);
+    _playlist.shuffleNotifier.removeListener(_updateQueueWithNotFoundFlags);
     await _transport.dispose();
     await _playlist.dispose();
   }
@@ -229,23 +222,17 @@ class PlaybackController {
     _emitSongInfo();
   }
 
-  void _onShuffleChanged() {
-    _updateQueueWithNotFoundFlags();
+  void _updateQueueWithNotFoundFlags() {
+    queueNotifier.value = [
+      for (final t in _playlist.queueNotifier.value)
+        _failedTrackPaths.contains(t.path) ? t.copyWith(isNotFound: true) : t,
+    ];
   }
 
-  void _logAudioEvent(String tag, [Map<String, Object?>? data]) {
-    final ts = DateTime.now().toIso8601String();
-    final dataStr = (data == null || data.isEmpty)
-        ? ''
-        : ' ${data.entries.map((e) => '${e.key}=${e.value}').join(' ')}';
-    _appendCapped(_audioEvents, '$ts $tag$dataStr', _audioEventsCap);
-  }
+  // ---- Audio session events -------------------------------------------------
 
   void _onInterruption(AudioInterruptionEvent event) {
-    _logAudioEvent('interruption', {
-      'begin': event.begin,
-      'type': event.type.name,
-    });
+    _logAudioEvent('interruption', {'begin': event.begin, 'type': event.type.name});
 
     if (event.begin) {
       switch (event.type) {
@@ -263,9 +250,8 @@ class PlaybackController {
       return;
     }
 
-    // Interruption ended (event.begin == false).
+    // Interruption ended. duck never paused; unknown == permanent focus loss.
     if (event.type == AudioInterruptionType.duck) return;
-    // unknown == permanent focus loss: do not auto-resume.
     final shouldResume = event.type == AudioInterruptionType.pause &&
         _pausedByInterruption &&
         _userIntent == PlayIntent.play;
@@ -306,6 +292,8 @@ class PlaybackController {
   /// Debug seam for tests / `ext.nothingness.simulateNoisy`.
   void debugSimulateBecomingNoisy() => _onBecomingNoisy();
 
+  // ---- Transport events -----------------------------------------------------
+
   void _handleTransportEvent(TransportEvent event) {
     switch (event) {
       case TransportErrorEvent(:final path):
@@ -325,19 +313,14 @@ class PlaybackController {
   void _handleTrackError(String? path) {
     if (path == null) return;
     _logAudioEvent('transportError', {'path': path});
-
     if (path != _pendingLoadPath) {
       _log('Ignore error: not pending. path=$path');
       return;
     }
-
-    // Mark failed now (UI turns red); defer the advance to the in-flight
-    // load() catch so advancing happens from one place.
+    // Mark failed now (UI turns red); the in-flight load()'s catch advances.
     _log('PendingLoadError: path=$path (defer advance to load/catch)');
     _recordError(path, 'transport_error_event', 'TransportErrorEvent');
-    if (_failedTrackPaths.add(path)) {
-      _updateQueueWithNotFoundFlags();
-    }
+    if (_failedTrackPaths.add(path)) _updateQueueWithNotFoundFlags();
   }
 
   void _handleTrackEnded(String? path) {
@@ -350,12 +333,10 @@ class PlaybackController {
       return;
     }
 
-    // One-shot: loop in place (repeat-one) or restore the queue.
     if (_oneShot) {
       _handlingEnded = true;
-      final future = _oneShotRepeatOne
-          ? _restartOneShot()
-          : _finishOneShot(manual: false);
+      final future =
+          _oneShotRepeatOne ? _restartOneShot() : _finishOneShot(manual: false);
       unawaited(future.whenComplete(() => _handlingEnded = false));
       return;
     }
@@ -382,6 +363,8 @@ class PlaybackController {
     _emitSongInfo(force: true);
   }
 
+  // ---- Playback primitives --------------------------------------------------
+
   // Pause the transport and re-emit; [resetIntent] also flips intent to pause.
   Future<void> _stopPlayback({bool resetIntent = false}) async {
     isPlayingNotifier.value = false;
@@ -395,6 +378,12 @@ class PlaybackController {
     if (_userIntent != PlayIntent.pause) return;
     await _transport.pause();
     isPlayingNotifier.value = false;
+  }
+
+  Future<void> _startTransportPlay() async {
+    await _transport.play();
+    isPlayingNotifier.value = true;
+    _emitSongInfo();
   }
 
   Future<void> _skipToNext() async {
@@ -416,28 +405,29 @@ class PlaybackController {
     final nextIdx = _playlist.nextOrderIndex();
     if (nextIdx == null) return;
     final track = _playlist.trackForOrderIndex(nextIdx);
-    if (track == null) return;
-    if (_failedTrackPaths.contains(track.path)) return;
+    if (track == null || _failedTrackPaths.contains(track.path)) return;
     unawaited(_transport.preload(track.path));
   }
 
-  void _updateQueueWithNotFoundFlags() {
-    queueNotifier.value = [
-      for (final t in _playlist.queueNotifier.value)
-        _failedTrackPaths.contains(t.path) ? t.copyWith(isNotFound: true) : t,
-    ];
+  // Auto-skip play to [orderIndex] in [direction], if non-null.
+  Future<void> _stepToIndex(int? orderIndex, int direction) async {
+    if (orderIndex != null) {
+      await playFromQueueIndex(orderIndex,
+          isAutoSkip: true, direction: direction);
+    }
   }
+
+  Future<void> _stepToPreviousIndex() =>
+      _stepToIndex(_playlist.previousOrderIndex(), -1);
+
+  // ---- Public transport controls --------------------------------------------
 
   Future<void> playPause() async {
     if (_playlist.length == 0) return;
 
     // Nothing loaded yet: start from the current/first index.
-    final currentIdx = _playlist.currentOrderIndexNotifier.value;
-    if (currentIdx == null) {
-      final idx = _playlist.length > 0 ? 0 : null;
-      if (idx != null) {
-        await playFromQueueIndex(idx, isAutoSkip: true);
-      }
+    if (_playlist.currentOrderIndexNotifier.value == null) {
+      await playFromQueueIndex(0, isAutoSkip: true);
       return;
     }
 
@@ -450,17 +440,9 @@ class PlaybackController {
       _userIntent = PlayIntent.play;
       isPlayingNotifier.value = true;
       await _transport.play();
-      // Correct if intent flipped to pause while starting.
-      await _pauseIfIntentPause();
+      await _pauseIfIntentPause(); // Correct if intent flipped while starting.
     }
     _emitSongInfo();
-  }
-
-  // Auto-skip play to [orderIndex] in [direction], if non-null.
-  Future<void> _stepToIndex(int? orderIndex, int direction) async {
-    if (orderIndex != null) {
-      await playFromQueueIndex(orderIndex, isAutoSkip: true, direction: direction);
-    }
   }
 
   Future<void> next() async {
@@ -470,15 +452,6 @@ class PlaybackController {
       return;
     }
     await _stepToIndex(_playlist.nextOrderIndex(), 1);
-  }
-
-  Future<void> _stepToPreviousIndex() =>
-      _stepToIndex(_playlist.previousOrderIndex(), -1);
-
-  Future<void> _startTransportPlay() async {
-    await _transport.play();
-    isPlayingNotifier.value = true;
-    _emitSongInfo();
   }
 
   Future<void> previous() async {
@@ -501,8 +474,7 @@ class PlaybackController {
       // jumping to last-1 after natural completion.
       final isEndedLikeState =
           !isPlayingNotifier.value || position == Duration.zero;
-      final endedTailRecently =
-          isTail &&
+      final endedTailRecently = isTail &&
           _endedAtQueueTailAt != null &&
           DateTime.now().difference(_endedAtQueueTailAt!) <
               const Duration(seconds: 5);
@@ -518,8 +490,7 @@ class PlaybackController {
         }
         return;
       }
-      const threshold = Duration(seconds: 3);
-      if (position > threshold) {
+      if (position > const Duration(seconds: 3)) {
         // > 3s: restart the current song, ensuring playback if paused.
         await seek(Duration.zero);
         if (_userIntent == PlayIntent.play && !isPlayingNotifier.value) {
@@ -539,6 +510,13 @@ class PlaybackController {
       await _stepToPreviousIndex();
     }
   }
+
+  Future<void> seek(Duration position) async {
+    await _transport.seek(position);
+    _emitSongInfo();
+  }
+
+  // ---- Selection / play-with-auto-advance -----------------------------------
 
   _SelectionReason _classifySelection({
     required bool isAutoSkip,
@@ -560,13 +538,10 @@ class PlaybackController {
     int direction = 1,
   }) async {
     final op = ++_opGeneration;
-    _log(
-      'playFromQueueIndex: idx=$orderIndex autoSkip=$isAutoSkip '
-      'respectPause=$respectPauseIntent dir=$direction',
-    );
+    _log('playFromQueueIndex: idx=$orderIndex autoSkip=$isAutoSkip '
+        'respectPause=$respectPauseIntent dir=$direction');
     if (orderIndex < 0 || orderIndex >= _playlist.length) return;
-    final track = _playlist.trackForOrderIndex(orderIndex);
-    if (track == null) return;
+    if (_playlist.trackForOrderIndex(orderIndex) == null) return;
 
     _lastSelectionReason = _classifySelection(
       isAutoSkip: isAutoSkip,
@@ -598,12 +573,10 @@ class PlaybackController {
   }
 
   bool _shouldPreflightExists(String path) {
-    if (!preflightFileExists) return false;
-    final uri = Uri.tryParse(path);
+    if (!preflightFileExists || path.isEmpty) return false;
     // URI schemes (content://, http(s)://) can't be preflighted via File.
-    if (uri != null && uri.hasScheme) return false;
-    if (path.isEmpty) return false;
-    return true;
+    final uri = Uri.tryParse(path);
+    return !(uri != null && uri.hasScheme);
   }
 
   Future<void> _playWithAutoAdvance(
@@ -633,16 +606,13 @@ class PlaybackController {
         continue;
       }
 
-      if (_shouldPreflightExists(track.path)) {
-        final exists = await _fileExists(track.path);
-        if (!exists) {
-          _log('PreflightMissing: path=${track.path}');
-          _recordError(track.path, 'preflight_missing', 'File does not exist');
-          _failedTrackPaths.add(track.path);
-          _updateQueueWithNotFoundFlags();
-          idx += dir;
-          continue;
-        }
+      if (_shouldPreflightExists(track.path) && !await _fileExists(track.path)) {
+        _log('PreflightMissing: path=${track.path}');
+        _recordError(track.path, 'preflight_missing', 'File does not exist');
+        _failedTrackPaths.add(track.path);
+        _updateQueueWithNotFoundFlags();
+        idx += dir;
+        continue;
       }
 
       await _playlist.setCurrentOrderIndex(idx);
@@ -682,8 +652,8 @@ class PlaybackController {
           e.toString(),
         );
 
-        // Transient: retry once briefly, then continue scanning.
         if (transient) {
+          // Transient: retry once briefly, then continue scanning.
           final now = DateTime.now();
           if (_transientWindowStart == null ||
               now.difference(_transientWindowStart!).inSeconds > 5) {
@@ -727,10 +697,7 @@ class PlaybackController {
     await _stopPlayback();
   }
 
-  Future<void> seek(Duration position) async {
-    await _transport.seek(position);
-    _emitSongInfo();
-  }
+  // ---- One-shot -------------------------------------------------------------
 
   /// Plays [track] standalone without mutating the queue. On natural end the
   /// queue is restored at the slot *after* the start position (or stops past
@@ -738,8 +705,7 @@ class PlaybackController {
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
     final op = ++_opGeneration;
 
-    // Capture queue position to restore later (null handled by _finishOneShot).
-    _queueIndexAtOneShotStart = _playlist.currentOrderIndexNotifier.value;
+    _oneShotResumeIndex = _playlist.currentOrderIndexNotifier.value;
     _oneShotTrack = track;
     _oneShotRepeatOne = repeatOne;
     _oneShot = true;
@@ -747,14 +713,13 @@ class PlaybackController {
     _userIntent = PlayIntent.play;
     _endedAtQueueTailAt = null;
     _pendingLoadPath = track.path;
-    _log('OneShot start: ${track.path} resumeAt=$_queueIndexAtOneShotStart');
+    _log('OneShot start: ${track.path} resumeAt=$_oneShotResumeIndex');
     isPlayingNotifier.value = true;
     try {
       await _loadAndPlayOneShot(track, op);
     } catch (e) {
       _log('OneShot load failed: $e');
       _pendingLoadPath = null;
-      // Abort and fall back to the queue at the captured index.
       _clearOneShot();
       await _stopPlayback();
     }
@@ -767,14 +732,14 @@ class PlaybackController {
     _pendingLoadPath = null;
     await _transport.play();
     if (op != _opGeneration) return;
-    _emitOneShotSongInfo();
+    await _emitOneShotSongInfo();
   }
 
   void _clearOneShot() {
     _oneShot = false;
     _oneShotTrack = null;
     _oneShotRepeatOne = false;
-    _queueIndexAtOneShotStart = null;
+    _oneShotResumeIndex = null;
     isOneShotNotifier.value = false;
   }
 
@@ -795,11 +760,8 @@ class PlaybackController {
     }
   }
 
-  Future<void> _finishOneShot({
-    required bool manual,
-    bool backward = false,
-  }) async {
-    final resumeAt = _queueIndexAtOneShotStart;
+  Future<void> _finishOneShot({required bool manual, bool backward = false}) async {
+    final resumeAt = _oneShotResumeIndex;
     _clearOneShot();
 
     if (_playlist.length == 0 || resumeAt == null) {
@@ -812,11 +774,8 @@ class PlaybackController {
       final target = (resumeAt + (backward ? -1 : 1))
           .clamp(0, _playlist.length - 1)
           .toInt();
-      await playFromQueueIndex(
-        target,
-        isAutoSkip: true,
-        direction: backward ? -1 : 1,
-      );
+      await playFromQueueIndex(target,
+          isAutoSkip: true, direction: backward ? -1 : 1);
       return;
     }
 
@@ -829,8 +788,8 @@ class PlaybackController {
     await playFromQueueIndex(next, isAutoSkip: true, direction: 1);
   }
 
-  /// Build a [SongInfo] for [track] from the transport's current position and
-  /// duration and the current playing state.
+  // ---- Song info ------------------------------------------------------------
+
   Future<SongInfo> _buildSongInfo(AudioTrack track) async {
     final position = await _transport.position;
     final duration = await _transport.duration;
@@ -848,9 +807,36 @@ class PlaybackController {
     songInfoNotifier.value = await _buildSongInfo(track);
   }
 
-  /// Enter a search session (B-014). Snapshots queue + index on the FIRST enter
-  /// only (re-entering just swaps results), installs [results] as the active
-  /// queue, and plays [tappedIndex]. Restored by [exitSearchSession].
+  Future<void> _emitSongInfo({bool force = false}) async {
+    if (_oneShot) {
+      await _emitOneShotSongInfo();
+      return;
+    }
+    final track = _currentTrack;
+    if (track == null) {
+      if (force || songInfoNotifier.value != null) songInfoNotifier.value = null;
+      return;
+    }
+
+    // End-of-track advance is handled via TransportEndedEvent, not here (races).
+    final next = await _buildSongInfo(track);
+    final current = songInfoNotifier.value;
+    if (!force &&
+        current != null &&
+        current.track.path == next.track.path &&
+        current.isPlaying == next.isPlaying &&
+        current.position == next.position &&
+        current.duration == next.duration) {
+      return;
+    }
+    songInfoNotifier.value = next;
+  }
+
+  // ---- Search session (B-014) -----------------------------------------------
+
+  /// Enter a search session. Snapshots queue + index on the FIRST enter only
+  /// (re-entering just swaps results), installs [results] as the active queue,
+  /// and plays [tappedIndex]. Restored by [exitSearchSession].
   Future<void> enterSearchSession(
     List<AudioTrack> results,
     int tappedIndex,
@@ -858,17 +844,12 @@ class PlaybackController {
     if (results.isEmpty) return;
     final clampedTap = tappedIndex.clamp(0, results.length - 1).toInt();
 
-    if (_activeSearchSession == null) {
+    if (_savedQueue == null) {
       // Snapshot the raw queue (no isNotFound flags) for a faithful restore.
-      final savedQueue = List<AudioTrack>.unmodifiable(
-        _playlist.queueNotifier.value,
-      );
-      final savedIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
-      _activeSearchSession = _SearchSession(
-        savedQueue: savedQueue,
-        savedIndex: savedIndex,
-      );
-      _log('SearchSession enter: index=$savedIndex len=${savedQueue.length}');
+      _savedQueue =
+          List<AudioTrack>.unmodifiable(_playlist.queueNotifier.value);
+      _savedIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
+      _log('SearchSession enter: index=$_savedIndex len=${_savedQueue!.length}');
     } else {
       _log('SearchSession re-enter (no re-snapshot)');
     }
@@ -877,49 +858,48 @@ class PlaybackController {
     await setQueue(results, startIndex: clampedTap, shuffle: false);
   }
 
-  /// Exit the search session (B-014). Restores the original queue + index
-  /// WITHOUT reloading the transport (playing track keeps playing); prefers the
-  /// playing track's position, else the snapshot. No-op if no session active.
+  /// Exit the search session. Restores the original queue + index WITHOUT
+  /// reloading the transport (playing track keeps playing); prefers the playing
+  /// track's position, else the snapshot. No-op if no session active.
   Future<void> exitSearchSession() async {
-    final session = _activeSearchSession;
-    if (session == null) return;
-    _activeSearchSession = null;
+    final savedQueue = _savedQueue;
+    if (savedQueue == null) return;
+    final savedIndex = _savedIndex;
+    _savedQueue = null;
 
     final currentIdx = _playlist.currentOrderIndexNotifier.value;
-    final activeTrack = currentIdx == null
-        ? null
-        : _playlist.trackForOrderIndex(currentIdx);
+    final activeTrack =
+        currentIdx == null ? null : _playlist.trackForOrderIndex(currentIdx);
 
-    // Prior queue was emptied — restore as empty (no reload).
-    if (session.savedQueue.isEmpty) {
+    // Failed markers belonged to result tracks, not the original queue.
+    _failedTrackPaths.clear();
+
+    if (savedQueue.isEmpty) {
+      // Prior queue was emptied — restore as empty (no reload).
       await _playlist.setQueue(const <AudioTrack>[]);
-      _failedTrackPaths.clear();
       _updateQueueWithNotFoundFlags();
       _log('SearchSession exit: restored empty queue');
       return;
     }
 
     // Prefer the playing track's position so displayed info matches audio.
-    var restoreIndex = session.savedIndex;
+    var restoreIndex = savedIndex;
     if (activeTrack != null) {
-      final idxInRestored = session.savedQueue.indexWhere(
-        (t) => t.path == activeTrack.path,
-      );
+      final idxInRestored =
+          savedQueue.indexWhere((t) => t.path == activeTrack.path);
       if (idxInRestored >= 0) restoreIndex = idxInRestored;
     }
-    restoreIndex = restoreIndex.clamp(0, session.savedQueue.length - 1).toInt();
+    restoreIndex = restoreIndex.clamp(0, savedQueue.length - 1).toInt();
 
-    // Failed markers belonged to result tracks, not the original queue.
-    _failedTrackPaths.clear();
     // Restore via the playlist directly so the transport is NOT reloaded.
-    await _playlist.setQueue(session.savedQueue, startBaseIndex: restoreIndex);
+    await _playlist.setQueue(savedQueue, startBaseIndex: restoreIndex);
     _updateQueueWithNotFoundFlags();
-    _log(
-      'SearchSession exit: len=${session.savedQueue.length} '
-      'index=$restoreIndex active=${activeTrack?.path ?? "null"}',
-    );
+    _log('SearchSession exit: len=${savedQueue.length} '
+        'index=$restoreIndex active=${activeTrack?.path ?? "null"}');
     await _emitSongInfo(force: true);
   }
+
+  // ---- Queue mutation -------------------------------------------------------
 
   Future<void> setQueue(
     List<AudioTrack> tracks, {
@@ -930,24 +910,16 @@ class PlaybackController {
     // Set intent BEFORE any await so a concurrent playPause can cancel it.
     if (tracks.isNotEmpty) _userIntent = PlayIntent.play;
 
-    await _playlist.setQueue(
-      tracks,
-      startBaseIndex: startIndex,
-      enableShuffle: shuffle,
-    );
+    await _playlist.setQueue(tracks,
+        startBaseIndex: startIndex, enableShuffle: shuffle);
     _endedAtQueueTailAt = null;
     _updateQueueWithNotFoundFlags();
 
     if (tracks.isNotEmpty) {
       final initialIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
-      await playFromQueueIndex(
-        initialIndex,
-        respectPauseIntent: true,
-        direction: 1,
-      );
-
-      // User may have paused during load.
-      await _pauseIfIntentPause();
+      await playFromQueueIndex(initialIndex,
+          respectPauseIntent: true, direction: 1);
+      await _pauseIfIntentPause(); // User may have paused during load.
     }
   }
 
@@ -957,26 +929,17 @@ class PlaybackController {
 
     if (play && tracks.isNotEmpty) {
       final firstNewBaseIndex = _playlist.baseLength - tracks.length;
-      final orderIndex =
-          _playlist.orderIndexForBase(firstNewBaseIndex) ??
+      final orderIndex = _playlist.orderIndexForBase(firstNewBaseIndex) ??
           _playlist.length - 1;
       await playFromQueueIndex(orderIndex, isAutoSkip: true);
     }
   }
 
-  /// Keep playback running without reloading when [wasPlaying].
-  Future<void> _resumeIfWasPlaying(bool wasPlaying) async {
-    if (!wasPlaying) return;
-    if (!isPlayingNotifier.value) {
-      await _transport.play();
-      isPlayingNotifier.value = true;
-    }
-    _emitSongInfo();
-  }
+  // ---- Shuffle --------------------------------------------------------------
 
   /// Apply a shuffle-mode change that reorders the queue around the current
-  /// track without reloading: run [reorder] with the current base index, refresh
-  /// the not-found mirror, then resume playback if it was playing.
+  /// track without reloading: run [reorder] with the current base index,
+  /// refresh the not-found mirror, then resume playback if it was playing.
   Future<void> _applyShuffleChange(
     Future<void> Function(int keepBaseIndex) reorder,
   ) async {
@@ -984,69 +947,41 @@ class PlaybackController {
     final wasPlaying = _userIntent == PlayIntent.play;
     await reorder(baseIndex);
     _updateQueueWithNotFoundFlags();
-    await _resumeIfWasPlaying(wasPlaying);
+    if (wasPlaying && !isPlayingNotifier.value) {
+      await _transport.play();
+      isPlayingNotifier.value = true;
+    }
+    if (wasPlaying) _emitSongInfo();
   }
 
   Future<void> shuffleQueue() => _applyShuffleChange(
-    (keepBaseIndex) => _playlist.reshuffle(keepBaseIndex: keepBaseIndex),
-  );
+      (keepBaseIndex) => _playlist.reshuffle(keepBaseIndex: keepBaseIndex));
 
   Future<void> disableShuffle() => _applyShuffleChange(
-    (keepBaseIndex) => _playlist.disableShuffle(keepBaseIndex: keepBaseIndex),
-  );
+      (keepBaseIndex) => _playlist.disableShuffle(keepBaseIndex: keepBaseIndex));
 
-  Future<void> _emitSongInfo({bool force = false}) async {
-    if (_oneShot) {
-      await _emitOneShotSongInfo();
-      return;
-    }
-    final track = _currentTrack;
-    if (track == null) {
-      if (force || songInfoNotifier.value != null) {
-        songInfoNotifier.value = null;
-      }
-      return;
-    }
-
-    // End-of-track advance is handled via TransportEndedEvent, not here (races).
-    final nextSongInfo = await _buildSongInfo(track);
-
-    if (!force) {
-      final current = songInfoNotifier.value;
-      if (current != null &&
-          current.track.path == nextSongInfo.track.path &&
-          current.isPlaying == nextSongInfo.isPlaying &&
-          current.position == nextSongInfo.position &&
-          current.duration == nextSongInfo.duration) {
-        return;
-      }
-    }
-
-    songInfoNotifier.value = nextSongInfo;
-  }
+  // ---- Library / diagnostics ------------------------------------------------
 
   Future<int> playlistSizeBytes() => _playlist.persistentSizeBytes();
 
   Future<List<AudioTrack>> scanFolder(String rootPath) async {
-    final List<AudioTrack> tracks = [];
+    final tracks = <AudioTrack>[];
     final directory = Directory(rootPath);
     if (!await directory.exists()) return tracks;
     final extractor = createMetadataExtractor();
 
-    await for (final entity in directory.list(
-      recursive: true,
-      followLinks: false,
-    )) {
+    await for (final entity
+        in directory.list(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
       final ext = p.extension(entity.path).replaceAll('.', '').toLowerCase();
       if (!_supportedExtensions.contains(ext)) continue;
       try {
-        final track = await extractor.extractMetadata(entity.path);
-        tracks.add(track);
+        tracks.add(await extractor.extractMetadata(entity.path));
       } catch (e) {
         // Fall back to filename on extraction failure.
-        final title = p.basenameWithoutExtension(entity.path);
-        tracks.add(AudioTrack(path: entity.path, title: title));
+        tracks.add(AudioTrack(
+            path: entity.path,
+            title: p.basenameWithoutExtension(entity.path)));
       }
     }
     tracks.sort((a, b) => a.title.compareTo(b.title));
@@ -1054,9 +989,7 @@ class PlaybackController {
   }
 
   static Set<String> _getSupportedExtensions(AudioTransport transport) {
-    if (transport is SoLoudTransport) {
-      return SoLoudTransport.supportedExtensions;
-    }
+    if (transport is SoLoudTransport) return SoLoudTransport.supportedExtensions;
     return const {'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus'};
   }
 
@@ -1068,29 +1001,23 @@ class PlaybackController {
   }
 
   /// Structured snapshot of controller state for debugging / emulator tooling.
-  Map<String, Object?> diagnosticsSnapshot() {
-    final idx = _playlist.currentOrderIndexNotifier.value;
-    return <String, Object?>{
-      'userIntent': _userIntent.name,
-      'isPlaying': isPlayingNotifier.value,
-      'currentOrderIndex': idx,
-      'currentPath': _currentTrack?.path,
-      'queueLength': _playlist.length,
-      'failedTrackPaths': _failedTrackPaths.toList()..sort(),
-      'pendingLoadPath': _pendingLoadPath,
-      'lastSelectionReason': _lastSelectionReason.name,
-      'lastSelectionDirection': _lastSelectionDirection,
-      'lastError': <String, Object?>{
-        'path': _lastErrorPath,
-        'reason': _lastErrorReason,
-        'message': _lastErrorMessage,
-        'at': _lastErrorAt?.toIso8601String(),
-      },
-      'recentLogs': recentLogs(),
-      'audioEvents': List<String>.unmodifiable(_audioEvents),
-    };
-  }
-
-  /// Audio-event ring buffer (interruption / route / load / error).
-  List<String> audioEvents() => List<String>.unmodifiable(_audioEvents);
+  Map<String, Object?> diagnosticsSnapshot() => <String, Object?>{
+        'userIntent': _userIntent.name,
+        'isPlaying': isPlayingNotifier.value,
+        'currentOrderIndex': _playlist.currentOrderIndexNotifier.value,
+        'currentPath': _currentTrack?.path,
+        'queueLength': _playlist.length,
+        'failedTrackPaths': _failedTrackPaths.toList()..sort(),
+        'pendingLoadPath': _pendingLoadPath,
+        'lastSelectionReason': _lastSelectionReason.name,
+        'lastSelectionDirection': _lastSelectionDirection,
+        'lastError': <String, Object?>{
+          'path': _lastErrorPath,
+          'reason': _lastErrorReason,
+          'message': _lastErrorMessage,
+          'at': _lastErrorAt?.toIso8601String(),
+        },
+        'recentLogs': recentLogs(),
+        'audioEvents': List<String>.unmodifiable(_audioEvents),
+      };
 }
