@@ -4,6 +4,13 @@ import 'spectrum_settings.dart';
 
 enum ScreenType { spectrum, polo, dot, void_ }
 
+double _d(Object? v, double fallback) => (v as num?)?.toDouble() ?? fallback;
+
+SpectrumColorScheme _scheme(Object? v) => SpectrumColorScheme.values.firstWhere(
+      (c) => c.name == (v as String?),
+      orElse: () => SpectrumColorScheme.cyan,
+    );
+
 sealed class ScreenConfig {
   final ScreenType type;
   final String name;
@@ -20,22 +27,16 @@ sealed class ScreenConfig {
   Map<String, dynamic> toJson();
 
   static ScreenConfig fromJson(Map<String, dynamic> json) {
-    final typeStr = json['type'] as String?;
     final type = ScreenType.values.firstWhere(
-      (e) => e.name == typeStr,
+      (e) => e.name == json['type'] as String?,
       orElse: () => ScreenType.spectrum,
     );
-
-    switch (type) {
-      case ScreenType.spectrum:
-        return SpectrumScreenConfig.fromJson(json);
-      case ScreenType.polo:
-        return PoloScreenConfig.fromJson(json);
-      case ScreenType.dot:
-        return DotScreenConfig.fromJson(json);
-      case ScreenType.void_:
-        return VoidScreenConfig.fromJson(json);
-    }
+    return switch (type) {
+      ScreenType.spectrum => SpectrumScreenConfig.fromJson(json),
+      ScreenType.polo => PoloScreenConfig.fromJson(json),
+      ScreenType.dot => DotScreenConfig.fromJson(json),
+      ScreenType.void_ => VoidScreenConfig.fromJson(json),
+    };
   }
 }
 
@@ -50,16 +51,11 @@ class VoidScreenConfig extends ScreenConfig {
   bool get usesVisualizer => false; // B-034: typographic hero, no visualizer
 
   @override
-  Map<String, dynamic> toJson() => {
-    'type': type.name,
-    'name': name,
-    'textScale': textScale,
-  };
+  Map<String, dynamic> toJson() =>
+      {'type': type.name, 'name': name, 'textScale': textScale};
 
   factory VoidScreenConfig.fromJson(Map<String, dynamic> json) =>
-      VoidScreenConfig(
-        textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
-      );
+      VoidScreenConfig(textScale: _d(json['textScale'], 1.0));
 
   VoidScreenConfig copyWith({double? textScale}) =>
       VoidScreenConfig(textScale: textScale ?? this.textScale);
@@ -88,39 +84,30 @@ class SpectrumScreenConfig extends ScreenConfig {
 
   @override
   Map<String, dynamic> toJson() => {
-    'type': type.name,
-    'name': name,
-    'showMediaControls': showMediaControls,
-    'textScale': textScale,
-    'spectrumWidthFactor': spectrumWidthFactor,
-    'spectrumHeightFactor': spectrumHeightFactor,
-    'mediaControlScale': mediaControlScale,
-    'mediaSliderWidthFactor': mediaSliderWidthFactor,
-    'mediaControlColorScheme': mediaControlColorScheme.name,
-    'textColorScheme': textColorScheme.name,
-  };
+        'type': type.name,
+        'name': name,
+        'showMediaControls': showMediaControls,
+        'textScale': textScale,
+        'spectrumWidthFactor': spectrumWidthFactor,
+        'spectrumHeightFactor': spectrumHeightFactor,
+        'mediaControlScale': mediaControlScale,
+        'mediaSliderWidthFactor': mediaSliderWidthFactor,
+        'mediaControlColorScheme': mediaControlColorScheme.name,
+        'textColorScheme': textColorScheme.name,
+      };
 
   // B-041: fromJson defaults MUST match the const constructor defaults.
   factory SpectrumScreenConfig.fromJson(Map<String, dynamic> json) =>
       SpectrumScreenConfig(
-      showMediaControls: json['showMediaControls'] as bool? ?? true,
-      textScale: (json['textScale'] as num?)?.toDouble() ?? 0.6,
-      spectrumWidthFactor:
-          (json['spectrumWidthFactor'] as num?)?.toDouble() ?? 1.0,
-      spectrumHeightFactor:
-          (json['spectrumHeightFactor'] as num?)?.toDouble() ?? 0.5,
-      mediaControlScale: (json['mediaControlScale'] as num?)?.toDouble() ?? 0.6,
-      mediaSliderWidthFactor:
-          (json['mediaSliderWidthFactor'] as num?)?.toDouble() ?? 1.0,
-      mediaControlColorScheme: SpectrumColorScheme.values.firstWhere(
-        (c) => c.name == (json['mediaControlColorScheme'] as String?),
-        orElse: () => SpectrumColorScheme.cyan,
-      ),
-      textColorScheme: SpectrumColorScheme.values.firstWhere(
-        (c) => c.name == (json['textColorScheme'] as String?),
-        orElse: () => SpectrumColorScheme.cyan,
-      ),
-    );
+        showMediaControls: json['showMediaControls'] as bool? ?? true,
+        textScale: _d(json['textScale'], 0.6),
+        spectrumWidthFactor: _d(json['spectrumWidthFactor'], 1.0),
+        spectrumHeightFactor: _d(json['spectrumHeightFactor'], 0.5),
+        mediaControlScale: _d(json['mediaControlScale'], 0.6),
+        mediaSliderWidthFactor: _d(json['mediaSliderWidthFactor'], 1.0),
+        mediaControlColorScheme: _scheme(json['mediaControlColorScheme']),
+        textColorScheme: _scheme(json['textColorScheme']),
+      );
 
   SpectrumScreenConfig copyWith({
     bool? showMediaControls,
@@ -174,26 +161,26 @@ class DotScreenConfig extends ScreenConfig {
 
   @override
   Map<String, dynamic> toJson() => {
-    'type': type.name,
-    'name': name,
-    'minDotSize': minDotSize,
-    'maxDotSize': maxDotSize,
-    'dotOpacity': dotOpacity,
-    'textOpacity': textOpacity,
-    'sensitivity': sensitivity,
-    'showSongInfo': showSongInfo,
-    'textScale': textScale,
-  };
+        'type': type.name,
+        'name': name,
+        'minDotSize': minDotSize,
+        'maxDotSize': maxDotSize,
+        'dotOpacity': dotOpacity,
+        'textOpacity': textOpacity,
+        'sensitivity': sensitivity,
+        'showSongInfo': showSongInfo,
+        'textScale': textScale,
+      };
 
   factory DotScreenConfig.fromJson(Map<String, dynamic> json) => DotScreenConfig(
-      minDotSize: (json['minDotSize'] as num?)?.toDouble() ?? 20.0,
-      maxDotSize: (json['maxDotSize'] as num?)?.toDouble() ?? 120.0,
-      dotOpacity: (json['dotOpacity'] as num?)?.toDouble() ?? 1.0,
-      textOpacity: (json['textOpacity'] as num?)?.toDouble() ?? 1.0,
-      sensitivity: (json['sensitivity'] as num?)?.toDouble() ?? 1.5,
-      showSongInfo: json['showSongInfo'] as bool? ?? false,
-      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
-    );
+        minDotSize: _d(json['minDotSize'], 20.0),
+        maxDotSize: _d(json['maxDotSize'], 120.0),
+        dotOpacity: _d(json['dotOpacity'], 1.0),
+        textOpacity: _d(json['textOpacity'], 1.0),
+        sensitivity: _d(json['sensitivity'], 1.5),
+        showSongInfo: json['showSongInfo'] as bool? ?? false,
+        textScale: _d(json['textScale'], 1.0),
+      );
 
   DotScreenConfig copyWith({
     double? minDotSize,
@@ -245,22 +232,22 @@ class PoloScreenConfig extends ScreenConfig {
 
   @override
   Map<String, dynamic> toJson() => {
-    'type': type.name,
-    'name': name,
-    'backgroundImagePath': backgroundImagePath,
-    'fontFamily': fontFamily,
-    'textScale': textScale,
-    // lcdRect is code-driven, not persisted (constructor default is the source
-    // of truth so hot-reload tuning works).
-    'textColor': textColor.toARGB32(),
-  };
+        'type': type.name,
+        'name': name,
+        'backgroundImagePath': backgroundImagePath,
+        'fontFamily': fontFamily,
+        'textScale': textScale,
+        // lcdRect is code-driven, not persisted (constructor default is the
+        // source of truth so hot-reload tuning works).
+        'textColor': textColor.toARGB32(),
+      };
 
   factory PoloScreenConfig.fromJson(Map<String, dynamic> json) =>
       PoloScreenConfig(
-        backgroundImagePath: json['backgroundImagePath'] as String? ??
-            'assets/images/polo.webp',
+        backgroundImagePath:
+            json['backgroundImagePath'] as String? ?? 'assets/images/polo.webp',
         fontFamily: json['fontFamily'] as String? ?? 'Press Start 2P',
-        textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+        textScale: _d(json['textScale'], 1.0),
         textColor: json['textColor'] != null
             ? Color(json['textColor'] as int)
             : const Color(0xFF000000),

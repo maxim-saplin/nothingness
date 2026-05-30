@@ -9,21 +9,14 @@ import '../widgets/press_feedback.dart';
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
 
-  static Future<void> push(BuildContext context) {
-    return Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const HelpScreen()),
-    );
-  }
+  static Future<void> push(BuildContext context) => Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => const HelpScreen()));
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
     final geometry = Theme.of(context).extension<AppGeometry>()!;
-
-    Widget group(String text) => _group(text, palette, typography);
-    Widget entry(String trigger, String effect) =>
-        _entry(trigger, effect, palette, typography, geometry);
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -32,30 +25,30 @@ class HelpScreen extends StatelessWidget {
           padding: EdgeInsets.zero,
           children: [
             _header(context, palette, typography),
-            group('HERO'),
-            entry('tap', 'play / pause the current track'),
-            entry('swipe →', 'next track'),
-            entry('swipe ←', 'previous track'),
-            group('BROWSER'),
-            entry('tap folder', 'enter folder'),
-            entry('long-press folder', 'recursively shuffle all tracks'),
-            entry('tap track', 'replace queue with the folder; play this'),
-            entry('long-press track', 'play once, then resume previous queue'),
-            entry('< ..', 'go up one folder (bottom of the list)'),
-            entry('back button', 'go up one folder; exits at root'),
-            group('CRUMB'),
-            entry('long-press crumb', 'enter search across the whole library'),
-            entry('tap a result', 'play it; the rest of the results queue up'),
-            entry('× in search', 'leave search; original queue is restored'),
-            group('TRANSPORT'),
-            entry('icons', 'prev / play-pause / next'),
-            entry('hairline above icons', 'tap or drag to seek'),
-            entry('hairline at bottom', 'read-only progress'),
-            group('CHROME'),
-            entry('⋮ top-right', 'open settings'),
-            entry('immersive', 'hide chrome — hero fills the screen'),
-            entry('transport', 'collapse the prev/play/next strip'),
-            entry('screen', 'cycle visualisation (spectrum / polo / dot / void)'),
+            _group('HERO', palette, typography),
+            _entry('tap', 'play / pause the current track', palette, typography, geometry),
+            _entry('swipe →', 'next track', palette, typography, geometry),
+            _entry('swipe ←', 'previous track', palette, typography, geometry),
+            _group('BROWSER', palette, typography),
+            _entry('tap folder', 'enter folder', palette, typography, geometry),
+            _entry('long-press folder', 'recursively shuffle all tracks', palette, typography, geometry),
+            _entry('tap track', 'replace queue with the folder; play this', palette, typography, geometry),
+            _entry('long-press track', 'play once, then resume previous queue', palette, typography, geometry),
+            _entry('< ..', 'go up one folder (bottom of the list)', palette, typography, geometry),
+            _entry('back button', 'go up one folder; exits at root', palette, typography, geometry),
+            _group('CRUMB', palette, typography),
+            _entry('long-press crumb', 'enter search across the whole library', palette, typography, geometry),
+            _entry('tap a result', 'play it; the rest of the results queue up', palette, typography, geometry),
+            _entry('× in search', 'leave search; original queue is restored', palette, typography, geometry),
+            _group('TRANSPORT', palette, typography),
+            _entry('icons', 'prev / play-pause / next', palette, typography, geometry),
+            _entry('hairline above icons', 'tap or drag to seek', palette, typography, geometry),
+            _entry('hairline at bottom', 'read-only progress', palette, typography, geometry),
+            _group('CHROME', palette, typography),
+            _entry('⋮ top-right', 'open settings', palette, typography, geometry),
+            _entry('immersive', 'hide chrome — hero fills the screen', palette, typography, geometry),
+            _entry('transport', 'collapse the prev/play/next strip', palette, typography, geometry),
+            _entry('screen', 'cycle visualisation (spectrum / polo / dot / void)', palette, typography, geometry),
             const SizedBox(height: 24),
           ],
         ),
@@ -63,11 +56,8 @@ class HelpScreen extends StatelessWidget {
     );
   }
 
-  Widget _header(
-    BuildContext context,
-    AppPalette palette,
-    AppTypography typography,
-  ) {
+  Widget _header(BuildContext context, AppPalette palette, AppTypography typography) {
+    final monoStyle = TextStyle(fontFamily: typography.monoFamily, fontSize: typography.rowSize);
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -77,35 +67,17 @@ class HelpScreen extends StatelessWidget {
             onTap: () => Navigator.of(context).maybePop(),
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Text(
-                '<',
-                style: TextStyle(
-                  color: palette.fgSecondary,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.rowSize,
-                ),
-              ),
+              child: Text('<', style: monoStyle.copyWith(color: palette.fgSecondary)),
             ),
           ),
           const SizedBox(width: 4),
-          Text(
-            'help',
-            style: TextStyle(
-              color: palette.fgPrimary,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.rowSize,
-            ),
-          ),
+          Text('help', style: monoStyle.copyWith(color: palette.fgPrimary)),
         ],
       ),
     );
   }
 
-  Widget _group(
-    String text,
-    AppPalette palette,
-    AppTypography typography,
-  ) {
+  Widget _group(String text, AppPalette palette, AppTypography typography) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Text(
@@ -132,10 +104,7 @@ class HelpScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: palette.divider,
-            width: geometry.dividerThickness,
-          ),
+          bottom: BorderSide(color: palette.divider, width: geometry.dividerThickness),
         ),
       ),
       child: Row(

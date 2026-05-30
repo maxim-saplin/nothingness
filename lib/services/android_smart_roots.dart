@@ -21,64 +21,46 @@ class AndroidSmartRoots {
   }) {
     if (deviceRoots.isEmpty || songs.isEmpty) return const [];
 
-    final normalizedRoots =
-        deviceRoots
-            .map(_normalizeDir)
-            .where((r) => r.isNotEmpty && r.startsWith('/'))
-            .toList()
-          ..sort((a, b) => b.length.compareTo(a.length)); // longest-first
+    final roots = deviceRoots
+        .map(_normalizeDir)
+        .where((r) => r.isNotEmpty && r.startsWith('/'))
+        .toList()
+      ..sort((a, b) => b.length.compareTo(a.length)); // longest-first
 
-    final deviceToSongDirs = <String, List<String>>{};
-
+    final byDevice = <String, List<String>>{};
     for (final song in songs) {
-      final songPath = song.path;
-      final root = _matchDeviceRoot(normalizedRoots, songPath);
+      final root = _matchDeviceRoot(roots, song.path);
       if (root == null) continue;
-
-      final parentDir = _parentDir(songPath);
-      if (parentDir.isEmpty) continue;
-
-      deviceToSongDirs.putIfAbsent(root, () => <String>[]).add(parentDir);
+      final parent = _parentDir(song.path);
+      if (parent.isEmpty) continue;
+      byDevice.putIfAbsent(root, () => []).add(parent);
     }
 
     final sections = <SmartRootSection>[];
-    for (final entry in deviceToSongDirs.entries) {
-      final root = entry.key;
-      final candidates = _candidatesForDevice(root: root, songDirs: entry.value);
-
+    for (final entry in byDevice.entries) {
+      final candidates = _candidatesForDevice(root: entry.key, songDirs: entry.value);
       // Music-only contract: never fall back to the bare device root. With no
       // candidates (or over the cap) the device is omitted, showing an empty
       // smart-roots view rather than the whole file system.
-      if (candidates.isEmpty || candidates.length > maxEntriesPerDevice) {
-        continue;
-      }
-
-      sections.add(SmartRootSection(deviceRoot: root, entries: candidates));
+      if (candidates.isEmpty || candidates.length > maxEntriesPerDevice) continue;
+      sections.add(SmartRootSection(deviceRoot: entry.key, entries: candidates));
     }
-
     sections.sort((a, b) => a.deviceRoot.compareTo(b.deviceRoot));
     return sections;
   }
 
-  static String _normalizeDir(String path) {
-    if (path.isEmpty) return path;
-    return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
-  }
+  static String _normalizeDir(String path) =>
+      path.endsWith('/') && path.isNotEmpty ? path.substring(0, path.length - 1) : path;
 
   static String _parentDir(String path) {
     final trimmed = _normalizeDir(path);
-    final lastSlash = trimmed.lastIndexOf('/');
-    if (lastSlash <= 0) return '';
-    return trimmed.substring(0, lastSlash);
+    final i = trimmed.lastIndexOf('/');
+    return i <= 0 ? '' : trimmed.substring(0, i);
   }
 
-  static String? _matchDeviceRoot(
-    List<String> rootsLongestFirst,
-    String songPath,
-  ) {
+  static String? _matchDeviceRoot(List<String> rootsLongestFirst, String songPath) {
     for (final root in rootsLongestFirst) {
-      if (songPath == root) return root;
-      if (songPath.startsWith('$root/')) return root;
+      if (songPath == root || songPath.startsWith('$root/')) return root;
     }
     return null;
   }
@@ -89,31 +71,24 @@ class AndroidSmartRoots {
   }) {
     // Partition by first segment under root; per partition, trie the
     // audio-bearing dirs and pick the first meaningful branching folder.
-    final partitionToDirSegs = <String, List<List<String>>>{};
-
+    final partitions = <String, List<List<String>>>{};
     for (final absDir in songDirs) {
-      if (absDir == root) continue; // ignore files directly under device root
-      if (!absDir.startsWith('$root/')) continue;
-
-      final rel = absDir.substring(root.length + 1);
-      final segs = rel.split('/').where((s) => s.isNotEmpty).toList();
+      if (absDir == root || !absDir.startsWith('$root/')) continue;
+      final segs = absDir
+          .substring(root.length + 1)
+          .split('/')
+          .where((s) => s.isNotEmpty)
+          .toList();
       if (segs.isEmpty) continue;
-
-      partitionToDirSegs
-          .putIfAbsent(segs.first, () => <List<String>>[])
-          .add(segs);
+      partitions.putIfAbsent(segs.first, () => []).add(segs);
     }
 
     final candidates = <String>{};
-    for (final entry in partitionToDirSegs.entries) {
+    for (final entry in partitions.entries) {
       if (entry.value.isEmpty) continue;
-      final candidateSegs = _firstBranchingFolder(
-        partitionKey: entry.key,
-        segLists: entry.value,
-      );
-      candidates.add('$root/${candidateSegs.join('/')}');
+      final segs = _firstBranchingFolder(partitionKey: entry.key, segLists: entry.value);
+      candidates.add('$root/${segs.join('/')}');
     }
-
     return _removeRedundantPaths(candidates.toList());
   }
 
@@ -121,14 +96,10 @@ class AndroidSmartRoots {
     final sorted = paths.toList()..sort((a, b) => a.length.compareTo(b.length));
     final filtered = <String>[];
     for (final path in sorted) {
-      final isChildOfExisting = filtered.any((parent) {
-        if (path == parent) return true;
-        return path.startsWith('$parent/');
-      });
-      if (!isChildOfExisting) filtered.add(path);
+      final isChild = filtered.any((parent) => path == parent || path.startsWith('$parent/'));
+      if (!isChild) filtered.add(path);
     }
-    filtered.sort((a, b) => a.compareTo(b));
-    return filtered;
+    return filtered..sort();
   }
 
   static List<String> _firstBranchingFolder({
@@ -148,73 +119,57 @@ class AndroidSmartRoots {
     // Keep near-root branching (avoid overly-specific entries like Music/Rock);
     // descend long prefixes (e.g. Android/media/.../Music/CDs).
     const minDepthToDescend = 3;
-    if (root.depthToFirstBranching(partitionKey) < minDepthToDescend) {
+    final partitionNode = root.children[partitionKey];
+    if (root.depthToFirstBranching(partitionKey) < minDepthToDescend ||
+        partitionNode == null) {
       return [partitionKey];
     }
 
     // Descend the single audio-bearing child until the first branching point.
-    final partitionNode = root.children[partitionKey];
-    if (partitionNode == null) return [partitionKey];
-
     final chosen = <String>[partitionKey];
-    _TrieNode node = partitionNode;
+    var node = partitionNode;
     while (true) {
-      final audioChildren = node.audioBearingChildren();
-      if (audioChildren.length != 1) return chosen; // branch or dead-end
-      final nextEntry = audioChildren.single;
-      chosen.add(nextEntry);
-      node = node.children[nextEntry]!;
+      final children = node.audioBearingChildren();
+      if (children.length != 1) return chosen; // branch or dead-end
+      chosen.add(children.single);
+      node = node.children[children.single]!;
     }
   }
 }
 
 class _TrieNode {
-  final Map<String, _TrieNode> children = <String, _TrieNode>{};
+  final Map<String, _TrieNode> children = {};
   bool hasAudioInSubtree = false;
 
   void addPath(List<String> segments) {
-    _TrieNode node = this;
-    node.hasAudioInSubtree = true;
+    var node = this..hasAudioInSubtree = true;
     for (final seg in segments) {
-      node = node.children.putIfAbsent(seg, _TrieNode.new);
-      node.hasAudioInSubtree = true;
+      node = node.children.putIfAbsent(seg, _TrieNode.new)..hasAudioInSubtree = true;
     }
   }
 
-  List<String> audioBearingChildren() {
-    final result = <String>[];
-    for (final entry in children.entries) {
-      if (entry.value.hasAudioInSubtree) result.add(entry.key);
-    }
-    result.sort();
-    return result;
-  }
+  List<String> audioBearingChildren() => [
+    for (final e in children.entries)
+      if (e.value.hasAudioInSubtree) e.key,
+  ]..sort();
 
-  bool hasAnyBranching() {
-    final audioChildrenCount = audioBearingChildren().length;
-    if (audioChildrenCount >= 2) return true;
-    for (final child in children.values) {
-      if (child.hasAnyBranching()) return true;
-    }
-    return false;
-  }
+  bool hasAnyBranching() =>
+      audioBearingChildren().length >= 2 ||
+      children.values.any((c) => c.hasAnyBranching());
 
   int depthToFirstBranching(String firstSegment) {
     // Edges from firstSegment to the first node with >=2 audio-bearing
     // children; large value if none.
-    final start = children[firstSegment];
-    if (start == null) return 1 << 30;
-
-    int depth = 0;
-    _TrieNode node = start;
+    var node = children[firstSegment];
+    if (node == null) return 1 << 30;
+    var depth = 0;
     while (true) {
-      final audioChildren = node.audioBearingChildren();
-      if (audioChildren.length >= 2) return depth;
-      if (audioChildren.isEmpty) return 1 << 30;
-      final next = node.children[audioChildren.single];
-      if (next == null) return 1 << 30;
-      depth += 1;
-      node = next;
+      final children = node!.audioBearingChildren();
+      if (children.length >= 2) return depth;
+      if (children.isEmpty) return 1 << 30;
+      node = node.children[children.single];
+      if (node == null) return 1 << 30;
+      depth++;
     }
   }
 }
@@ -231,22 +186,19 @@ class SmartRootLabel {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SmartRootLabel &&
-          display == other.display &&
-          subtitle == other.subtitle;
+      other is SmartRootLabel && display == other.display && subtitle == other.subtitle;
 
   @override
   int get hashCode => Object.hash(display, subtitle);
 
   @override
-  String toString() =>
-      'SmartRootLabel(display: $display, subtitle: $subtitle)';
+  String toString() => 'SmartRootLabel(display: $display, subtitle: $subtitle)';
 }
 
 /// Well-known top-level audio folder basenames on Android. When a smart-root
 /// path ends in one of these, the basename is a strong enough label on its
 /// own — the parent path becomes the dim subtitle.
-const Set<String> _wellKnownBasenamesLower = <String>{
+const Set<String> _wellKnownBasenamesLower = {
   'music',
   'download',
   'downloads',
@@ -267,27 +219,18 @@ const Set<String> _wellKnownBasenamesLower = <String>{
 /// 3. Trailing well-known basename -> the basename verbatim (case-preserved),
 ///    with parent context as subtitle.
 /// 4. Otherwise -> the basename, with the full path as a dim subtitle.
-SmartRootLabel labelForPath(
-  String absolutePath, {
-  bool isRemovable = false,
-}) {
+SmartRootLabel labelForPath(String absolutePath, {bool isRemovable = false}) {
   final path = _stripTrailingSlash(absolutePath);
-  if (path.isEmpty) {
-    return const SmartRootLabel(display: '/');
-  }
+  if (path.isEmpty) return const SmartRootLabel(display: '/');
 
   // Device-root cases first.
-  if (path == '/storage/emulated/0') {
-    return const SmartRootLabel(display: 'Internal');
-  }
+  if (path == '/storage/emulated/0') return const SmartRootLabel(display: 'Internal');
   if (_isStorageDeviceRoot(path)) {
     return SmartRootLabel(display: isRemovable ? 'USB' : 'Removable');
   }
 
   final base = p.basename(path);
-  if (base.isEmpty) {
-    return SmartRootLabel(display: path);
-  }
+  if (base.isEmpty) return SmartRootLabel(display: path);
 
   // Trailing well-known basename: subtitle is the full path when directly under
   // a device root, else the parent basename (disambiguates two `Music` entries).
@@ -297,10 +240,7 @@ SmartRootLabel labelForPath(
       return SmartRootLabel(display: base, subtitle: path);
     }
     final parentBase = p.basename(parent);
-    return SmartRootLabel(
-      display: base,
-      subtitle: parentBase.isEmpty ? path : parentBase,
-    );
+    return SmartRootLabel(display: base, subtitle: parentBase.isEmpty ? path : parentBase);
   }
 
   return SmartRootLabel(display: base, subtitle: path);
@@ -308,37 +248,26 @@ SmartRootLabel labelForPath(
 
 /// Display string used when a device contributes more entries than the cap
 /// and we fall back to the bare device root. Friendlier than the raw path.
-String fallbackDeviceLabel(String deviceRoot) {
-  final label = labelForPath(deviceRoot).display;
-  return '$label — all music';
-}
+String fallbackDeviceLabel(String deviceRoot) =>
+    '${labelForPath(deviceRoot).display} — all music';
 
 /// Collapses near-duplicate entries that differ only by a case-insensitive
 /// whitespace tweak or by `Music` vs `music`. Preserves the first occurrence
 /// (case-preserved) and discards subsequent duplicates.
 List<T> dedupeSmartRoots<T>(List<T> entries, String Function(T) keyFor) {
   final seen = <String>{};
-  final result = <T>[];
-  for (final entry in entries) {
-    final canon = _canonicalKey(keyFor(entry));
-    if (seen.add(canon)) {
-      result.add(entry);
-    }
-  }
-  return result;
+  return [
+    for (final entry in entries)
+      if (seen.add(_canonicalKey(keyFor(entry)))) entry,
+  ];
 }
 
-String _canonicalKey(String raw) {
-  // Collapse whitespace + lower-case so `Music`/`music`/`Music ` map together.
-  return raw.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
-}
+/// Collapse whitespace + lower-case so `Music`/`music`/`Music ` map together.
+String _canonicalKey(String raw) =>
+    raw.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
 
-String _stripTrailingSlash(String path) {
-  if (path.length > 1 && path.endsWith('/')) {
-    return path.substring(0, path.length - 1);
-  }
-  return path;
-}
+String _stripTrailingSlash(String path) =>
+    path.length > 1 && path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 
 /// `true` for a single-segment mount under `/storage` other than
 /// `/storage/emulated/0` (e.g. `/storage/ABCD-1234`, `/storage/SD_CARD`).

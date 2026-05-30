@@ -22,12 +22,10 @@ class TransportRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final dividerColor = palette.divider;
-
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.background,
-        border: Border(top: BorderSide(color: dividerColor, width: 1)),
+        border: Border(top: BorderSide(color: palette.divider, width: 1)),
       ),
       child: SizedBox(
         height: transportHeight,
@@ -55,25 +53,22 @@ class _SeekStrip extends StatelessWidget {
     final positionMs = si?.position ?? 0;
     final durationMs = si?.duration ?? 0;
     final hasDuration = durationMs > 0;
-    final fraction = hasDuration
-        ? (positionMs / durationMs).clamp(0.0, 1.0)
-        : 0.0;
-
-    void seekTo(double localX, double width) {
-      if (!hasDuration || width <= 0) return;
-      final f = (localX / width).clamp(0.0, 1.0);
-      final ms = (f * durationMs).round();
-      player.seek(Duration(milliseconds: ms));
-    }
+    final fraction = hasDuration ? (positionMs / durationMs).clamp(0.0, 1.0) : 0.0;
 
     return LayoutBuilder(
       builder: (context, c) {
         final width = c.maxWidth;
+        void seekTo(double localX) {
+          if (!hasDuration || width <= 0) return;
+          final f = (localX / width).clamp(0.0, 1.0);
+          player.seek(Duration(milliseconds: (f * durationMs).round()));
+        }
+
         return Listener(
           key: TransportRow.seekKey,
           behavior: HitTestBehavior.opaque,
-          onPointerDown: (e) => seekTo(e.localPosition.dx, width),
-          onPointerMove: (e) => seekTo(e.localPosition.dx, width),
+          onPointerDown: (e) => seekTo(e.localPosition.dx),
+          onPointerMove: (e) => seekTo(e.localPosition.dx),
           child: CustomPaint(
             painter: _SeekPainter(
               fraction: fraction,
@@ -89,11 +84,7 @@ class _SeekStrip extends StatelessWidget {
 }
 
 class _SeekPainter extends CustomPainter {
-  _SeekPainter({
-    required this.fraction,
-    required this.trackColor,
-    required this.fillColor,
-  });
+  _SeekPainter({required this.fraction, required this.trackColor, required this.fillColor});
 
   final double fraction;
   final Color trackColor;
@@ -103,22 +94,23 @@ class _SeekPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Bottom-aligned 1 dp track hairline plus a thicker 1.5 dp filled portion mirroring the progress hairline.
     final y = size.height - 1.0;
-    final track = Paint()
-      ..color = trackColor
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(Offset(0, y), Offset(size.width, y), track);
-
+    canvas.drawLine(
+      Offset(0, y),
+      Offset(size.width, y),
+      Paint()
+        ..color = trackColor
+        ..strokeWidth = 1
+        ..style = PaintingStyle.stroke,
+    );
     if (fraction > 0) {
-      final fill = Paint()
-        ..color = fillColor
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.square
-        ..style = PaintingStyle.stroke;
       canvas.drawLine(
         Offset(0, y),
         Offset(size.width * fraction, y),
-        fill,
+        Paint()
+          ..color = fillColor
+          ..strokeWidth = 1.5
+          ..strokeCap = StrokeCap.square
+          ..style = PaintingStyle.stroke,
       );
     }
   }
@@ -140,12 +132,7 @@ class _IconRow extends StatelessWidget {
     final glyphColor = palette.fgPrimary.withValues(alpha: 0.7);
     final isPlaying = player.isPlaying;
 
-    Widget button({
-      required Key key,
-      required IconData icon,
-      required VoidCallback onTap,
-      required String label,
-    }) {
+    Widget button(Key key, IconData icon, VoidCallback onTap, String label) {
       return Expanded(
         child: Semantics(
           label: label,
@@ -164,26 +151,15 @@ class _IconRow extends StatelessWidget {
 
     return Row(
       children: [
+        button(TransportRow.prevKey, Icons.skip_previous_rounded, player.previous, 'previous'),
         button(
-          key: TransportRow.prevKey,
-          icon: Icons.skip_previous_rounded,
-          onTap: player.previous,
-          label: 'previous',
+          TransportRow.playKey,
+          isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          player.playPause,
+          isPlaying ? 'pause' : 'play',
         ),
-        button(
-          key: TransportRow.playKey,
-          icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          onTap: player.playPause,
-          label: isPlaying ? 'pause' : 'play',
-        ),
-        button(
-          key: TransportRow.nextKey,
-          icon: Icons.skip_next_rounded,
-          onTap: player.next,
-          label: 'next',
-        ),
+        button(TransportRow.nextKey, Icons.skip_next_rounded, player.next, 'next'),
       ],
     );
   }
 }
-

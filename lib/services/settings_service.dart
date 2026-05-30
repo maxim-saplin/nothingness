@@ -72,46 +72,32 @@ class SettingsService {
   static const Color automotiveStatusBarScrimLight = Color(0xFFE8E8E8);
   static const Color automotiveStatusBarScrimDark = Color(0xFF2C2C2C);
 
-  final ValueNotifier<SpectrumSettings> settingsNotifier = ValueNotifier(
-    const SpectrumSettings(),
-  );
-
-  final ValueNotifier<EqSettings> eqSettingsNotifier = ValueNotifier(
-    const EqSettings(),
-  );
-
+  final ValueNotifier<SpectrumSettings> settingsNotifier =
+      ValueNotifier(const SpectrumSettings());
+  final ValueNotifier<EqSettings> eqSettingsNotifier =
+      ValueNotifier(const EqSettings());
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
-  final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(
-    defaultFullScreen,
-  );
+  final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(defaultFullScreen);
   /// B-042: when non-null, debug desktop renders inside a letterboxed phone
   /// frame of this size (e.g. 390x844).
-  final ValueNotifier<Size?> phoneFrameNotifier = ValueNotifier(
-    defaultPhoneFrame,
-  );
-  final ValueNotifier<bool> useFilenameForMetadataNotifier = ValueNotifier(
-    defaultUseFilenameForMetadata,
-  );
-  final ValueNotifier<ScreenConfig> screenConfigNotifier = ValueNotifier(
-    defaultScreenConfig,
-  );
+  final ValueNotifier<Size?> phoneFrameNotifier = ValueNotifier(defaultPhoneFrame);
+  final ValueNotifier<bool> useFilenameForMetadataNotifier =
+      ValueNotifier(defaultUseFilenameForMetadata);
+  final ValueNotifier<ScreenConfig> screenConfigNotifier =
+      ValueNotifier(defaultScreenConfig);
   final ValueNotifier<bool> debugLayoutNotifier = ValueNotifier(false);
-  final ValueNotifier<bool> audioDiagnosticsOverlayNotifier = ValueNotifier(
-    defaultAudioDiagnosticsOverlay,
-  );
+  final ValueNotifier<bool> audioDiagnosticsOverlayNotifier =
+      ValueNotifier(defaultAudioDiagnosticsOverlay);
   final ValueNotifier<ThemeId> themeIdNotifier = ValueNotifier(defaultThemeId);
-  final ValueNotifier<ThemeVariant> themeVariantNotifier = ValueNotifier(
-    defaultThemeVariant,
-  );
-  final ValueNotifier<OperatingMode> operatingModeNotifier = ValueNotifier(
-    defaultOperatingMode,
-  );
+  final ValueNotifier<ThemeVariant> themeVariantNotifier =
+      ValueNotifier(defaultThemeVariant);
+  final ValueNotifier<OperatingMode> operatingModeNotifier =
+      ValueNotifier(defaultOperatingMode);
 
   /// When true, library surfaces show friendly labels for Android storage roots
   /// instead of raw paths. P5 owns the reader; P4 exposes the toggle.
-  final ValueNotifier<bool> smartFoldersPresentationNotifier = ValueNotifier(
-    defaultSmartFoldersPresentation,
-  );
+  final ValueNotifier<bool> smartFoldersPresentationNotifier =
+      ValueNotifier(defaultSmartFoldersPresentation);
 
   /// Immersive Void chrome: hides browser, crumb, transport, settings glyph and
   /// progress hairline so the hero fills the screen. Driven by the LOOK row.
@@ -128,9 +114,8 @@ class SettingsService {
 
   /// Heuristic: low-DPI (< 2.0) + wide (>= 1600 logical) = automotive / IVI
   /// (phones are high-DPI so never match). E.g. Zeekr DHU 2560x1600@160dpi.
-  static bool isLikelyAutomotive(double logicalWidth, double devicePixelRatio) {
-    return devicePixelRatio < 2.0 && logicalWidth >= 1600;
-  }
+  static bool isLikelyAutomotive(double logicalWidth, double devicePixelRatio) =>
+      devicePixelRatio < 2.0 && logicalWidth >= 1600;
 
   /// Smart UI scale from [logicalWidth] + [devicePixelRatio]: automotive targets
   /// ~800dp (large touch targets), tablets/phones ~960dp. Clamped 1.0..3.0.
@@ -138,15 +123,10 @@ class SettingsService {
     double logicalWidth, {
     double devicePixelRatio = 1.0,
   }) {
-    if (logicalWidth <= 0) {
-      return 1.0;
-    }
-
-    final bool isAutomotive =
-        SettingsService.isLikelyAutomotive(logicalWidth, devicePixelRatio);
-    final double targetWidth = isAutomotive ? 800.0 : 960.0;
-    final double scale = logicalWidth / targetWidth;
-    return scale.clamp(1.0, 3.0);
+    if (logicalWidth <= 0) return 1.0;
+    final target =
+        isLikelyAutomotive(logicalWidth, devicePixelRatio) ? 800.0 : 960.0;
+    return (logicalWidth / target).clamp(1.0, 3.0);
   }
 
   /// Reads [key], runs [parse]; returns [fallback] if absent or parse throws.
@@ -168,22 +148,14 @@ class SettingsService {
   /// Loads settings from persistence, or returns defaults if none exist.
   Future<SpectrumSettings> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-
     final jsonString = prefs.getString(_settingsKey);
-    final settings = _loadOrDefault(
-      prefs,
-      _settingsKey,
-      (s) => SpectrumSettings.fromJson(jsonDecode(s)),
-      const SpectrumSettings(),
-    );
+
+    final settings = _loadOrDefault(prefs, _settingsKey,
+        (s) => SpectrumSettings.fromJson(jsonDecode(s)), const SpectrumSettings());
     settingsNotifier.value = settings;
 
-    eqSettingsNotifier.value = _loadOrDefault(
-      prefs,
-      _eqSettingsKey,
-      (s) => EqSettings.fromJson(jsonDecode(s)),
-      const EqSettings(),
-    );
+    eqSettingsNotifier.value = _loadOrDefault(prefs, _eqSettingsKey,
+        (s) => EqSettings.fromJson(jsonDecode(s)), const EqSettings());
 
     // UI scale, with one-shot migration from the old JSON blob.
     if (prefs.containsKey(_uiScaleKey)) {
@@ -191,39 +163,30 @@ class SettingsService {
       debugPrint('[UI Scale] Loaded from prefs: $loadedScale');
       uiScaleNotifier.value = loadedScale;
     } else {
+      double scale = defaultUiScale;
       if (jsonString != null) {
         try {
           final json = jsonDecode(jsonString);
-          final oldScale =
-              (json['uiScale'] as num?)?.toDouble() ??
+          final oldScale = (json['uiScale'] as num?)?.toDouble() ??
               (json['textScale'] as num?)?.toDouble();
-
           if (oldScale != null) {
             debugPrint('[UI Scale] Migrated from JSON: $oldScale');
-            uiScaleNotifier.value = oldScale;
+            scale = oldScale;
             await prefs.setDouble(_uiScaleKey, oldScale);
           } else {
-            debugPrint(
-              '[UI Scale] No saved value, using default: $defaultUiScale',
-            );
-            uiScaleNotifier.value = defaultUiScale;
+            debugPrint('[UI Scale] No saved value, using default: $defaultUiScale');
           }
-        } catch (_) {
-          uiScaleNotifier.value = defaultUiScale;
-        }
+        } catch (_) {/* keep default */}
       } else {
         debugPrint('[UI Scale] Fresh install, using default: $defaultUiScale');
-        uiScaleNotifier.value = defaultUiScale;
       }
+      uiScaleNotifier.value = scale;
     }
 
     // Screen config (B-028): migrate legacy single-blob key, then load active.
     await _migrateLegacyScreenConfig(prefs);
     final activeId = prefs.getString(_activeScreenIdKey);
-    ScreenConfig? activeScreen;
-    if (activeId != null) {
-      activeScreen = await loadScreenConfig(activeId);
-    }
+    final activeScreen = activeId != null ? await loadScreenConfig(activeId) : null;
     screenConfigNotifier.value = activeScreen ?? defaultScreenConfig;
 
     final isFullScreen = prefs.getBool(_fullScreenKey) ?? defaultFullScreen;
@@ -233,30 +196,22 @@ class SettingsService {
     // Phone frame (B-042) — parse persisted "WxH" string.
     phoneFrameNotifier.value = _parsePhoneFrame(prefs.getString(_phoneFrameKey));
 
-    final useFilenameForMetadata =
+    useFilenameForMetadataNotifier.value =
         prefs.getBool(_useFilenameForMetadataKey) ?? defaultUseFilenameForMetadata;
-    useFilenameForMetadataNotifier.value = useFilenameForMetadata;
-
     audioDiagnosticsOverlayNotifier.value =
-        prefs.getBool(_audioDiagnosticsOverlayKey) ??
-            defaultAudioDiagnosticsOverlay;
-
+        prefs.getBool(_audioDiagnosticsOverlayKey) ?? defaultAudioDiagnosticsOverlay;
     smartFoldersPresentationNotifier.value =
-        prefs.getBool(_smartFoldersPresentationKey) ??
-            defaultSmartFoldersPresentation;
-
+        prefs.getBool(_smartFoldersPresentationKey) ?? defaultSmartFoldersPresentation;
     immersiveNotifier.value = prefs.getBool(_immersiveKey) ?? defaultImmersive;
 
     // Transport position; one-shot migration from legacy 'transport_visible'
     // bool (true → bottom, false → off) when the new key is unset.
     if (prefs.containsKey(_transportPositionKey)) {
-      transportPositionNotifier.value = TransportPositionX.fromStorageKey(
-        prefs.getString(_transportPositionKey),
-      );
+      transportPositionNotifier.value =
+          TransportPositionX.fromStorageKey(prefs.getString(_transportPositionKey));
     } else if (prefs.containsKey(_transportVisibleKey)) {
       final legacy = prefs.getBool(_transportVisibleKey) ?? true;
-      final migrated =
-          legacy ? TransportPosition.bottom : TransportPosition.off;
+      final migrated = legacy ? TransportPosition.bottom : TransportPosition.off;
       await prefs.setString(_transportPositionKey, migrated.storageKey);
       await prefs.remove(_transportVisibleKey);
       transportPositionNotifier.value = migrated;
@@ -264,10 +219,8 @@ class SettingsService {
       transportPositionNotifier.value = defaultTransportPosition;
     }
 
-    browserPresentationNotifier.value = BrowserPresentationX.fromStorageKey(
-      prefs.getString(_browserPresentationKey),
-    );
-
+    browserPresentationNotifier.value =
+        BrowserPresentationX.fromStorageKey(prefs.getString(_browserPresentationKey));
     themeIdNotifier.value = ThemeId.fromStorageKey(prefs.getString(_themeIdKey));
     themeVariantNotifier.value =
         ThemeVariant.fromStorageKey(prefs.getString(_themeVariantKey));
@@ -278,7 +231,7 @@ class SettingsService {
       operatingModeNotifier.value =
           OperatingMode.fromStorageKey(prefs.getString(_operatingModeKey));
     } else {
-      OperatingMode mode = defaultOperatingMode;
+      var mode = defaultOperatingMode;
       if (jsonString != null) {
         try {
           final json = jsonDecode(jsonString) as Map<String, dynamic>;
@@ -291,9 +244,7 @@ class SettingsService {
             json.remove('audioSource');
             await prefs.setString(_settingsKey, jsonEncode(json));
             debugPrint(
-              '[Settings] Migrated audioSource=$legacy -> '
-              'operatingMode=${mode.name}',
-            );
+                '[Settings] Migrated audioSource=$legacy -> operatingMode=${mode.name}');
           }
         } catch (_) {
           // Corrupted legacy JSON — keep default; new key wins on next save.
@@ -308,10 +259,7 @@ class SettingsService {
 
   /// Persists [value] as a bool under [key] and mirrors it into [notifier].
   Future<void> _saveBool(
-    String key,
-    bool value,
-    ValueNotifier<bool> notifier,
-  ) async {
+      String key, bool value, ValueNotifier<bool> notifier) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
     notifier.value = value;
@@ -319,11 +267,7 @@ class SettingsService {
 
   /// Persists [value]'s `storageKey` under [key] and mirrors it into [notifier].
   Future<void> _saveStorageKey<T>(
-    String key,
-    T value,
-    String storageKey,
-    ValueNotifier<T> notifier,
-  ) async {
+      String key, T value, String storageKey, ValueNotifier<T> notifier) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, storageKey);
     notifier.value = value;
@@ -335,19 +279,19 @@ class SettingsService {
 
   /// Persists the active theme variant (dark / light / system).
   Future<void> saveThemeVariant(ThemeVariant variant) => _saveStorageKey(
-        _themeVariantKey, variant, variant.storageKey, themeVariantNotifier);
+      _themeVariantKey, variant, variant.storageKey, themeVariantNotifier);
 
   /// Persists the operating mode (own / background).
   Future<void> saveOperatingMode(OperatingMode mode) => _saveStorageKey(
-        _operatingModeKey, mode, mode.storageKey, operatingModeNotifier);
+      _operatingModeKey, mode, mode.storageKey, operatingModeNotifier);
 
   /// Sets the audio diagnostics overlay flag.
   Future<void> setAudioDiagnosticsOverlay(bool enable) => _saveBool(
-        _audioDiagnosticsOverlayKey, enable, audioDiagnosticsOverlayNotifier);
+      _audioDiagnosticsOverlayKey, enable, audioDiagnosticsOverlayNotifier);
 
   /// Sets the smart-folders presentation toggle (friendly storage-root labels).
   Future<void> setSmartFoldersPresentation(bool enable) => _saveBool(
-        _smartFoldersPresentationKey, enable, smartFoldersPresentationNotifier);
+      _smartFoldersPresentationKey, enable, smartFoldersPresentationNotifier);
 
   /// Sets the Void-chrome immersive toggle. Persists across launches.
   Future<void> setImmersive(bool enable) =>
@@ -355,17 +299,15 @@ class SettingsService {
 
   /// Sets the transport-strip anchor (top / bottom / off).
   Future<void> setTransportPosition(TransportPosition pos) => _saveStorageKey(
-        _transportPositionKey, pos, pos.storageKey, transportPositionNotifier);
+      _transportPositionKey, pos, pos.storageKey, transportPositionNotifier);
 
   /// Sets the browser-presentation mode (fixed vs swipe-up).
   Future<void> setBrowserPresentation(BrowserPresentation p) => _saveStorageKey(
-        _browserPresentationKey, p, p.storageKey, browserPresentationNotifier);
+      _browserPresentationKey, p, p.storageKey, browserPresentationNotifier);
 
   /// Reads the last library-browser folder; `null` when none saved.
-  Future<String?> loadLastLibraryPath() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_lastLibraryPathKey);
-  }
+  Future<String?> loadLastLibraryPath() async =>
+      (await SharedPreferences.getInstance()).getString(_lastLibraryPathKey);
 
   /// Persists the current library-browser path; pass `null` to clear it.
   Future<void> saveLastLibraryPath(String? path) async {
@@ -389,7 +331,6 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_eqSettingsKey, jsonEncode(settings.toJson()));
     eqSettingsNotifier.value = settings;
-
     if (PlatformChannels.isAndroid) {
       PlatformChannels().updateEqualizerSettings(settings);
     }
@@ -448,8 +389,7 @@ class SettingsService {
       return;
     }
     try {
-      final json = jsonDecode(raw) as Map<String, dynamic>;
-      final cfg = ScreenConfig.fromJson(json);
+      final cfg = ScreenConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
       final id = screenIdForType(cfg.type);
       // Don't clobber an existing per-screen key (partial prior migration).
       if (!prefs.containsKey(_keyForScreenId(id))) {
@@ -460,8 +400,7 @@ class SettingsService {
         await prefs.setString(_activeScreenIdKey, id);
       }
       debugPrint(
-        '[Settings] Migrated legacy screen_config -> ${_keyForScreenId(id)}',
-      );
+          '[Settings] Migrated legacy screen_config -> ${_keyForScreenId(id)}');
     } catch (e) {
       debugPrint('[Settings] Corrupted legacy screen_config dropped: $e');
     } finally {
@@ -491,9 +430,7 @@ class SettingsService {
         await prefs.remove(_phoneFrameKey);
       } else {
         await prefs.setString(
-          _phoneFrameKey,
-          '${size.width.round()}x${size.height.round()}',
-        );
+            _phoneFrameKey, '${size.width.round()}x${size.height.round()}');
       }
     }
   }
@@ -515,10 +452,9 @@ class SettingsService {
         systemNavigationBarIconBrightness: Brightness.light,
       ));
     } else {
-      final brightness =
-          WidgetsBinding.instance.platformDispatcher.platformBrightness;
-      final useDarkIcons = brightness == Brightness.light;
-
+      final useDarkIcons =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+              Brightness.light;
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
         statusBarColor: const Color(0x00000000),
@@ -534,9 +470,8 @@ class SettingsService {
 
   /// Sets the use filename for metadata setting.
   Future<void> setUseFilenameForMetadata(bool enable) => _saveBool(
-        _useFilenameForMetadataKey, enable, useFilenameForMetadataNotifier);
+      _useFilenameForMetadataKey, enable, useFilenameForMetadataNotifier);
 
-  void toggleDebugLayout() {
-    debugLayoutNotifier.value = !debugLayoutNotifier.value;
-  }
+  void toggleDebugLayout() =>
+      debugLayoutNotifier.value = !debugLayoutNotifier.value;
 }
