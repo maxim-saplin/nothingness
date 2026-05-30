@@ -330,19 +330,28 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   void _enterSearchMode() {
-    setState(() => _searchMode = true);
     // B-043: a collapsed swipe-up browser keeps the results list parked
-    // offscreen, so search would focus the input but show nothing. Expand
-    // the browser now and remember we did, so _exitSearchMode can restore
-    // the collapsed state on dismissal.
+    // offscreen, so search would focus the input but show nothing. Expand the
+    // browser first and remember we did, so _exitSearchMode can restore the
+    // collapsed state on dismissal.
+    //
+    // Keyboard-flicker fix: mounting the (autofocusing) search field *during*
+    // the 280 ms browser-slide made Android cancel the keyboard show and then
+    // hide it — the "keyboard flashes up then disappears" bug. So in the
+    // collapsed swipe-up case we expand first and only mount the search field
+    // once the slide settles, so `autofocus` raises the keyboard into a stable
+    // layout and it stays up (matching the fixed-presentation path, which
+    // never had the bug). Everywhere else the field mounts immediately.
     if (_browserPresentation == BrowserPresentation.swipeUp &&
         !_browserExpanded) {
       _searchAutoExpandedBrowser = true;
       _setBrowserExpanded(true);
+      _browserSlideCtrl.forward().whenComplete(() {
+        if (mounted) setState(() => _searchMode = true);
+      });
+      return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocusNode.requestFocus();
-    });
+    setState(() => _searchMode = true);
   }
 
   void _exitSearchMode() {
@@ -962,9 +971,14 @@ class _VoidScreenState extends State<VoidScreen>
             child: TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
-              // No `autofocus` — `_enterSearchMode` issues a single post-frame
-              // `requestFocus()`. Having both raced the browser-expand rebuild
-              // and made the soft keyboard flash up then hide.
+              // `autofocus` is the single, reliable keyboard trigger: it shows
+              // the soft keyboard once when the field mounts (and re-mounts on
+              // each fresh search). `_enterSearchMode` deliberately does NOT
+              // also call `requestFocus()` — having both raced the
+              // browser-expand rebuild and made the keyboard flash up then
+              // hide. (requestFocus alone gives focus but doesn't reliably
+              // raise the keyboard, so autofocus is the one to keep.)
+              autofocus: true,
               cursorColor: palette.fgPrimary,
               cursorWidth: 1,
               style: textStyle,
