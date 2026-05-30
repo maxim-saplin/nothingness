@@ -6,7 +6,28 @@ import '../../providers/audio_player_provider.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_typography.dart';
 
-/// Shared title + parent-folder block used by [DotHero] and [SpectrumHero]. Title in mono / `fgPrimary` at `heroSize * textScale`; optional parent-folder crumb in `fgTertiary` at `hintSize * textScale`. Falls back to the "nothingness" idle headline with no track. Reads the active track from [AudioPlayerProvider]. [textScale] (B-035) scales both lines.
+/// Mono headline [TextStyle] shared by [HeroTitleBlock] and `VoidHero` — the
+/// two-line hero title treatment (`fgPrimary`-style colour, `monoFamily`, w300,
+/// 1.18 line height, `heroLetterSpacing`). Differs only in size + colour.
+TextStyle heroHeadingStyle(
+  AppTypography typography, {
+  required Color color,
+  required double fontSize,
+}) =>
+    TextStyle(
+      color: color,
+      fontFamily: typography.monoFamily,
+      fontSize: fontSize,
+      letterSpacing: typography.heroLetterSpacing,
+      fontWeight: FontWeight.w300,
+      height: 1.18,
+    );
+
+/// Shared title + parent-folder block used by [HeroTitleBlock]'s hosts (DotHero,
+/// SpectrumHero). Title in mono / `fgPrimary` at `heroSize * textScale`; optional
+/// parent-folder crumb in `fgTertiary` at `hintSize * textScale`. Falls back to
+/// the "nothingness" idle headline with no track. Reads the active track from
+/// [AudioPlayerProvider]. [textScale] (B-035) scales both lines.
 class HeroTitleBlock extends StatelessWidget {
   const HeroTitleBlock({super.key, this.textScale = 1.0});
 
@@ -32,13 +53,10 @@ class HeroTitleBlock extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: heroHeadingStyle(
+              typography,
               color: palette.fgPrimary,
-              fontFamily: typography.monoFamily,
               fontSize: typography.heroSize * textScale,
-              letterSpacing: typography.heroLetterSpacing,
-              fontWeight: FontWeight.w300,
-              height: 1.18,
             ),
           ),
           if (hasTrack) ...[

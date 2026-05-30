@@ -27,8 +27,7 @@ class MediaButton extends StatelessWidget {
   });
 
   /// Stable key on the inner [AnimatedOpacity] so widget tests can assert the touch-down dip.
-  static const Key touchDownDimKey =
-      ValueKey<String>('media-button-touch-dim');
+  static const Key touchDownDimKey = ValueKey<String>('media-button-touch-dim');
 
   /// Opacity applied while a touch is held. B-030 recalibrated 0.55 → 0.4 (the original dip was sub-threshold against the accent backdrop).
   static const double pressedOpacity = 0.4;
@@ -43,10 +42,6 @@ class MediaButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final primaryColor = accentColor ?? palette.accent;
-    final secondaryBg =
-        inactiveBackgroundColor ?? palette.fgPrimary.withValues(alpha: 0.05);
-    final secondaryIcon =
-        inactiveIconColor ?? palette.fgPrimary.withValues(alpha: 0.7);
 
     return PressFeedback(
       onTap: onTap,
@@ -57,7 +52,10 @@ class MediaButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isPrimary ? primaryColor : secondaryBg,
+          color: isPrimary
+              ? primaryColor
+              : (inactiveBackgroundColor ??
+                  palette.fgPrimary.withValues(alpha: 0.05)),
           boxShadow: isPrimary
               ? [
                   BoxShadow(
@@ -71,7 +69,9 @@ class MediaButton extends StatelessWidget {
         child: Icon(
           icon,
           size: size * 0.5,
-          color: isPrimary ? palette.background : secondaryIcon,
+          color: isPrimary
+              ? palette.background
+              : (inactiveIconColor ?? palette.fgPrimary.withValues(alpha: 0.7)),
         ),
       ),
     );

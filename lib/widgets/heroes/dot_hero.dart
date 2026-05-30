@@ -11,23 +11,18 @@ import 'hero_title_block.dart';
 
 /// Dot visualisation embedded in the Void hero slot: a single pulsing circle whose radius tracks the spectrum's bass energy (Void chrome owns transport). When [DotScreenConfig.showSongInfo] is true (B-020) the active track's title + parent folder overlay the top of the band in a [Stack] above the centered dot. The dot is clamped to a fraction of the smallest dimension so it never overflows.
 class DotHero extends StatelessWidget {
-  const DotHero({
-    super.key,
-    required this.config,
-  });
+  const DotHero({super.key, required this.config});
 
   final DotScreenConfig config;
 
   double _radiusFor(List<double> spectrum, double maxAllowed) {
     if (spectrum.isEmpty) return min(config.minDotSize, maxAllowed);
-    double bass = 0.0;
-    final n = min(spectrum.length, 3);
-    for (int i = 0; i < n; i++) {
+    var bass = 0.0;
+    for (var i = 0; i < min(spectrum.length, 3); i++) {
       bass = max(bass, spectrum[i]);
     }
-    final energy = bass * bass;
     final r = config.minDotSize +
-        energy * config.sensitivity * (config.maxDotSize - config.minDotSize);
+        bass * bass * config.sensitivity * (config.maxDotSize - config.minDotSize);
     return r.clamp(config.minDotSize, min(config.maxDotSize, maxAllowed));
   }
 

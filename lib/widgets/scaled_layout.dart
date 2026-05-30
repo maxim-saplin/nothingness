@@ -13,38 +13,33 @@ class ScaledLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
       valueListenable: SettingsService().uiScaleNotifier,
-      builder: (context, rawUiScale, child) {
+      builder: (context, rawUiScale, _) {
         return LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
             final screenHeight = constraints.maxHeight;
-
             if (screenWidth <= 0 || screenHeight <= 0) {
-              return this.child; // guard against zero constraints
+              return child; // guard against zero constraints
             }
 
-            double uiScale = rawUiScale;
+            var uiScale = rawUiScale;
             if (uiScale <= 0 || !uiScale.isFinite) {
               // Auto mode: smart scale from available width.
-              final dpr = MediaQuery.of(context).devicePixelRatio;
               uiScale = SettingsService().calculateSmartScaleForWidth(
                 screenWidth,
-                devicePixelRatio: dpr,
+                devicePixelRatio: MediaQuery.of(context).devicePixelRatio,
               );
             }
-
             // B-044: ceiling matches the slider max / auto-scale clamp (3.0);
             // a higher ceiling overflowed the now-playing header.
             uiScale = uiScale.clamp(0.5, 3.0);
-
             if ((uiScale - 1.0).abs() < 0.01) {
-              return this.child; // effectively unscaled
+              return child; // effectively unscaled
             }
 
             // Logical size the scaled content "sees".
             final logicalWidth = screenWidth / uiScale;
             final logicalHeight = screenHeight / uiScale;
-
             final mediaQuery = MediaQuery.of(context);
 
             return SizedBox(
@@ -66,7 +61,7 @@ class ScaledLayout extends StatelessWidget {
                           viewInsets: mediaQuery.viewInsets / uiScale,
                           viewPadding: mediaQuery.viewPadding / uiScale,
                         ),
-                        child: this.child,
+                        child: child,
                       ),
                     ),
                   ),

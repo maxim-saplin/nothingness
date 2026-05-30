@@ -6,6 +6,7 @@ import '../../providers/audio_player_provider.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_typography.dart';
 import 'base_hero_container.dart';
+import 'hero_title_block.dart';
 
 /// Track-metadata hero for the `void` visualisation — pure visual, fills the hero slot.
 ///
@@ -24,21 +25,33 @@ class VoidHero extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypography>()!;
     final player = context.watch<AudioPlayerProvider>();
     final track = player.songInfo?.track;
-    final hasTrack = track != null;
 
     final h1Size = typography.heroSize * config.textScale;
     final h2Size = typography.heroSize * songSizeFactor * config.textScale;
 
+    // A flexible mono heading (Artist H1 / Song H2 / idle headline).
+    Widget heading(String text,
+            {required Key key,
+            required Color color,
+            required double fontSize}) =>
+        Flexible(
+          child: Text(
+            text,
+            key: key,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: heroHeadingStyle(typography, color: color, fontSize: fontSize),
+          ),
+        );
+
     final List<Widget> children;
-    if (!hasTrack) {
+    if (track == null) {
       children = [
-        _heading(
-          'nothingness',
-          key: const ValueKey('void-hero-artist'),
-          color: palette.fgPrimary,
-          typography: typography,
-          fontSize: h1Size,
-        ),
+        heading('nothingness',
+            key: const ValueKey('void-hero-artist'),
+            color: palette.fgPrimary,
+            fontSize: h1Size),
         const SizedBox(height: 12),
         Flexible(
           child: Text(
@@ -57,44 +70,28 @@ class VoidHero extends StatelessWidget {
       ];
     } else {
       final artist = track.artist.trim();
-      final hasArtist = artist.isNotEmpty;
       final modeGlyph = player.isOneShot
           ? '↩ '
           : player.shuffle
               ? '≈ '
               : '';
-      if (hasArtist) {
-        children = [
-          // Artist — H1 (primary headline).
-          _heading(
-            artist,
-            key: const ValueKey('void-hero-artist'),
-            color: palette.fgPrimary,
-            typography: typography,
-            fontSize: h1Size,
-          ),
-          const SizedBox(height: 8),
-          // Song title — H2 (secondary heading).
-          _heading(
-            '$modeGlyph${track.title}',
-            key: const ValueKey('void-hero-song'),
-            color: palette.fgSecondary,
-            typography: typography,
-            fontSize: h2Size,
-          ),
-        ];
-      } else {
-        // No parsed artist — the song title carries the H1 slot.
-        children = [
-          _heading(
-            '$modeGlyph${track.title}',
-            key: const ValueKey('void-hero-song'),
-            color: palette.fgPrimary,
-            typography: typography,
-            fontSize: h1Size,
-          ),
-        ];
-      }
+      final song = heading('$modeGlyph${track.title}',
+          key: const ValueKey('void-hero-song'),
+          color: artist.isEmpty ? palette.fgPrimary : palette.fgSecondary,
+          fontSize: artist.isEmpty ? h1Size : h2Size);
+      children = artist.isEmpty
+          // No parsed artist — the song title carries the H1 slot.
+          ? [song]
+          : [
+              // Artist — H1 (primary headline).
+              heading(artist,
+                  key: const ValueKey('void-hero-artist'),
+                  color: palette.fgPrimary,
+                  fontSize: h1Size),
+              const SizedBox(height: 8),
+              // Song title — H2 (secondary heading).
+              song,
+            ];
     }
 
     return BaseHeroContainer(
@@ -105,36 +102,8 @@ class VoidHero extends StatelessWidget {
       alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: children,
-      ),
-    );
-  }
-
-  /// Shared heading builder for the Artist / Song levels — same mono / 2-line ellipsis treatment, differing only in size + colour.
-  Widget _heading(
-    String text, {
-    required Key key,
-    required Color color,
-    required AppTypography typography,
-    required double fontSize,
-  }) {
-    return Flexible(
-      child: Text(
-        text,
-        key: key,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color,
-          fontFamily: typography.monoFamily,
-          fontSize: fontSize,
-          letterSpacing: typography.heroLetterSpacing,
-          fontWeight: FontWeight.w300,
-          height: 1.18,
-        ),
       ),
     );
   }

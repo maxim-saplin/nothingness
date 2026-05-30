@@ -27,43 +27,37 @@ class SpectrumHero extends StatelessWidget {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
     final player = context.watch<AudioPlayerProvider>();
-    final spectrumData = player.spectrumData;
     final hasTrack = player.songInfo?.track != null;
 
     // Three identical fgPrimary stops collapse to a uniform monochrome bar; the visualiser still lerps between them.
-    final List<Color> voidBarColors = <Color>[
+    final voidBarColors = <Color>[
       palette.fgPrimary,
       palette.fgPrimary,
       palette.fgPrimary,
     ];
 
     // B-026: estimate the title block height from typography so the visualiser slot can be capped to fit. Mirrors HeroTitleBlock (maxLines:2 title at height 1.18; 8-px gap + hintSize*1.2 crumb only with a track). The safety buffer absorbs glyph rounding so the outer Column never overshoots (RenderFlex overflow at uiScale=2.5 where the slot is ~118 px).
-    final double titleHeight = typography.heroSize * 1.18 * 2;
-    final double crumbHeight = hasTrack ? 8 + typography.hintSize * 1.2 : 0;
     const double textBlockSafetyBuffer = 8.0;
-    final double reservedTextHeight =
-        titleHeight + crumbHeight + textBlockSafetyBuffer;
     const double textToVisualizerGap = 16.0;
+    final double reservedTextHeight = typography.heroSize * 1.18 * 2 +
+        (hasTrack ? 8 + typography.hintSize * 1.2 : 0) +
+        textBlockSafetyBuffer;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         // 0.7 H * spectrumHeightFactor matches the prior layout. B-026: cap by what remains after the text block + gap and floor to integer px so the visualiser shrinks first instead of overflowing.
-        final double wantedVisualizer =
+        final wantedVisualizer =
             constraints.maxHeight * 0.7 * config.spectrumHeightFactor;
-        final double remaining = math.max(
-          0,
-          constraints.maxHeight - reservedTextHeight - textToVisualizerGap,
-        );
-        final double visualizerHeight =
+        final remaining = math.max(0,
+            constraints.maxHeight - reservedTextHeight - textToVisualizerGap);
+        final visualizerHeight =
             math.min(wantedVisualizer, remaining).floorToDouble();
         // Hide the visualiser slot when too small to host bars + frequency labels (it owns an internal Column that would overflow). 24 px is a conservative floor fitting labels at `hintSize`.
-        final bool showVisualizer = visualizerHeight >= 24.0;
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.max,
           children: [
             const HeroTitleBlock(),
-            if (showVisualizer) ...[
+            if (visualizerHeight >= 24.0) ...[
               const SizedBox(height: textToVisualizerGap),
               SizedBox(
                 width: double.infinity,
@@ -73,7 +67,7 @@ class SpectrumHero extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: SpectrumVisualizer(
-                      data: spectrumData,
+                      data: player.spectrumData,
                       settings: settings,
                       colorsOverride: voidBarColors,
                     ),

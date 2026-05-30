@@ -15,9 +15,7 @@ import 'void_screen.dart';
 
 /// Fires [onReassemble] on hot reload (Flutter's `State.reassemble` seam, which
 /// has no first-class hook). Used to refresh source-derived config defaults.
-void _useReassemble(VoidCallback onReassemble) {
-  use(_ReassembleHook(onReassemble));
-}
+void _useReassemble(VoidCallback onReassemble) => use(_ReassembleHook(onReassemble));
 
 class _ReassembleHook extends Hook<void> {
   const _ReassembleHook(this.onReassemble);
@@ -51,22 +49,15 @@ class MediaControllerPage extends HookWidget {
     // Build reacts to settings + active screen straight off the notifiers
     // (their own source of truth), so handlers only run side effects.
     final settings = useValueListenable(settingsService.settingsNotifier);
-    final screenConfig = useValueListenable(
-      settingsService.screenConfigNotifier,
-    );
+    final screenConfig = useValueListenable(settingsService.screenConfigNotifier);
 
-    String currentScreenName() {
-      switch (settingsService.screenConfigNotifier.value.type) {
-        case ScreenType.spectrum:
-          return 'spectrum';
-        case ScreenType.polo:
-          return 'polo';
-        case ScreenType.dot:
-          return 'dot';
-        case ScreenType.void_:
-          return 'void';
-      }
-    }
+    String currentScreenName() => switch (
+        settingsService.screenConfigNotifier.value.type) {
+      ScreenType.spectrum => 'spectrum',
+      ScreenType.polo => 'polo',
+      ScreenType.dot => 'dot',
+      ScreenType.void_ => 'void',
+    };
 
     /// Toggle the player's spectrum capture: own mode re-enables capture and
     /// pushes latest settings; background mode disables it (background
@@ -128,7 +119,7 @@ class MediaControllerPage extends HookWidget {
     // Mirror SpectrumSettings changes down to the audio pipeline and into
     // VoidScreen so the hero re-renders.
     useEffect(() {
-      void handleSpectrumSettingsChanged() {
+      void onChanged() {
         if (!context.mounted) return;
         final next = settingsService.settingsNotifier.value;
         if (settingsService.operatingModeNotifier.value == OperatingMode.own &&
@@ -142,56 +133,44 @@ class MediaControllerPage extends HookWidget {
         platformChannels.updateSpectrumSettings(next);
       }
 
-      settingsService.settingsNotifier.addListener(
-        handleSpectrumSettingsChanged,
-      );
-      return () => settingsService.settingsNotifier.removeListener(
-            handleSpectrumSettingsChanged,
-          );
+      settingsService.settingsNotifier.addListener(onChanged);
+      return () => settingsService.settingsNotifier.removeListener(onChanged);
     }, const []);
 
     // Re-wire spectrum source on operating-mode toggle: background mode pauses
     // (not tears down) own playback so the OS shows one now-playing card; first
     // entry also requests mic + notification-listener access.
     useEffect(() {
-      Future<void> handleOperatingModeChanged() async {
-        final mode = settingsService.operatingModeNotifier.value;
+      Future<void> onChanged() async {
         if (!context.mounted) return;
-        if (mode == OperatingMode.background) {
+        if (settingsService.operatingModeNotifier.value ==
+            OperatingMode.background) {
           try {
             final player = context.read<AudioPlayerProvider>();
-            if (player.isPlaying) {
-              await player.playPause();
-            }
+            if (player.isPlaying) await player.playPause();
           } catch (_) {
             // Provider not in scope — fine; nothing to pause.
           }
-          if (PlatformChannels.isAndroid) {
-            await ensureBackgroundPermissions();
-          }
+          if (PlatformChannels.isAndroid) await ensureBackgroundPermissions();
         }
         attachSpectrumSource();
       }
 
-      settingsService.operatingModeNotifier.addListener(
-        handleOperatingModeChanged,
-      );
-      return () => settingsService.operatingModeNotifier.removeListener(
-            handleOperatingModeChanged,
-          );
+      settingsService.operatingModeNotifier.addListener(onChanged);
+      return () =>
+          settingsService.operatingModeNotifier.removeListener(onChanged);
     }, const []);
 
     // Bootstrap: load persisted settings + push them through the pipeline.
     useEffect(() {
       var active = true;
-      Future<void> loadSettings() async {
+      () async {
         final loaded = await settingsService.loadSettings();
         if (!active) return;
         attachSpectrumSource();
         platformChannels.updateSpectrumSettings(loaded);
-        platformChannels.updateEqualizerSettings(
-          settingsService.eqSettingsNotifier.value,
-        );
+        platformChannels
+            .updateEqualizerSettings(settingsService.eqSettingsNotifier.value);
 
         // Cold-start in background mode: surface permission prompts up front.
         if (settingsService.operatingModeNotifier.value ==
@@ -199,12 +178,8 @@ class MediaControllerPage extends HookWidget {
             PlatformChannels.isAndroid) {
           await ensureBackgroundPermissions();
         }
-      }
-
-      loadSettings();
-      if (PlatformChannels.isAndroid) {
-        checkPermissions();
-      }
+      }();
+      if (PlatformChannels.isAndroid) checkPermissions();
       return () => active = false;
     }, const []);
 
@@ -239,8 +214,7 @@ class MediaControllerPage extends HookWidget {
       if (settingsService.screenConfigNotifier.value.type == ScreenType.polo) {
         settingsService.screenConfigNotifier.value = const PoloScreenConfig();
         debugPrint(
-          '[Hot Reload] PoloScreenConfig refreshed from source defaults',
-        );
+            '[Hot Reload] PoloScreenConfig refreshed from source defaults');
       }
     });
 

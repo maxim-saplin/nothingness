@@ -27,9 +27,9 @@ class PoloHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isLight = theme.brightness == Brightness.light;
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final player = context.watch<AudioPlayerProvider>();
+    final transport = context.read<AudioPlayerProvider>();
 
     // SkinLayout assumes a 1080×~2400 aspect; FittedBox(contain) letterboxes it while staying tappable (hit-testing propagates through the inner rects).
     final Widget skin = SizedBox(
@@ -49,19 +49,19 @@ class PoloHero extends StatelessWidget {
           SkinControlArea(
             rect: config.prevRect,
             shape: SkinControlShape.rectangle,
-            onTap: context.read<AudioPlayerProvider>().previous,
+            onTap: transport.previous,
             debugLabel: 'Prev',
           ),
           SkinControlArea(
             rect: config.playPauseRect,
             shape: SkinControlShape.circle,
-            onTap: context.read<AudioPlayerProvider>().playPause,
+            onTap: transport.playPause,
             debugLabel: 'Play/Pause',
           ),
           SkinControlArea(
             rect: config.nextRect,
             shape: SkinControlShape.rectangle,
-            onTap: context.read<AudioPlayerProvider>().next,
+            onTap: transport.next,
             debugLabel: 'Next',
           ),
         ],
@@ -69,13 +69,14 @@ class PoloHero extends StatelessWidget {
       ),
     );
 
-    final Widget body = isLight
-        ? ColorFiltered(colorFilter: _invertFilter, child: skin)
-        : skin;
-
     return BaseHeroContainer(
       alignment: Alignment.center,
-      child: FittedBox(fit: BoxFit.contain, child: body),
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: isLight
+            ? ColorFiltered(colorFilter: _invertFilter, child: skin)
+            : skin,
+      ),
     );
   }
 }
