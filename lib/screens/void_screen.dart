@@ -67,9 +67,10 @@ class VoidScreen extends HookWidget {
     final settingsService = useMemoized(() => SettingsService());
 
     // B-015: lets the crumb's jump tap drive scrollToTrack after loadFolder.
-    final browserKey = useMemoized(() => GlobalKey<VoidBrowserState>());
+    final browserController = useMemoized(() => VoidBrowserController());
     // B-012: lets the drag accumulator fire the swipe flash when prev/next triggers.
-    final heroFeedbackKey = useMemoized(() => GlobalKey<HeroFeedbackSurfaceState>());
+    final heroFlashController = useMemoized(() => HeroFlashController());
+    useEffect(() => heroFlashController.dispose, [heroFlashController]);
 
     // Controller: external (test-owned) or self-created + disposed.
     final ownsLibraryController = libraryController == null;
@@ -271,7 +272,7 @@ class VoidScreen extends HookWidget {
         await libCtrl.loadFolder(parent);
       }
       if (!isMounted()) return;
-      await browserKey.currentState?.scrollToTrack(playingPath);
+      await browserController.scrollToTrack(playingPath);
     }
 
     // --- listeners -----------------------------------------------------------
@@ -475,7 +476,7 @@ class VoidScreen extends HookWidget {
           browserPresentation.value == BrowserPresentation.swipeUp &&
               !browserExpanded.value;
       return HeroFeedbackSurface(
-        key: heroFeedbackKey,
+        flashController: heroFlashController,
         onPlayPause: () => player.playPause(),
         onPrevious: () => player.previous(),
         onNext: () => player.next(),
@@ -752,7 +753,7 @@ class VoidScreen extends HookWidget {
                 child: ClipRect(
                   clipBehavior: Clip.hardEdge,
                   child: VoidBrowser(
-                    key: browserKey,
+                    browserController: browserController,
                     controller: libCtrl,
                     searchController: searchController,
                     // B-032: drag-down close only in swipe-up; fixed stays

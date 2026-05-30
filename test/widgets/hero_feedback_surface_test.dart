@@ -21,7 +21,7 @@ void main() {
     List<String> events,
     List<Duration> seeks,
   }) build({
-    GlobalKey<HeroFeedbackSurfaceState>? key,
+    HeroFlashController? flashController,
     int positionMs = 10000,
     int durationMs = 60000,
   }) {
@@ -31,7 +31,7 @@ void main() {
       width: 400,
       height: 400,
       child: HeroFeedbackSurface(
-        key: key,
+        flashController: flashController,
         onPlayPause: () => events.add('playpause'),
         onPrevious: () => events.add('previous'),
         onNext: () => events.add('next'),
@@ -181,15 +181,15 @@ void main() {
   });
 
   group('edge flash', () {
-    testWidgets('flashSwipe(1) renders › glyph then fades out', (tester) async {
-      final key = GlobalKey<HeroFeedbackSurfaceState>();
-      final b = build(key: key);
+    testWidgets('flash(1) renders › glyph then fades out', (tester) async {
+      final controller = HeroFlashController();
+      final b = build(flashController: controller);
       await tester.pumpWidget(host(b.widget));
 
       expect(find.text('›'), findsNothing);
       expect(find.text('‹'), findsNothing);
 
-      key.currentState!.flashSwipe(1);
+      controller.flash(1);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 90));
       expect(find.text('›'), findsOneWidget);
@@ -200,12 +200,12 @@ void main() {
       expect(find.text('›'), findsNothing);
     });
 
-    testWidgets('flashSwipe(-1) renders ‹ glyph', (tester) async {
-      final key = GlobalKey<HeroFeedbackSurfaceState>();
-      final b = build(key: key);
+    testWidgets('flash(-1) renders ‹ glyph', (tester) async {
+      final controller = HeroFlashController();
+      final b = build(flashController: controller);
       await tester.pumpWidget(host(b.widget));
 
-      key.currentState!.flashSwipe(-1);
+      controller.flash(-1);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 90));
       expect(find.text('‹'), findsOneWidget);

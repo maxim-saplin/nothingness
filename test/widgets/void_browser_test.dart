@@ -73,7 +73,7 @@ void main() {
         ),
       );
 
-      final browserKey = GlobalKey<VoidBrowserState>();
+      final browserController = VoidBrowserController();
 
       await tester.pumpWidget(
         wrapWithProvider(
@@ -82,7 +82,10 @@ void main() {
             value: controller,
             child: SizedBox(
               height: 600,
-              child: VoidBrowser(key: browserKey, controller: controller),
+              child: VoidBrowser(
+              browserController: browserController,
+              controller: controller,
+            ),
             ),
           ),
         ),
@@ -93,7 +96,7 @@ void main() {
       expect(rowFinder, findsOneWidget,
           reason: 'B-015: row must be built with a stable key.');
 
-      await browserKey.currentState!.scrollToTrack(targetPath);
+      await browserController.scrollToTrack(targetPath);
       await tester.pumpAndSettle();
 
       final box = tester.renderObject<RenderBox>(rowFinder);
@@ -138,7 +141,7 @@ void main() {
         ),
       );
 
-      final browserKey = GlobalKey<VoidBrowserState>();
+      final browserController = VoidBrowserController();
 
       await tester.pumpWidget(
         wrapWithProvider(
@@ -147,14 +150,17 @@ void main() {
             value: controller,
             child: SizedBox(
               height: 600,
-              child: VoidBrowser(key: browserKey, controller: controller),
+              child: VoidBrowser(
+              browserController: browserController,
+              controller: controller,
+            ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      await browserKey.currentState!.scrollToTrack(targetPath);
+      await browserController.scrollToTrack(targetPath);
       await tester.pumpAndSettle();
 
       final rowFinder = find.byKey(const ValueKey('void-file:/lib/folder/t_06.mp3'));
@@ -204,7 +210,7 @@ void main() {
           ),
         );
 
-        final browserKey = GlobalKey<VoidBrowserState>();
+        final browserController = VoidBrowserController();
 
         await tester.pumpWidget(
           wrapWithProvider(
@@ -213,7 +219,10 @@ void main() {
               value: controller,
               child: SizedBox(
                 height: 400,
-                child: VoidBrowser(key: browserKey, controller: controller),
+                child: VoidBrowser(
+              browserController: browserController,
+              controller: controller,
+            ),
               ),
             ),
           ),
@@ -232,7 +241,7 @@ void main() {
         // widget tests, frames only advance via `tester.pump`. Kick off
         // the call as an unawaited future, pump frames so the binding
         // can drain the wait loop, then await completion before asserting.
-        final future = browserKey.currentState!.scrollToTrack(targetPath);
+        final future = browserController.scrollToTrack(targetPath);
         // Drain the polling loop (up to ~30 frames) + any animateTo
         // animation (~240 ms).
         for (int i = 0; i < 60; i++) {
