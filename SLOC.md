@@ -11,13 +11,21 @@ Counts **git-tracked** files only (via `git ls-files`), so build output,
 
 | Folder    |    Lines | Files |
 | --------- | -------: | ----: |
-| `lib`     |   10,697 |    61 |
+| `lib`     |   10,287 |    60 |
 | `macos`   |    1,758 |    30 |
-| `android` |    1,630 |    35 |
+| `android` |    1,366 |    35 |
 | `linux`   |      469 |    10 |
-| **TOTAL** | **14,554** | **136** |
+| **TOTAL** | **13,880** | **135** |
 
-**−26.4% from the 19,772 baseline.** Achieved with all features preserved,
+**−29.8% from the 19,772 baseline**, verified running on a real Android
+emulator (boot, library scan, playback, reactive track-change, live FFT
+spectrum, UI render). Beyond the earlier work, this includes: clean-room
+simplifying the **Android native Kotlin** (1,000→736); eliminating the
+redundant **`AudioPlayerProvider`** mirroring layer so `PlaybackController` is
+the single source-of-truth `ChangeNotifier` the UI watches (the Android
+`audio_service` handler is now a pure observer + OS-command forwarder);
+migrating every `StatefulWidget` to `flutter_hooks`; and replacing the
+`GlobalKey<State>` imperative antipatterns with reactive controllers. Achieved with all features preserved,
 all 346 tests green, and `flutter analyze` clean. The reduction came from:
 deleting dead code; relocating the debug/automation harness out of shipping
 `lib/` into `dev/` (behind a thin `lib/debug_hooks.dart` seam — proper test/prod
