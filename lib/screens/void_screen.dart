@@ -103,12 +103,6 @@ class _VoidScreenState extends State<VoidScreen>
   // browser (so its results are visible). Mirrored on exit to re-collapse the
   // browser only if search was the thing that opened it.
   bool _searchAutoExpandedBrowser = false;
-  double _horizDragAccum = 0;
-  // B-027: latched while the current horizontal drag has already produced a
-  // prev/next event (either via the 60-dp distance accumulator below or via
-  // the velocity escape in `_onHeroHorizontalDragEnd`). Prevents the end-of-
-  // gesture velocity check from re-firing on top of a distance trip.
-  bool _horizDragFired = false;
   Timer? _hintFadeTimer;
   // B-031: hide-only debounce for the crumb's `⊙` jump glyph. The crumb
   // rebuilds on every library/playback notification, and there is a brief
@@ -383,61 +377,6 @@ class _VoidScreenState extends State<VoidScreen>
       if (!mounted) return;
       setState(() => _hintFaded = true);
     });
-  }
-
-  /// Velocity threshold (px/s) for the B-027 escape hatch. A short flick
-  /// whose distance never crosses [_horizDistanceThreshold] still fires
-  /// prev/next if its end velocity exceeds this value. Tuned to match
-  /// PageView's flick feel — anything noticeably faster than a casual drag.
-  static const double _horizVelocityThreshold = 300.0;
-  static const double _horizDistanceThreshold = 60.0;
-
-  void _onHeroHorizontalDrag(DragUpdateDetails d) {
-    _horizDragAccum += d.primaryDelta ?? 0;
-    final player = context.read<AudioPlayerProvider>();
-    if (_horizDragAccum > _horizDistanceThreshold) {
-      // B-039: dragging the card RIGHT brings the PREVIOUS track in (card
-      // slides off to the right, previous enters from the left).
-      player.previous();
-      _heroFeedbackKey.currentState?.triggerSwipe(isNext: false);
-      _horizDragAccum = 0;
-      _horizDragFired = true;
-    } else if (_horizDragAccum < -_horizDistanceThreshold) {
-      // B-039: dragging the card LEFT brings the NEXT track in (card slides
-      // off to the left, next enters from the right).
-      player.next();
-      _heroFeedbackKey.currentState?.triggerSwipe(isNext: true);
-      _horizDragAccum = 0;
-      _horizDragFired = true;
-    }
-  }
-
-  /// B-027: velocity escape. If the gesture ended without crossing the
-  /// 60-dp distance threshold but the user clearly flicked (|v| > 300 px/s),
-  /// fire prev/next based on the sign of the velocity. The `_horizDragFired`
-  /// guard prevents a long+fast drag from double-firing (once on distance,
-  /// once on velocity).
-  ///
-  /// B-039: direction follows the card metaphor — a rightward flick (v > 0)
-  /// brings the PREVIOUS track in, a leftward flick (v < 0) brings the NEXT.
-  void _onHeroHorizontalDragEnd(DragEndDetails d) {
-    if (!_horizDragFired) {
-      final v = d.primaryVelocity ?? 0;
-      if (v.abs() > _horizVelocityThreshold) {
-        final player = context.read<AudioPlayerProvider>();
-        if (v > 0) {
-          // Rightward flick → previous (B-039).
-          player.previous();
-          _heroFeedbackKey.currentState?.triggerSwipe(isNext: false);
-        } else {
-          // Leftward flick → next (B-039).
-          player.next();
-          _heroFeedbackKey.currentState?.triggerSwipe(isNext: true);
-        }
-      }
-    }
-    _horizDragAccum = 0;
-    _horizDragFired = false;
   }
 
   /// Upward drag on the (expanded) hero while the swipe-up browser is
@@ -771,10 +710,10 @@ class _VoidScreenState extends State<VoidScreen>
   /// Vertical drag is wired only when the swipe-up browser is collapsed —
   /// the same arena where the hint band lives.
   ///
-  /// B-012: the surface also paints a tap-ring at the touch point and a
-  /// directional flash when a horizontal swipe trips prev / next, so taps
-  /// and swipes get immediate visual feedback instead of waiting on
-  /// downstream state changes.
+  /// The surface owns the full horizontal-swipe interaction: the card tracks
+  /// the finger live and commits to a track change exactly once on release
+  /// (see [HeroFeedbackSurface]). It also paints a tap-ring at the touch point
+  /// and a directional flash when a swipe commits, for immediate feedback.
   Widget _buildHeroGestureSurface({required Widget child}) {
     final player = context.read<AudioPlayerProvider>();
     final bool acceptVertical =
@@ -783,8 +722,8 @@ class _VoidScreenState extends State<VoidScreen>
     return HeroFeedbackSurface(
       key: _heroFeedbackKey,
       onTap: () => player.playPause(),
-      onHorizontalDragUpdate: _onHeroHorizontalDrag,
-      onHorizontalDragEnd: _onHeroHorizontalDragEnd,
+      onNext: () => player.next(),
+      onPrevious: () => player.previous(),
       onVerticalDragUpdate: acceptVertical ? _onHeroVerticalDrag : null,
       onVerticalDragEnd: acceptVertical ? _onHeroVerticalDragEnd : null,
       child: child,

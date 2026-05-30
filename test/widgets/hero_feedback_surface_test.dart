@@ -25,8 +25,8 @@ void main() {
           height: 400,
           child: HeroFeedbackSurface(
             onTap: () => tapped = true,
-            onHorizontalDragUpdate: (_) {},
-            onHorizontalDragEnd: (_) {},
+            onNext: () {},
+            onPrevious: () {},
             child: const ColoredBox(color: Colors.black),
           ),
         ),
@@ -80,8 +80,8 @@ void main() {
           child: HeroFeedbackSurface(
             key: key,
             onTap: () {},
-            onHorizontalDragUpdate: (_) {},
-            onHorizontalDragEnd: (_) {},
+            onNext: () {},
+            onPrevious: () {},
             child: const ColoredBox(color: Colors.black),
           ),
         ),
@@ -113,8 +113,8 @@ void main() {
           child: HeroFeedbackSurface(
             key: key,
             onTap: () {},
-            onHorizontalDragUpdate: (_) {},
-            onHorizontalDragEnd: (_) {},
+            onNext: () {},
+            onPrevious: () {},
             child: const ColoredBox(color: Colors.black),
           ),
         ),
@@ -148,8 +148,8 @@ void main() {
           child: HeroFeedbackSurface(
             key: key,
             onTap: () {},
-            onHorizontalDragUpdate: (_) {},
-            onHorizontalDragEnd: (_) {},
+            onNext: () {},
+            onPrevious: () {},
             child: const ColoredBox(color: Colors.black),
           ),
         ),
@@ -187,8 +187,8 @@ void main() {
           child: HeroFeedbackSurface(
             key: key,
             onTap: () {},
-            onHorizontalDragUpdate: (_) {},
-            onHorizontalDragEnd: (_) {},
+            onNext: () {},
+            onPrevious: () {},
             child: const ColoredBox(color: Colors.black),
           ),
         ),
@@ -210,30 +210,61 @@ void main() {
     });
   });
 
-  group('gesture pass-through', () {
-    testWidgets('horizontal drag callback fires', (tester) async {
-      int drags = 0;
-      DragEndDetails? endDetails;
+  group('interactive swipe commit', () {
+    Future<({int next, int prev})> runDrag(
+      WidgetTester tester,
+      Offset offset,
+    ) async {
+      int next = 0;
+      int prev = 0;
       await tester.pumpWidget(host(
         SizedBox(
           width: 400,
           height: 400,
           child: HeroFeedbackSurface(
             onTap: () {},
-            onHorizontalDragUpdate: (_) => drags++,
-            onHorizontalDragEnd: (d) => endDetails = d,
+            onNext: () => next++,
+            onPrevious: () => prev++,
             child: const ColoredBox(color: Colors.black),
           ),
         ),
       ));
+      await tester.drag(find.byType(HeroFeedbackSurface), offset);
+      // Settle through the exit + enter slide.
+      await tester.pumpAndSettle();
+      return (next: next, prev: prev);
+    }
 
-      await tester.drag(
-        find.byType(HeroFeedbackSurface),
-        const Offset(200, 0),
-      );
-      await tester.pump();
-      expect(drags, greaterThan(0));
-      expect(endDetails, isNotNull);
+    testWidgets('a leftward drag past threshold fires onNext exactly once',
+        (tester) async {
+      final r = await runDrag(tester, const Offset(-200, 0));
+      expect(r.next, 1);
+      expect(r.prev, 0);
+    });
+
+    testWidgets('a rightward drag past threshold fires onPrevious exactly once',
+        (tester) async {
+      final r = await runDrag(tester, const Offset(200, 0));
+      expect(r.prev, 1);
+      expect(r.next, 0);
+    });
+
+    testWidgets(
+        'a long drag fires the track change only ONCE (no multi-skip)',
+        (tester) async {
+      // A 380-px drag is >6× the 60-dp threshold. The old accumulator would
+      // have fired next() several times; the commit-on-release model fires
+      // exactly once.
+      final r = await runDrag(tester, const Offset(-380, 0));
+      expect(r.next, 1, reason: 'one gesture must change at most one track');
+      expect(r.prev, 0);
+    });
+
+    testWidgets('a short drag below threshold springs back, no change',
+        (tester) async {
+      final r = await runDrag(tester, const Offset(-30, 0));
+      expect(r.next, 0);
+      expect(r.prev, 0);
     });
   });
 }
