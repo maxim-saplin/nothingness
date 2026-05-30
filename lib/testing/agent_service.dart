@@ -389,6 +389,10 @@ class AgentService {
       'screenName': s.screenConfigNotifier.value.name,
       'debugLayout': s.debugLayoutNotifier.value,
       'fullScreen': s.fullScreenNotifier.value,
+      'phoneFrame': s.phoneFrameNotifier.value == null
+          ? null
+          : '${s.phoneFrameNotifier.value!.width.round()}x'
+              '${s.phoneFrameNotifier.value!.height.round()}',
       'useFilenameForMetadata': s.useFilenameForMetadataNotifier.value,
       'uiScale': s.uiScaleNotifier.value,
       'spectrumSettings': {
@@ -440,6 +444,20 @@ class AgentService {
     switch (name) {
       case 'fullScreen':
         await s.setFullScreen(value == 'true');
+      case 'phoneFrame':
+        // B-042: "off"/"none" clears; "WxH" (e.g. "390x844") sets the frame.
+        final lc = value.trim().toLowerCase();
+        if (lc == 'off' || lc == 'none' || lc.isEmpty) {
+          await s.setPhoneFrame(null);
+        } else {
+          final parts = lc.split('x');
+          final w = parts.length == 2 ? double.tryParse(parts[0].trim()) : null;
+          final h = parts.length == 2 ? double.tryParse(parts[1].trim()) : null;
+          if (w == null || h == null || w <= 0 || h <= 0) {
+            return _error('phoneFrame expects "WxH" (e.g. 390x844) or "off"');
+          }
+          await s.setPhoneFrame(Size(w, h));
+        }
       case 'debugLayout':
         s.debugLayoutNotifier.value = value == 'true';
       case 'useFilenameForMetadata':

@@ -1,0 +1,13 @@
+# Library / browser / search sweep. Adjust the nav path to a real music folder.
+# Linux: any readable dir. Android: a MediaStore-backed path (/sdcard/Music).
+nav /home/user/src/nothingness/.tmp
+inspect
+shoot browser_root
+up
+inspect
+# browser presentation: swipe-up (B-032/B-033) — screenshot collapsed + expanded
+call ext.nothingness.setSetting name=browserPresentation value=swipe_up
+shoot browser_swipeup
+call ext.nothingness.setSetting name=browserPresentation value=fixed
+shoot browser_fixed
+overflows

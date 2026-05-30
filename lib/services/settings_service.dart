@@ -32,6 +32,9 @@ class SettingsService {
   /// on boot.
   static const String _activeScreenIdKey = 'active_screen_id';
   static const String _fullScreenKey = 'full_screen';
+  // B-042: debug-only narrow-tall "phone frame" for the desktop build, so
+  // portrait-phone layout can be exercised without a device. Stored as "WxH".
+  static const String _phoneFrameKey = 'phone_frame';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
   static const String _eqSettingsKey = 'eq_settings';
   static const String _audioDiagnosticsOverlayKey = 'audio_diagnostics_overlay';
@@ -54,6 +57,7 @@ class SettingsService {
   static const DecaySpeed defaultDecaySpeed = DecaySpeed.medium;
   static const double defaultUiScale = -1.0; // -1.0 indicates "auto" / not set
   static const bool defaultFullScreen = false;
+  static const Size? defaultPhoneFrame = null; // null = off (full window)
   static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
   static const bool defaultEqEnabled = false;
@@ -86,6 +90,11 @@ class SettingsService {
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
   final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(
     defaultFullScreen,
+  );
+  /// B-042: when non-null, the (debug) desktop build renders the app inside a
+  /// letterboxed phone-sized logical frame of this size (e.g. 390x844).
+  final ValueNotifier<Size?> phoneFrameNotifier = ValueNotifier(
+    defaultPhoneFrame,
   );
   final ValueNotifier<bool> useFilenameForMetadataNotifier = ValueNotifier(
     defaultUseFilenameForMetadata,
@@ -263,6 +272,9 @@ class SettingsService {
     fullScreenNotifier.value = isFullScreen;
     // Apply system UI mode (without saving again)
     setFullScreen(isFullScreen, save: false);
+
+    // 4b. Load phone frame (B-042) — parse persisted "WxH" string.
+    phoneFrameNotifier.value = _parsePhoneFrame(prefs.getString(_phoneFrameKey));
 
     // 5. Load Use Filename For Metadata
     final useFilenameForMetadata =
@@ -534,6 +546,36 @@ class SettingsService {
   ///
   /// - [enable]: Whether to enable immersive full screen.
   /// - [save]: Whether to persist the setting (default true).
+  /// Parse a "WxH" phone-frame spec (e.g. "390x844"). Returns null for
+  /// null/empty/"off"/malformed input (B-042).
+  static Size? _parsePhoneFrame(String? spec) {
+    if (spec == null) return null;
+    final s = spec.trim().toLowerCase();
+    if (s.isEmpty || s == 'off' || s == 'none') return null;
+    final parts = s.split('x');
+    if (parts.length != 2) return null;
+    final w = double.tryParse(parts[0].trim());
+    final h = double.tryParse(parts[1].trim());
+    if (w == null || h == null || w <= 0 || h <= 0) return null;
+    return Size(w, h);
+  }
+
+  /// Set (or clear, when [size] is null) the debug phone frame (B-042).
+  Future<void> setPhoneFrame(Size? size, {bool save = true}) async {
+    phoneFrameNotifier.value = size;
+    if (save) {
+      final prefs = await SharedPreferences.getInstance();
+      if (size == null) {
+        await prefs.remove(_phoneFrameKey);
+      } else {
+        await prefs.setString(
+          _phoneFrameKey,
+          '${size.width.round()}x${size.height.round()}',
+        );
+      }
+    }
+  }
+
   Future<void> setFullScreen(bool enable, {bool save = true}) async {
     if (save) {
       final prefs = await SharedPreferences.getInstance();

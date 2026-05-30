@@ -1,0 +1,22 @@
+# Playback / transport sweep. Needs short test tones staged under .tmp/
+# (e.g. t1_a440_2s.wav .. t5_a880_2s.wav, long_10s.wav). Adjust paths per host.
+# After running, read `getAudioEvents` for transition gaps (B-037) and dup-ended (B-036).
+call ext.nothingness.setQueue paths=/home/user/src/nothingness/.tmp/t1_a440_2s.wav,/home/user/src/nothingness/.tmp/t2_c554_2s.wav,/home/user/src/nothingness/.tmp/t3_e659_2s.wav,/home/user/src/nothingness/.tmp/t5_a880_2s.wav startIndex=0
+inspect
+# let auto-advance run, then inspect events
+pause
+resume
+next
+inspect
+prev
+inspect
+# one-shot then restore
+play /home/user/src/nothingness/.tmp/long_10s.wav
+inspect
+next
+inspect
+# missing file skip
+call ext.nothingness.setQueue paths=/home/user/src/nothingness/.tmp/t1_a440_2s.wav,/home/user/src/nothingness/.tmp/DOES_NOT_EXIST.wav,/home/user/src/nothingness/.tmp/t3_e659_2s.wav startIndex=0
+inspect
+call ext.nothingness.getAudioEvents
+call ext.nothingness.getDiagnostics

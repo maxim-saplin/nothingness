@@ -335,6 +335,32 @@ def cmd_mode(args) -> int:
     return 0
 
 
+_PHONE_PRESETS = {
+    "phone": "390x844",       # iPhone 14-ish portrait
+    "small": "360x800",       # common small Android portrait
+    "tall": "412x915",        # Pixel-ish portrait
+    "tiny": "280x653",        # adversarial narrow portrait
+    "off": "off",
+}
+
+
+def cmd_emulate(args) -> int:
+    """drive.py emulate <phone|small|tall|tiny|off|WxH>  (B-042 phone frame)."""
+    spec = _PHONE_PRESETS.get(args.spec, args.spec)
+    res = _ext_resilient("ext.nothingness.setSetting",
+                         {"name": "phoneFrame", "value": spec})
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def cmd_window(args) -> int:
+    """drive.py window <w> <h>  (B-042) — set an exact phone-frame size."""
+    res = _ext_resilient("ext.nothingness.setSetting",
+                         {"name": "phoneFrame", "value": f"{args.width}x{args.height}"})
+    print(json.dumps(res, indent=2))
+    return 0
+
+
 def cmd_nav(args) -> int:
     res = _ext_resilient("ext.nothingness.navigateVoid", {"path": args.path})
     print(json.dumps(res, indent=2))
@@ -777,6 +803,19 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("method")
     sp.add_argument("kvs", nargs="*")
     sp.set_defaults(func=cmd_call)
+
+    # B-042: debug phone-frame on the desktop build.
+    sp = sub.add_parser(
+        "emulate",
+        help="phone-frame the desktop app: phone|small|tall|tiny|off|WxH",
+    )
+    sp.add_argument("spec", help="preset (phone|small|tall|tiny|off) or WxH e.g. 390x844")
+    sp.set_defaults(func=cmd_emulate)
+
+    sp = sub.add_parser("window", help="set exact phone-frame size (B-042)")
+    sp.add_argument("width", type=int)
+    sp.add_argument("height", type=int)
+    sp.set_defaults(func=cmd_window)
 
     return p
 

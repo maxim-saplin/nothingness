@@ -13,6 +13,7 @@ import 'screens/media_controller_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nothingness/services/library_service.dart';
 import 'package:nothingness/services/settings_service.dart';
+import 'package:nothingness/widgets/phone_frame.dart';
 import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
 import 'testing/agent_service.dart';
@@ -189,7 +190,7 @@ class _NothingAppState extends State<NothingApp> {
               // Flutter scrim over the status-bar area so dark OEM icons
               // stay readable.  This sits outside ScaledLayout so it uses
               // raw screen coordinates.
-              return ValueListenableBuilder<bool>(
+              final Widget appWithChrome = ValueListenableBuilder<bool>(
                 valueListenable: SettingsService().fullScreenNotifier,
                 builder: (context, isFullScreen, appChild) {
                   if (isFullScreen) return appChild!;
@@ -224,6 +225,19 @@ class _NothingAppState extends State<NothingApp> {
                   );
                 },
                 child: child,
+              );
+
+              // B-042 (debug only): render the whole app inside a letterboxed
+              // narrow-tall "phone frame" so portrait-phone layout can be
+              // exercised on the desktop build. The MediaQuery size override
+              // makes layout/typography see phone dimensions; the screenshot
+              // boundary (wrapping `child` above) then captures phone-sized
+              // frames for drive.py.
+              if (!kDebugMode) return appWithChrome;
+              return ValueListenableBuilder<Size?>(
+                valueListenable: SettingsService().phoneFrameNotifier,
+                builder: (context, frame, _) =>
+                    PhoneFrame(frame: frame, child: appWithChrome),
               );
             },
           );

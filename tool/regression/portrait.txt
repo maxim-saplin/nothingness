@@ -1,0 +1,25 @@
+# Portrait / phone-frame sweep (B-042). Linux only. No audio required.
+# Expect: each screen renders inside the phone frame with NO overflow reports.
+emulate phone
+shoot portrait_void_390
+screen spectrum
+shoot portrait_spectrum_390
+screen dot
+shoot portrait_dot_390
+screen polo
+shoot portrait_polo_390
+screen void
+overflows
+# smaller and adversarial-narrow frames
+emulate small
+shoot portrait_void_360
+emulate tiny
+shoot portrait_void_280
+overflows
+# settings sheet in portrait
+settings open
+shoot portrait_settings_280
+settings close
+# back to full window
+emulate off
+shoot portrait_off

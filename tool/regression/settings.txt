@@ -1,0 +1,28 @@
+# Settings + per-screen persistence sweep. No audio required.
+# B-028/B-023: per-skin config must survive screen hops. B-034: SOUND group gating.
+settings open
+shoot settings_open
+settings close
+# transport position cycle (B-022)
+call ext.nothingness.setSetting name=transport value=top
+shoot settings_transport_top
+call ext.nothingness.setSetting name=transport value=off
+shoot settings_transport_off
+call ext.nothingness.setSetting name=transport value=bottom
+# operating mode + variant
+mode background
+shoot settings_mode_bg
+mode own
+variant system
+# screen hop: dot -> spectrum -> dot (B-028 per-skin persistence)
+screen dot
+settings open
+shoot settings_dot
+settings close
+screen spectrum
+screen dot
+settings open
+shoot settings_dot_after_hop
+settings close
+inspect
+overflows

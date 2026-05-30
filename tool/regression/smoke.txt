@@ -1,0 +1,23 @@
+# Smoke: app is alive and the core surfaces respond. No audio required.
+# Read the inspect/overflow output + screenshots; expect zero overflow reports.
+inspect
+overflows
+# cycle heroes and screenshot each
+screen spectrum
+shoot smoke_spectrum
+screen dot
+shoot smoke_dot
+screen polo
+shoot smoke_polo
+screen void
+shoot smoke_void
+# theme variants
+variant light
+shoot smoke_light
+variant dark
+shoot smoke_dark
+# settings sheet open/close (B-024: must not hang)
+settings open
+shoot smoke_settings
+settings close
+overflows

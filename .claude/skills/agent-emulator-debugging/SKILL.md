@@ -118,6 +118,13 @@ $D pause | $D resume | $D next | $D prev
 $D pref void_hint_shown=false:bool            # types: bool|int|string
 $D clearpref void_hint_shown
 
+# Phone-frame the desktop build to repro portrait-phone layout (B-042; debug only)
+$D emulate phone                              # preset 390x844 (also: small|tall|tiny|off)
+$D emulate 360x800                            # arbitrary WxH
+$D window 390 844                             # exact size; $D emulate off to clear
+# Scales-to-fit the desktop window (FittedBox); MediaQuery reports phone dims,
+# so layout/typography behave as on a phone. `shoot` then captures phone-sized PNGs.
+
 # Lifecycle
 $D reload                                     # hot reload (sends `r` to /tmp/flutter_input)
 $D restart                                    # hot restart

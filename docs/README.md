@@ -20,6 +20,7 @@ Welcome to the documentation for the Nothingness project.
   - [Documentation Rules](../.cursor/rules/documentation.mdc) - When and how to write documentation.
 
 - **Testing & Diagnostics**
+  - [Regression & Exploratory Testing Playbook](regression-testing-playbook.md) - Regression table (one row per closed bug + core flows), session-based exploratory charters, and adversarial-vector routing; driven via `drive.py` on Linux + Android. Replay scripts in [`tool/regression/`](../tool/regression/).
   - [Device/emulator integration testing (no audio files)](device-testing.md) - Integration tests + deterministic playback harness (Android + macOS; target selection matters).
   - [Agent-driven debugging via VM service extensions](agent-driven-debugging.md) - Drive the live app from a script/agent (state queries, playback, audio-interruption simulation, diagnostics export).
   - [Emulator power diagnostics (evidence → culprit)](emulator-power-diagnostics.md) - ADB-first runbook to find background CPU/services/wakelocks on the Android emulator.
