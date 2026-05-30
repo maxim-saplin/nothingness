@@ -1135,3 +1135,41 @@ analyzer so the existing smoothing decays the bars to flat, then emits one
 clean zero frame and stops until playback resumes. Verified on the live Linux
 app: `spectrumNonZero` decays to `false` ~1.5–1.8 s after pause and returns to
 `true` on resume.
+
+## B-044 (minor): uiScale band (3.0, 4.0] overflows the now-playing header
+
+- **Symptom** — At `uiScale` between 3.0 and 4.0 the now-playing header
+  RenderFlex-overflowed (~34px); the oversized title clipped out of the header.
+- **Repro** — Linux regression sweep 2026-05-30: `setSetting name=uiScale
+  value=4.0` then `screen void`/`spectrum` → `overflows` reported "RenderFlex
+  overflowed by 34 pixels". 3.0 and below were clean.
+- **Not user-reachable** — slider clamps (0.75, 3.0); auto path clamps (1.0, 3.0).
+  Only `ScaledLayout`'s explicit clamp allowed up to 4.0, reachable via the debug
+  VM-service `setSetting`. Tail of the B-026 class.
+- **Area** — heroes
+
+**Closed**: 2026-05-30 — lowered the explicit-scale ceiling in
+`lib/widgets/scaled_layout.dart` from `clamp(0.5, 4.0)` to `clamp(0.5, 3.0)`,
+matching the slider max and the auto-scale clamp so 3.0 is the single universal
+ceiling. Regression test "B-044: clamps explicit scale to a 3.0 ceiling" in
+`test/widgets/scaled_layout_test.dart`. Verified live: uiScale=4.0 → 0 overflows.
+
+## B-042 (minor): emulate a narrow-tall phone on the Linux desktop build (app + skill)
+
+- **Symptom** — Desktop driving ran in a 1280×720 landscape window, so
+  phone-shaped layout problems (portrait typography, Artist/Song hierarchy, text
+  scale) couldn't be reproduced without hardware. Supports B-040/B-041.
+- **Desired** — Render the app inside a narrow-tall portrait frame on desktop,
+  driveable by the agent.
+- **Area** — settings / tooling
+
+**Closed**: 2026-05-30 — added `PhoneFrame` widget
+(`lib/widgets/phone_frame.dart`): letterbox + `MediaQuery` size override +
+`FittedBox(contain)` scale-to-fit (reuses the Polo letterbox idiom), wired into
+`main.dart`'s `MaterialApp.builder` (kDebugMode-gated) via a `phoneFrame`
+`Size?` setting in `SettingsService`. Driveable through `setSetting
+name=phoneFrame value=WxH|off` (+ surfaced in `getSettings`) and `drive.py
+emulate phone|small|tall|tiny|off|WxH` / `window <w> <h>` (SKILL.md documented).
+No native/GTK change. Widget test in `test/widgets/phone_frame_test.dart`.
+Verified live: `emulate phone` → 390×844 frame, screenshot rasterizes 390×844,
+0 overflows down to 280×653.

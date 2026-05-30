@@ -35,7 +35,10 @@ class ScaledLayout extends StatelessWidget {
               );
             }
 
-            uiScale = uiScale.clamp(0.5, 4.0);
+            // Ceiling matches the in-app slider max and the auto-scale clamp
+            // (both 3.0); a higher explicit ceiling left a (3.0, 4.0] band that
+            // overflows the now-playing header (B-044). Floor stays generous.
+            uiScale = uiScale.clamp(0.5, 3.0);
 
             // If scale is effectively 1.0, just return the child
             if ((uiScale - 1.0).abs() < 0.01) {

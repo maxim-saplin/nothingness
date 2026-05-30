@@ -66,6 +66,25 @@ void main() {
       expect(matrix.storage[5], scale); // Scale Y
     });
 
+    testWidgets('B-044: clamps explicit scale to a 3.0 ceiling', (
+      WidgetTester tester,
+    ) async {
+      // 4.0 used to be applied verbatim, overflowing the now-playing header.
+      SettingsService().uiScaleNotifier.value = 4.0;
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ScaledLayout(
+            child: SizedBox(width: 100, height: 100, child: Text('Clamped')),
+          ),
+        ),
+      );
+
+      final transform = tester.widget<Transform>(find.byType(Transform));
+      expect(transform.transform.storage[0], 3.0); // clamped X
+      expect(transform.transform.storage[5], 3.0); // clamped Y
+    });
+
     testWidgets('handles invalid scale by falling back to 1.0', (
       WidgetTester tester,
     ) async {

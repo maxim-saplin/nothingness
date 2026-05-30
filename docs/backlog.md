@@ -25,6 +25,28 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
 
 ---
 
+## B-045 (major): Android debug build fails — flutter_soloud arm64 NDK sysroot leak
+
+- **Symptom** — `flutter run -d emulator-5554 --debug` (and any Android build of
+  the current tree) fails during Gradle `assembleDebug` while cross-compiling the
+  `flutter_soloud-4.0.6` native plugin for **arm64-v8a**. Blocks ALL on-device
+  Android testing — the regression swarm's Android shards (A1-A4, on-device
+  playback RP-01..11) could not run.
+- **Repro** — Android regression worker 2026-05-30, 4 build cycles. NDK 27
+  aarch64 clang (`--target=aarch64-none-linux-android21`) pulls the host snap
+  glibc headers `/snap/flutter/current/usr/include/c++/9/memory` →
+  `error: cast from pointer to smaller type 'uintptr_t' loses information` and
+  `bits/wchar2.h: "Assumed value of MB_LEN_MAX wrong"`. Deterministic
+  host-toolchain/sysroot defect — NOT emulator flakiness (`emulator-5554` stayed
+  `device`; adb push/grant worked).
+- **Notes** — `abiFilters` in `android/app/build.gradle.kts` gate only the `:app`
+  module; the `flutter_soloud` `externalNativeBuild` still enumerates arm64-v8a,
+  and `CI_EMULATOR_ABI=x86_64` did not suppress it. Needs a non-leaking aarch64
+  NDK sysroot (snap glibc headers must not leak into the NDK include path), or
+  constraining the soloud build's abiFilters, or a non-snap Flutter toolchain.
+  Environmental/toolchain — needs maintainer attention; out of scope for the
+  in-app QA campaign. Area — build/tooling.
+
 ## B-039 (minor): hero swipe direction is unintuitive + no animated card transition
 
 - **Symptom** — Horizontal swipe on the hero skips prev/next, but two things
@@ -94,26 +116,6 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
   fromJson. Hero title size is `typography.heroSize * config.textScale`
   (`void_hero.dart:75`); confirm the new Artist/Song levels (B-040) both scale.
 - **Area** — settings
-
-## B-042 (minor): emulate a narrow-tall phone on the Linux desktop build (app + skill)
-
-- **Symptom** — Desktop driving runs in a 1280×720 landscape window
-  (`linux/runner/my_application.cc:55`), so phone-shaped layout problems
-  (portrait typography, the Artist/Song hierarchy, text scale) can't be
-  reproduced without real hardware. Subtask supporting B-040 / B-041.
-- **Desired** — A way to render the app inside a narrow-tall (portrait phone,
-  e.g. ~360×800 dp) frame on desktop, driveable by the agent.
-- **Notes** — Two layers:
-  1. **App** — add a debug "phone frame" that constrains the root to a portrait
-     logical size and letterboxes the rest (MediaQuery override / centered
-     constrained box), toggled via a setting so it's driveable. (Polo already
-     does aspect-ratio letterboxing — `lib/widgets/heroes/polo_hero.dart:13,41`
-     — reuse the pattern.) Changing the GTK `gtk_window_set_default_size`
-     (`my_application.cc:55`) alone is build-time and less flexible.
-  2. **Skill / driver** — extend `agent-emulator-debugging` + `drive.py` with an
-     `emulate phone` / window-size command (new `ext.nothingness.setWindowSize`
-     or a phone-frame `setSetting`); none of the current 27 extensions resize.
-- **Area** — settings / tooling
 
 ## B-043 (minor): searching does not raise a collapsed (swipe-up) browser
 

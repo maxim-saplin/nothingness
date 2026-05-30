@@ -200,3 +200,41 @@ The orchestrator (not the workers) aggregates `.tmp/regression/*.md`, dedupes by
 survivors as new `B-0NN` entries in `docs/backlog.md` per the convention there
 (monotonic ids; check both backlog files). Fixed items move to `backlog_done.md`
 with a `Closed: YYYY-MM-DD — …` note.
+
+## Lessons learned (first campaign, 2026-05-30)
+
+Orchestration mechanics (the parts that bit us):
+- **Run workers as FOREGROUND concurrent agents.** Background (`run_in_background`)
+  sub-agents are in-process to the orchestrator and are **killed when its turn
+  ends or the terminal crashes** — they silently produced nothing. Spawn the
+  swarm as parallel foreground `Agent` calls in one message so they complete
+  within the turn; the orchestrator stays lean by reading only their compact
+  return summaries + the on-disk findings files (never the agent transcripts).
+- **Append findings to disk incrementally**, after each shard — a crash then
+  costs only the current step, not the whole session.
+- **Device leasing is mandatory.** drive.py hard-codes `.vm_ws.txt`,
+  `/tmp/flutter_run.log`, `/tmp/flutter_input` as singletons; two drivers sharing
+  them silently talk to the wrong app. Each device worker gets its own git
+  worktree (→ its own `.vm_ws.txt`), its own flutter-run log, and exactly one
+  app instance. Only one driver per instance, ever.
+- **`flutter run` launch on Linux:** newlines collapse in the harness `eval`
+  (use single-line commands) and the `/tmp/flutter_input` fifo needs a
+  `run_in_background` writer (a plain `&` writer dies).
+
+What is and isn't VM-service-drivable:
+- **Not drivable via the 27 extensions** (push to widget/integration tests):
+  velocity-gated gestures (`tester.fling`), per-skin config retention
+  (B-028/B-023), search entry + browser expand/collapse (B-043), swipe-up
+  animation. The device sweep can confirm overflow/state but not these.
+- **SoLoud on the headless Linux build free-runs its position clock** in real
+  wall-clock even across app pause — `prev` "<3s vs >3s" reads can cross the
+  threshold during driver sleeps. Minimize latency or assert in widget tests;
+  get all timing from the timestamped `getAudioEvents` ring buffer.
+- **Android driving is currently blocked** — the debug build fails to compile
+  `flutter_soloud` for arm64 (host snap glibc headers leak into the NDK
+  sysroot; see **B-045**). Until that's fixed, Android shards (A1-A4 + on-device
+  playback) can't run; Linux desktop + deterministic tests carry coverage.
+
+Health snapshot at first run: the deterministic suite is green (336 tests);
+B-036/B-037 (gap ≈30ms)/B-038/B-026/B-042 all hold on Linux; the only product
+finding was **B-044** (an out-of-UI-range uiScale overflow, now fixed).
