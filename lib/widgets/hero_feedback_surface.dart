@@ -3,50 +3,65 @@ import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
 
-/// Touch-feedback + interactive swipe surface for the hero band.
+/// Touch surface for the hero band: tap-zones for transport, horizontal-drag
+/// to seek, plus lightweight touch feedback.
 ///
-/// Wraps the hero with a gesture surface that:
-///   * **Tap ring** — an expanding monochrome circle outline that fades out at
-///     the tap point over ~180 ms (B-012).
-///   * **Swipe flash** — a `‹` / `›` glyph at the matching edge of the band
-///     that fades in then out when a horizontal swipe commits to prev/next.
-///   * **Interactive card swipe** — the hero "card" tracks the finger during a
-///     horizontal drag and commits to a track change **exactly once on
-///     release**, then completes the slide (current card exits in the drag
-///     direction, the incoming card enters from the opposite side). A drag that
-///     doesn't cross the distance/velocity threshold springs back to rest with
-///     no track change.
+/// Interaction model (deliberately simple — the old swipe-card-to-change-track
+/// model was janky and surprising, so it was removed):
+///   * **Tap LEFT third** → previous (the player's `previous()` already does
+///     restart-current-if->3s-else-previous-track).
+///   * **Tap CENTER third** → play/pause.
+///   * **Tap RIGHT third** → next.
+///   * **Horizontal drag** → seek the current track. The drag is *relative*:
+///     it scrubs from the position the drag started at, with the full hero
+///     width mapping to the whole track. A `current / total` readout is shown
+///     while dragging and the audio seeks once, on release.
 ///
-/// The single-commit-on-release model is deliberate: the previous
-/// implementation accumulated drag distance and fired `next()`/`previous()`
-/// *mid-drag* every time a 60-dp threshold was crossed, which meant one long
-/// swipe could skip several tracks (and on Android, fire several async
-/// platform-channel skips back-to-back — the "stuck / jumpy / skips songs"
-/// bug). Now the card follows the finger live and the player is told to change
-/// track once, after the gesture ends.
+/// Feedback overlays:
+///   * **Tap ring** — an expanding monochrome circle that fades out at the tap
+///     point over ~180 ms (B-012 / B-030).
+///   * **Edge flash** — a `‹` / `›` glyph at the matching edge when a prev/next
+///     zone is tapped, for immediate directional feedback.
+///   * **Seek HUD** — the time readout + a thin preview line, shown only while
+///     a seek drag is in progress.
 ///
-/// The overlay paints in `fgSecondary` so it stays visible against any hero
-/// visualisation without dominating it. Both feedback overlays are pointer-
-/// transparent, so the underlying gesture detector owns all hit-testing.
+/// All overlays are pointer-transparent, so the underlying GestureDetector owns
+/// every hit-test. The hero child is passed straight through (no transform), so
+/// layout/hit-testing/measurement are unaffected at rest.
 class HeroFeedbackSurface extends StatefulWidget {
   const HeroFeedbackSurface({
     super.key,
     required this.child,
-    required this.onTap,
-    required this.onNext,
+    required this.onPlayPause,
     required this.onPrevious,
+    required this.onNext,
+    required this.onSeek,
+    required this.positionMs,
+    required this.durationMs,
     this.onVerticalDragUpdate,
     this.onVerticalDragEnd,
   });
 
   final Widget child;
-  final VoidCallback onTap;
 
-  /// Fired exactly once when a horizontal swipe commits to the NEXT track.
+  /// Center-third tap.
+  final VoidCallback onPlayPause;
+
+  /// Left-third tap.
+  final VoidCallback onPrevious;
+
+  /// Right-third tap.
   final VoidCallback onNext;
 
-  /// Fired exactly once when a horizontal swipe commits to the PREVIOUS track.
-  final VoidCallback onPrevious;
+  /// Commit a seek to [target]. Called once, when the drag is released.
+  final void Function(Duration target) onSeek;
+
+  /// Current playback position in ms — read at drag start (a getter, not a
+  /// watched value, so the hero is never rebuilt on every position tick).
+  final int Function() positionMs;
+
+  /// Current track duration in ms — read at drag start.
+  final int Function() durationMs;
 
   final void Function(DragUpdateDetails)? onVerticalDragUpdate;
   final void Function(DragEndDetails)? onVerticalDragEnd;
@@ -54,31 +69,11 @@ class HeroFeedbackSurface extends StatefulWidget {
   /// Stable keys for widget tests.
   static const Key tapRingKey = ValueKey<String>('hero-tap-ring');
   static const Key swipeFlashKey = ValueKey<String>('hero-swipe-flash');
-
-  /// Key on the [FractionalTranslation] that drives the card slide, so tests
-  /// can read its current `translation`.
-  static const Key cardSlideKey = ValueKey<String>('hero-card-slide');
+  static const Key seekHudKey = ValueKey<String>('hero-seek-hud');
 
   /// Duration of each feedback animation.
   static const Duration ringDuration = Duration(milliseconds: 180);
   static const Duration swipeFlashDuration = Duration(milliseconds: 180);
-
-  /// Duration of a full programmatic card slide (exit + enter), used by
-  /// [HeroFeedbackSurfaceState.triggerSwipe].
-  static const Duration cardSwipeDuration = Duration(milliseconds: 300);
-
-  /// Settle timings for the interactive gesture commit.
-  static const Duration cardExitDuration = Duration(milliseconds: 160);
-  static const Duration cardEnterDuration = Duration(milliseconds: 220);
-  static const Duration cardCancelDuration = Duration(milliseconds: 220);
-
-  /// A drag commits to a track change when it travels past this many logical
-  /// pixels OR ends with a flick faster than [swipeVelocityThreshold].
-  static const double swipeDistanceThreshold = 60.0;
-
-  /// Flick speed (px/s) that commits a short drag. Tuned to match a PageView
-  /// flick — clearly faster than a casual drag.
-  static const double swipeVelocityThreshold = 300.0;
 
   /// Diameter of the tap ring at the end of its expansion.
   static const double ringMaxDiameter = 96.0;
@@ -93,53 +88,23 @@ class HeroFeedbackSurface extends StatefulWidget {
   State<HeroFeedbackSurface> createState() => HeroFeedbackSurfaceState();
 }
 
-/// How the card slide is currently being driven.
-enum _CardPhase {
-  /// At rest — identity transform; layout/hit-testing/measurement unaffected.
-  idle,
-
-  /// Following the finger live during an active horizontal drag.
-  dragging,
-
-  /// A controller-driven lerp between [_fromFrac]/[_fromOpacity] and
-  /// [_toFrac]/[_toOpacity] — used for the commit exit, the commit enter, and
-  /// the cancel spring-back.
-  settle,
-
-  /// Legacy two-phase programmatic slide driven by [triggerSwipe].
-  canned,
-}
-
-/// Public state type so callers can drive [flashSwipe] / [triggerSwipe] via a
-/// [GlobalKey].
+/// Public state type so callers can drive [flashSwipe] via a [GlobalKey].
 class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
     with TickerProviderStateMixin {
   late final AnimationController _ringCtrl;
   late final AnimationController _swipeCtrl;
-  // Drives the card slide for both the gesture commit/cancel ([_CardPhase
-  // .settle]) and the programmatic [triggerSwipe] ([_CardPhase.canned]).
-  late final AnimationController _cardCtrl;
   Offset? _ringCenter;
   bool _swipeRight = true;
 
-  _CardPhase _phase = _CardPhase.idle;
-
-  /// Live horizontal offset of the card as a fraction of the hero width while
-  /// [_CardPhase.dragging]. Negative = dragged left (towards `next`).
-  double _dragFrac = 0;
-
-  /// Endpoints for a [_CardPhase.settle] lerp.
-  double _fromFrac = 0;
-  double _toFrac = 0;
-  double _fromOpacity = 1;
-  double _toOpacity = 1;
-
-  /// Direction the outgoing card travels during a [_CardPhase.canned] slide.
-  double _cardExitDir = -1;
-
-  /// Most-recent measured hero width (from the build's [LayoutBuilder]). Used
-  /// to convert pixel drag deltas / velocities into width fractions.
+  /// Most-recent measured hero width (from the build's [LayoutBuilder]).
   double _width = 1;
+
+  // --- Seek drag state ------------------------------------------------------
+  bool _seeking = false;
+  int _seekStartMs = 0;
+  int _seekDurationMs = 0;
+  double _seekAccumDx = 0;
+  int _seekTargetMs = 0;
 
   @override
   void initState() {
@@ -152,25 +117,12 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       vsync: this,
       duration: HeroFeedbackSurface.swipeFlashDuration,
     );
-    _cardCtrl = AnimationController(
-      vsync: this,
-      duration: HeroFeedbackSurface.cardSwipeDuration,
-    );
-    // The canned (programmatic) slide returns to rest on completion.
-    _cardCtrl.addStatusListener((status) {
-      if (status == AnimationStatus.completed &&
-          _phase == _CardPhase.canned &&
-          mounted) {
-        setState(() => _phase = _CardPhase.idle);
-      }
-    });
   }
 
   @override
   void dispose() {
     _ringCtrl.dispose();
     _swipeCtrl.dispose();
-    _cardCtrl.dispose();
     super.dispose();
   }
 
@@ -181,8 +133,8 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       ..forward();
   }
 
-  /// Edge-glyph flash for a recognised prev/next swipe. Direction `>0` =
-  /// rightward (`›`, next), `<0` = leftward (`‹`, previous).
+  /// Edge-glyph flash. Direction `>0` = rightward (`›`, next), `<0` = leftward
+  /// (`‹`, previous).
   void flashSwipe(double direction) {
     if (direction == 0) return;
     setState(() => _swipeRight = direction > 0);
@@ -191,167 +143,60 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       ..forward();
   }
 
-  /// Programmatic two-phase card slide (no track change) plus the edge flash.
-  /// [isNext] selects the metaphor direction: `next` slides the current card
-  /// off to the LEFT (incoming enters from the right); `previous` off to the
-  /// RIGHT. Retained for callers/tests that want a purely visual swipe.
-  void triggerSwipe({required bool isNext}) {
-    flashSwipe(isNext ? 1 : -1);
-    setState(() {
-      _cardExitDir = isNext ? -1.0 : 1.0;
-      _phase = _CardPhase.canned;
-    });
-    _cardCtrl
-      ..duration = HeroFeedbackSurface.cardSwipeDuration
-      ..reset()
-      ..forward();
-  }
+  // --- Tap zones ------------------------------------------------------------
 
-  // --- Interactive horizontal drag ------------------------------------------
-
-  double _dragOpacity(double frac) =>
-      (1 - 0.25 * frac.abs()).clamp(0.0, 1.0);
-
-  void _onHorizontalDragStart(DragStartDetails _) {
-    _cardCtrl.stop();
-    setState(() {
-      _phase = _CardPhase.dragging;
-      _dragFrac = 0;
-    });
-  }
-
-  void _onHorizontalDragUpdate(DragUpdateDetails d) {
-    setState(() {
-      _phase = _CardPhase.dragging;
-      _dragFrac =
-          (_dragFrac + (d.primaryDelta ?? 0) / _width).clamp(-1.0, 1.0);
-    });
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails d) {
-    final velocity = d.primaryVelocity ?? 0;
-    final distance = _dragFrac.abs() * _width;
-    final farEnough = distance > HeroFeedbackSurface.swipeDistanceThreshold;
-    final fastEnough =
-        velocity.abs() > HeroFeedbackSurface.swipeVelocityThreshold;
-    if (!farEnough && !fastEnough) {
-      _cancelSwipe();
-      return;
-    }
-    // Direction: a sizeable drag follows the drag sign; a short flick follows
-    // the velocity sign. Dragging/flicking LEFT (negative) means `next`.
-    final bool isNext = farEnough ? _dragFrac < 0 : velocity < 0;
-    _commitSwipe(isNext);
-  }
-
-  TickerFuture _settle({
-    required double from,
-    required double to,
-    required double fromOpacity,
-    required double toOpacity,
-    required Duration duration,
-    required Curve curve,
-  }) {
-    setState(() {
-      _phase = _CardPhase.settle;
-      _fromFrac = from;
-      _toFrac = to;
-      _fromOpacity = fromOpacity;
-      _toOpacity = toOpacity;
-    });
-    _cardCtrl
-      ..duration = duration
-      ..reset();
-    return _cardCtrl.animateTo(1.0, curve: curve);
-  }
-
-  Future<void> _cancelSwipe() async {
-    await _settle(
-      from: _dragFrac,
-      to: 0,
-      fromOpacity: _dragOpacity(_dragFrac),
-      toOpacity: 1,
-      duration: HeroFeedbackSurface.cardCancelDuration,
-      curve: Curves.easeOut,
-    );
-    if (!mounted) return;
-    setState(() => _phase = _CardPhase.idle);
-  }
-
-  Future<void> _commitSwipe(bool isNext) async {
-    final exitDir = isNext ? -1.0 : 1.0;
-    flashSwipe(isNext ? 1 : -1);
-    // Phase 1: finish the slide-off in the drag direction (old card still
-    // shown — the player isn't told to change track until it's off-screen).
-    await _settle(
-      from: _dragFrac,
-      to: exitDir,
-      fromOpacity: _dragOpacity(_dragFrac),
-      toOpacity: 0,
-      duration: HeroFeedbackSurface.cardExitDuration,
-      curve: Curves.easeIn,
-    );
-    if (!mounted) return;
-    // Commit the track change exactly once, while the card is off-screen.
-    if (isNext) {
+  void _onTapUp(TapUpDetails d) {
+    final dx = d.localPosition.dx;
+    if (dx < _width / 3) {
+      flashSwipe(-1);
+      widget.onPrevious();
+    } else if (dx > _width * 2 / 3) {
+      flashSwipe(1);
       widget.onNext();
     } else {
-      widget.onPrevious();
+      widget.onPlayPause();
     }
-    // Phase 2: the (now updated) card enters from the opposite edge.
+  }
+
+  // --- Horizontal drag = seek ----------------------------------------------
+
+  void _onSeekStart(DragStartDetails _) {
     setState(() {
-      _phase = _CardPhase.settle;
-      _fromFrac = -exitDir;
-      _toFrac = 0;
-      _fromOpacity = 0;
-      _toOpacity = 1;
+      _seeking = true;
+      _seekStartMs = widget.positionMs();
+      _seekDurationMs = widget.durationMs();
+      _seekAccumDx = 0;
+      _seekTargetMs = _seekStartMs;
     });
-    _cardCtrl
-      ..duration = HeroFeedbackSurface.cardEnterDuration
-      ..reset();
-    await _cardCtrl.animateTo(1.0, curve: Curves.easeOut);
-    if (!mounted) return;
-    setState(() => _phase = _CardPhase.idle);
   }
 
-  /// Current card translation fraction + opacity for [_buildCardSlide].
-  ({double dx, double opacity}) _cardTransform() {
-    switch (_phase) {
-      case _CardPhase.idle:
-        return (dx: 0, opacity: 1);
-      case _CardPhase.dragging:
-        return (dx: _dragFrac, opacity: _dragOpacity(_dragFrac));
-      case _CardPhase.settle:
-        final t = _cardCtrl.value;
-        return (
-          dx: _fromFrac + (_toFrac - _fromFrac) * t,
-          opacity: _fromOpacity + (_toOpacity - _fromOpacity) * t,
-        );
-      case _CardPhase.canned:
-        final t = _cardCtrl.value;
-        if (t <= 0) return (dx: 0, opacity: 1);
-        if (t < 0.5) {
-          final p = t / 0.5;
-          return (dx: _cardExitDir * p, opacity: 1 - p);
-        }
-        final p = (t - 0.5) / 0.5;
-        return (dx: -_cardExitDir * (1 - p), opacity: p);
+  void _onSeekUpdate(DragUpdateDetails d) {
+    if (_seekDurationMs <= 0) return;
+    _seekAccumDx += d.primaryDelta ?? 0;
+    final raw = _seekStartMs + (_seekAccumDx / _width) * _seekDurationMs;
+    setState(() {
+      _seekTargetMs = raw.clamp(0, _seekDurationMs.toDouble()).round();
+    });
+  }
+
+  void _onSeekEnd(DragEndDetails _) {
+    final hadDuration = _seekDurationMs > 0;
+    final target = _seekTargetMs;
+    setState(() => _seeking = false);
+    if (hadDuration) {
+      widget.onSeek(Duration(milliseconds: target));
     }
   }
 
-  Widget _buildCardSlide({required Widget child}) {
-    return AnimatedBuilder(
-      animation: _cardCtrl,
-      builder: (context, inner) {
-        final tf = _cardTransform();
-        return FractionalTranslation(
-          key: HeroFeedbackSurface.cardSlideKey,
-          translation: Offset(tf.dx, 0),
-          child: Opacity(opacity: tf.opacity.clamp(0.0, 1.0), child: inner),
-        );
-      },
-      child: child,
-    );
+  /// `m:ss` (or `h:mm:ss` for tracks ≥ 1 h). Mirrors the two-digit padding in
+  /// `retro_lcd_display.dart` — too small to be worth a shared util.
+  static String _clock(int ms) {
+    final d = Duration(milliseconds: ms < 0 ? 0 : ms);
+    String two(int n) => n.toString().padLeft(2, '0');
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (d.inHours > 0) return '${d.inHours}:${two(m)}:${two(s)}';
+    return '$m:${two(s)}';
   }
 
   @override
@@ -370,17 +215,13 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => _spawnRing(d.localPosition),
-              onTap: widget.onTap,
-              onHorizontalDragStart: _onHorizontalDragStart,
-              onHorizontalDragUpdate: _onHorizontalDragUpdate,
-              onHorizontalDragEnd: _onHorizontalDragEnd,
+              onTapUp: _onTapUp,
+              onHorizontalDragStart: _onSeekStart,
+              onHorizontalDragUpdate: _onSeekUpdate,
+              onHorizontalDragEnd: _onSeekEnd,
               onVerticalDragUpdate: widget.onVerticalDragUpdate,
               onVerticalDragEnd: widget.onVerticalDragEnd,
-              // The hero child rides the card-slide transform. The
-              // GestureDetector stays opaque + full-bleed, so hit-testing is
-              // unaffected while the card translates. At rest the transform is
-              // the identity (dx 0, opacity 1).
-              child: _buildCardSlide(child: widget.child),
+              child: widget.child,
             ),
             // Tap ring overlay — pointer-transparent.
             if (_ringCenter != null)
@@ -392,8 +233,8 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                     builder: (context, _) {
                       final t = _ringCtrl.value;
                       if (t == 0 || t == 1) {
-                        // 0 = idle pre-forward; 1 = settled. Either way the
-                        // ring should be invisible.
+                        // 0 = idle pre-forward; 1 = settled. Invisible either
+                        // way.
                         return const SizedBox.shrink();
                       }
                       return CustomPaint(
@@ -407,7 +248,7 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                   ),
                 ),
               ),
-            // Swipe flash — directional glyph at the edge of the hero band.
+            // Edge flash — directional glyph for a prev/next zone tap.
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedBuilder(
@@ -445,9 +286,74 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                 ),
               ),
             ),
+            // Seek HUD — time readout + preview line, only while scrubbing.
+            if (_seeking)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _SeekHud(
+                    fraction: _seekDurationMs <= 0
+                        ? 0
+                        : (_seekTargetMs / _seekDurationMs).clamp(0.0, 1.0),
+                    label: _seekDurationMs <= 0
+                        ? '--:-- / --:--'
+                        : '${_clock(_seekTargetMs)} / ${_clock(_seekDurationMs)}',
+                    palette: palette,
+                    typography: typography,
+                  ),
+                ),
+              ),
           ],
         );
       },
+    );
+  }
+}
+
+/// Centered time readout + a thin full-width preview line at [fraction].
+class _SeekHud extends StatelessWidget {
+  const _SeekHud({
+    required this.fraction,
+    required this.label,
+    required this.palette,
+    required this.typography,
+  });
+
+  final double fraction;
+  final String label;
+  final AppPalette palette;
+  final AppTypography typography;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      key: HeroFeedbackSurface.seekHudKey,
+      fit: StackFit.expand,
+      children: [
+        Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: palette.fgPrimary,
+              fontFamily: typography.monoFamily,
+              fontSize: typography.heroSize * 0.5,
+              height: 1,
+              fontWeight: FontWeight.w300,
+            ),
+          ),
+        ),
+        // Preview line: a full-height marker at the target x (fraction maps
+        // to an Alignment x of -1..1).
+        Align(
+          alignment: Alignment(fraction * 2 - 1, 0),
+          child: FractionallySizedBox(
+            heightFactor: 1,
+            child: SizedBox(
+              width: 2,
+              child: ColoredBox(color: palette.progress),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

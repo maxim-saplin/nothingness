@@ -705,15 +705,16 @@ class _VoidScreenState extends State<VoidScreen>
     }
   }
 
-  /// Wraps the hero in a gesture surface so tap / horizontal-swipe drive
+  /// Wraps the hero in a gesture surface so taps and horizontal drags drive
   /// the player regardless of which visualisation is rendered inside.
   /// Vertical drag is wired only when the swipe-up browser is collapsed —
   /// the same arena where the hint band lives.
   ///
-  /// The surface owns the full horizontal-swipe interaction: the card tracks
-  /// the finger live and commits to a track change exactly once on release
-  /// (see [HeroFeedbackSurface]). It also paints a tap-ring at the touch point
-  /// and a directional flash when a swipe commits, for immediate feedback.
+  /// The surface owns the interaction (see [HeroFeedbackSurface]): tap-zones
+  /// (left → previous, centre → play/pause, right → next) and a horizontal
+  /// drag-to-seek with a live time readout. `positionMs`/`durationMs` are
+  /// getters so the hero is not rebuilt on every position tick — they're only
+  /// read at the start of a seek drag.
   Widget _buildHeroGestureSurface({required Widget child}) {
     final player = context.read<AudioPlayerProvider>();
     final bool acceptVertical =
@@ -721,9 +722,12 @@ class _VoidScreenState extends State<VoidScreen>
             !_browserExpanded;
     return HeroFeedbackSurface(
       key: _heroFeedbackKey,
-      onTap: () => player.playPause(),
-      onNext: () => player.next(),
+      onPlayPause: () => player.playPause(),
       onPrevious: () => player.previous(),
+      onNext: () => player.next(),
+      onSeek: (d) => player.seek(d),
+      positionMs: () => player.songInfo?.position ?? 0,
+      durationMs: () => player.songInfo?.duration ?? 0,
       onVerticalDragUpdate: acceptVertical ? _onHeroVerticalDrag : null,
       onVerticalDragEnd: acceptVertical ? _onHeroVerticalDragEnd : null,
       child: child,
@@ -958,7 +962,9 @@ class _VoidScreenState extends State<VoidScreen>
             child: TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
-              autofocus: true,
+              // No `autofocus` — `_enterSearchMode` issues a single post-frame
+              // `requestFocus()`. Having both raced the browser-expand rebuild
+              // and made the soft keyboard flash up then hide.
               cursorColor: palette.fgPrimary,
               cursorWidth: 1,
               style: textStyle,

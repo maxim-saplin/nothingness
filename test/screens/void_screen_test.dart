@@ -423,138 +423,75 @@ void main() {
     });
   });
 
-  // NOTE: B-039 reversed the swipe→transport mapping to match the card
-  // metaphor: dragging/flicking RIGHT (positive) now brings the PREVIOUS
-  // track in, LEFT (negative) brings the NEXT. The B-027 velocity-escape
-  // mechanism is unchanged; only the direction these tests assert flipped.
-  group('B-027: hero swipe velocity escape', () {
-    // The hero band sits at the top of the screen — pick a point well inside
-    // it for our flings. MaterialApp's MediaQuery is driven by the engine
-    // window (not setSurfaceSize), so the hero ends up ~192 px tall in
-    // widget tests. y=80 is safely inside that band.
-    const Offset heroPoint = Offset(400, 80);
+  // The swipe-card-to-change-track model (B-027/B-039) was removed: it skipped
+  // tracks and felt janky. The hero now uses tap-zones for transport and a
+  // horizontal drag to seek. These tests cover the integration wiring; the
+  // gesture mechanics live in test/widgets/hero_feedback_surface_test.dart.
+  group('hero tap-zones + drag-to-seek', () {
+    // The hero band sits at the top of the screen. MaterialApp's MediaQuery is
+    // driven by the engine window, so the hero ends up ~192 px tall in widget
+    // tests; y=80 is safely inside it. The default test window is 800 px wide,
+    // so x≈130 is the left third, x≈400 the centre, x≈670 the right third.
 
-    testWidgets('slow short swipe (<60 dp, low velocity) does NOT fire',
-        (tester) async {
-      final provider = _RecordingTransportProvider();
+    SongInfo song({int position = 10000, int duration = 60000}) => SongInfo(
+          track: const AudioTrack(path: '/x.wav', title: 'x'),
+          isPlaying: true,
+          position: position,
+          duration: duration,
+        );
+
+    testWidgets('tapping the left third fires previous', (tester) async {
+      final provider = _RecordingTransportProvider()..setSongInfo(song());
       await _pump(tester, const SpectrumScreenConfig(), provider: provider);
 
-      // 40 px over 800 ms ≈ 50 px/s — well under the 300 px/s threshold.
-      await tester.timedDragFrom(
-        heroPoint,
-        const Offset(40, 0),
-        const Duration(milliseconds: 800),
-      );
-      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(130, 80));
+      await tester.pump();
 
-      expect(provider.nextCalls, 0,
-          reason: 'B-027: slow short swipe must not fire next.');
-      expect(provider.previousCalls, 0,
-          reason: 'B-027: slow short swipe must not fire previous.');
-    });
-
-    testWidgets('slow long swipe (>60 dp) still fires (distance threshold)',
-        (tester) async {
-      final provider = _RecordingTransportProvider();
-      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
-
-      // 200 px over 1500 ms ≈ 130 px/s. Velocity is well under 300 px/s,
-      // but distance crosses 60 dp, so the existing accumulator must fire.
-      await tester.timedDragFrom(
-        heroPoint,
-        const Offset(200, 0),
-        const Duration(milliseconds: 1500),
-      );
-      await tester.pumpAndSettle();
-
-      // B-039: rightward drag → PREVIOUS (was next before the reversal).
-      expect(provider.previousCalls, greaterThanOrEqualTo(1),
-          reason: 'B-039: long slow rightward swipe must fire previous '
-              '(60-dp accumulator preserved; direction reversed).');
+      expect(provider.previousCalls, 1);
       expect(provider.nextCalls, 0);
+      expect(provider.playPauseCalls, 0);
     });
 
-    testWidgets('fast short flick (<60 dp, high velocity) FIRES — rightward',
-        (tester) async {
-      final provider = _RecordingTransportProvider();
+    testWidgets('tapping the centre fires play/pause', (tester) async {
+      final provider = _RecordingTransportProvider()..setSongInfo(song());
       await _pump(tester, const SpectrumScreenConfig(), provider: provider);
 
-      // 50 px at 800 px/s — distance under 60 dp, velocity over 300 px/s.
-      await tester.flingFrom(
-        heroPoint,
-        const Offset(50, 0),
-        800,
-      );
-      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(400, 80));
+      await tester.pump();
 
-      // B-039: rightward flick → PREVIOUS (card slides off right).
-      expect(provider.previousCalls, 1,
-          reason: 'B-039: fast short rightward flick must fire previous via '
-              'the velocity escape, even when distance is under 60 dp.');
+      expect(provider.playPauseCalls, 1);
       expect(provider.nextCalls, 0);
-    });
-
-    testWidgets('fast short flick (<60 dp, high velocity) FIRES — leftward',
-        (tester) async {
-      final provider = _RecordingTransportProvider();
-      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
-
-      await tester.flingFrom(
-        heroPoint,
-        const Offset(-50, 0),
-        800,
-      );
-      await tester.pumpAndSettle();
-
-      // B-039: leftward flick → NEXT (card slides off left).
-      expect(provider.nextCalls, 1,
-          reason: 'B-039: fast short leftward flick must fire next via the '
-              'velocity escape; direction = sign of velocity (reversed).');
       expect(provider.previousCalls, 0);
     });
 
-    testWidgets('low-velocity short swipe (<60 dp, <300 px/s) does NOT fire',
-        (tester) async {
-      final provider = _RecordingTransportProvider();
+    testWidgets('tapping the right third fires next', (tester) async {
+      final provider = _RecordingTransportProvider()..setSongInfo(song());
       await _pump(tester, const SpectrumScreenConfig(), provider: provider);
 
-      // 50 px at 100 px/s — both distance and velocity under their
-      // thresholds, so neither branch should fire.
-      await tester.flingFrom(
-        heroPoint,
-        const Offset(50, 0),
-        100,
-      );
-      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(670, 80));
+      await tester.pump();
 
-      expect(provider.nextCalls, 0,
-          reason: 'B-027: velocity below ~300 px/s threshold must not fire.');
+      expect(provider.nextCalls, 1);
       expect(provider.previousCalls, 0);
+      expect(provider.playPauseCalls, 0);
     });
 
-    testWidgets('velocity escape does not double-fire after distance trip',
+    testWidgets('a horizontal drag seeks (never changes track)',
         (tester) async {
-      final provider = _RecordingTransportProvider();
+      final provider = _RecordingTransportProvider()..setSongInfo(song());
       await _pump(tester, const SpectrumScreenConfig(), provider: provider);
 
-      // 80 px at 800 px/s — distance crosses 60 dp exactly once during the
-      // drag (accumulator resets after firing, then has only 20 px left, so
-      // no second distance trip). End velocity is ~800 px/s, well over the
-      // 300 px/s velocity threshold. With the fired-guard in place the
-      // gesture must still produce exactly one event — not two.
-      await tester.flingFrom(
-        heroPoint,
-        const Offset(80, 0),
-        800,
-      );
+      // A rightward drag from inside the hero seeks forward by exactly one
+      // seek call — and must NOT fire next/previous.
+      await tester.dragFrom(const Offset(400, 80), const Offset(200, 0));
       await tester.pumpAndSettle();
 
-      // B-039: rightward → previous; the guard must keep it to exactly one.
-      expect(provider.previousCalls, 1,
-          reason: 'B-027/B-039: when a single rightward drag both trips '
-              'distance AND ends above the velocity threshold, the velocity '
-              'escape must NOT re-fire — exactly one transport event.');
+      expect(provider.seeks.length, 1,
+          reason: 'a horizontal drag seeks exactly once on release.');
+      expect(provider.seeks.single.inSeconds, greaterThan(10),
+          reason: 'rightward drag from 10s must seek forward.');
       expect(provider.nextCalls, 0);
+      expect(provider.previousCalls, 0);
     });
   });
 
@@ -609,12 +546,14 @@ void main() {
   });
 }
 
-/// Records calls to `next()` / `previous()` so B-027 tests can assert which
-/// transport action a swipe / flick produced. Inherits the rest of the
+/// Records transport calls so the hero tap-zone / drag-to-seek tests can
+/// assert which action a tap or drag produced. Inherits the rest of the
 /// player surface from [FakeAudioPlayerProvider].
 class _RecordingTransportProvider extends FakeAudioPlayerProvider {
   int nextCalls = 0;
   int previousCalls = 0;
+  int playPauseCalls = 0;
+  final List<Duration> seeks = <Duration>[];
 
   @override
   Future<void> next() async {
@@ -624,6 +563,16 @@ class _RecordingTransportProvider extends FakeAudioPlayerProvider {
   @override
   Future<void> previous() async {
     previousCalls++;
+  }
+
+  @override
+  Future<void> playPause() async {
+    playPauseCalls++;
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    seeks.add(position);
   }
 }
 
