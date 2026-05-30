@@ -2,10 +2,11 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:nothingness/main_test.dart' as app;
 import 'package:nothingness/models/audio_track.dart';
-import 'package:nothingness/testing/test_harness.dart';
-import 'package:nothingness/testing/test_overlay.dart';
+
+import '../dev/main_test.dart' as app;
+import '../dev/test_harness.dart';
+import '../dev/test_overlay.dart';
 
 Future<void> _pumpUntil(
   WidgetTester tester,

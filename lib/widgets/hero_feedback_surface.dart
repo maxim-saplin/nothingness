@@ -2,32 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
+import 'retro_lcd_display.dart';
 
-/// Touch surface for the hero band: tap-zones for transport, horizontal-drag
-/// to seek, plus lightweight touch feedback.
-///
-/// Interaction model (deliberately simple — the old swipe-card-to-change-track
-/// model was janky and surprising, so it was removed):
-///   * **Tap LEFT third** → previous (the player's `previous()` already does
-///     restart-current-if->3s-else-previous-track).
-///   * **Tap CENTER third** → play/pause.
-///   * **Tap RIGHT third** → next.
-///   * **Horizontal drag** → seek the current track. The drag is *relative*:
-///     it scrubs from the position the drag started at, with the full hero
-///     width mapping to the whole track. A `current / total` readout is shown
-///     while dragging and the audio seeks once, on release.
-///
-/// Feedback overlays:
-///   * **Tap ring** — an expanding monochrome circle that fades out at the tap
-///     point over ~180 ms (B-012 / B-030).
-///   * **Edge flash** — a `‹` / `›` glyph at the matching edge when a prev/next
-///     zone is tapped, for immediate directional feedback.
-///   * **Seek HUD** — the time readout + a thin preview line, shown only while
-///     a seek drag is in progress.
-///
-/// All overlays are pointer-transparent, so the underlying GestureDetector owns
-/// every hit-test. The hero child is passed straight through (no transform), so
-/// layout/hit-testing/measurement are unaffected at rest.
+/// Touch surface for the hero band. Tap zones: left → previous, centre →
+/// play/pause, right → next. Horizontal drag → relative seek (full width maps
+/// to the whole track; commits once on release). Overlays: tap ring (B-012 /
+/// B-030), directional edge flash, and the seek HUD — all pointer-transparent,
+/// so the GestureDetector owns every hit-test and the child passes through untransformed.
 class HeroFeedbackSurface extends StatefulWidget {
   const HeroFeedbackSurface({
     super.key,
@@ -99,7 +80,6 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
   /// Most-recent measured hero width (from the build's [LayoutBuilder]).
   double _width = 1;
 
-  // --- Seek drag state ------------------------------------------------------
   bool _seeking = false;
   int _seekStartMs = 0;
   int _seekDurationMs = 0;
@@ -143,8 +123,6 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       ..forward();
   }
 
-  // --- Tap zones ------------------------------------------------------------
-
   void _onTapUp(TapUpDetails d) {
     final dx = d.localPosition.dx;
     if (dx < _width / 3) {
@@ -157,8 +135,6 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       widget.onPlayPause();
     }
   }
-
-  // --- Horizontal drag = seek ----------------------------------------------
 
   void _onSeekStart(DragStartDetails _) {
     setState(() {
@@ -186,17 +162,6 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
     if (hadDuration) {
       widget.onSeek(Duration(milliseconds: target));
     }
-  }
-
-  /// `m:ss` (or `h:mm:ss` for tracks ≥ 1 h). Mirrors the two-digit padding in
-  /// `retro_lcd_display.dart` — too small to be worth a shared util.
-  static String _clock(int ms) {
-    final d = Duration(milliseconds: ms < 0 ? 0 : ms);
-    String two(int n) => n.toString().padLeft(2, '0');
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (d.inHours > 0) return '${d.inHours}:${two(m)}:${two(s)}';
-    return '$m:${two(s)}';
   }
 
   @override
@@ -233,8 +198,7 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                     builder: (context, _) {
                       final t = _ringCtrl.value;
                       if (t == 0 || t == 1) {
-                        // 0 = idle pre-forward; 1 = settled. Invisible either
-                        // way.
+                        // 0 = idle pre-forward, 1 = settled — invisible either way.
                         return const SizedBox.shrink();
                       }
                       return CustomPaint(
@@ -257,8 +221,7 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                   builder: (context, _) {
                     final t = _swipeCtrl.value;
                     if (t == 0 || t == 1) return const SizedBox.shrink();
-                    // Triangle envelope: fade in over the first half, out over
-                    // the second so it reads as a flash.
+                    // Triangle envelope: fade in then out so it reads as a flash.
                     final envelope =
                         t < 0.5 ? (t / 0.5) : (1 - (t - 0.5) / 0.5);
                     return Align(
@@ -296,7 +259,7 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                         : (_seekTargetMs / _seekDurationMs).clamp(0.0, 1.0),
                     label: _seekDurationMs <= 0
                         ? '--:-- / --:--'
-                        : '${_clock(_seekTargetMs)} / ${_clock(_seekDurationMs)}',
+                        : '${formatClock(_seekTargetMs)} / ${formatClock(_seekDurationMs)}',
                     palette: palette,
                     typography: typography,
                   ),
@@ -341,8 +304,7 @@ class _SeekHud extends StatelessWidget {
             ),
           ),
         ),
-        // Preview line: a full-height marker at the target x (fraction maps
-        // to an Alignment x of -1..1).
+        // Preview line: full-height marker at the target x (fraction → -1..1).
         Align(
           alignment: Alignment(fraction * 2 - 1, 0),
           child: FractionallySizedBox(
@@ -371,9 +333,8 @@ class _TapRingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Expand from 0 → ringMaxDiameter/2 while fading 1 → 0. B-030: stroke
-    // doubled (1.5 → 3 dp) and the alpha boosted 1.5× so the ring is
-    // visible on a hand-held device against any hero visualisation.
+    // Expand 0 → ringMaxDiameter/2 while fading 1 → 0. B-030: stroke 3 dp +
+    // alpha boosted 1.5× so the ring stays visible on any hero.
     final radius = (HeroFeedbackSurface.ringMaxDiameter / 2) * progress;
     final fade = (1 - progress).clamp(0.0, 1.0);
     final baseAlpha = color.a;

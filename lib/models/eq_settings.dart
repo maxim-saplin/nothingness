@@ -6,7 +6,7 @@ import '../services/settings_service.dart';
 class EqSettings {
   static const int bandCount = 5;
 
-  /// Fixed UI band centers in Hz (for display and device-band mapping on Android).
+  /// Fixed UI band centers in Hz (display + Android device-band mapping).
   static const List<int> uiBandCentersHz = <int>[60, 230, 910, 3600, 14000];
 
   final bool enabled;
@@ -46,7 +46,6 @@ class EqSettings {
       gains = const <double>[0.0, 0.0, 0.0, 0.0, 0.0];
     }
 
-    // Normalize to exact bandCount.
     if (gains.length != bandCount) {
       final normalized = List<double>.filled(bandCount, 0.0);
       for (var i = 0; i < bandCount && i < gains.length; i++) {
@@ -66,6 +65,4 @@ class EqSettings {
     }
   }
 }
-
-
 

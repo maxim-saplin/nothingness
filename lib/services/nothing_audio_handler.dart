@@ -11,10 +11,8 @@ import 'soloud_transport.dart';
 import 'playback_controller.dart';
 import 'playlist_store.dart';
 
-/// Android playback entrypoint.
-///
-/// Owns MediaSession/notification state and bridges it to [PlaybackController],
-/// which remains the single source of truth for queue/index/shuffle logic.
+/// Android playback entrypoint. Owns MediaSession/notification state and
+/// bridges it to [PlaybackController] (the source of truth for queue/index).
 class NothingAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   factory NothingAudioHandler({bool debugLogs = false}) {
@@ -41,78 +39,45 @@ class NothingAudioHandler extends BaseAudioHandler
   final Completer<void> _initCompleter = Completer<void>();
   Future<void> get ready => _initCompleter.future;
 
-  /// Spectrum stream from the transport (useful when SoLoud is active and
-  /// the native Visualizer is unavailable).
   Stream<List<double>> get spectrumStream => _transport.spectrumStream;
 
-  /// Enable or disable spectrum capture on the underlying transport.
-  void setCaptureEnabled(bool enabled) {
-    _transport.setCaptureEnabled(enabled);
-  }
+  void setCaptureEnabled(bool enabled) => _transport.setCaptureEnabled(enabled);
 
-  /// Suspend periodic timers to save battery while backgrounded.
-  void suspendTimers() {
-    _controller.suspendTimers();
-  }
+  void suspendTimers() => _controller.suspendTimers();
 
-  /// Resume periodic timers when returning to foreground.
-  void resumeTimers() {
-    _controller.resumeTimers();
-  }
+  void resumeTimers() => _controller.resumeTimers();
 
-  /// Forward spectrum settings to the underlying transport.
-  void updateSpectrumSettings(SpectrumSettings settings) {
-    _transport.updateSpectrumSettings(settings);
-  }
+  void updateSpectrumSettings(SpectrumSettings settings) =>
+      _transport.updateSpectrumSettings(settings);
 
-  /// Diagnostics snapshot of the wrapped [PlaybackController].
-  ///
-  /// Includes the audio-event ring buffer used to diagnose interruption /
-  /// device-route issues.
   Map<String, Object?> diagnosticsSnapshot() =>
       _controller.diagnosticsSnapshot();
 
-  /// Audio-event ring buffer from the wrapped [PlaybackController].
   List<String> audioEvents() => _controller.audioEvents();
 
-  /// Test seam: simulate an audio interruption event in the controller.
   void debugSimulateInterruption(AudioInterruptionEvent event) =>
       _controller.debugSimulateInterruption(event);
 
-  /// Test seam: simulate an audio-becoming-noisy event in the controller.
   void debugSimulateBecomingNoisy() => _controller.debugSimulateBecomingNoisy();
 
   Duration _lastPosition = Duration.zero;
-
-  VoidCallback? _queueListener;
-  VoidCallback? _indexListener;
-  VoidCallback? _playingListener;
-  VoidCallback? _songInfoListener;
-  VoidCallback? _shuffleListener;
 
   Future<void> _init() async {
     try {
       await _controller.init();
 
-      _queueListener = _updateQueue;
-      _indexListener = () {
+      void mediaThenState() {
         _updateMediaItem();
         _updatePlaybackState();
-      };
-      _playingListener = _updatePlaybackState;
-      _songInfoListener = () {
-        _updateMediaItem();
-        _updatePlaybackState();
-      };
-      _shuffleListener = _updatePlaybackState;
+      }
 
-      _controller.queueNotifier.addListener(_queueListener!);
-      _controller.currentIndexNotifier.addListener(_indexListener!);
-      _controller.isPlayingNotifier.addListener(_playingListener!);
-      _controller.songInfoNotifier.addListener(_songInfoListener!);
-      _controller.shuffleNotifier.addListener(_shuffleListener!);
+      _controller.queueNotifier.addListener(_updateQueue);
+      _controller.currentIndexNotifier.addListener(mediaThenState);
+      _controller.isPlayingNotifier.addListener(_updatePlaybackState);
+      _controller.songInfoNotifier.addListener(mediaThenState);
+      _controller.shuffleNotifier.addListener(_updatePlaybackState);
 
-      // Use transport position events to keep playbackState.position updated.
+      // Keep playbackState.position updated from transport position events.
       _transport.eventStream.listen((event) {
         if (event case TransportPositionEvent(position: final position)) {
           if ((position - _lastPosition).abs() <
@@ -121,11 +86,9 @@ class NothingAudioHandler extends BaseAudioHandler
           }
           _lastPosition = position;
           _updatePlaybackState();
-        } else if (event case TransportLoadedEvent()) {
-          _updatePlaybackState();
-        } else if (event case TransportEndedEvent()) {
-          _updatePlaybackState();
-        } else if (event case TransportErrorEvent()) {
+        } else if (event is TransportLoadedEvent ||
+            event is TransportEndedEvent ||
+            event is TransportErrorEvent) {
           _updatePlaybackState();
         }
       });
@@ -165,8 +128,8 @@ class NothingAudioHandler extends BaseAudioHandler
       mediaItem.add(null);
       return;
     }
-    // Important: queue tracks often have unknown duration until loaded.
-    // Use the controller's resolved duration so UI seek bars behave correctly.
+    // Use the controller's resolved duration (queue tracks lack it until
+    // loaded) so UI seek bars behave correctly.
     mediaItem.add(
       MediaItem(
         id: si.track.path,
@@ -221,9 +184,8 @@ class NothingAudioHandler extends BaseAudioHandler
       try {
         await _controller.playPause();
       } catch (e) {
-        // Some OEM/device paths can invalidate the underlying player source
-        // while keeping process/session objects alive. If simple "play" fails,
-        // force a reload of the current queue item and try again.
+        // Some OEM paths invalidate the source while keeping the session alive;
+        // force-reload the current queue item if plain play fails.
         debugPrint('[NothingAudioHandler] play() failed, forcing reload: $e');
         final idx = _controller.currentIndexNotifier.value ?? 0;
         await _controller.playFromQueueIndex(idx);
@@ -241,12 +203,8 @@ class NothingAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> stop() async {
-    // Keep handler/controller alive.
-    //
-    // On some devices, stop callbacks can be issued while app process remains
-    // alive; fully disposing here leaves a "zombie" session that no longer
-    // reacts to Play without app restart. Treat stop as pause to preserve
-    // recoverability from the in-app controls.
+    // Treat as pause: fully disposing leaves a zombie session that won't react
+    // to Play without an app restart.
     await pause();
     _updatePlaybackState();
   }
@@ -275,23 +233,20 @@ class NothingAudioHandler extends BaseAudioHandler
   Future<dynamic> customAction(String name, [dynamic extras]) async {
     await ready;
 
+    final map = (extras is Map) ? extras : const <String, Object?>{};
     switch (name) {
       case 'setQueue':
-        final map = (extras as Map?) ?? const <String, Object?>{};
-        final tracks = _decodeTracks(map['tracks']);
-        final startIndex = (map['startIndex'] as num?)?.toInt() ?? 0;
-        final shuffle = map['shuffle'] as bool? ?? false;
         await _controller.setQueue(
-          tracks,
-          startIndex: startIndex,
-          shuffle: shuffle,
+          _decodeTracks(map['tracks']),
+          startIndex: (map['startIndex'] as num?)?.toInt() ?? 0,
+          shuffle: map['shuffle'] as bool? ?? false,
         );
         return null;
       case 'addTracks':
-        final map = (extras as Map?) ?? const <String, Object?>{};
-        final tracks = _decodeTracks(map['tracks']);
-        final play = map['play'] as bool? ?? false;
-        await _controller.addTracks(tracks, play: play);
+        await _controller.addTracks(
+          _decodeTracks(map['tracks']),
+          play: map['play'] as bool? ?? false,
+        );
         return null;
       case 'shuffleQueue':
         await _controller.shuffleQueue();
@@ -301,19 +256,17 @@ class NothingAudioHandler extends BaseAudioHandler
         return null;
       case 'playFromQueueIndex':
         final idx = (extras as num?)?.toInt();
-        if (idx == null) return null;
-        await _controller.playFromQueueIndex(idx);
+        if (idx != null) await _controller.playFromQueueIndex(idx);
         return null;
       case 'previous':
         await _controller.previous();
         return null;
       case 'enterSearchSession':
-        // B-014: search results install as a sub-queue while preserving the
-        // prior queue for restoration on dismissal.
-        final map = (extras as Map?) ?? const <String, Object?>{};
-        final tracks = _decodeTracks(map['tracks']);
-        final tappedIndex = (map['tappedIndex'] as num?)?.toInt() ?? 0;
-        await _controller.enterSearchSession(tracks, tappedIndex);
+        // B-014: install search results as a sub-queue, preserving the prior.
+        await _controller.enterSearchSession(
+          _decodeTracks(map['tracks']),
+          (map['tappedIndex'] as num?)?.toInt() ?? 0,
+        );
         return null;
       case 'exitSearchSession':
         await _controller.exitSearchSession();

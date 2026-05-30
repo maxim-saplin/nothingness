@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_palette.dart';
+import 'press_feedback.dart';
 
-/// Circular media button (play / prev / next) used by hero skins and any
-/// future bespoke transports.
+/// Circular media button (play / prev / next) used by hero skins.
 ///
-/// B-012 — touch-down affordance: the glyph dips in opacity on press and
-/// restores on release / cancel. Stays monochrome / typography-driven; no
-/// `InkWell`, no Material ripple. The dip is driven by an [AnimatedOpacity]
-/// flagged with [touchDownDimKey] so widget tests can read the current
-/// opacity without depending on private state.
-class MediaButton extends StatefulWidget {
+/// B-012 — touch-down affordance: the glyph dips in opacity on press via the shared [PressFeedback] state machine (no InkWell/ripple). The dip's [AnimatedOpacity] is flagged with [touchDownDimKey] so widget tests can read its opacity.
+class MediaButton extends StatelessWidget {
   final IconData icon;
   final double size;
   final bool isPrimary;
@@ -30,78 +26,52 @@ class MediaButton extends StatefulWidget {
     this.inactiveIconColor,
   });
 
-  /// Stable key on the inner [AnimatedOpacity] so widget tests can assert
-  /// the touch-down dip without reaching into private state.
+  /// Stable key on the inner [AnimatedOpacity] so widget tests can assert the touch-down dip.
   static const Key touchDownDimKey =
       ValueKey<String>('media-button-touch-dim');
 
-  /// Opacity applied while a touch is held. B-030 recalibrated this from
-  /// 0.55 → 0.4 because the original dip was sub-threshold on the user's
-  /// real phone (the strong accent backdrop swallowed it).
+  /// Opacity applied while a touch is held. B-030 recalibrated 0.55 → 0.4 (the original dip was sub-threshold against the accent backdrop).
   static const double pressedOpacity = 0.4;
 
-  /// Fade-in duration when the press is registered. B-030 widened this
-  /// from 80 ms → 120 ms so the dip reads as motion rather than a flicker.
+  /// Fade-in duration on press. B-030 widened 80 → 120 ms so the dip reads as motion, not a flicker.
   static const Duration fadeInDuration = Duration(milliseconds: 120);
 
-  /// Fade-out duration on release. Longer than the fade-in so a brief
-  /// tap still produces a visible dip before bouncing back to 1.0.
+  /// Fade-out duration on release. Longer than fade-in so a brief tap still produces a visible dip.
   static const Duration fadeOutDuration = Duration(milliseconds: 200);
-
-  @override
-  State<MediaButton> createState() => _MediaButtonState();
-}
-
-class _MediaButtonState extends State<MediaButton> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-    setState(() => _pressed = value);
-  }
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final primaryColor = widget.accentColor ?? palette.accent;
-    final secondaryBg = widget.inactiveBackgroundColor ??
-        palette.fgPrimary.withValues(alpha: 0.05);
-    final secondaryIcon = widget.inactiveIconColor ??
-        palette.fgPrimary.withValues(alpha: 0.7);
+    final primaryColor = accentColor ?? palette.accent;
+    final secondaryBg =
+        inactiveBackgroundColor ?? palette.fgPrimary.withValues(alpha: 0.05);
+    final secondaryIcon =
+        inactiveIconColor ?? palette.fgPrimary.withValues(alpha: 0.7);
 
-    return GestureDetector(
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedOpacity(
-        key: MediaButton.touchDownDimKey,
-        opacity: _pressed ? MediaButton.pressedOpacity : 1.0,
-        duration: _pressed
-            ? MediaButton.fadeInDuration
-            : MediaButton.fadeOutDuration,
-        curve: Curves.easeOut,
-        child: Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: widget.isPrimary ? primaryColor : secondaryBg,
-            boxShadow: widget.isPrimary
-                ? [
-                    BoxShadow(
-                      color: primaryColor.withAlpha(77),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Icon(
-            widget.icon,
-            size: widget.size * 0.5,
-            color: widget.isPrimary ? palette.background : secondaryIcon,
-          ),
+    return PressFeedback(
+      onTap: onTap,
+      behavior: HitTestBehavior.deferToChild,
+      dimKey: touchDownDimKey,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isPrimary ? primaryColor : secondaryBg,
+          boxShadow: isPrimary
+              ? [
+                  BoxShadow(
+                    color: primaryColor.withAlpha(77),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          icon,
+          size: size * 0.5,
+          color: isPrimary ? palette.background : secondaryIcon,
         ),
       ),
     );

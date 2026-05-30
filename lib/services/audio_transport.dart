@@ -12,10 +12,7 @@ class TransportErrorEvent extends TransportEvent {
   final String? path;
   final Object error;
 
-  const TransportErrorEvent({
-    required this.path,
-    required this.error,
-  });
+  const TransportErrorEvent({required this.path, required this.error});
 }
 
 /// Emitted when a track finishes playing naturally.
@@ -39,62 +36,40 @@ class TransportPositionEvent extends TransportEvent {
   const TransportPositionEvent({required this.position});
 }
 
-/// Minimal interface for controlling a native audio player.
-/// This is a thin abstraction over platform-specific players (just_audio, SoLoud).
-/// 
-/// Responsibilities:
-/// - Loading audio files
-/// - Play/pause/seek control
-/// - Position and duration queries
-/// - Emitting events (error, ended, loaded, position)
-/// 
-/// Does NOT handle:
-/// - Queue management
-/// - Skip-on-error logic
-/// - User intent tracking
+/// Thin abstraction over platform-specific players (just_audio, SoLoud): file
+/// load, play/pause/seek, position/duration, and event emission. No queue,
+/// skip-on-error, or user-intent logic — that lives in PlaybackController.
 abstract class AudioTransport {
-  /// Stream of transport events (errors, track ended, loaded, position).
   Stream<TransportEvent> get eventStream;
 
-  /// Current playback position.
   Future<Duration> get position;
 
   /// Duration of currently loaded track, or Duration.zero if none.
   Future<Duration> get duration;
 
-  /// Initialize the transport.
   Future<void> init();
 
-  /// Dispose resources.
   Future<void> dispose();
 
-  /// Load an audio file from the given path.
   /// Emits TransportLoadedEvent on success, TransportErrorEvent on failure.
   Future<void> load(String path, {String? title, String? artist});
 
-  /// Preload an upcoming track so the next [load] of the same path is a
-  /// near-instant source swap rather than a fresh file read + decode (gapless
-  /// transitions, B-037). Best-effort: implementations may no-op, and a
-  /// preload that fails must not surface an error — the eventual [load] is the
-  /// authoritative attempt that reports success/failure.
+  /// Best-effort gapless look-ahead (B-037): makes the next [load] of the same
+  /// path a near-instant source swap. May no-op; a failed preload must not
+  /// surface an error — the eventual [load] is the authoritative attempt.
   Future<void> preload(String path) async {}
 
-  /// Start playback.
   Future<void> play();
 
-  /// Pause playback.
   Future<void> pause();
 
-  /// Seek to the given position.
   Future<void> seek(Duration position);
 
-  /// Stream of spectrum data (optional - may be empty if not supported).
+  /// Spectrum data (optional — may be empty if not supported).
   Stream<List<double>> get spectrumStream;
 
-  /// Update spectrum settings.
   void updateSpectrumSettings(SpectrumSettings settings);
 
-  /// Enable or disable spectrum capture.
   void setCaptureEnabled(bool enabled);
 
   /// Suspend periodic timers to save battery while backgrounded.
@@ -103,4 +78,3 @@ abstract class AudioTransport {
   /// Resume periodic timers when returning to foreground.
   void resumeTimers() {}
 }
-

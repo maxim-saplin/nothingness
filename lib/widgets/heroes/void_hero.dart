@@ -5,36 +5,17 @@ import '../../models/screen_config.dart';
 import '../../providers/audio_player_provider.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_typography.dart';
+import 'base_hero_container.dart';
 
-/// Track-metadata hero used by the `void` visualisation.
+/// Track-metadata hero for the `void` visualisation — pure visual, fills the hero slot.
 ///
-/// Pure visualisation — no transport widgets, no Scaffold, no AppBar.
-/// Fills whatever box the hero slot gives it.
-///
-/// B-040 — renders a real two-level typographic hierarchy from the active
-/// track's metadata instead of "track title + parent folder":
-///   - **Artist** (H1) — the big mono headline (`track.artist`).
-///   - **Song title** (H2) — a smaller secondary heading (`track.title`),
-///     sized at [songSizeFactor]× the Artist size.
-/// When the track has no parsed artist (e.g. a filename without a
-/// `Artist - Title` separator) the song title takes the H1 slot and the
-/// secondary line is omitted, so the hero never shows an empty headline.
-/// With no track at all it falls back to the "nothingness" idle headline
-/// plus the gesture hint.
-///
-/// The `isOneShot` / `shuffle` queue mode is surfaced as a `↩` / `≈` glyph
-/// prefixed onto the secondary line (the song, or the lone title when there
-/// is no artist) — the same affordance the old parent-folder subtitle had.
-///
-/// [config.textScale] (B-035) scales both heading levels together.
+/// B-040 — two-level typographic hierarchy from the track metadata: Artist (H1, big mono headline) and Song title (H2, at [songSizeFactor]× the H1 size). With no parsed artist the song title takes the H1 slot and H2 is omitted; with no track it falls back to the "nothingness" idle headline plus a gesture hint. The `isOneShot` / `shuffle` queue mode prefixes a `↩` / `≈` glyph onto the secondary (or lone) line. [config.textScale] (B-035) scales both levels together.
 class VoidHero extends StatelessWidget {
   const VoidHero({super.key, this.config = const VoidScreenConfig()});
 
   final VoidScreenConfig config;
 
-  /// B-040: the Song title (H2) renders at this fraction of the Artist (H1)
-  /// size, giving a clear two-level hierarchy. Both levels still scale with
-  /// [config.textScale] and the theme's `heroSize`.
+  /// B-040: the Song title (H2) renders at this fraction of the Artist (H1) size.
   static const double songSizeFactor = 0.5;
 
   @override
@@ -103,8 +84,7 @@ class VoidHero extends StatelessWidget {
           ),
         ];
       } else {
-        // No parsed artist — the song title carries the H1 slot so the hero
-        // never renders an empty primary headline.
+        // No parsed artist — the song title carries the H1 slot.
         children = [
           _heading(
             '$modeGlyph${track.title}',
@@ -117,17 +97,11 @@ class VoidHero extends StatelessWidget {
       }
     }
 
-    return Container(
+    return BaseHeroContainer(
       width: double.infinity,
-      // Horizontal padding is wide enough that the title text can never
-      // reach the top-right `⋮` settings button (48 dp wide @ right: 4).
+      // Horizontal padding keeps the title clear of the top-right `⋮` settings button (48 dp wide @ right: 4).
       padding: const EdgeInsets.fromLTRB(56, 12, 56, 12),
-      decoration: BoxDecoration(
-        color: palette.background,
-        border: Border(
-          bottom: BorderSide(color: palette.divider, width: 1),
-        ),
-      ),
+      showDivider: true,
       alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -138,8 +112,7 @@ class VoidHero extends StatelessWidget {
     );
   }
 
-  /// Shared heading builder for the Artist / Song levels — same mono family,
-  /// weight, and 2-line ellipsis treatment, differing only in size + colour.
+  /// Shared heading builder for the Artist / Song levels — same mono / 2-line ellipsis treatment, differing only in size + colour.
   Widget _heading(
     String text, {
     required Key key,

@@ -14,8 +14,7 @@ import '../services/playback_controller.dart';
 import '../services/platform_channels.dart';
 import '../services/soloud_transport.dart';
 
-/// Provider wrapper for PlaybackController.
-/// Exposes reactive state via ChangeNotifier for use with Provider.
+/// ChangeNotifier wrapper exposing PlaybackController reactive state to the UI.
 class AudioPlayerProvider extends ChangeNotifier {
   PlaybackController? _controller;
   AudioTransport? _transport;
@@ -57,15 +56,12 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
 
-  // Pass-through to controller
-  static Set<String> get supportedExtensions {
-    return SoLoudTransport.supportedExtensions;
-  }
+  static Set<String> get supportedExtensions =>
+      SoLoudTransport.supportedExtensions;
 
   bool _initialized = false;
   bool get initialized => _initialized;
 
-  /// Initialize the audio player service and set up listeners.
   Future<void> init() async {
     if (_initialized) return;
 
@@ -108,7 +104,7 @@ class AudioPlayerProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      // Android spectrum: start disabled until UI requests it via setCaptureEnabled.
+      // Android spectrum stays off until the UI requests it.
       _captureEnabled = false;
     } else {
       final controller = _controller!;
@@ -116,14 +112,14 @@ class AudioPlayerProvider extends ChangeNotifier {
 
       await controller.init();
 
-      controller.songInfoNotifier.addListener(_onSongInfoChanged);
-      controller.isPlayingNotifier.addListener(_onIsPlayingChanged);
-      controller.queueNotifier.addListener(_onQueueChanged);
-      controller.currentIndexNotifier.addListener(_onCurrentIndexChanged);
-      controller.shuffleNotifier.addListener(_onShuffleChanged);
+      controller.songInfoNotifier.addListener(_onControllerChanged);
+      controller.isPlayingNotifier.addListener(_onControllerChanged);
+      controller.queueNotifier.addListener(_onControllerChanged);
+      controller.currentIndexNotifier.addListener(_onControllerChanged);
+      controller.shuffleNotifier.addListener(_onControllerChanged);
 
       // Mirror the controller's one-shot flag so the UI marker stays in sync
-      // when the controller naturally clears the flag (natural end / abort).
+      // when the controller clears it (natural end / abort).
       _oneShotListener = () {
         _isOneShot = controller.isOneShotNotifier.value;
         notifyListeners();
@@ -152,11 +148,11 @@ class AudioPlayerProvider extends ChangeNotifier {
     if (!_isAndroid) {
       final controller = _controller;
       if (controller != null) {
-        controller.songInfoNotifier.removeListener(_onSongInfoChanged);
-        controller.isPlayingNotifier.removeListener(_onIsPlayingChanged);
-        controller.queueNotifier.removeListener(_onQueueChanged);
-        controller.currentIndexNotifier.removeListener(_onCurrentIndexChanged);
-        controller.shuffleNotifier.removeListener(_onShuffleChanged);
+        controller.songInfoNotifier.removeListener(_onControllerChanged);
+        controller.isPlayingNotifier.removeListener(_onControllerChanged);
+        controller.queueNotifier.removeListener(_onControllerChanged);
+        controller.currentIndexNotifier.removeListener(_onControllerChanged);
+        controller.shuffleNotifier.removeListener(_onControllerChanged);
         final oneShotListener = _oneShotListener;
         if (oneShotListener != null) {
           controller.isOneShotNotifier.removeListener(oneShotListener);
@@ -173,28 +169,15 @@ class AudioPlayerProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  void _onSongInfoChanged() {
-    _songInfo = _controller!.songInfoNotifier.value;
-    notifyListeners();
-  }
-
-  void _onIsPlayingChanged() {
-    _isPlaying = _controller!.isPlayingNotifier.value;
-    notifyListeners();
-  }
-
-  void _onQueueChanged() {
-    _queue = _controller!.queueNotifier.value;
-    notifyListeners();
-  }
-
-  void _onCurrentIndexChanged() {
-    _currentIndex = _controller!.currentIndexNotifier.value;
-    notifyListeners();
-  }
-
-  void _onShuffleChanged() {
-    _shuffle = _controller!.shuffleNotifier.value;
+  /// Single listener registered on every controller notifier: re-mirror all
+  /// fields and notify.
+  void _onControllerChanged() {
+    final controller = _controller!;
+    _songInfo = controller.songInfoNotifier.value;
+    _isPlaying = controller.isPlayingNotifier.value;
+    _queue = controller.queueNotifier.value;
+    _currentIndex = controller.currentIndexNotifier.value;
+    _shuffle = controller.shuffleNotifier.value;
     notifyListeners();
   }
 
@@ -211,147 +194,99 @@ class AudioPlayerProvider extends ChangeNotifier {
     await _controller!.playPause();
   }
 
-  Future<void> next() async {
-    if (_isAndroid) {
-      await _androidHandler!.skipToNext();
-      return;
-    }
-    await _controller!.next();
-  }
+  /// Dispatch a 1:1 call to the Android handler or the controller.
+  Future<T> _delegate<T>(
+    Future<T> Function(NothingAudioHandler h) android,
+    Future<T> Function(PlaybackController c) controller,
+  ) => _isAndroid ? android(_androidHandler!) : controller(_controller!);
 
-  Future<void> previous() async {
-    if (_isAndroid) {
-      await _androidHandler!.customAction('previous');
-      return;
-    }
-    await _controller!.previous();
-  }
+  Future<void> next() => _delegate((h) => h.skipToNext(), (c) => c.next());
 
-  Future<void> seek(Duration position) async {
-    if (_isAndroid) {
-      await _androidHandler!.seek(position);
-      return;
-    }
-    await _controller!.seek(position);
-  }
+  Future<void> previous() =>
+      _delegate((h) => h.customAction('previous'), (c) => c.previous());
+
+  Future<void> seek(Duration position) =>
+      _delegate((h) => h.seek(position), (c) => c.seek(position));
 
   Future<void> setQueue(
     List<AudioTrack> tracks, {
     int startIndex = 0,
     bool shuffle = false,
-  }) async {
-    if (_isAndroid) {
-      final handler = _androidHandler!;
-      await handler.customAction('setQueue', <String, Object?>{
-        'tracks': tracks.map(_encodeTrack).toList(growable: false),
-        'startIndex': startIndex,
-        'shuffle': shuffle,
-      });
-      return;
-    }
-    await _controller!.setQueue(
-      tracks,
-      startIndex: startIndex,
-      shuffle: shuffle,
-    );
-  }
+  }) => _delegate(
+        (h) => h.customAction('setQueue', <String, Object?>{
+          'tracks': _encodeTracks(tracks),
+          'startIndex': startIndex,
+          'shuffle': shuffle,
+        }),
+        (c) => c.setQueue(tracks, startIndex: startIndex, shuffle: shuffle),
+      );
 
   Future<void> addTracks(List<AudioTrack> tracks, {bool play = false}) =>
-      _isAndroid
-      ? _androidHandler!.customAction('addTracks', <String, Object?>{
-          'tracks': tracks.map(_encodeTrack).toList(growable: false),
+      _delegate(
+        (h) => h.customAction('addTracks', <String, Object?>{
+          'tracks': _encodeTracks(tracks),
           'play': play,
-        })
-      : _controller!.addTracks(tracks, play: play);
+        }),
+        (c) => c.addTracks(tracks, play: play),
+      );
 
-  Future<void> playFromQueueIndex(int orderIndex) => _isAndroid
-      ? _androidHandler!.customAction('playFromQueueIndex', orderIndex)
-      : _controller!.playFromQueueIndex(orderIndex);
+  Future<void> playFromQueueIndex(int orderIndex) => _delegate(
+    (h) => h.customAction('playFromQueueIndex', orderIndex),
+    (c) => c.playFromQueueIndex(orderIndex),
+  );
 
-  /// Play [track] as a one-shot — preserves the current queue and resumes at
-  /// `queueIndex + 1` on natural end (unless [repeatOne] is true, in which
-  /// case the one-shot loops in place).
-  ///
-  /// Pass-through to [PlaybackController.playOneShot]. The UI marker
-  /// [isOneShot] flips immediately and clears via the controller's
-  /// [PlaybackController.isOneShotNotifier] when the one-shot ends.
+  /// Play [track] as a one-shot — see [PlaybackController.playOneShot].
+  /// [isOneShot] flips immediately and clears via the controller's notifier.
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
     if (_isAndroid) {
-      // One-shot on Android is not wired through the AudioHandler yet; this
-      // path is reserved for the P3 background-mode integration. Until then,
-      // fall back to a plain queue replacement so the UI still works in tests.
-      // The Android handler has no `isOneShotNotifier` to mirror, so leave
-      // `_isOneShot` false to avoid a stuck marker.
+      // One-shot isn't wired through the AudioHandler yet (P3 background-mode);
+      // fall back to queue replacement and leave _isOneShot false (no notifier).
       await setQueue(<AudioTrack>[track], startIndex: 0);
       return;
     }
-    // Optimistic flip — the controller will also set its notifier, and our
-    // listener mirrors it back. This makes the UI marker reflect immediately.
+    // Optimistic flip; the listener mirrors the controller's notifier back.
     _isOneShot = true;
     notifyListeners();
     await _controller!.playOneShot(track, repeatOne: repeatOne);
   }
 
-  /// Install [results] as a search-session sub-queue starting at
-  /// [tappedIndex]. The previous queue and index are preserved by
-  /// [PlaybackController] and restored on [exitSearchSession]. B-014.
+  /// Install [results] as a search-session sub-queue at [tappedIndex]; the
+  /// prior queue is restored on [exitSearchSession]. B-014.
   Future<void> enterSearchSession(
     List<AudioTrack> results,
     int tappedIndex,
-  ) async {
-    if (_isAndroid) {
-      await _androidHandler!.customAction(
-        'enterSearchSession',
-        <String, Object?>{
-          'tracks': results.map(_encodeTrack).toList(growable: false),
+  ) => _delegate(
+        (h) => h.customAction('enterSearchSession', <String, Object?>{
+          'tracks': _encodeTracks(results),
           'tappedIndex': tappedIndex,
-        },
+        }),
+        (c) => c.enterSearchSession(results, tappedIndex),
       );
-      return;
-    }
-    await _controller!.enterSearchSession(results, tappedIndex);
-  }
 
-  /// Restore the queue captured at the start of the current search session.
-  /// The currently-playing track keeps playing. No-op if no session is
-  /// active. B-014.
-  Future<void> exitSearchSession() async {
-    if (_isAndroid) {
-      await _androidHandler!.customAction('exitSearchSession');
-      return;
-    }
-    await _controller!.exitSearchSession();
-  }
+  /// Restore the queue captured at search-session start; the playing track
+  /// keeps playing. No-op if no session is active. B-014.
+  Future<void> exitSearchSession() => _delegate(
+    (h) => h.customAction('exitSearchSession'),
+    (c) => c.exitSearchSession(),
+  );
 
-  Future<void> shuffleQueue() => _isAndroid
-      ? _androidHandler!.customAction('shuffleQueue')
-      : _controller!.shuffleQueue();
-  Future<void> disableShuffle() => _isAndroid
-      ? _androidHandler!.customAction('disableShuffle')
-      : _controller!.disableShuffle();
+  Future<void> shuffleQueue() =>
+      _delegate((h) => h.customAction('shuffleQueue'), (c) => c.shuffleQueue());
+  Future<void> disableShuffle() => _delegate(
+    (h) => h.customAction('disableShuffle'),
+    (c) => c.disableShuffle(),
+  );
 
-  /// Suspend periodic timers to save battery while the app is backgrounded.
+  /// No-op on Android: the handler owns background playback, so suspending the
+  /// transport here would freeze session/position updates.
   void suspendTimers() {
-    if (_isAndroid) {
-      // On Android, the audio handler remains responsible for background
-      // playback. Suspending the transport here deactivates the audio session
-      // and freezes position/session updates right when remote media controls
-      // are expected to wake playback back up.
-      return;
-    } else {
-      _controller?.suspendTimers();
-    }
+    if (_isAndroid) return;
+    _controller?.suspendTimers();
   }
 
-  /// Resume periodic timers when returning to foreground.
   void resumeTimers() {
-    if (_isAndroid) {
-      // See suspendTimers(): Android background playback should not depend on
-      // the UI resuming before transport/session bookkeeping is restored.
-      return;
-    } else {
-      _controller?.resumeTimers();
-    }
+    if (_isAndroid) return;
+    _controller?.resumeTimers();
   }
 
   void setCaptureEnabled(bool enabled) {
@@ -389,21 +324,18 @@ class AudioPlayerProvider extends ChangeNotifier {
   Future<int> playlistSizeBytes() =>
       _controller?.playlistSizeBytes() ?? Future.value(0);
 
-  /// Diagnostics snapshot of the playback controller (audio events, queue,
-  /// recent logs). Returns null if no controller is reachable from this
-  /// provider (very early init).
+  /// Controller diagnostics; null if no controller is reachable (early init).
   Map<String, Object?>? diagnosticsSnapshot() {
     if (_isAndroid) return _androidHandler?.diagnosticsSnapshot();
     return _controller?.diagnosticsSnapshot();
   }
 
-  /// Audio-event ring buffer for diagnosing interruption / route issues.
   List<String> audioEvents() {
     if (_isAndroid) return _androidHandler?.audioEvents() ?? const <String>[];
     return _controller?.audioEvents() ?? const <String>[];
   }
 
-  /// Test seam: simulate an audio interruption event in the controller.
+  /// Test seam: simulate an audio interruption event.
   void debugSimulateInterruption(AudioInterruptionEvent event) {
     if (_isAndroid) {
       _androidHandler?.debugSimulateInterruption(event);
@@ -412,7 +344,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
   }
 
-  /// Test seam: simulate an audio-becoming-noisy event in the controller.
+  /// Test seam: simulate an audio-becoming-noisy event.
   void debugSimulateBecomingNoisy() {
     if (_isAndroid) {
       _androidHandler?.debugSimulateBecomingNoisy();
@@ -421,14 +353,15 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
   }
 
-  Map<String, Object?> _encodeTrack(AudioTrack t) {
-    return <String, Object?>{
-      'path': t.path,
-      'title': t.title,
-      'artist': t.artist,
-      'durationMs': t.duration?.inMilliseconds,
-    };
-  }
+  Map<String, Object?> _encodeTrack(AudioTrack t) => <String, Object?>{
+        'path': t.path,
+        'title': t.title,
+        'artist': t.artist,
+        'durationMs': t.duration?.inMilliseconds,
+      };
+
+  List<Map<String, Object?>> _encodeTracks(List<AudioTrack> tracks) =>
+      tracks.map(_encodeTrack).toList(growable: false);
 
   void _syncSongInfoFromHandler() {
     final handler = _androidHandler;
@@ -463,10 +396,8 @@ class AudioPlayerProvider extends ChangeNotifier {
     });
   }
 
-  /// Test-only constructor that forces the PlaybackController path on Android.
-  ///
-  /// This intentionally bypasses AudioService/AudioHandler and is intended for
-  /// deterministic emulator integration tests (no real audio files).
+  /// Test-only: forces the PlaybackController path (bypasses AudioService) for
+  /// deterministic emulator integration tests.
   AudioPlayerProvider.forTests({
     required PlaybackController controller,
     required AudioTransport transport,

@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// B-030 — universal press-feedback wrapper.
-///
-/// Wraps any tappable child with a [GestureDetector] that flips an
-/// [AnimatedOpacity] on touch-down so the user gets immediate visual
-/// confirmation of their tap, independent of how long the downstream
-/// action takes to produce its own state change. Long-press handlers are
-/// forwarded verbatim; the wrapper does not own long-press visual state.
-/// Fade-out is longer than fade-in so a brief tap still produces a
-/// visible dip before opacity restores to 1.0.
+/// B-030 — universal press-feedback wrapper. Wraps a tappable child with a [GestureDetector] that flips an [AnimatedOpacity] on touch-down for immediate visual confirmation. Long-press handlers are forwarded verbatim (no long-press visual state). Fade-out is longer than fade-in so a brief tap still dips visibly.
 class PressFeedback extends StatefulWidget {
   const PressFeedback({
     super.key,
@@ -18,6 +10,7 @@ class PressFeedback extends StatefulWidget {
     this.onLongPressStart,
     this.onLongPressEnd,
     this.behavior = HitTestBehavior.opaque,
+    this.dimKey,
   });
 
   final Widget child;
@@ -27,16 +20,16 @@ class PressFeedback extends StatefulWidget {
   final void Function(LongPressEndDetails)? onLongPressEnd;
   final HitTestBehavior behavior;
 
-  /// Opacity applied while a touch is held. Lower = deeper dip; 0.4 was
-  /// chosen as the smallest value that still reads as a deliberate dip
-  /// rather than a flicker on the phones we tested.
+  /// Optional key forwarded to the inner [AnimatedOpacity] so hosts (e.g. [MediaButton]) expose a stable dip handle for tests.
+  final Key? dimKey;
+
+  /// Opacity applied while a touch is held; 0.4 is the smallest value that still reads as a deliberate dip, not a flicker.
   static const double pressedOpacity = 0.4;
 
   /// Fade duration applied as the press is registered.
   static const Duration fadeInDuration = Duration(milliseconds: 120);
 
-  /// Fade duration applied on release. Longer than the fade-in so a
-  /// quick tap still produces a visible dip before bouncing back.
+  /// Fade duration on release. Longer than fade-in so a quick tap still produces a visible dip.
   static const Duration fadeOutDuration = Duration(milliseconds: 200);
 
   @override
@@ -63,6 +56,7 @@ class _PressFeedbackState extends State<PressFeedback> {
       onLongPressStart: widget.onLongPressStart,
       onLongPressEnd: widget.onLongPressEnd,
       child: AnimatedOpacity(
+        key: widget.dimKey,
         opacity: _pressed ? PressFeedback.pressedOpacity : 1.0,
         duration:
             _pressed ? PressFeedback.fadeInDuration : PressFeedback.fadeOutDuration,

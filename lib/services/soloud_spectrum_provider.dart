@@ -5,9 +5,23 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../models/spectrum_settings.dart';
 import 'spectrum_analyzer.dart';
-import 'spectrum_provider.dart';
 
 typedef VoiceHandleProvider = Future<SoundHandle?> Function();
+
+/// Provides spectrum data as normalized buckets in the range 0..1.
+abstract class SpectrumProvider {
+  /// Stream of spectrum buckets updated in real-time.
+  Stream<List<double>> get spectrumStream;
+
+  /// Begin producing spectrum data.
+  Future<void> start();
+
+  /// Stop producing spectrum data and release resources.
+  Future<void> stop();
+
+  /// Update noise gate / bar count / decay tuning.
+  void updateSettings(SpectrumSettings settings);
+}
 
 /// Spectrum provider that polls SoLoud FFT data for the current voice handle.
 class SoLoudSpectrumProvider implements SpectrumProvider {
@@ -58,11 +72,9 @@ class SoLoudSpectrumProvider implements SpectrumProvider {
     if (handle == null) return;
 
     try {
-      // B-038: while the voice is paused the FFT buffer holds its last frame,
-      // so bars would freeze mid-air and read as "still playing". Feed a zeroed
-      // spectrum through the analyzer instead so the existing smoothing decays
-      // the bars to flat; once effectively silent, emit one clean zero frame
-      // and stop emitting until playback resumes.
+      // B-038: paused FFT buffer holds its last frame (bars freeze). Feed zeros
+      // so smoothing decays to flat; once silent, emit one clean zero frame and
+      // stop until playback resumes.
       List<double> fft;
       if (_soloud.getPause(handle)) {
         if (_lastValues.every((v) => v < 0.01)) {

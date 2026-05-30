@@ -30,9 +30,8 @@ class PlaylistStore {
   final Future<Box<dynamic>> Function(HiveInterface) _openBox;
   final Random _random;
 
-  // Tracks an in-flight background persist so [dispose] can await it before
-  // closing the box (B-037 — the resume-index write is kept off the playback
-  // hot path but must not be lost on shutdown).
+  // B-037: in-flight background persist so [dispose] awaits it before closing
+  // the box (resume-index write is off the hot path but must survive shutdown).
   Future<void>? _pendingPersist;
 
   final ValueNotifier<List<AudioTrack>> queueNotifier =
@@ -62,7 +61,7 @@ class PlaylistStore {
   }
 
   Future<void> dispose() async {
-    // Let any background resume-index write land before we close the box.
+    // Let any background resume-index write land before closing the box.
     try {
       await _pendingPersist;
     } catch (_) {}
@@ -127,9 +126,8 @@ class PlaylistStore {
     if (_playOrder.isEmpty) return;
     final clamped = orderIndex.clamp(0, _playOrder.length - 1).toInt();
     currentOrderIndexNotifier.value = clamped;
-    // B-037: persist the resume index off the playback hot path. A track
-    // transition must not stall on a Hive disk write (~hundreds of ms on some
-    // hosts); the notifier above is updated synchronously, the write trails.
+    // B-037: persist resume index off the hot path — notifier updates now, the
+    // Hive write trails.
     _pendingPersist = _persistState();
     unawaited(_pendingPersist!.catchError((Object e) {
       debugPrint('[PlaylistStore] background persist failed: $e');
@@ -197,17 +195,16 @@ class PlaylistStore {
   }
 
   List<int> _buildShuffledOrder({required int startBaseIndex}) {
-    final order = List<int>.generate(_baseQueue.length, (i) => i);
-    order.shuffle(_random);
+    final order = _shuffledIndices();
     _ensureTrackIsFirst(order, _clampBaseIndex(startBaseIndex));
     return List<int>.unmodifiable(order);
   }
 
-  List<int> _buildReshuffledOrder({required int keepBaseIndex}) {
-    final order = List<int>.generate(_baseQueue.length, (i) => i);
-    order.shuffle(_random);
-    return List<int>.unmodifiable(order);
-  }
+  List<int> _buildReshuffledOrder({required int keepBaseIndex}) =>
+      List<int>.unmodifiable(_shuffledIndices());
+
+  List<int> _shuffledIndices() =>
+      List<int>.generate(_baseQueue.length, (i) => i)..shuffle(_random);
 
   void _ensureTrackIsFirst(List<int> order, int baseIndex) {
     final pos = order.indexOf(baseIndex);

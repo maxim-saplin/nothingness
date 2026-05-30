@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'models/screen_config.dart';
-import 'models/spectrum_settings.dart';
-import 'providers/audio_player_provider.dart';
-import 'screens/void_screen.dart';
-import 'services/playback_controller.dart';
-import 'services/playlist_store.dart';
-import 'testing/test_harness.dart';
-import 'testing/test_overlay.dart';
+import 'package:nothingness/models/screen_config.dart';
+import 'package:nothingness/models/spectrum_settings.dart';
+import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/screens/void_screen.dart';
+import 'package:nothingness/services/playback_controller.dart';
+import 'package:nothingness/services/playlist_store.dart';
+import 'test_harness.dart';
+import 'test_overlay.dart';
 
 /// Test-only entrypoint for emulator integration tests.
 ///

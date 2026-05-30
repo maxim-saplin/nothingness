@@ -20,11 +20,11 @@ class LibraryService {
 
   final SecureBookmarks? _secureBookmarks =
       Platform.isMacOS ? SecureBookmarks() : null;
-  
+
   Box<dynamic>? _box;
-  
+
   // Map of path -> bookmark string
-  final ValueNotifier<Map<String, String>> rootsNotifier = 
+  final ValueNotifier<Map<String, String>> rootsNotifier =
       ValueNotifier<Map<String, String>>({});
 
   Future<void> init() async {
@@ -36,7 +36,7 @@ class LibraryService {
     if (!_isDesktopRoots) return;
 
     try {
-      // Linux has no sandbox — store the path itself as the "bookmark" so the
+      // Linux has no sandbox — store the raw path as the "bookmark" so the
       // persistence schema stays uniform across desktop OSes.
       final bookmark = Platform.isMacOS
           ? await _secureBookmarks!.bookmark(File(path))
@@ -60,12 +60,12 @@ class LibraryService {
 
   Future<void> _restoreRoots() async {
     if (_box == null) return;
-    
+
     final storedRoots = _box!.get(_rootsKey);
     if (storedRoots is Map) {
       final roots = Map<String, String>.from(storedRoots);
       rootsNotifier.value = roots;
-      
+
       if (Platform.isMacOS) {
         await _resolveBookmarks(roots);
       }
@@ -100,7 +100,7 @@ class LibraryService {
     if (!Platform.isAndroid || _box == null) return null;
     return _box!.get(_lastScanTimestampKey) as int?;
   }
-  
+
   /// Call this when the app is closing to release resources
   Future<void> dispose() async {
     if (Platform.isMacOS) {

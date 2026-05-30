@@ -63,43 +63,29 @@ class LibraryBrowser {
 
       final parts = relative.split('/');
       if (parts.length == 1) {
-        // Direct child file
-        if (_isSupported(song.path)) {
-          try {
-            // Keep MediaStore artist (useful for the hero subtitle), but
-            // display the on-disk filename — minus its audio extension —
-            // as the title. MediaStore's ID3-derived title can diverge
-            // wildly from what the user dropped onto the device (e.g.
-            // "Atomic Heart - Archive.mp3" returns title "Archive"); the
-            // user wants what they named the file, not what the tag says.
-            final extracted = await extractor.extractMetadata(song.path);
-            tracks.add(AudioTrack(
-              path: song.path,
-              title: p.basenameWithoutExtension(song.path),
-              artist: extracted.artist,
-            ));
-          } catch (e) {
-            tracks.add(AudioTrack(
-              path: song.path,
-              title: p.basenameWithoutExtension(song.path),
-            ));
-          }
-        }
+        if (!_isSupported(song.path)) continue;
+        // Keep MediaStore artist for the hero subtitle, but title from the
+        // on-disk filename (minus extension) rather than the ID3 tag, which can
+        // diverge from what the user named the file.
+        String artist = '';
+        try {
+          artist = (await extractor.extractMetadata(song.path)).artist;
+        } catch (_) {}
+        tracks.add(AudioTrack(
+          path: song.path,
+          title: p.basenameWithoutExtension(song.path),
+          artist: artist,
+        ));
       } else {
-        // Child folder
         final childName = parts.first;
         final childPath = p.join(normalizedBase, childName);
-        if (!folderPaths.contains(childPath)) {
-          folderPaths.add(childPath);
+        if (folderPaths.add(childPath)) {
           folders.add(LibraryFolder(path: childPath, name: childName));
         }
       }
     }
 
-    folders.sort((a, b) => a.path.compareTo(b.path));
-    tracks.sort((a, b) => a.title.compareTo(b.title));
-
-    return LibraryListing(path: normalizedBase, folders: folders, tracks: tracks);
+    return _sortedListing(normalizedBase, folders, tracks);
   }
 
   /// Lists a folder directly from the file system (used on macOS and tests).
@@ -121,27 +107,28 @@ class LibraryBrowser {
             LibraryFolder(path: entity.path, name: p.basename(entity.path)),
           );
         }
-      } else if (entity is File) {
-        if (_isSupported(entity.path)) {
-          try {
-            final track = await extractor.extractMetadata(entity.path);
-            tracks.add(track);
-          } catch (e) {
-            // Fallback to filename if extraction fails
-            tracks.add(
-              AudioTrack(
-                path: entity.path,
-                title: p.basenameWithoutExtension(entity.path),
-              ),
-            );
-          }
+      } else if (entity is File && _isSupported(entity.path)) {
+        try {
+          tracks.add(await extractor.extractMetadata(entity.path));
+        } catch (_) {
+          tracks.add(AudioTrack(
+            path: entity.path,
+            title: p.basenameWithoutExtension(entity.path),
+          ));
         }
       }
     }
 
+    return _sortedListing(path, folders, tracks);
+  }
+
+  LibraryListing _sortedListing(
+    String path,
+    List<LibraryFolder> folders,
+    List<AudioTrack> tracks,
+  ) {
     folders.sort((a, b) => a.path.compareTo(b.path));
     tracks.sort((a, b) => a.title.compareTo(b.title));
-
     return LibraryListing(path: path, folders: folders, tracks: tracks);
   }
 
@@ -150,5 +137,6 @@ class LibraryBrowser {
     return supportedExtensions.contains(ext);
   }
 
-  String _normalizePath(String path) => path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  String _normalizePath(String path) =>
+      path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 }

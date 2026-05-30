@@ -4,33 +4,17 @@ import 'spectrum_settings.dart';
 
 enum ScreenType { spectrum, polo, dot, void_ }
 
-abstract class ScreenConfig {
+sealed class ScreenConfig {
   final ScreenType type;
   final String name;
 
   const ScreenConfig({required this.type, required this.name});
 
-  /// Whether this hero participates in the chrome-owned transport row
-  /// contract (B-018).
-  ///
-  /// Hosted heroes (Spectrum, Dot, Void) opt-in: the Void shell paints
-  /// the [TransportRow] at the position dictated by the global
-  /// `transport` setting (`top` / `bottom` / `off`) and the hero only
-  /// has to lay out content within the *hero band* it is handed.
-  ///
-  /// Bespoke heroes (Polo) opt-out by overriding to `false`: they paint
-  /// their own controls (Polo's LCD-style image overlay) and the shell
-  /// stays out of their way regardless of the global transport setting.
+  /// Whether this hero participates in the chrome-owned transport row (B-018);
+  /// bespoke heroes (Polo) opt out and paint their own controls.
   bool get hostsChromeTransport => true;
 
-  /// Whether this hero renders the spectrum visualizer (B-034).
-  ///
-  /// Default `true` so new heroes opt in by default — the SOUND group's
-  /// visualizer-specific rows (`bar count`, `bar style`, `decay speed`,
-  /// `visualizer color`) make sense for them. Heroes that don't paint
-  /// the visualizer (Dot, Void) override this to `false`; the settings
-  /// sheet then hides those rows because tweaking them has no visible
-  /// effect on the active screen.
+  /// Whether this hero renders the spectrum visualizer (B-034); Dot/Void opt out.
   bool get usesVisualizer => true;
 
   Map<String, dynamic> toJson();
@@ -56,18 +40,14 @@ abstract class ScreenConfig {
 }
 
 class VoidScreenConfig extends ScreenConfig {
-  /// Multiplier applied to the title + parent-folder typography (B-035).
-  /// Range 0.5..1.5; default 1.0 keeps the existing visual.
+  /// Title + parent-folder typography multiplier (B-035). Range 0.5..1.5.
   final double textScale;
 
   const VoidScreenConfig({this.textScale = 1.0})
       : super(type: ScreenType.void_, name: 'Void');
 
-  /// Void renders a typographic hero (track title) only — no spectrum
-  /// visualizer (B-034). The SOUND group hides the visualizer-only rows
-  /// while this is the active screen.
   @override
-  bool get usesVisualizer => false;
+  bool get usesVisualizer => false; // B-034: typographic hero, no visualizer
 
   @override
   Map<String, dynamic> toJson() => {
@@ -81,9 +61,8 @@ class VoidScreenConfig extends ScreenConfig {
         textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
       );
 
-  VoidScreenConfig copyWith({double? textScale}) {
-    return VoidScreenConfig(textScale: textScale ?? this.textScale);
-  }
+  VoidScreenConfig copyWith({double? textScale}) =>
+      VoidScreenConfig(textScale: textScale ?? this.textScale);
 }
 
 class SpectrumScreenConfig extends ScreenConfig {
@@ -121,14 +100,9 @@ class SpectrumScreenConfig extends ScreenConfig {
     'textColorScheme': textColorScheme.name,
   };
 
-  // B-041: fromJson defaults MUST match the const constructor defaults so a
-  // first run (const SpectrumScreenConfig()) and a missing-key reload agree.
-  // Previously textScale / spectrumHeightFactor / mediaControlScale defaulted
-  // to 1.0 and the colour schemes to `classic`, all of which disagreed with
-  // the const defaults below — the same latent inconsistency the ticket
-  // flagged for textScale (0.6 vs 1.0).
-  factory SpectrumScreenConfig.fromJson(Map<String, dynamic> json) {
-    return SpectrumScreenConfig(
+  // B-041: fromJson defaults MUST match the const constructor defaults.
+  factory SpectrumScreenConfig.fromJson(Map<String, dynamic> json) =>
+      SpectrumScreenConfig(
       showMediaControls: json['showMediaControls'] as bool? ?? true,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 0.6,
       spectrumWidthFactor:
@@ -147,7 +121,6 @@ class SpectrumScreenConfig extends ScreenConfig {
         orElse: () => SpectrumColorScheme.cyan,
       ),
     );
-  }
 
   SpectrumScreenConfig copyWith({
     bool? showMediaControls,
@@ -158,20 +131,19 @@ class SpectrumScreenConfig extends ScreenConfig {
     double? mediaSliderWidthFactor,
     SpectrumColorScheme? mediaControlColorScheme,
     SpectrumColorScheme? textColorScheme,
-  }) {
-    return SpectrumScreenConfig(
-      showMediaControls: showMediaControls ?? this.showMediaControls,
-      textScale: textScale ?? this.textScale,
-      spectrumWidthFactor: spectrumWidthFactor ?? this.spectrumWidthFactor,
-      spectrumHeightFactor: spectrumHeightFactor ?? this.spectrumHeightFactor,
-      mediaControlScale: mediaControlScale ?? this.mediaControlScale,
-      mediaSliderWidthFactor:
-          mediaSliderWidthFactor ?? this.mediaSliderWidthFactor,
-      mediaControlColorScheme:
-          mediaControlColorScheme ?? this.mediaControlColorScheme,
-      textColorScheme: textColorScheme ?? this.textColorScheme,
-    );
-  }
+  }) =>
+      SpectrumScreenConfig(
+        showMediaControls: showMediaControls ?? this.showMediaControls,
+        textScale: textScale ?? this.textScale,
+        spectrumWidthFactor: spectrumWidthFactor ?? this.spectrumWidthFactor,
+        spectrumHeightFactor: spectrumHeightFactor ?? this.spectrumHeightFactor,
+        mediaControlScale: mediaControlScale ?? this.mediaControlScale,
+        mediaSliderWidthFactor:
+            mediaSliderWidthFactor ?? this.mediaSliderWidthFactor,
+        mediaControlColorScheme:
+            mediaControlColorScheme ?? this.mediaControlColorScheme,
+        textColorScheme: textColorScheme ?? this.textColorScheme,
+      );
 }
 
 class DotScreenConfig extends ScreenConfig {
@@ -181,15 +153,10 @@ class DotScreenConfig extends ScreenConfig {
   final double textOpacity;
   final double sensitivity;
 
-  /// Whether the Dot hero overlays the currently-playing track's title and
-  /// parent folder above the pulsing dot. Default `false` preserves the
-  /// minimalist identity (see B-020); users opt-in from the DISPLAY group
-  /// of the settings sheet.
+  /// Overlay track title + parent folder above the pulsing dot (B-020); default off.
   final bool showSongInfo;
 
-  /// Multiplier applied to the song-info title + parent-folder typography
-  /// (B-035). Only meaningful when [showSongInfo] is true.
-  /// Range 0.5..1.5; default 1.0 keeps the existing visual.
+  /// Song-info typography multiplier (B-035), used only when [showSongInfo]. Range 0.5..1.5.
   final double textScale;
 
   const DotScreenConfig({
@@ -202,11 +169,8 @@ class DotScreenConfig extends ScreenConfig {
     this.textScale = 1.0,
   }) : super(type: ScreenType.dot, name: 'Dot');
 
-  /// Dot paints a pulsing circle, not a spectrum visualizer (B-034).
-  /// SOUND-group visualizer rows are hidden while Dot is the active
-  /// screen.
   @override
-  bool get usesVisualizer => false;
+  bool get usesVisualizer => false; // B-034: pulsing circle, no visualizer
 
   @override
   Map<String, dynamic> toJson() => {
@@ -221,8 +185,7 @@ class DotScreenConfig extends ScreenConfig {
     'textScale': textScale,
   };
 
-  factory DotScreenConfig.fromJson(Map<String, dynamic> json) {
-    return DotScreenConfig(
+  factory DotScreenConfig.fromJson(Map<String, dynamic> json) => DotScreenConfig(
       minDotSize: (json['minDotSize'] as num?)?.toDouble() ?? 20.0,
       maxDotSize: (json['maxDotSize'] as num?)?.toDouble() ?? 120.0,
       dotOpacity: (json['dotOpacity'] as num?)?.toDouble() ?? 1.0,
@@ -231,7 +194,6 @@ class DotScreenConfig extends ScreenConfig {
       showSongInfo: json['showSongInfo'] as bool? ?? false,
       textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
     );
-  }
 
   DotScreenConfig copyWith({
     double? minDotSize,
@@ -241,17 +203,16 @@ class DotScreenConfig extends ScreenConfig {
     double? sensitivity,
     bool? showSongInfo,
     double? textScale,
-  }) {
-    return DotScreenConfig(
-      minDotSize: minDotSize ?? this.minDotSize,
-      maxDotSize: maxDotSize ?? this.maxDotSize,
-      dotOpacity: dotOpacity ?? this.dotOpacity,
-      textOpacity: textOpacity ?? this.textOpacity,
-      sensitivity: sensitivity ?? this.sensitivity,
-      showSongInfo: showSongInfo ?? this.showSongInfo,
-      textScale: textScale ?? this.textScale,
-    );
-  }
+  }) =>
+      DotScreenConfig(
+        minDotSize: minDotSize ?? this.minDotSize,
+        maxDotSize: maxDotSize ?? this.maxDotSize,
+        dotOpacity: dotOpacity ?? this.dotOpacity,
+        textOpacity: textOpacity ?? this.textOpacity,
+        sensitivity: sensitivity ?? this.sensitivity,
+        showSongInfo: showSongInfo ?? this.showSongInfo,
+        textScale: textScale ?? this.textScale,
+      );
 }
 
 class PoloScreenConfig extends ScreenConfig {
@@ -263,34 +224,22 @@ class PoloScreenConfig extends ScreenConfig {
   final Rect nextRect;
   final Color textColor;
 
-  /// Multiplier applied to the LCD readout typography (B-041). Every screen
-  /// exposes a text-size control; for Polo it scales the bespoke LCD font
-  /// within its fixed display rect. Range 0.5..1.5; default 1.0 keeps the
-  /// existing visual.
+  /// LCD readout typography multiplier (B-041). Range 0.5..1.5.
   final double textScale;
 
+  // Control rects are initial guesses, adjusted in debug mode.
   const PoloScreenConfig({
     this.backgroundImagePath = 'assets/images/polo.webp',
     this.fontFamily = 'Press Start 2P',
     this.textScale = 1.0,
     this.lcdRect = const Rect.fromLTWH(0.31, 0.38, 0.37, 0.14),
-    // Initial guesses for controls - adjust in debug mode
-    this.playPauseRect = const Rect.fromLTWH(
-      0.15,
-      0.68,
-      0.10,
-      0.10,
-    ), // Center button
-    this.prevRect = const Rect.fromLTWH(0.5, 0.66, 0.11, 0.07), // Left button
-    this.nextRect = const Rect.fromLTWH(0.61, 0.66, 0.11, 0.07), // Right button
-    this.textColor = const Color(
-      0xFF000000,
-    ), // Usually LCDs are dark text on light bg or vice versa. Polo image LCD looks bright.
+    this.playPauseRect = const Rect.fromLTWH(0.15, 0.68, 0.10, 0.10),
+    this.prevRect = const Rect.fromLTWH(0.5, 0.66, 0.11, 0.07),
+    this.nextRect = const Rect.fromLTWH(0.61, 0.66, 0.11, 0.07),
+    this.textColor = const Color(0xFF000000),
   }) : super(type: ScreenType.polo, name: 'Polo');
 
-  /// Polo is bespoke — it paints its own LCD-style controls as part of
-  /// the skin image and opts out of the chrome transport row contract
-  /// (B-018).
+  // B-018: Polo paints its own LCD controls; opts out of chrome transport.
   @override
   bool get hostsChromeTransport => false;
 
@@ -301,25 +250,21 @@ class PoloScreenConfig extends ScreenConfig {
     'backgroundImagePath': backgroundImagePath,
     'fontFamily': fontFamily,
     'textScale': textScale,
-    // lcdRect is configuration-driven by code, not persisted
+    // lcdRect is code-driven, not persisted (constructor default is the source
+    // of truth so hot-reload tuning works).
     'textColor': textColor.toARGB32(),
   };
 
-  factory PoloScreenConfig.fromJson(Map<String, dynamic> json) {
-    // We intentionally ignore lcdRect from JSON so that the code (constructor default)
-    // is always the source of truth. This allows for hot-reload tuning.
-
-    return PoloScreenConfig(
-      backgroundImagePath:
-          json['backgroundImagePath'] as String? ?? 'assets/images/polo.webp',
-      fontFamily: json['fontFamily'] as String? ?? 'Press Start 2P',
-      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
-      // lcdRect uses default from constructor
-      textColor: json['textColor'] != null
-          ? Color(json['textColor'] as int)
-          : const Color(0xFF000000),
-    );
-  }
+  factory PoloScreenConfig.fromJson(Map<String, dynamic> json) =>
+      PoloScreenConfig(
+        backgroundImagePath: json['backgroundImagePath'] as String? ??
+            'assets/images/polo.webp',
+        fontFamily: json['fontFamily'] as String? ?? 'Press Start 2P',
+        textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+        textColor: json['textColor'] != null
+            ? Color(json['textColor'] as int)
+            : const Color(0xFF000000),
+      );
 
   PoloScreenConfig copyWith({
     Rect? lcdRect,
@@ -328,16 +273,15 @@ class PoloScreenConfig extends ScreenConfig {
     Rect? nextRect,
     Color? textColor,
     double? textScale,
-  }) {
-    return PoloScreenConfig(
-      backgroundImagePath: backgroundImagePath,
-      fontFamily: fontFamily,
-      textScale: textScale ?? this.textScale,
-      lcdRect: lcdRect ?? this.lcdRect,
-      playPauseRect: playPauseRect ?? this.playPauseRect,
-      prevRect: prevRect ?? this.prevRect,
-      nextRect: nextRect ?? this.nextRect,
-      textColor: textColor ?? this.textColor,
-    );
-  }
+  }) =>
+      PoloScreenConfig(
+        backgroundImagePath: backgroundImagePath,
+        fontFamily: fontFamily,
+        textScale: textScale ?? this.textScale,
+        lcdRect: lcdRect ?? this.lcdRect,
+        playPauseRect: playPauseRect ?? this.playPauseRect,
+        prevRect: prevRect ?? this.prevRect,
+        nextRect: nextRect ?? this.nextRect,
+        textColor: textColor ?? this.textColor,
+      );
 }

@@ -22,68 +22,64 @@ class PlatformChannels {
 
   static final bool isAndroid = Platform.isAndroid;
 
-  // Singleton
   static final PlatformChannels _instance = PlatformChannels._internal();
   factory PlatformChannels() => _instance;
   PlatformChannels._internal();
 
-  // Check if notification access is granted
-  Future<bool> isNotificationAccessGranted() async {
-    if (!isAndroid) return false;
+  /// Android-only `invokeMethod` wrapper: no-ops off Android and swallows
+  /// errors after logging [errorLabel], returning [fallback].
+  Future<T> _invoke<T>(
+    MethodChannel channel,
+    String method,
+    String errorLabel,
+    T fallback, {
+    Object? arguments,
+  }) async {
+    if (!isAndroid) return fallback;
     try {
-      return await _mediaChannel.invokeMethod<bool>(
-            'isNotificationAccessGranted',
-          ) ??
-          false;
+      final result = await channel.invokeMethod<T>(method, arguments);
+      return result ?? fallback;
     } catch (e) {
-      debugPrint('Error checking notification access: $e');
-      return false;
+      debugPrint('$errorLabel: $e');
+      return fallback;
     }
   }
 
-  // Check if audio permission is granted
-  Future<bool> hasAudioPermission() async {
-    if (!isAndroid) return false;
-    try {
-      return await _mediaChannel.invokeMethod<bool>('hasAudioPermission') ??
-          false;
-    } catch (e) {
-      debugPrint('Error checking audio permission: $e');
-      return false;
-    }
-  }
+  Future<bool> isNotificationAccessGranted() => _invoke(
+    _mediaChannel,
+    'isNotificationAccessGranted',
+    'Error checking notification access',
+    false,
+  );
 
-  // Request audio permission
-  Future<void> requestAudioPermission() async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod('requestAudioPermission');
-    } catch (e) {
-      debugPrint('Error requesting audio permission: $e');
-    }
-  }
+  Future<bool> hasAudioPermission() => _invoke(
+    _mediaChannel,
+    'hasAudioPermission',
+    'Error checking audio permission',
+    false,
+  );
 
-  // Open notification settings
-  Future<void> openNotificationSettings() async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod('openNotificationSettings');
-    } catch (e) {
-      debugPrint('Error opening notification settings: $e');
-    }
-  }
+  Future<void> requestAudioPermission() => _invoke<void>(
+    _mediaChannel,
+    'requestAudioPermission',
+    'Error requesting audio permission',
+    null,
+  );
 
-  // Refresh media sessions
-  Future<void> refreshSessions() async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod('refreshSessions');
-    } catch (e) {
-      debugPrint('Error refreshing sessions: $e');
-    }
-  }
+  Future<void> openNotificationSettings() => _invoke<void>(
+    _mediaChannel,
+    'openNotificationSettings',
+    'Error opening notification settings',
+    null,
+  );
 
-  // Get current song info
+  Future<void> refreshSessions() => _invoke<void>(
+    _mediaChannel,
+    'refreshSessions',
+    'Error refreshing sessions',
+    null,
+  );
+
   Future<SongInfo?> getSongInfo() async {
     if (!isAndroid) return null;
     try {
@@ -99,101 +95,57 @@ class PlatformChannels {
     return null;
   }
 
-  // Media controls
-  Future<void> playPause() async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod('playPause');
-    } catch (e) {
-      debugPrint('Error play/pause: $e');
-    }
-  }
+  Future<void> playPause() =>
+      _invoke<void>(_mediaChannel, 'playPause', 'Error play/pause', null);
 
-  Future<void> next() async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod('next');
-    } catch (e) {
-      debugPrint('Error next: $e');
-    }
-  }
+  Future<void> next() =>
+      _invoke<void>(_mediaChannel, 'next', 'Error next', null);
 
-  Future<void> previous() async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod('previous');
-    } catch (e) {
-      debugPrint('Error previous: $e');
-    }
-  }
+  Future<void> previous() =>
+      _invoke<void>(_mediaChannel, 'previous', 'Error previous', null);
 
-  /// Dispatches a media-key event to whichever external `MediaSession` is
-  /// currently active. Used in background mode so the app's transport buttons
-  /// control the foreign player (Spotify, YT Music, ...).
-  ///
-  /// Expected [keyCode] values mirror `android.view.KeyEvent`:
-  /// `KEYCODE_MEDIA_PLAY_PAUSE` (85), `KEYCODE_MEDIA_NEXT` (87),
-  /// `KEYCODE_MEDIA_PREVIOUS` (88). Other values are forwarded as-is.
-  ///
-  /// Native side tries the `NotificationListenerService` active-controller path
-  /// first; falls back to `AudioManager.dispatchMediaKeyEvent` if that fails or
-  /// the listener is not granted. No-op (warning-logged) on iOS / desktop.
-  Future<void> dispatchExternalMediaKey(int keyCode) async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod(
-        'dispatchExternalMediaKey',
-        <String, Object?>{'keyCode': keyCode},
-      );
-    } catch (e) {
-      debugPrint('Error dispatchExternalMediaKey: $e');
-    }
-  }
+  /// Dispatches a media-key event to the active external `MediaSession` (used
+  /// in background mode). [keyCode] mirrors `android.view.KeyEvent`. Native
+  /// tries the listener active-controller path, then `AudioManager`; no-op off
+  /// Android.
+  Future<void> dispatchExternalMediaKey(int keyCode) => _invoke<void>(
+    _mediaChannel,
+    'dispatchExternalMediaKey',
+    'Error dispatchExternalMediaKey',
+    null,
+    arguments: <String, Object?>{'keyCode': keyCode},
+  );
 
-  // Android KeyEvent codes used in background mode. Mirrored as Dart constants
-  // so callers don't reach into a platform-specific package.
+  // Android KeyEvent codes used in background mode.
   static const int keyCodeMediaPlayPause = 85;
   static const int keyCodeMediaNext = 87;
   static const int keyCodeMediaPrevious = 88;
 
-  // Update spectrum settings on native side
-  Future<void> updateSpectrumSettings(SpectrumSettings settings) async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod(
+  Future<void> updateSpectrumSettings(SpectrumSettings settings) =>
+      _invoke<void>(
+        _mediaChannel,
         'updateSpectrumSettings',
-        settings.toJson(),
+        'Error updating spectrum settings',
+        null,
+        arguments: settings.toJson(),
       );
-    } catch (e) {
-      debugPrint('Error updating spectrum settings: $e');
-    }
-  }
 
-  Future<void> setEqualizerSessionId(int? sessionId) async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod(
-        'setEqualizerSessionId',
-        <String, Object?>{'sessionId': sessionId},
-      );
-    } catch (e) {
-      debugPrint('Error setting EQ session id: $e');
-    }
-  }
+  Future<void> setEqualizerSessionId(int? sessionId) => _invoke<void>(
+    _mediaChannel,
+    'setEqualizerSessionId',
+    'Error setting EQ session id',
+    null,
+    arguments: <String, Object?>{'sessionId': sessionId},
+  );
 
-  Future<void> updateEqualizerSettings(EqSettings settings) async {
-    if (!isAndroid) return;
-    try {
-      await _mediaChannel.invokeMethod(
-        'setEqualizerSettings',
-        settings.toJson(),
-      );
-    } catch (e) {
-      debugPrint('Error updating EQ settings: $e');
-    }
-  }
+  Future<void> updateEqualizerSettings(EqSettings settings) => _invoke<void>(
+    _mediaChannel,
+    'setEqualizerSettings',
+    'Error updating EQ settings',
+    null,
+    arguments: settings.toJson(),
+  );
 
-  // Stream for spectrum data
   Stream<List<double>> spectrumStream({int? sessionId}) {
     return _spectrumChannel
         .receiveBroadcastStream(sessionId)
@@ -222,21 +174,16 @@ class PlatformChannels {
   }
 
   /// Requests a direct-file MediaStore rescan for the given Android folder.
-  ///
-  /// Returns true once the native side has issued scan requests. This does not
-  /// guarantee MediaStore propagation has completed yet.
+  /// Returns true once scan requests are issued (not propagation completion).
   Future<bool> rescanFolder(String path) async {
-    if (!isAndroid || path.isEmpty) return false;
-    try {
-      return await _mediaStoreChannel.invokeMethod<bool>(
-            'rescanFolder',
-            <String, Object?>{'path': path},
-          ) ??
-          false;
-    } catch (e) {
-      debugPrint('Error rescanning MediaStore folder $path: $e');
-      return false;
-    }
+    if (path.isEmpty) return false;
+    return _invoke(
+      _mediaStoreChannel,
+      'rescanFolder',
+      'Error rescanning MediaStore folder $path',
+      false,
+      arguments: <String, Object?>{'path': path},
+    );
   }
 
   /// Stream that emits when MediaStore reports changes (ContentObserver).

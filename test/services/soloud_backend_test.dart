@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/services/playback_controller.dart';
-import 'package:nothingness/testing/fake_audio_transport.dart';
+import '../../dev/fake_audio_transport.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

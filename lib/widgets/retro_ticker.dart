@@ -45,26 +45,16 @@ class _RetroTickerState extends State<RetroTicker> {
   }
 
   void _checkScroll() {
+    // Width is measured in build(); just reset state here.
     _timer?.cancel();
     _offset = 0;
-
-    // We can't easily measure text width here without LayoutBuilder + TextPainter,
-    // but we can just set up the string for potential scrolling and let the build method determine
-    // if we need to animate based on the constraints.
-    // However, a simpler "ticker" often just rotates regardless if we want that "retro" feel,
-    // or we can try to be smart.
-    // Given the request is "slides char by char to show full song name", let's implement the logic
-    // to measure in the build method or use a LayoutBuilder.
-
-    // A simple char-by-char scroll usually implies: "TEXT    TEXT    " shifting left.
-    // Let's rely on LayoutBuilder in build.
   }
 
   void _startScrolling(String fullText) {
     if (_timer != null && _timer!.isActive) return;
 
     _displayString = fullText;
-    
+
     _timer = Timer.periodic(widget.scrollInterval, (timer) {
       if (!mounted) {
         timer.cancel();
@@ -90,7 +80,7 @@ class _RetroTickerState extends State<RetroTicker> {
         )..layout();
 
         if (textPainter.width <= constraints.maxWidth) {
-          // Fits properly
+          // Fits — render statically and stop any running scroll.
           _timer?.cancel();
           _offset = 0;
           return Text(
@@ -101,45 +91,31 @@ class _RetroTickerState extends State<RetroTicker> {
             maxLines: 1,
           );
         } else {
-          // Doesn't fit, enable scrolling
-          // We construct a padded string: "TEXT    "
-          // And we rotate it.
-          // Ideally, for a smooth infinite scroll, we want "TEXT    TEXT    "
-          
+          // Overflows — rotate a gap-padded copy char-by-char ("TEXT    ").
           final gap = ' ' * widget.gapSpaces;
           final scrollingText = '${widget.text}$gap';
-          
-          // If we haven't started scrolling or text changed
+
+          // Defer start to avoid setState during build.
           if (_timer == null || !_timer!.isActive) {
-             // We need to defer this to avoid setState during build
-             WidgetsBinding.instance.addPostFrameCallback((_) {
-               _startScrolling(scrollingText);
-             });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _startScrolling(scrollingText);
+            });
           }
 
-          // Calculate the substring to show
-          // This is a simple character rotation implementation
-          // "HELLO   " -> "ELLO   H" -> "LLO   HE" etc.
-          
-          // Actually, for a marquee, we usually just render the text offset.
-          // But "slides char by char" usually means the string content changes.
-          
           if (_displayString.isEmpty) {
-             return Text(
+            return Text(
               widget.text,
               style: widget.style,
               maxLines: 1,
               overflow: TextOverflow.clip,
             );
           }
-          
-          // Create the rotated string for the current offset
-          // If _displayString is "ABC   " (length 6)
-          // offset 0: "ABC   "
-          // offset 1: "BC   A"
+
+          // Rotate by the current offset: "ABC   " -> "BC   A" -> ...
           final effectiveOffset = _offset % _displayString.length;
-          final rotated = _displayString.substring(effectiveOffset) + _displayString.substring(0, effectiveOffset);
-          
+          final rotated = _displayString.substring(effectiveOffset) +
+              _displayString.substring(0, effectiveOffset);
+
           return Text(
             rotated,
             style: widget.style,

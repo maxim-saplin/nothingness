@@ -25,22 +25,15 @@ import 'press_feedback.dart';
 
 /// Themed settings surface for the Void chrome.
 ///
-/// This is the single settings UI for the app — there is no legacy
-/// `SettingsScreen` route any more. Groups (MODE / LOOK / SOUND /
-/// LIBRARY / EXTERNAL / DISPLAY / ABOUT) adapt to the active operating
-/// mode and the active home-screen (visualisation) so per-visualisation
-/// knobs only appear when they're relevant.
+/// This is the single settings UI for the app. Groups (MODE / LOOK / SOUND /
+/// LIBRARY / EXTERNAL / DISPLAY / ABOUT) adapt to the active operating mode
+/// and the active home-screen so per-visualisation knobs only appear when
+/// relevant. A pinned status strip (queue size + shuffle toggle) sits between
+/// the header and the MODE group when the queue is non-empty.
 ///
-/// A pinned status strip (queue size + shuffle toggle) sits between the
-/// header and the MODE group when the queue is non-empty. The strip is
-/// non-scrolling so playback state stays visible while the rest of the
-/// list scrolls.
-///
-/// Three row primitives:
-///   * [_row]: cycle/info row — label, current value, tap to cycle (or
-///     pass `enabled: false` to render as a read-only info row).
-///   * [_sliderRow]: label + current value, slider below.
-///   * [_toggleRow]: label, on/off state, tap to flip.
+/// Three row primitives: [_row] (cycle/info), [_sliderRow], [_toggleRow]. They
+/// read the active [AppPalette] / [AppTypography] / [AppGeometry] from instance
+/// fields assigned at the top of [build], so callers don't thread them through.
 class VoidSettingsSheet extends StatefulWidget {
   const VoidSettingsSheet({super.key});
 
@@ -61,10 +54,15 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   bool _hasNotification = false;
   String _versionLabel = '...';
 
+  // Active theme handles, assigned at the top of [build]. The row builders
+  // read these so they don't have to thread three args through every call.
+  late AppPalette _p;
+  late AppTypography _t;
+  late AppGeometry _g;
+
   // Notifiers the sheet renders against. Subscribing here lets every row pick
-  // up cycle / slider mutations without each individual cycle handler having
-  // to remember `setState` — earlier handlers had inconsistent calls and the
-  // value column drifted out of sync with what was actually persisted.
+  // up cycle / slider mutations without each handler having to call setState —
+  // mutating any watched notifier rebuilds the whole sheet.
   late final List<Listenable> _watched = <Listenable>[
     _settings.operatingModeNotifier,
     _settings.themeIdNotifier,
@@ -84,8 +82,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   ];
 
   void _onAnySettingChanged() {
-    if (!mounted) return;
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -98,24 +95,22 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     _loadVersion();
   }
 
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() {
-        _versionLabel = '${info.version}+${info.buildNumber}';
-      });
-    } catch (_) {
-      // Non-fatal — keep the placeholder.
-    }
-  }
-
   @override
   void dispose() {
     for (final l in _watched) {
       l.removeListener(_onAnySettingChanged);
     }
     super.dispose();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() => _versionLabel = '${info.version}+${info.buildNumber}');
+    } catch (_) {
+      // Non-fatal — keep the placeholder.
+    }
   }
 
   Future<void> _refreshPermissions() async {
@@ -131,138 +126,101 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   }
 
   // ---------------------------------------------------------------------------
-  // Cycle helpers (enum-valued rows)
+  // Cycle helpers (enum-valued rows). Mutating a watched notifier rebuilds the
+  // sheet, so none of these need an explicit setState.
   // ---------------------------------------------------------------------------
 
-  void _cycleMode() {
-    final values = OperatingMode.values;
-    final cur = _settings.operatingModeNotifier.value;
-    _settings.saveOperatingMode(values[(values.indexOf(cur) + 1) % values.length]);
-  }
+  /// Next value in [values] after [cur], wrapping around.
+  T _next<T>(List<T> values, T cur) =>
+      values[(values.indexOf(cur) + 1) % values.length];
 
-  void _cycleTheme() {
-    final values = ThemeId.values;
-    final cur = _settings.themeIdNotifier.value;
-    _settings.saveThemeId(values[(values.indexOf(cur) + 1) % values.length]);
-    setState(() {});
-  }
+  void _cycleMode() => _settings.saveOperatingMode(
+      _next(OperatingMode.values, _settings.operatingModeNotifier.value));
 
-  void _cycleVariant() {
-    const order = <ThemeVariant>[
-      ThemeVariant.dark,
-      ThemeVariant.light,
-      ThemeVariant.system,
-    ];
-    final cur = _settings.themeVariantNotifier.value;
-    _settings.saveThemeVariant(order[(order.indexOf(cur) + 1) % order.length]);
-  }
+  void _cycleTheme() => _settings.saveThemeId(
+      _next(ThemeId.values, _settings.themeIdNotifier.value));
+
+  void _cycleVariant() => _settings.saveThemeVariant(_next(
+        const [ThemeVariant.dark, ThemeVariant.light, ThemeVariant.system],
+        _settings.themeVariantNotifier.value,
+      ));
 
   void _cycleScreen() {
-    final cur = _settings.screenConfigNotifier.value.type;
-    const order = <ScreenType>[
+    const order = [
       ScreenType.spectrum,
       ScreenType.polo,
       ScreenType.dot,
       ScreenType.void_,
     ];
-    final next = order[(order.indexOf(cur) + 1) % order.length];
-    final ScreenConfig nextConfig;
-    switch (next) {
+    switch (_next(order, _settings.screenConfigNotifier.value.type)) {
       case ScreenType.spectrum:
-        nextConfig = const SpectrumScreenConfig();
+        _settings.saveScreenConfig(const SpectrumScreenConfig());
       case ScreenType.polo:
-        nextConfig = const PoloScreenConfig();
+        _settings.saveScreenConfig(const PoloScreenConfig());
       case ScreenType.dot:
-        nextConfig = const DotScreenConfig();
+        _settings.saveScreenConfig(const DotScreenConfig());
       case ScreenType.void_:
-        nextConfig = const VoidScreenConfig();
+        _settings.saveScreenConfig(const VoidScreenConfig());
     }
-    _settings.saveScreenConfig(nextConfig);
   }
 
   void _cycleBarCount() {
     final cur = _settings.settingsNotifier.value;
-    final values = BarCount.values;
-    final next = values[(values.indexOf(cur.barCount) + 1) % values.length];
-    _settings.saveSettings(cur.copyWith(barCount: next));
-    setState(() {});
+    _settings.saveSettings(
+        cur.copyWith(barCount: _next(BarCount.values, cur.barCount)));
   }
 
   void _cycleBarStyle() {
     final cur = _settings.settingsNotifier.value;
-    final values = BarStyle.values;
-    final next = values[(values.indexOf(cur.barStyle) + 1) % values.length];
-    _settings.saveSettings(cur.copyWith(barStyle: next));
-    setState(() {});
+    _settings.saveSettings(
+        cur.copyWith(barStyle: _next(BarStyle.values, cur.barStyle)));
   }
 
   void _cycleDecaySpeed() {
     final cur = _settings.settingsNotifier.value;
-    final values = DecaySpeed.values;
-    final next = values[(values.indexOf(cur.decaySpeed) + 1) % values.length];
-    _settings.saveSettings(cur.copyWith(decaySpeed: next));
-    setState(() {});
+    _settings.saveSettings(
+        cur.copyWith(decaySpeed: _next(DecaySpeed.values, cur.decaySpeed)));
   }
 
-  void _cycleTransportPosition() {
-    final values = TransportPosition.values;
-    final cur = _settings.transportPositionNotifier.value;
-    final next = values[(values.indexOf(cur) + 1) % values.length];
-    _settings.setTransportPosition(next);
-  }
+  void _cycleTransportPosition() => _settings.setTransportPosition(
+      _next(TransportPosition.values, _settings.transportPositionNotifier.value));
 
-  void _cycleBrowserPresentation() {
-    final values = BrowserPresentation.values;
-    final cur = _settings.browserPresentationNotifier.value;
-    final next = values[(values.indexOf(cur) + 1) % values.length];
-    _settings.setBrowserPresentation(next);
-  }
+  void _cycleBrowserPresentation() => _settings.setBrowserPresentation(_next(
+      BrowserPresentation.values, _settings.browserPresentationNotifier.value));
 
   void _cycleVisualizerColor() {
     final cur = _settings.settingsNotifier.value;
-    final values = SpectrumColorScheme.values;
-    final next = values[(values.indexOf(cur.colorScheme) + 1) % values.length];
-    _settings.saveSettings(cur.copyWith(colorScheme: next));
-    setState(() {});
+    _settings.saveSettings(cur.copyWith(
+        colorScheme: _next(SpectrumColorScheme.values, cur.colorScheme)));
   }
 
   void _cycleSpectrumTextColor() {
     final cfg = _settings.screenConfigNotifier.value;
     if (cfg is! SpectrumScreenConfig) return;
-    final values = SpectrumColorScheme.values;
-    final next = values[(values.indexOf(cfg.textColorScheme) + 1) % values.length];
-    _settings.saveScreenConfig(cfg.copyWith(textColorScheme: next));
-    setState(() {});
+    _settings.saveScreenConfig(cfg.copyWith(
+        textColorScheme:
+            _next(SpectrumColorScheme.values, cfg.textColorScheme)));
   }
 
   void _cycleSpectrumMediaColor() {
     final cfg = _settings.screenConfigNotifier.value;
     if (cfg is! SpectrumScreenConfig) return;
-    final values = SpectrumColorScheme.values;
-    final next = values[
-        (values.indexOf(cfg.mediaControlColorScheme) + 1) % values.length];
-    _settings.saveScreenConfig(cfg.copyWith(mediaControlColorScheme: next));
-    setState(() {});
+    _settings.saveScreenConfig(cfg.copyWith(
+        mediaControlColorScheme:
+            _next(SpectrumColorScheme.values, cfg.mediaControlColorScheme)));
   }
 
   String _uiScaleLabel() {
     final v = _settings.uiScaleNotifier.value;
-    if (v < 0) return 'auto';
-    return '${v.toStringAsFixed(2)}x';
+    return v < 0 ? 'auto' : '${v.toStringAsFixed(2)}x';
   }
 
-  String _labelFor(ScreenType type) {
-    switch (type) {
-      case ScreenType.spectrum:
-        return 'spectrum';
-      case ScreenType.polo:
-        return 'polo';
-      case ScreenType.dot:
-        return 'dot';
-      case ScreenType.void_:
-        return 'void';
-    }
-  }
+  String _labelFor(ScreenType type) => switch (type) {
+        ScreenType.spectrum => 'spectrum',
+        ScreenType.polo => 'polo',
+        ScreenType.dot => 'dot',
+        ScreenType.void_ => 'void',
+      };
 
   Future<void> _openNotificationSettings() async {
     await PlatformChannels().openNotificationSettings();
@@ -275,10 +233,9 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     await _refreshPermissions();
   }
 
-  Future<void> _openLogs(BuildContext context) async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const LogScreen()));
+  Future<void> _openLogs(BuildContext context) {
+    return Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const LogScreen()));
   }
 
   // ---------------------------------------------------------------------------
@@ -287,18 +244,18 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<AppPalette>()!;
-    final typography = Theme.of(context).extension<AppTypography>()!;
-    final geometry = Theme.of(context).extension<AppGeometry>()!;
+    final theme = Theme.of(context);
+    _p = theme.extension<AppPalette>()!;
+    _t = theme.extension<AppTypography>()!;
+    _g = theme.extension<AppGeometry>()!;
 
     // The status strip + header live OUTSIDE the scrolling ListView so they
-    // stay pinned at the top of the sheet. The provider is nullable here so
-    // unit tests that don't wrap the sheet in a ChangeNotifierProvider keep
-    // working — the strip is simply omitted in that case.
+    // stay pinned. The provider is nullable so unit tests that don't wrap the
+    // sheet in a ChangeNotifierProvider keep working — the strip is omitted.
     final player = context.watch<AudioPlayerProvider?>();
 
     return Scaffold(
-      backgroundColor: palette.background,
+      backgroundColor: _p.background,
       body: SafeArea(
         child: ValueListenableBuilder<OperatingMode>(
           valueListenable: _settings.operatingModeNotifier,
@@ -306,23 +263,13 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _header(palette, typography),
+                _header(),
                 if (player != null && player.queue.isNotEmpty)
-                  ..._statusStrip(
-                    player: player,
-                    palette: palette,
-                    typography: typography,
-                    geometry: geometry,
-                  ),
+                  ..._statusStrip(player),
                 Expanded(
                   child: ListView(
                     padding: EdgeInsets.zero,
-                    children: _buildGroups(
-                      mode: mode,
-                      palette: palette,
-                      typography: typography,
-                      geometry: geometry,
-                    ),
+                    children: _buildGroups(mode),
                   ),
                 ),
               ],
@@ -333,156 +280,72 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     );
   }
 
-  /// Non-scrolling status rows inserted between the header and the MODE group.
-  /// Renders the queue size (read-only) and a live shuffle toggle that calls
-  /// into [AudioPlayerProvider.shuffleQueue] / [AudioPlayerProvider.disableShuffle].
-  List<Widget> _statusStrip({
-    required AudioPlayerProvider player,
-    required AppPalette palette,
-    required AppTypography typography,
-    required AppGeometry geometry,
-  }) {
+  /// Non-scrolling status rows inserted between the header and the MODE group:
+  /// queue size (read-only) and a live shuffle toggle.
+  List<Widget> _statusStrip(AudioPlayerProvider player) {
     final count = player.queue.length;
     return [
-      _row(
-        key: const ValueKey('void-settings-status-queue'),
-        label: 'queue',
-        value: '$count ${count == 1 ? 'track' : 'tracks'}',
-        onTap: () {},
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-        enabled: false,
-      ),
-      _toggleRow(
-        key: const ValueKey('void-settings-status-shuffle'),
-        label: 'shuffle',
-        value: player.shuffle,
-        onToggle: () {
-          if (player.shuffle) {
-            player.disableShuffle();
-          } else {
-            player.shuffleQueue();
-          }
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
+      _cycleRow((
+        'void-settings-status-queue',
+        'queue',
+        '$count ${count == 1 ? 'track' : 'tracks'}',
+        () {},
+      ), enabled: false),
+      _toggle((
+        'void-settings-status-shuffle',
+        'shuffle',
+        player.shuffle,
+        () => player.shuffle ? player.disableShuffle() : player.shuffleQueue(),
+      )),
     ];
   }
 
-  List<Widget> _buildGroups({
-    required OperatingMode mode,
-    required AppPalette palette,
-    required AppTypography typography,
-    required AppGeometry geometry,
-  }) {
+  List<Widget> _buildGroups(OperatingMode mode) {
     final isOwn = mode == OperatingMode.own;
     final isBackground = mode == OperatingMode.background;
     final activeConfig = _settings.screenConfigNotifier.value;
     final type = activeConfig.type;
-    final spectrumCfg =
-        activeConfig is SpectrumScreenConfig ? activeConfig : null;
-    final dotCfg = activeConfig is DotScreenConfig ? activeConfig : null;
-    final voidCfg = activeConfig is VoidScreenConfig ? activeConfig : null;
-    final poloCfg = activeConfig is PoloScreenConfig ? activeConfig : null;
     final spectrum = _settings.settingsNotifier.value;
 
     return [
-      // ------------------------------------------------------------------- MODE
-      _groupHeader('MODE', palette, typography),
-      _row(
-        key: const ValueKey('void-settings-mode'),
-        label: 'operating mode',
-        value: mode.name,
-        onTap: _cycleMode,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
+      // MODE
+      _groupHeader('MODE'),
+      _cycleRow(
+          ('void-settings-mode', 'operating mode', mode.name, _cycleMode)),
 
-      // ------------------------------------------------------------------- LOOK
-      _groupHeader('LOOK', palette, typography),
-      _row(
-        key: const ValueKey('void-settings-theme'),
-        label: 'theme',
-        value: _settings.themeIdNotifier.value.storageKey,
-        onTap: _cycleTheme,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _row(
-        key: const ValueKey('void-settings-variant'),
-        label: 'variant',
-        value: _settings.themeVariantNotifier.value.name,
-        onTap: _cycleVariant,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _row(
-        key: const ValueKey('void-settings-screen'),
-        label: 'screen',
-        value: _labelFor(type),
-        onTap: _cycleScreen,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      // Void-chrome immersive: replaces the previous drag-down gesture.
-      _toggleRow(
-        key: const ValueKey('void-settings-immersive'),
-        label: 'immersive',
-        value: _settings.immersiveNotifier.value,
-        onToggle: () {
-          _settings.setImmersive(!_settings.immersiveNotifier.value);
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      // Transport strip — cycle row over bottom / top / off. `top` pins the
-      // strip immediately below the hero so it stays at a fixed y as the
-      // user scrolls a long folder; `bottom` keeps the original placement
-      // above the crumb; `off` hides the strip altogether (hero gestures
-      // and the bottom progress hairline still work).
-      _row(
-        key: const ValueKey('void-settings-transport'),
-        label: 'transport',
-        value: _settings.transportPositionNotifier.value.label,
-        onTap: _cycleTransportPosition,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
+      // LOOK
+      _groupHeader('LOOK'),
+      ...[
+        ('void-settings-theme', 'theme',
+            _settings.themeIdNotifier.value.storageKey, _cycleTheme),
+        ('void-settings-variant', 'variant',
+            _settings.themeVariantNotifier.value.name, _cycleVariant),
+        ('void-settings-screen', 'screen', _labelFor(type), _cycleScreen),
+      ].map(_cycleRow),
+      _toggle((
+        'void-settings-immersive',
+        'immersive',
+        _settings.immersiveNotifier.value,
+        () => _settings.setImmersive(!_settings.immersiveNotifier.value),
+      )),
+      // Transport strip — bottom / top / off. `top` pins the strip below the
+      // hero; `bottom` keeps it above the crumb; `off` hides it.
       // Browser presentation — fixed in its slot vs revealed by swipe-up.
-      _row(
-        key: const ValueKey('void-settings-browser'),
-        label: 'browser',
-        value: _settings.browserPresentationNotifier.value.label,
-        onTap: _cycleBrowserPresentation,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _toggleRow(
-        key: const ValueKey('void-settings-full-screen'),
-        label: 'full screen',
-        value: _settings.fullScreenNotifier.value,
-        onToggle: () {
-          _settings.setFullScreen(
-            !_settings.fullScreenNotifier.value,
-            save: true,
-          );
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
+      ...[
+        ('void-settings-transport', 'transport',
+            _settings.transportPositionNotifier.value.label,
+            _cycleTransportPosition),
+        ('void-settings-browser', 'browser',
+            _settings.browserPresentationNotifier.value.label,
+            _cycleBrowserPresentation),
+      ].map(_cycleRow),
+      _toggle((
+        'void-settings-full-screen',
+        'full screen',
+        _settings.fullScreenNotifier.value,
+        () => _settings.setFullScreen(!_settings.fullScreenNotifier.value,
+            save: true),
+      )),
       _sliderRow(
         key: const ValueKey('void-settings-ui-scale'),
         label: 'ui scale',
@@ -493,129 +356,57 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         currentValue: _settings.uiScaleNotifier.value < 0
             ? _effectiveAutoUiScale()
             : _settings.uiScaleNotifier.value.clamp(0.75, 3.0),
-        trailing: _autoChip(
-          isAuto: _settings.uiScaleNotifier.value < 0,
-          palette: palette,
-          typography: typography,
-        ),
-        onChanged: (v) {
-          _settings.saveUiScale(v);
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
+        trailing: _autoChip(isAuto: _settings.uiScaleNotifier.value < 0),
+        onChanged: _settings.saveUiScale,
       ),
 
-      // ------------------------------------------------------------------ SOUND
+      // SOUND
       if (isOwn) ...[
-        _groupHeader('SOUND', palette, typography),
-        // Visualizer-only rows (B-034): hidden when the active hero
-        // doesn't paint the spectrum (Dot, Void). The `eq` placeholder is
-        // a generic audio control and stays regardless.
-        if (activeConfig.usesVisualizer) ...[
-          _row(
-            key: const ValueKey('void-settings-bar-count'),
-            label: 'bar count',
-            value: '${spectrum.barCount.count}',
-            onTap: _cycleBarCount,
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-          ),
-          _row(
-            key: const ValueKey('void-settings-bar-style'),
-            label: 'bar style',
-            value: spectrum.barStyle.name,
-            onTap: _cycleBarStyle,
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-          ),
-          _row(
-            key: const ValueKey('void-settings-decay-speed'),
-            label: 'decay speed',
-            value: spectrum.decaySpeed.name,
-            onTap: _cycleDecaySpeed,
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-          ),
-          _row(
-            key: const ValueKey('void-settings-visualizer-color'),
-            label: 'visualizer color',
-            value: spectrum.colorScheme.label,
-            onTap: _cycleVisualizerColor,
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-          ),
-        ],
-        _row(
-          key: const ValueKey('void-settings-eq'),
-          label: 'eq',
-          value: 'unavailable',
-          onTap: () {},
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-          enabled: false,
-        ),
+        _groupHeader('SOUND'),
+        // Visualizer-only rows (B-034): hidden when the active hero doesn't
+        // paint the spectrum (Dot, Void). The `eq` placeholder stays.
+        if (activeConfig.usesVisualizer)
+          ...[
+            ('void-settings-bar-count', 'bar count',
+                '${spectrum.barCount.count}', _cycleBarCount),
+            ('void-settings-bar-style', 'bar style', spectrum.barStyle.name,
+                _cycleBarStyle),
+            ('void-settings-decay-speed', 'decay speed',
+                spectrum.decaySpeed.name, _cycleDecaySpeed),
+            ('void-settings-visualizer-color', 'visualizer color',
+                spectrum.colorScheme.label, _cycleVisualizerColor),
+          ].map(_cycleRow),
+        _cycleRow(('void-settings-eq', 'eq', 'unavailable', () {}),
+            enabled: false),
 
-        _groupHeader('LIBRARY', palette, typography),
-        _toggleRow(
-          key: const ValueKey('void-settings-scan-on-startup'),
-          label: 'filename fallback',
-          value: _settings.useFilenameForMetadataNotifier.value,
-          onToggle: () {
-            _settings.setUseFilenameForMetadata(
-              !_settings.useFilenameForMetadataNotifier.value,
-            );
-            setState(() {});
-          },
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-        ),
-        _toggleRow(
-          key: const ValueKey('void-settings-smart-folders'),
-          label: 'smart folders',
-          value: _settings.smartFoldersPresentationNotifier.value,
-          onToggle: () {
-            _settings.setSmartFoldersPresentation(
-              !_settings.smartFoldersPresentationNotifier.value,
-            );
-            setState(() {});
-          },
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-        ),
+        _groupHeader('LIBRARY'),
+        _toggle((
+          'void-settings-scan-on-startup',
+          'filename fallback',
+          _settings.useFilenameForMetadataNotifier.value,
+          () => _settings.setUseFilenameForMetadata(
+              !_settings.useFilenameForMetadataNotifier.value),
+        )),
+        _toggle((
+          'void-settings-smart-folders',
+          'smart folders',
+          _settings.smartFoldersPresentationNotifier.value,
+          () => _settings.setSmartFoldersPresentation(
+              !_settings.smartFoldersPresentationNotifier.value),
+        )),
       ],
 
-      // --------------------------------------------------------------- EXTERNAL
+      // EXTERNAL
       if (isBackground) ...[
-        _groupHeader('EXTERNAL', palette, typography),
+        _groupHeader('EXTERNAL'),
         if (Platform.isAndroid)
-          _row(
-            key: const ValueKey('void-settings-notification-listener'),
-            label: 'notification listener',
-            value: _hasNotification ? 'granted' : 'open settings',
-            onTap: _openNotificationSettings,
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-          ),
-        if (Platform.isAndroid)
-          _row(
-            key: const ValueKey('void-settings-mic-permission'),
-            label: 'mic permission',
-            value: _hasAudio ? 'granted' : 'request',
-            onTap: _requestMicPermission,
-            palette: palette,
-            typography: typography,
-            geometry: geometry,
-          ),
+          ...[
+            ('void-settings-notification-listener', 'notification listener',
+                _hasNotification ? 'granted' : 'open settings',
+                _openNotificationSettings),
+            ('void-settings-mic-permission', 'mic permission',
+                _hasAudio ? 'granted' : 'request', _requestMicPermission),
+          ].map(_cycleRow),
         _sliderRow(
           key: const ValueKey('void-settings-noise-gate'),
           label: 'noise gate',
@@ -624,333 +415,173 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
           max: -20,
           divisions: 40,
           currentValue: spectrum.noiseGateDb,
-          onChanged: (v) {
-            _settings.saveSettings(spectrum.copyWith(noiseGateDb: v));
-            setState(() {});
-          },
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
+          onChanged: (v) =>
+              _settings.saveSettings(spectrum.copyWith(noiseGateDb: v)),
         ),
       ],
 
-      // ---------------------------------------------------------------- DISPLAY
-      _groupHeader('DISPLAY', palette, typography),
+      // DISPLAY
+      _groupHeader('DISPLAY'),
       if (kDebugMode || (!kIsWeb && Platform.isMacOS))
         _toggleRow(
           key: const ValueKey('void-settings-debug-layout'),
           label: 'debug layout',
           value: _settings.debugLayoutNotifier.value,
-          onToggle: () {
-            _settings.toggleDebugLayout();
-            setState(() {});
-          },
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
+          onToggle: _settings.toggleDebugLayout,
         ),
-      if (type == ScreenType.spectrum && spectrumCfg != null)
-        ..._buildSpectrumDisplayRows(spectrumCfg, palette, typography, geometry),
-      if (type == ScreenType.dot && dotCfg != null)
-        ..._buildDotDisplayRows(dotCfg, palette, typography, geometry),
-      if (type == ScreenType.polo && poloCfg != null)
-        ..._buildPoloDisplayRows(poloCfg, palette, typography, geometry),
-      if (type == ScreenType.void_ && voidCfg != null)
-        ..._buildVoidDisplayRows(voidCfg, palette, typography, geometry),
+      ..._buildDisplayRows(activeConfig),
 
-      // ----------------------------------------------------------------- ABOUT
-      _groupHeader('ABOUT', palette, typography),
-      _row(
-        key: const ValueKey('void-settings-help'),
-        label: 'help',
-        value: '>',
-        onTap: () => HelpScreen.push(context),
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _row(
-        key: const ValueKey('void-settings-logs'),
-        label: 'logs',
-        value: '>',
-        onTap: () => _openLogs(context),
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _toggleRow(
-        key: const ValueKey('void-settings-audio-diagnostics'),
-        label: 'audio diagnostics',
-        value: _settings.audioDiagnosticsOverlayNotifier.value,
-        onToggle: () {
-          _settings.setAudioDiagnosticsOverlay(
-            !_settings.audioDiagnosticsOverlayNotifier.value,
-          );
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _row(
-        key: const ValueKey('void-settings-version'),
-        label: 'version',
-        value: _versionLabel,
-        onTap: () {},
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-        enabled: false,
-      ),
+      // ABOUT
+      _groupHeader('ABOUT'),
+      ...[
+        ('void-settings-help', 'help', '>', () => HelpScreen.push(context)),
+        ('void-settings-logs', 'logs', '>', () => _openLogs(context)),
+      ].map(_cycleRow),
+      _toggle((
+        'void-settings-audio-diagnostics',
+        'audio diagnostics',
+        _settings.audioDiagnosticsOverlayNotifier.value,
+        () => _settings.setAudioDiagnosticsOverlay(
+            !_settings.audioDiagnosticsOverlayNotifier.value),
+      )),
+      _cycleRow(('void-settings-version', 'version', _versionLabel, () {}),
+          enabled: false),
     ];
   }
 
   // ---------------------------------------------------------------------------
-  // Screen-specific display rows
+  // Screen-specific DISPLAY rows
   // ---------------------------------------------------------------------------
 
-  List<Widget> _buildSpectrumDisplayRows(
-    SpectrumScreenConfig cfg,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    return [
-      _row(
-        key: const ValueKey('void-settings-spectrum-text-color'),
-        label: 'text color',
-        value: cfg.textColorScheme.label,
-        onTap: _cycleSpectrumTextColor,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _row(
-        key: const ValueKey('void-settings-spectrum-media-color'),
-        label: 'media controls color',
-        value: cfg.mediaControlColorScheme.label,
-        onTap: _cycleSpectrumMediaColor,
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-spectrum-text-size'),
-        label: 'text size',
-        valueText: '${(cfg.textScale * 100).round()}%',
-        min: 0.5,
-        max: 1.5,
-        divisions: 10,
-        currentValue: cfg.textScale,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-spectrum-vis-width'),
-        label: 'visualizer width',
-        valueText: '${(cfg.spectrumWidthFactor * 100).round()}%',
-        min: 0.2,
-        max: 1.0,
-        divisions: 16,
-        currentValue: cfg.spectrumWidthFactor,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(spectrumWidthFactor: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-spectrum-vis-height'),
-        label: 'visualizer height',
-        valueText: '${(cfg.spectrumHeightFactor * 100).round()}%',
-        min: 0.2,
-        max: 1.0,
-        divisions: 16,
-        currentValue: cfg.spectrumHeightFactor,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(spectrumHeightFactor: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-    ];
+  List<Widget> _buildDisplayRows(ScreenConfig cfg) {
+    switch (cfg) {
+      case SpectrumScreenConfig():
+        return [
+          _cycleRow(('void-settings-spectrum-text-color', 'text color',
+              cfg.textColorScheme.label, _cycleSpectrumTextColor)),
+          _cycleRow(('void-settings-spectrum-media-color',
+              'media controls color', cfg.mediaControlColorScheme.label,
+              _cycleSpectrumMediaColor)),
+          _textSizeRow('void-settings-spectrum-text-size', cfg.textScale,
+              (v) => cfg.copyWith(textScale: v)),
+          _percentSlider(
+            keyId: 'void-settings-spectrum-vis-width',
+            label: 'visualizer width',
+            value: cfg.spectrumWidthFactor,
+            min: 0.2,
+            divisions: 16,
+            onChanged: (v) =>
+                _settings.saveScreenConfig(cfg.copyWith(spectrumWidthFactor: v)),
+          ),
+          _percentSlider(
+            keyId: 'void-settings-spectrum-vis-height',
+            label: 'visualizer height',
+            value: cfg.spectrumHeightFactor,
+            min: 0.2,
+            divisions: 16,
+            onChanged: (v) => _settings
+                .saveScreenConfig(cfg.copyWith(spectrumHeightFactor: v)),
+          ),
+        ];
+      case DotScreenConfig():
+        return [
+          // B-020 — opt-in title + parent-folder overlay (default off).
+          _toggle((
+            'void-settings-dot-show-song-info',
+            'show song info',
+            cfg.showSongInfo,
+            () => _settings.saveScreenConfig(
+                cfg.copyWith(showSongInfo: !cfg.showSongInfo)),
+          )),
+          _sliderRow(
+            key: const ValueKey('void-settings-dot-sensitivity'),
+            label: 'sensitivity',
+            valueText: '${cfg.sensitivity.toStringAsFixed(1)}x',
+            min: 0.5,
+            max: 5.0,
+            divisions: 45,
+            currentValue: cfg.sensitivity,
+            onChanged: (v) =>
+                _settings.saveScreenConfig(cfg.copyWith(sensitivity: v)),
+          ),
+          _sliderRow(
+            key: const ValueKey('void-settings-dot-max-size'),
+            label: 'max size',
+            valueText: '${cfg.maxDotSize.toStringAsFixed(0)} px',
+            min: 50.0,
+            max: 300.0,
+            divisions: 50,
+            currentValue: cfg.maxDotSize,
+            onChanged: (v) =>
+                _settings.saveScreenConfig(cfg.copyWith(maxDotSize: v)),
+          ),
+          _percentSlider(
+            keyId: 'void-settings-dot-opacity',
+            label: 'dot opacity',
+            value: cfg.dotOpacity,
+            onChanged: (v) =>
+                _settings.saveScreenConfig(cfg.copyWith(dotOpacity: v)),
+          ),
+          _percentSlider(
+            keyId: 'void-settings-dot-text-opacity',
+            label: 'text opacity',
+            value: cfg.textOpacity,
+            onChanged: (v) =>
+                _settings.saveScreenConfig(cfg.copyWith(textOpacity: v)),
+          ),
+          // B-035 — per-hero text size, shown always so users can tune before
+          // enabling the overlay.
+          _textSizeRow('void-settings-dot-text-size', cfg.textScale,
+              (v) => cfg.copyWith(textScale: v)),
+        ];
+      case VoidScreenConfig():
+        return [
+          _textSizeRow('void-settings-void-text-size', cfg.textScale,
+              (v) => cfg.copyWith(textScale: v)),
+        ];
+      case PoloScreenConfig():
+        return [
+          _textSizeRow('void-settings-polo-text-size', cfg.textScale,
+              (v) => cfg.copyWith(textScale: v)),
+        ];
+    }
   }
 
-  List<Widget> _buildDotDisplayRows(
-    DotScreenConfig cfg,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    return [
-      // B-020 — opt-in title + parent-folder overlay (default off preserves
-      // Dot's minimalist identity). Persists through the same
-      // `saveScreenConfig` path as the rest of the Dot config.
-      _toggleRow(
-        key: const ValueKey('void-settings-dot-show-song-info'),
-        label: 'show song info',
-        value: cfg.showSongInfo,
-        onToggle: () {
-          _settings.saveScreenConfig(
-            cfg.copyWith(showSongInfo: !cfg.showSongInfo),
-          );
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-dot-sensitivity'),
-        label: 'sensitivity',
-        valueText: '${cfg.sensitivity.toStringAsFixed(1)}x',
-        min: 0.5,
-        max: 5.0,
-        divisions: 45,
-        currentValue: cfg.sensitivity,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(sensitivity: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-dot-max-size'),
-        label: 'max size',
-        valueText: '${cfg.maxDotSize.toStringAsFixed(0)} px',
-        min: 50.0,
-        max: 300.0,
-        divisions: 50,
-        currentValue: cfg.maxDotSize,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(maxDotSize: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-dot-opacity'),
-        label: 'dot opacity',
-        valueText: '${(cfg.dotOpacity * 100).toStringAsFixed(0)}%',
-        min: 0.0,
-        max: 1.0,
-        divisions: 20,
-        currentValue: cfg.dotOpacity,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(dotOpacity: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      _sliderRow(
-        key: const ValueKey('void-settings-dot-text-opacity'),
-        label: 'text opacity',
-        valueText: '${(cfg.textOpacity * 100).toStringAsFixed(0)}%',
-        min: 0.0,
-        max: 1.0,
-        divisions: 20,
-        currentValue: cfg.textOpacity,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(textOpacity: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-      // B-035 — per-hero text-size slider, only meaningful when the
-      // song-info overlay is enabled but always shown so users can tune
-      // before flipping the toggle on.
-      _sliderRow(
-        key: const ValueKey('void-settings-dot-text-size'),
-        label: 'text size',
-        valueText: '${(cfg.textScale * 100).round()}%',
-        min: 0.5,
-        max: 1.5,
-        divisions: 10,
-        currentValue: cfg.textScale,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-    ];
+  /// Shared `text size` slider (0.5–1.5, shown as a percent) used by every
+  /// screen config. [build] returns the updated config to persist.
+  Widget _textSizeRow(
+      String keyId, double scale, ScreenConfig Function(double) build) {
+    return _sliderRow(
+      key: ValueKey(keyId),
+      label: 'text size',
+      valueText: '${(scale * 100).round()}%',
+      min: 0.5,
+      max: 1.5,
+      divisions: 10,
+      currentValue: scale,
+      onChanged: (v) => _settings.saveScreenConfig(build(v)),
+    );
   }
 
-  /// Void DISPLAY rows (B-035). Currently a single text-size slider —
-  /// Void's hero has fewer knobs than Spectrum's, but the typography
-  /// scale benefits from the same per-screen control.
-  List<Widget> _buildVoidDisplayRows(
-    VoidScreenConfig cfg,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    return [
-      _sliderRow(
-        key: const ValueKey('void-settings-void-text-size'),
-        label: 'text size',
-        valueText: '${(cfg.textScale * 100).round()}%',
-        min: 0.5,
-        max: 1.5,
-        divisions: 10,
-        currentValue: cfg.textScale,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-    ];
-  }
-
-  /// Polo DISPLAY rows (B-041). Polo's LCD font is bespoke, but every screen
-  /// must expose a text-size control — this scales the LCD readout typography
-  /// within its fixed display rect.
-  List<Widget> _buildPoloDisplayRows(
-    PoloScreenConfig cfg,
-    AppPalette palette,
-    AppTypography typography,
-    AppGeometry geometry,
-  ) {
-    return [
-      _sliderRow(
-        key: const ValueKey('void-settings-polo-text-size'),
-        label: 'text size',
-        valueText: '${(cfg.textScale * 100).round()}%',
-        min: 0.5,
-        max: 1.5,
-        divisions: 10,
-        currentValue: cfg.textScale,
-        onChanged: (v) {
-          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
-          setState(() {});
-        },
-        palette: palette,
-        typography: typography,
-        geometry: geometry,
-      ),
-    ];
+  /// A 0..1 slider rendered as a percentage. [min] defaults to 0.
+  Widget _percentSlider({
+    required String keyId,
+    required String label,
+    required double value,
+    required ValueChanged<double> onChanged,
+    double min = 0.0,
+    int divisions = 20,
+  }) {
+    return _sliderRow(
+      key: ValueKey(keyId),
+      label: label,
+      valueText: '${(value * 100).round()}%',
+      min: min,
+      max: 1.0,
+      divisions: divisions,
+      currentValue: value,
+      onChanged: onChanged,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -963,35 +594,26 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     if (dpr <= 0) return 1.0;
     final logicalWidth = MediaQuery.of(context).size.width;
     if (logicalWidth <= 0) return 1.0;
-    return _settings.calculateSmartScaleForWidth(
-      logicalWidth,
-      devicePixelRatio: dpr,
-    );
+    return _settings.calculateSmartScaleForWidth(logicalWidth,
+        devicePixelRatio: dpr);
   }
 
-  Widget _autoChip({
-    required bool isAuto,
-    required AppPalette palette,
-    required AppTypography typography,
-  }) {
+  Widget _autoChip({required bool isAuto}) {
     return PressFeedback(
-      onTap: () {
-        _settings.saveUiScale(-1.0);
-        setState(() {});
-      },
+      onTap: () => _settings.saveUiScale(-1.0),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isAuto ? palette.accent : Colors.transparent,
+          color: isAuto ? _p.accent : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: palette.divider, width: 1),
+          border: Border.all(color: _p.divider, width: 1),
         ),
         child: Text(
           'AUTO',
           style: TextStyle(
-            color: isAuto ? palette.background : palette.fgSecondary,
-            fontFamily: typography.monoFamily,
-            fontSize: typography.hintSize,
+            color: isAuto ? _p.background : _p.fgSecondary,
+            fontFamily: _t.monoFamily,
+            fontSize: _t.hintSize,
             letterSpacing: 1.5,
           ),
         ),
@@ -1003,7 +625,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   // Row primitives
   // ---------------------------------------------------------------------------
 
-  Widget _header(AppPalette palette, AppTypography typography) {
+  Widget _header() {
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1013,107 +635,89 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
             onTap: () => Navigator.of(context).maybePop(),
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Text(
-                '<',
-                style: TextStyle(
-                  color: palette.fgSecondary,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.rowSize,
-                ),
-              ),
+              child: Text('<', style: _rowStyle(_p.fgSecondary)),
             ),
           ),
           const SizedBox(width: 4),
-          Text(
-            'settings',
-            style: TextStyle(
-              color: palette.fgPrimary,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.rowSize,
-            ),
-          ),
+          Text('settings', style: _rowStyle(_p.fgPrimary)),
         ],
       ),
     );
   }
 
-  Widget _groupHeader(
-    String text,
-    AppPalette palette,
-    AppTypography typography,
-  ) {
+  Widget _groupHeader(String text) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Text(
         text,
         style: TextStyle(
-          color: palette.fgTertiary,
-          fontFamily: typography.monoFamily,
-          fontSize: typography.crumbSize,
+          color: _p.fgTertiary,
+          fontFamily: _t.monoFamily,
+          fontSize: _t.crumbSize,
           letterSpacing: 2,
         ),
       ),
     );
   }
 
-  /// Cycle row — label, current value, tap-to-cycle.
+  TextStyle _rowStyle(Color color) =>
+      TextStyle(color: color, fontFamily: _t.monoFamily, fontSize: _t.rowSize);
+
+  BoxDecoration get _rowBorder => BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+              color: _p.divider, width: _g.dividerThickness),
+        ),
+      );
+
+  /// Builds a cycle/info [_row] from a compact `(key, label, value, onTap)`
+  /// spec so caller-side row lists read as data. `enabled: false` renders a
+  /// read-only info row.
+  Widget _cycleRow((String, String, String, VoidCallback) spec,
+          {bool enabled = true}) =>
+      _row(
+        key: ValueKey(spec.$1),
+        label: spec.$2,
+        value: spec.$3,
+        onTap: spec.$4,
+        enabled: enabled,
+      );
+
+  /// Builds a [_toggleRow] from a compact `(key, label, value, onToggle)` spec.
+  Widget _toggle((String, String, bool, VoidCallback) spec) => _toggleRow(
+        key: ValueKey(spec.$1),
+        label: spec.$2,
+        value: spec.$3,
+        onToggle: spec.$4,
+      );
+
+  /// Cycle row — label, current value, tap-to-cycle. `enabled: false` renders
+  /// a read-only info row (no press dip).
   Widget _row({
     required Key key,
     required String label,
     required String value,
     required VoidCallback onTap,
-    required AppPalette palette,
-    required AppTypography typography,
-    required AppGeometry geometry,
     bool enabled = true,
   }) {
-    final labelColor = enabled ? palette.fgPrimary : palette.fgTertiary;
-    final valueColor = enabled ? palette.fgSecondary : palette.fgTertiary;
     final container = Container(
-      constraints: BoxConstraints(minHeight: geometry.rowHeight),
+      constraints: BoxConstraints(minHeight: _g.rowHeight),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: palette.divider,
-            width: geometry.dividerThickness,
-          ),
-        ),
-      ),
+      decoration: _rowBorder,
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: labelColor,
-                fontFamily: typography.monoFamily,
-                fontSize: typography.rowSize,
-              ),
-            ),
+            child: Text(label,
+                style: _rowStyle(enabled ? _p.fgPrimary : _p.fgTertiary)),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.rowSize,
-            ),
-          ),
+          Text(value,
+              style: _rowStyle(enabled ? _p.fgSecondary : _p.fgTertiary)),
         ],
       ),
     );
-
-    // Disabled (info-only) rows skip the press dip — there's no action to
-    // confirm. They still need the ValueKey so QA can find them.
-    if (!enabled) {
-      return KeyedSubtree(key: key, child: container);
-    }
-    return PressFeedback(
-      key: key,
-      onTap: onTap,
-      child: container,
-    );
+    // Disabled rows still need the ValueKey so QA can find them.
+    if (!enabled) return KeyedSubtree(key: key, child: container);
+    return PressFeedback(key: key, onTap: onTap, child: container);
   }
 
   /// Toggle row — label, on/off, tap to flip.
@@ -1122,19 +726,9 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     required String label,
     required bool value,
     required VoidCallback onToggle,
-    required AppPalette palette,
-    required AppTypography typography,
-    required AppGeometry geometry,
   }) {
     return _row(
-      key: key,
-      label: label,
-      value: value ? 'on' : 'off',
-      onTap: onToggle,
-      palette: palette,
-      typography: typography,
-      geometry: geometry,
-    );
+        key: key, label: label, value: value ? 'on' : 'off', onTap: onToggle);
   }
 
   /// Slider row — label + value on top, Slider below, optional trailing chip.
@@ -1147,45 +741,19 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     required int divisions,
     required double currentValue,
     required ValueChanged<double> onChanged,
-    required AppPalette palette,
-    required AppTypography typography,
-    required AppGeometry geometry,
     Widget? trailing,
   }) {
     return Container(
       key: key,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: palette.divider,
-            width: geometry.dividerThickness,
-          ),
-        ),
-      ),
+      decoration: _rowBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: palette.fgPrimary,
-                    fontFamily: typography.monoFamily,
-                    fontSize: typography.rowSize,
-                  ),
-                ),
-              ),
-              Text(
-                valueText,
-                style: TextStyle(
-                  color: palette.fgSecondary,
-                  fontFamily: typography.monoFamily,
-                  fontSize: typography.rowSize,
-                ),
-              ),
+              Expanded(child: Text(label, style: _rowStyle(_p.fgPrimary))),
+              Text(valueText, style: _rowStyle(_p.fgSecondary)),
             ],
           ),
           Row(
@@ -1193,10 +761,10 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
               Expanded(
                 child: SliderTheme(
                   data: SliderThemeData(
-                    activeTrackColor: palette.fgPrimary,
-                    inactiveTrackColor: palette.divider,
-                    thumbColor: palette.fgPrimary,
-                    overlayColor: palette.fgPrimary.withValues(alpha: 0.12),
+                    activeTrackColor: _p.fgPrimary,
+                    inactiveTrackColor: _p.divider,
+                    thumbColor: _p.fgPrimary,
+                    overlayColor: _p.fgPrimary.withValues(alpha: 0.12),
                     trackHeight: 2,
                   ),
                   child: Slider(
@@ -1208,10 +776,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
                   ),
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing,
-              ],
+              if (trailing != null) ...[const SizedBox(width: 8), trailing],
             ],
           ),
         ],

@@ -8,7 +8,6 @@ class LoggingService {
   static final LoggingService _instance = LoggingService._internal();
   factory LoggingService() => _instance;
 
-  // Keep a bounded list to avoid unbounded growth.
   static const int _maxEntries = 500;
 
   final ValueNotifier<List<LogEntry>> logsNotifier =
@@ -32,9 +31,7 @@ class LoggingService {
       next.removeRange(0, next.length - _maxEntries);
     }
     logsNotifier.value = next;
-
-    // Preserve console visibility for developers.
-    debugPrint('[$tag] $message');
+    debugPrint('[$tag] $message'); // keep console visibility for developers
   }
 
   void clear() {

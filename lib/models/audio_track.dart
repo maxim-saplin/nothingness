@@ -15,8 +15,7 @@ class AudioTrack {
   final String title;
   final String artist;
   final Duration? duration;
-  // Transient state - not persisted to Hive
-  final bool isNotFound;
+  final bool isNotFound; // Transient — not persisted to Hive.
 
   AudioTrack copyWith({
     String? path,

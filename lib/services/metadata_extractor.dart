@@ -26,13 +26,12 @@ class AndroidMetadataExtractor implements MetadataExtractor {
 
   @override
   Future<AudioTrack> extractMetadata(String filePath) async {
-    // If override is enabled, skip MediaStore and use filename parsing directly
+    // Override skips MediaStore and parses the filename.
     if (useFilenameOverride) {
       return _parseFilenameMetadata(filePath);
     }
 
     try {
-      // Query MediaStore for songs matching the file path
       final songs = await _audioQuery.querySongs(
         sortType: null,
         orderType: OrderType.ASC_OR_SMALLER,
@@ -40,15 +39,13 @@ class AndroidMetadataExtractor implements MetadataExtractor {
         ignoreCase: true,
       );
 
-      // Find the song matching the file path
       final matchingSong = songs.firstWhere(
         (song) => song.data == filePath,
         orElse: () => throw StateError('No matching song found'),
       );
 
-      // Extract metadata from MediaStore. Strip any audio extension that
-      // MediaStore left in the title (this happens for files without an
-      // ID3 title tag — the displayed title falls back to the filename).
+      // Strip any audio extension MediaStore left in the title (files with no
+      // ID3 title tag fall back to the filename).
       final title = matchingSong.title.isNotEmpty
           ? SupportedExtensions.stripFromTitle(matchingSong.title)
           : _parseFilenameMetadata(filePath).title;
@@ -61,234 +58,102 @@ class AndroidMetadataExtractor implements MetadataExtractor {
       debugPrint(
         '[AndroidMetadataExtractor] MediaStore query failed for $filePath: $e',
       );
-      // Fallback to filename parsing
       return _parseFilenameMetadata(filePath);
     }
   }
-
-  /// Filename parsing fallback utility.
-  AudioTrack _parseFilenameMetadata(String filePath) {
-    // Split filename before removing extensions to preserve extensions in title
-    final fullBasename = p.basename(filePath);
-    final parts = _splitFilename(fullBasename);
-
-    return AudioTrack(
-      path: filePath,
-      title: parts['title'] ?? fullBasename,
-      artist: parts['artist'] ?? '',
-    );
-  }
-
-  Map<String, String> _splitFilename(String basename) {
-    // Find first occurrence of separator from left: '-', '−', or '—'
-    final dashIndex = basename.indexOf('-');
-    final minusIndex = basename.indexOf('−');
-    final emDashIndex = basename.indexOf('—');
-
-    int? separatorIndex;
-    if (dashIndex >= 0) {
-      separatorIndex = dashIndex;
-    } else if (minusIndex >= 0) {
-      separatorIndex = minusIndex;
-    } else if (emDashIndex >= 0) {
-      separatorIndex = emDashIndex;
-    }
-
-    if (separatorIndex == null) {
-      // No separator found: remove extensions and use as title
-      var titleBasename = basename;
-      while (titleBasename.contains('.') &&
-          titleBasename != p.basenameWithoutExtension(titleBasename)) {
-        titleBasename = p.basenameWithoutExtension(titleBasename);
-      }
-      return {'title': titleBasename, 'artist': ''};
-    }
-
-    final artistPart = basename.substring(0, separatorIndex);
-    final artist = artistPart.trim();
-    var titlePart = basename.substring(separatorIndex + 1);
-
-    // Check if title part is empty or only contains extension
-    var titleTrimmed = titlePart.trim();
-    final standardExtensions = SupportedExtensions.supportedExtensionsWithDots;
-    final isOnlyExtension =
-        titleTrimmed.isEmpty ||
-        (titleTrimmed.startsWith('.') &&
-            standardExtensions.contains(titleTrimmed.toLowerCase()));
-
-    if (isOnlyExtension) {
-      // Check if artist part ends with space and separator is dash (e.g., "Artist -" in "Artist -.mp3")
-      final separatorChar = basename[separatorIndex];
-      final artistEndsWithSpaceDash =
-          artistPart.endsWith(' ') &&
-          (separatorChar == '-' ||
-              separatorChar == '−' ||
-              separatorChar == '—');
-
-      // If artist ends with space and separator is dash, use basename without extension as title
-      // (e.g., "Artist -.mp3" -> title "Artist -")
-      if (artistEndsWithSpaceDash) {
-        var titleBasename = basename;
-        while (titleBasename.contains('.') &&
-            titleBasename != p.basenameWithoutExtension(titleBasename)) {
-          titleBasename = p.basenameWithoutExtension(titleBasename);
-        }
-        return {'title': titleBasename, 'artist': artist};
-      }
-
-      // If separator is at the very end or immediately followed by extension,
-      // return empty title (e.g., "Artist-" or "Artist-.mp3" -> empty title)
-      if (separatorIndex + 1 >= basename.length ||
-          titleTrimmed.startsWith('.')) {
-        return {'title': '', 'artist': artist};
-      }
-
-      // Fallback: use basename without extension
-      var titleBasename = basename;
-      while (titleBasename.contains('.') &&
-          titleBasename != p.basenameWithoutExtension(titleBasename)) {
-        titleBasename = p.basenameWithoutExtension(titleBasename);
-      }
-      return {'title': titleBasename, 'artist': artist};
-    }
-
-    // Remove standard audio extensions from title, but preserve multiple extensions
-    // Check if title ends with a standard audio extension
-    var title = titleTrimmed;
-    final lastDotIndex = title.lastIndexOf('.');
-    if (lastDotIndex > 0) {
-      final lastExtension = title.substring(lastDotIndex).toLowerCase();
-      // If it's a standard extension and there's only one extension, remove it
-      if (standardExtensions.contains(lastExtension) &&
-          !title.substring(0, lastDotIndex).contains('.')) {
-        title = title.substring(0, lastDotIndex).trim();
-      } else {
-        // Multiple extensions - keep them but trim whitespace
-        title = title.trim();
-      }
-    } else {
-      title = title.trim();
-    }
-
-    return {'title': title, 'artist': artist};
-  }
 }
 
-/// Desktop (macOS/Linux) implementation using filename parsing
-/// (extensible for future metadata library).
+/// Desktop (macOS/Linux) implementation using filename parsing.
 class DesktopMetadataExtractor implements MetadataExtractor {
   @override
   Future<AudioTrack> extractMetadata(String filePath) async {
-    // Use filename parsing only (extensible design allows future metadata library integration)
     return _parseFilenameMetadata(filePath);
   }
+}
 
-  /// Filename parsing utility.
-  AudioTrack _parseFilenameMetadata(String filePath) {
-    // Split filename before removing extensions to preserve extensions in title
-    final fullBasename = p.basename(filePath);
-    final parts = _splitFilename(fullBasename);
+/// Builds an [AudioTrack] from the filename's artist/title split.
+AudioTrack _parseFilenameMetadata(String filePath) {
+  final fullBasename = p.basename(filePath);
+  final parts = _splitFilename(fullBasename);
+  return AudioTrack(
+    path: filePath,
+    title: parts['title'] ?? fullBasename,
+    artist: parts['artist'] ?? '',
+  );
+}
 
-    return AudioTrack(
-      path: filePath,
-      title: parts['title'] ?? fullBasename,
-      artist: parts['artist'] ?? '',
-    );
+/// Strips trailing extensions repeatedly (preserves a name with no extension).
+String _stripExtensions(String basename) {
+  var result = basename;
+  while (result.contains('.') &&
+      result != p.basenameWithoutExtension(result)) {
+    result = p.basenameWithoutExtension(result);
+  }
+  return result;
+}
+
+Map<String, String> _splitFilename(String basename) {
+  // First separator from the left: '-', '−' or '—'.
+  final indices = [
+    basename.indexOf('-'),
+    basename.indexOf('−'),
+    basename.indexOf('—'),
+  ].where((i) => i >= 0);
+
+  if (indices.isEmpty) {
+    return {'title': _stripExtensions(basename), 'artist': ''};
+  }
+  final separatorIndex = indices.reduce((a, b) => a < b ? a : b);
+
+  final artistPart = basename.substring(0, separatorIndex);
+  final artist = artistPart.trim();
+  final titleTrimmed = basename.substring(separatorIndex + 1).trim();
+
+  final standardExtensions = SupportedExtensions.supportedExtensionsWithDots;
+  final isOnlyExtension =
+      titleTrimmed.isEmpty ||
+      (titleTrimmed.startsWith('.') &&
+          standardExtensions.contains(titleTrimmed.toLowerCase()));
+
+  if (isOnlyExtension) {
+    final separatorChar = basename[separatorIndex];
+    final artistEndsWithSpaceDash =
+        artistPart.endsWith(' ') &&
+        (separatorChar == '-' ||
+            separatorChar == '−' ||
+            separatorChar == '—');
+
+    // "Artist -.mp3" -> title "Artist -".
+    if (artistEndsWithSpaceDash) {
+      return {'title': _stripExtensions(basename), 'artist': artist};
+    }
+
+    // Separator at end or immediately followed by an extension -> empty title
+    // (e.g. "Artist-" or "Artist-.mp3").
+    if (separatorIndex + 1 >= basename.length ||
+        titleTrimmed.startsWith('.')) {
+      return {'title': '', 'artist': artist};
+    }
+
+    return {'title': _stripExtensions(basename), 'artist': artist};
   }
 
-  Map<String, String> _splitFilename(String basename) {
-    // Find first occurrence of separator from left: '-', '−', or '—'
-    final dashIndex = basename.indexOf('-');
-    final minusIndex = basename.indexOf('−');
-    final emDashIndex = basename.indexOf('—');
-
-    int? separatorIndex;
-    if (dashIndex >= 0) {
-      separatorIndex = dashIndex;
-    } else if (minusIndex >= 0) {
-      separatorIndex = minusIndex;
-    } else if (emDashIndex >= 0) {
-      separatorIndex = emDashIndex;
-    }
-
-    if (separatorIndex == null) {
-      // No separator found: remove extensions and use as title
-      var titleBasename = basename;
-      while (titleBasename.contains('.') &&
-          titleBasename != p.basenameWithoutExtension(titleBasename)) {
-        titleBasename = p.basenameWithoutExtension(titleBasename);
-      }
-      return {'title': titleBasename, 'artist': ''};
-    }
-
-    final artistPart = basename.substring(0, separatorIndex);
-    final artist = artistPart.trim();
-    var titlePart = basename.substring(separatorIndex + 1);
-
-    // Check if title part is empty or only contains extension
-    var titleTrimmed = titlePart.trim();
-    final standardExtensions = SupportedExtensions.supportedExtensionsWithDots;
-    final isOnlyExtension =
-        titleTrimmed.isEmpty ||
-        (titleTrimmed.startsWith('.') &&
-            standardExtensions.contains(titleTrimmed.toLowerCase()));
-
-    if (isOnlyExtension) {
-      // Check if artist part ends with space and separator is dash (e.g., "Artist -" in "Artist -.mp3")
-      final separatorChar = basename[separatorIndex];
-      final artistEndsWithSpaceDash =
-          artistPart.endsWith(' ') &&
-          (separatorChar == '-' ||
-              separatorChar == '−' ||
-              separatorChar == '—');
-
-      // If artist ends with space and separator is dash, use basename without extension as title
-      // (e.g., "Artist -.mp3" -> title "Artist -")
-      if (artistEndsWithSpaceDash) {
-        var titleBasename = basename;
-        while (titleBasename.contains('.') &&
-            titleBasename != p.basenameWithoutExtension(titleBasename)) {
-          titleBasename = p.basenameWithoutExtension(titleBasename);
-        }
-        return {'title': titleBasename, 'artist': artist};
-      }
-
-      // If separator is at the very end or immediately followed by extension,
-      // return empty title (e.g., "Artist-" or "Artist-.mp3" -> empty title)
-      if (separatorIndex + 1 >= basename.length ||
-          titleTrimmed.startsWith('.')) {
-        return {'title': '', 'artist': artist};
-      }
-
-      // Fallback: use basename without extension
-      var titleBasename = basename;
-      while (titleBasename.contains('.') &&
-          titleBasename != p.basenameWithoutExtension(titleBasename)) {
-        titleBasename = p.basenameWithoutExtension(titleBasename);
-      }
-      return {'title': titleBasename, 'artist': artist};
-    }
-
-    // Remove standard audio extensions from title, but preserve multiple extensions
-    // Check if title ends with a standard audio extension
-    var title = titleTrimmed;
-    final lastDotIndex = title.lastIndexOf('.');
-    if (lastDotIndex > 0) {
-      final lastExtension = title.substring(lastDotIndex).toLowerCase();
-      // If it's a standard extension and there's only one extension, remove it
-      if (standardExtensions.contains(lastExtension) &&
-          !title.substring(0, lastDotIndex).contains('.')) {
-        title = title.substring(0, lastDotIndex).trim();
-      } else {
-        // Multiple extensions - keep them but trim whitespace
-        title = title.trim();
-      }
+  // Remove a single standard audio extension; keep multiple extensions intact.
+  var title = titleTrimmed;
+  final lastDotIndex = title.lastIndexOf('.');
+  if (lastDotIndex > 0) {
+    final lastExtension = title.substring(lastDotIndex).toLowerCase();
+    if (standardExtensions.contains(lastExtension) &&
+        !title.substring(0, lastDotIndex).contains('.')) {
+      title = title.substring(0, lastDotIndex).trim();
     } else {
       title = title.trim();
     }
-
-    return {'title': title, 'artist': artist};
+  } else {
+    title = title.trim();
   }
+
+  return {'title': title, 'artist': artist};
 }
 
 /// Factory function to create platform-specific metadata extractor.

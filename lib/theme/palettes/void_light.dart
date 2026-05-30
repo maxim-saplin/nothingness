@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../app_palette.dart';
 
-/// Void — light variant.
-///
-/// Mirror of [voidPaletteDark]: black on white at the same alpha tiers. The
-/// playing-row block in this variant is near-black, with row text inverting
-/// to white — the playing row is always *opposed* to the current variant, a
-/// deliberate Void signature.
+/// Void — light variant. Mirror of [voidPaletteDark]: black on white; the
+/// playing row is near-black with text inverting to white (always opposed to
+/// the variant, a deliberate Void signature).
 const AppPalette voidPaletteLight = AppPalette(
   background: Color(0xFFFFFFFF),
   fgPrimary: Color(0xEB000000),

@@ -5,17 +5,7 @@ import '../providers/audio_player_provider.dart';
 import '../theme/app_palette.dart';
 import 'press_feedback.dart';
 
-/// Lightweight transport widget pinned above the crumb in the Void chrome
-/// (non-immersive only). Two stacked sub-rows:
-///
-///   1. A 14 dp seek strip — invisible until you look closely; it draws a
-///      1 dp track with a filled portion proportional to playback position
-///      and accepts horizontal drag / tap-to-seek inside the same hit
-///      rectangle.
-///   2. A 40 dp icon row — prev / play-pause / next, no labels.
-///
-/// Total height [transportHeight] is exposed for callers that need to lay
-/// out around the strip.
+/// Transport widget pinned above the crumb in the Void chrome (non-immersive only): a 14 dp drag/tap seek strip plus a 40 dp prev / play-pause / next icon row. [transportHeight] is exposed so callers can lay out around the strip.
 class TransportRow extends StatelessWidget {
   const TransportRow({super.key});
 
@@ -24,8 +14,7 @@ class TransportRow extends StatelessWidget {
   static const Key nextKey = ValueKey<String>('transport-next');
   static const Key seekKey = ValueKey<String>('transport-seek');
 
-  /// Total height of the row (seek strip + icon row). Kept in sync with
-  /// the `_transportHeight` constant in `void_screen.dart`.
+  /// Total height of the row (seek strip + icon row). Kept in sync with `_transportHeight` in `void_screen.dart`.
   static const double transportHeight = 56.0;
   static const double _seekStripHeight = 14.0;
   static const double _iconRowHeight = 42.0;
@@ -54,7 +43,7 @@ class TransportRow extends StatelessWidget {
   }
 }
 
-/// Draggable / tap-to-seek strip drawn above the transport icons.
+// Draggable / tap-to-seek strip drawn above the transport icons.
 class _SeekStrip extends StatelessWidget {
   const _SeekStrip();
 
@@ -112,9 +101,7 @@ class _SeekPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Bottom-aligned 1 dp hairline so the strip reads as a divider when
-    // playback hasn't started yet, with a thicker (1.5 dp) filled portion
-    // that mirrors the bottom readonly progress hairline.
+    // Bottom-aligned 1 dp track hairline plus a thicker 1.5 dp filled portion mirroring the progress hairline.
     final y = size.height - 1.0;
     final track = Paint()
       ..color = trackColor

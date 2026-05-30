@@ -19,15 +19,13 @@ class ScaledLayout extends StatelessWidget {
             final screenWidth = constraints.maxWidth;
             final screenHeight = constraints.maxHeight;
 
-            // Guard against zero constraints
             if (screenWidth <= 0 || screenHeight <= 0) {
-              return this.child;
+              return this.child; // guard against zero constraints
             }
 
-            // Determine effective scale
             double uiScale = rawUiScale;
             if (uiScale <= 0 || !uiScale.isFinite) {
-              // Auto mode: Calculate smart scale based on available width
+              // Auto mode: smart scale from available width.
               final dpr = MediaQuery.of(context).devicePixelRatio;
               uiScale = SettingsService().calculateSmartScaleForWidth(
                 screenWidth,
@@ -35,17 +33,15 @@ class ScaledLayout extends StatelessWidget {
               );
             }
 
-            // Ceiling matches the in-app slider max and the auto-scale clamp
-            // (both 3.0); a higher explicit ceiling left a (3.0, 4.0] band that
-            // overflows the now-playing header (B-044). Floor stays generous.
+            // B-044: ceiling matches the slider max / auto-scale clamp (3.0);
+            // a higher ceiling overflowed the now-playing header.
             uiScale = uiScale.clamp(0.5, 3.0);
 
-            // If scale is effectively 1.0, just return the child
             if ((uiScale - 1.0).abs() < 0.01) {
-              return this.child;
+              return this.child; // effectively unscaled
             }
 
-            // Calculate logical size (what the content "sees")
+            // Logical size the scaled content "sees".
             final logicalWidth = screenWidth / uiScale;
             final logicalHeight = screenHeight / uiScale;
 

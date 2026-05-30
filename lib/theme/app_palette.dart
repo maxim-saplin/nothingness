@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Colour tokens consumed by themed surfaces.
-///
-/// `accent` is kept for theme parity even when a theme (e.g. Void) does not
-/// use a chromatic accent — legacy screens still need a fallback colour.
+/// Colour tokens consumed by themed surfaces. `accent` is kept for parity even
+/// when a theme (e.g. Void) uses no chromatic accent — legacy screens need it.
 class AppPalette extends ThemeExtension<AppPalette> {
   final Color background;
   final Color fgPrimary;

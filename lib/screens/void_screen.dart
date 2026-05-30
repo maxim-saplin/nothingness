@@ -13,7 +13,7 @@ import '../providers/audio_player_provider.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/settings_service.dart';
-import '../testing/agent_service.dart';
+import '../debug_hooks.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
@@ -28,26 +28,9 @@ import '../widgets/transport_row.dart';
 import '../widgets/void_browser.dart';
 import '../widgets/void_settings_sheet.dart';
 
-/// Home shell for all four visualisations (the Void chrome).
-///
-/// Layout (top → bottom):
-///   * Hero (~32% viewport height) — `heroFor(screenConfig.type)`.
-///   * Tree — embedded [VoidBrowser].
-///   * Transport — three-button row above the crumb.
-///   * Crumb — single-line current-path readout (morphs to a search input).
-///   * Progress hairline — 1 px bottom edge tracking position / duration.
-///
-/// Hero gestures (B-039 — card metaphor):
-///   * Tap → toggle play/pause.
-///   * Drag the card LEFT → next track (card slides off left, the next card
-///     animates in from the right).
-///   * Drag the card RIGHT → previous track (card slides off right, the
-///     previous card animates in from the left).
-///
-/// Immersive mode hides the browser / transport / crumb / progress and
-/// scales the hero to fill the screen. Driven by
-/// [SettingsService.immersiveNotifier] — there is no longer a drag-down
-/// gesture (replaced by a settings toggle).
+/// Home shell for all four visualisations: hero, embedded [VoidBrowser],
+/// transport row, crumb (path / search), progress hairline. Hero tap-zones
+/// (prev/play-pause/next) + drag-to-seek; immersive mode hides chrome.
 class VoidScreen extends StatefulWidget {
   const VoidScreen({
     super.key,
@@ -56,17 +39,14 @@ class VoidScreen extends StatefulWidget {
     this.libraryController,
   });
 
-  /// Active visualisation config; falls back to the value in
-  /// [SettingsService.screenConfigNotifier] when null (legacy callers).
+  /// Active config; falls back to [SettingsService.screenConfigNotifier] when null.
   final ScreenConfig? config;
 
   /// Spectrum settings forwarded to the spectrum hero.
   final SpectrumSettings? settings;
 
-  /// Optional externally-owned [LibraryController]. When supplied the
-  /// screen does NOT create or dispose its own controller — used by tests
-  /// to pre-seed `currentPath` / `tracks` without touching the real
-  /// MediaStore or filesystem (B-015 jump-to-now-playing tests).
+  /// Externally-owned controller; when supplied the screen neither creates nor
+  /// disposes its own — used by tests to pre-seed currentPath/tracks (B-015).
   final LibraryController? libraryController;
 
   @override
@@ -81,14 +61,12 @@ class _VoidScreenState extends State<VoidScreen>
   late final FocusNode _searchFocusNode;
   late final AnimationController _immersiveCtrl;
   late final Animation<double> _immersiveT;
-  // B-033: drives the swipe-up browser's slide-in / slide-out. Held at 1.0
-  // for non-swipe-up presentations (browser is always present). For
-  // swipe-up: 0 = parked offscreen below the viewport, 1 = fully resting
-  // at its normal position. Hero height + browser top/bottom interpolate
-  // off this single controller so they can never disagree mid-frame.
-  // Non-final to survive hot reload — initialized in initState.
+  // B-033: drives the swipe-up browser slide (0=parked, 1=resting; 1 for
+  // non-swipe-up). Hero height + browser top/bottom share it. Non-final for hot reload.
   late AnimationController _browserSlideCtrl;
   late Animation<double> _browserSlideT;
+  // Controllers built via [_curvedController]; all disposed in [dispose].
+  final List<AnimationController> _animControllers = <AnimationController>[];
   final SettingsService _settings = SettingsService();
   bool _immersive = false;
   TransportPosition _transportPosition = TransportPosition.bottom;
@@ -99,33 +77,18 @@ class _VoidScreenState extends State<VoidScreen>
   bool _showHint = false;
   bool _hintFaded = false;
   bool _searchMode = false;
-  // B-043: set when entering search auto-expanded a collapsed swipe-up
-  // browser (so its results are visible). Mirrored on exit to re-collapse the
-  // browser only if search was the thing that opened it.
+  // B-043: true when entering search auto-expanded a collapsed swipe-up browser.
   bool _searchAutoExpandedBrowser = false;
   Timer? _hintFadeTimer;
-  // B-031: hide-only debounce for the crumb's `⊙` jump glyph. The crumb
-  // rebuilds on every library/playback notification, and there is a brief
-  // race during track changes where `dirname(songInfo.path) == currentPath`
-  // for a frame or two even though the glyph should still be available.
-  //
-  // Mechanism: `_jumpGlyphLatched` reflects what the user sees right now.
-  // Each rebuild evaluates the raw divergence predicate. If true → latched
-  // true (immediate) and any pending hide timer is cancelled. If false →
-  // schedule a hide timer for [_jumpGlyphHideDebounce] from now (resetting
-  // any prior timer). The latch only flips to false when the timer fires,
-  // so a one-frame race never collapses the glyph.
+  // B-031: hide-only debounce for the crumb's ⊙ jump glyph — filters one-frame
+  // races where dirname(songInfo.path) briefly == currentPath on track changes.
   bool _jumpGlyphLatched = false;
   Timer? _jumpGlyphHideTimer;
   static const Duration _jumpGlyphHideDebounce = Duration(milliseconds: 200);
-  // B-012: GlobalKey on the hero feedback surface so horizontal-drag
-  // accumulator (which lives in this state) can fire the directional
-  // swipe flash exactly when prev/next actually triggers.
+  // B-012: lets the drag accumulator fire the swipe flash when prev/next triggers.
   final GlobalKey<HeroFeedbackSurfaceState> _heroFeedbackKey =
       GlobalKey<HeroFeedbackSurfaceState>();
-  // B-015: GlobalKey on the embedded VoidBrowser so the crumb's
-  // jump-to-now-playing tap can drive `scrollToTrack` on the browser's
-  // shared ScrollController after `loadFolder` settles.
+  // B-015: lets the crumb's jump tap drive scrollToTrack after loadFolder.
   final GlobalKey<VoidBrowserState> _browserKey =
       GlobalKey<VoidBrowserState>();
 
@@ -145,61 +108,65 @@ class _VoidScreenState extends State<VoidScreen>
     }
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
-    _searchFocusNode.addListener(_onSearchFocusChanged);
-    // A single controller drives BOTH the hero growth and the
-    // browser/crumb collapse so they sum to the available height at every
-    // frame — no layout-time overflow (B-003 fix).
-    _immersiveCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    );
-    _immersiveT = CurvedAnimation(
-      parent: _immersiveCtrl,
-      curve: Curves.easeOutCubic,
-    );
-    // B-033: 280 ms easeOutCubic — close to MaterialPageRoute's default
-    // feel (the settings sheet uses MaterialPageRoute) but a touch
-    // snappier so the swipe-up gesture feels responsive.
-    _browserSlideCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 280),
-    );
-    _browserSlideT = CurvedAnimation(
-      parent: _browserSlideCtrl,
-      curve: Curves.easeOutCubic,
-    );
+    // B-003: one controller drives hero growth + browser/crumb collapse so they
+    // sum to the available height every frame (no overflow).
+    final (immersiveCtrl, immersiveT) =
+        _curvedController(const Duration(milliseconds: 240));
+    _immersiveCtrl = immersiveCtrl;
+    _immersiveT = immersiveT;
+    // B-033: 280 ms easeOutCubic — snappier than MaterialPageRoute.
+    final (browserSlideCtrl, browserSlideT) =
+        _curvedController(const Duration(milliseconds: 280));
+    _browserSlideCtrl = browserSlideCtrl;
+    _browserSlideT = browserSlideT;
     _immersive = _settings.immersiveNotifier.value;
     _transportPosition = _settings.transportPositionNotifier.value;
     _browserPresentation = _settings.browserPresentationNotifier.value;
     if (_immersive) _immersiveCtrl.value = 1.0;
-    // For non-swipe-up presentations (fixed) the browser is always at rest
-    // (t=1). For swipe-up, start collapsed (t=0) until the user expands it.
+    // swipeUp starts collapsed (t=0); fixed is always at rest (t=1).
     _browserSlideCtrl.value =
         _browserPresentation == BrowserPresentation.swipeUp ? 0.0 : 1.0;
-    _settings.immersiveNotifier.addListener(_onImmersiveChanged);
-    _settings.transportPositionNotifier.addListener(_onTransportPositionChanged);
-    _settings.browserPresentationNotifier
-        .addListener(_onBrowserPresentationChanged);
-    _settings.screenConfigNotifier.addListener(_onScreenConfigChanged);
-    // The PopScope's `canPop` is computed from `currentPath`, so we have to
-    // re-evaluate it whenever the library navigates.
-    _libraryController.addListener(_onLibraryChanged);
+    for (final (listenable, cb) in _listenerBindings()) {
+      listenable.addListener(cb);
+    }
     _maybeShowLaunchHint();
 
-    // Expose controller + immersive flag to the VM-service agent surface.
-    AgentService.registerLibraryController(_libraryController);
-    AgentService.registerImmersiveLookup(() => _immersive);
+    // Expose controller + immersive flag to the agent surface.
+    DebugHooks.libraryController = _libraryController;
+    DebugHooks.immersiveLookup = () => _immersive;
+  }
+
+  /// (listenable, callback) pairs wired in [initState], unwired in [dispose].
+  List<(Listenable, VoidCallback)> _listenerBindings() => [
+        (_searchFocusNode, _onSearchFocusChanged),
+        (_settings.immersiveNotifier, _onImmersiveChanged),
+        (_settings.transportPositionNotifier, _onTransportPositionChanged),
+        (_settings.browserPresentationNotifier, _onBrowserPresentationChanged),
+        (_settings.screenConfigNotifier, _onScreenConfigChanged),
+        (_libraryController, _onLibraryChanged),
+      ];
+
+  /// Builds an [AnimationController] (this [vsync], [duration]) with an
+  /// easeOutCubic [CurvedAnimation], tracking the controller in
+  /// [_animControllers] so [dispose] tears it down. Returns both so callers
+  /// keep typed references for forward/reverse + value reads.
+  (AnimationController, Animation<double>) _curvedController(
+    Duration duration,
+  ) {
+    final controller = AnimationController(vsync: this, duration: duration);
+    _animControllers.add(controller);
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeOutCubic,
+    );
+    return (controller, animation);
   }
 
   void _onImmersiveChanged() {
     final next = _settings.immersiveNotifier.value;
     if (_immersive == next) return;
     setState(() => _immersive = next);
-    if (next) {
-      _immersiveCtrl.forward();
-    } else {
-      _immersiveCtrl.reverse();
-    }
+    next ? _immersiveCtrl.forward() : _immersiveCtrl.reverse();
   }
 
   void _onTransportPositionChanged() {
@@ -213,25 +180,15 @@ class _VoidScreenState extends State<VoidScreen>
     if (_browserPresentation == next) return;
     setState(() {
       _browserPresentation = next;
-      // Reset the expansion flag whenever the mode changes so the user
-      // sees the canonical state for the newly-selected presentation.
       _browserExpanded = false;
     });
-    // B-033: keep the slide controller aligned with the new mode.
-    //   * fixed → browser always at rest (t=1).
-    //   * swipeUp → start collapsed (t=0), expand on user gesture.
-    if (next == BrowserPresentation.swipeUp) {
-      _browserSlideCtrl.value = 0.0;
-    } else {
-      _browserSlideCtrl.value = 1.0;
-    }
+    // B-033: swipeUp starts collapsed (t=0); fixed rests (t=1).
+    _browserSlideCtrl.value = next == BrowserPresentation.swipeUp ? 0.0 : 1.0;
   }
 
   void _onLibraryChanged() {
     if (!mounted) return;
-    // Lightweight rebuild to refresh PopScope.canPop when currentPath
-    // changes. Child widgets that listen via Provider get their own
-    // notifications and don't depend on this setState.
+    // Refresh PopScope.canPop; children get their own Provider updates.
     setState(() {});
     // Persist navigation so the next launch returns to the same folder.
     final path = _libraryController.currentPath;
@@ -241,10 +198,7 @@ class _VoidScreenState extends State<VoidScreen>
     }
   }
 
-  /// Owns the controller's first init + the one-shot restoration of the
-  /// last browsed path. Kept inside [VoidScreen] (rather than [VoidBrowser])
-  /// because the controller is supplied externally and the parent is the
-  /// natural place to sequence "init, then restore".
+  /// Controller's first init + one-shot restore of the last browsed path.
   Future<void> _bootstrapLibrary() async {
     await _libraryController.init();
     if (!mounted) return;
@@ -252,22 +206,18 @@ class _VoidScreenState extends State<VoidScreen>
     if (!mounted) return;
     if (saved == null || saved.isEmpty) return;
     if (_libraryController.currentPath == saved) return;
-    // Record the path we are about to navigate to so the listener does
-    // not turn around and re-persist the same value we just loaded.
+    // Record the target so the listener doesn't re-persist what we loaded.
     _lastPersistedPath = saved;
     try {
       await _libraryController.loadFolder(saved);
     } catch (_) {
-      // Folder may have disappeared (SD card pulled, etc.) — fall back
-      // to whatever loadRoot() landed on and clear the stale pointer.
+      // Folder gone — clear the stale pointer, fall back to loadRoot()'s landing.
       await _settings.saveLastLibraryPath(null);
     }
   }
 
   void _onScreenConfigChanged() {
-    // The hero dispatcher reads SettingsService when widget.config is null;
-    // a setState here picks up changes from settings cycle-rows without a
-    // parent rebuild.
+    // setState picks up settings cycle-row changes without a parent rebuild.
     if (!mounted) return;
     setState(() {});
   }
@@ -276,20 +226,15 @@ class _VoidScreenState extends State<VoidScreen>
   void dispose() {
     _hintFadeTimer?.cancel();
     _jumpGlyphHideTimer?.cancel();
-    _searchFocusNode.removeListener(_onSearchFocusChanged);
+    for (final (listenable, cb) in _listenerBindings()) {
+      listenable.removeListener(cb);
+    }
     _searchFocusNode.dispose();
     _searchController.dispose();
-    _settings.immersiveNotifier.removeListener(_onImmersiveChanged);
-    _settings.transportPositionNotifier
-        .removeListener(_onTransportPositionChanged);
-    _settings.browserPresentationNotifier
-        .removeListener(_onBrowserPresentationChanged);
-    _settings.screenConfigNotifier.removeListener(_onScreenConfigChanged);
-    _libraryController.removeListener(_onLibraryChanged);
     _immersiveCtrl.dispose();
     _browserSlideCtrl.dispose();
-    AgentService.registerImmersiveLookup(null);
-    AgentService.registerLibraryController(null);
+    DebugHooks.immersiveLookup = null;
+    DebugHooks.libraryController = null;
     if (_ownsLibraryController) {
       _libraryController.dispose();
     }
@@ -297,29 +242,18 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   void _onSearchFocusChanged() {
-    // B-013: collapse on focus-out regardless of query. Tap-away ends the
-    // session; re-tapping the crumb resumes a fresh search. Previously
-    // this only collapsed when the query was empty, which left a stale
-    // input lingering after dismissal gestures (drag, settings tap, etc.).
+    // B-013: collapse on focus-out regardless of query (tap-away ends session).
     if (!_searchFocusNode.hasFocus && _searchMode) {
       setState(() => _searchMode = false);
-      // Keep _searchController text intact for the next session if the
-      // dismissal was a focus loss without explicit clear — but the
-      // results panel keys off the controller, so empty it to mirror the
-      // visual collapse. _exitSearchMode already does this; mirror it here.
+      // Results panel keys off the controller, so clear to mirror collapse.
       _searchController.clear();
-      // B-043: re-collapse the swipe-up browser if entering search was what
-      // opened it.
-      _maybeRestoreBrowserAfterSearch();
-      // B-014: restore the queue captured at the start of this search
-      // session, if any. No-op when the user never tapped a result.
-      _endSearchSession();
+      _maybeRestoreBrowserAfterSearch(); // B-043
+      _endSearchSession(); // B-014
     }
   }
 
-  /// B-043: undo the search-driven browser expansion. No-op unless
-  /// [_enterSearchMode] auto-expanded a collapsed swipe-up browser (so a
-  /// browser the user opened themselves before searching stays open).
+  /// B-043: undo a search-driven browser expansion; no-op unless
+  /// [_enterSearchMode] auto-expanded a collapsed swipe-up browser.
   void _maybeRestoreBrowserAfterSearch() {
     if (!_searchAutoExpandedBrowser) return;
     _searchAutoExpandedBrowser = false;
@@ -330,18 +264,9 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   void _enterSearchMode() {
-    // B-043: a collapsed swipe-up browser keeps the results list parked
-    // offscreen, so search would focus the input but show nothing. Expand the
-    // browser first and remember we did, so _exitSearchMode can restore the
-    // collapsed state on dismissal.
-    //
-    // Keyboard-flicker fix: mounting the (autofocusing) search field *during*
-    // the 280 ms browser-slide made Android cancel the keyboard show and then
-    // hide it — the "keyboard flashes up then disappears" bug. So in the
-    // collapsed swipe-up case we expand first and only mount the search field
-    // once the slide settles, so `autofocus` raises the keyboard into a stable
-    // layout and it stays up (matching the fixed-presentation path, which
-    // never had the bug). Everywhere else the field mounts immediately.
+    // B-043 + keyboard-flicker fix: mounting the autofocus field during the
+    // 280 ms slide makes Android cancel/hide the keyboard, so for a collapsed
+    // swipe-up browser expand first and mount the field once the slide settles.
     if (_browserPresentation == BrowserPresentation.swipeUp &&
         !_browserExpanded) {
       _searchAutoExpandedBrowser = true;
@@ -358,24 +283,19 @@ class _VoidScreenState extends State<VoidScreen>
     _searchController.clear();
     _searchFocusNode.unfocus();
     setState(() => _searchMode = false);
-    // B-043: re-collapse the swipe-up browser if search opened it.
-    _maybeRestoreBrowserAfterSearch();
-    // B-014: restore the prior queue. The provider/controller handle the
-    // no-active-session case as a no-op.
-    _endSearchSession();
+    _maybeRestoreBrowserAfterSearch(); // B-043
+    _endSearchSession(); // B-014
   }
 
   void _endSearchSession() {
     if (!mounted) return;
-    // Fire-and-forget: the controller / provider treats no-active-session
-    // as a no-op, and we don't need to block UI on the restore.
+    // Fire-and-forget; the provider treats no-active-session as a no-op.
     final player = context.read<AudioPlayerProvider>();
     unawaited(player.exitSearchSession());
   }
 
   void _maybeShowLaunchHint() {
-    // Shown on every cold launch (and every screen mount); fades after 3 s.
-    // Pre-fix this persisted a flag and never showed again — see B-005.
+    // B-005: shown on every mount, fades after 3 s.
     if (!mounted) return;
     setState(() {
       _showHint = true;
@@ -388,10 +308,7 @@ class _VoidScreenState extends State<VoidScreen>
     });
   }
 
-  /// Upward drag on the (expanded) hero while the swipe-up browser is
-  /// collapsed mirrors the hint-band gesture: 30 px past the threshold
-  /// flips `_browserExpanded` so the user can swipe anywhere in the
-  /// freed area, not just the thin strip above the crumb.
+  /// Upward drag on the expanded hero: 30 px past threshold expands the browser.
   void _onHeroVerticalDrag(DragUpdateDetails d) {
     if (_browserExpanded ||
         _browserPresentation != BrowserPresentation.swipeUp) {
@@ -408,11 +325,62 @@ class _VoidScreenState extends State<VoidScreen>
     _swipeUpAccum = 0;
   }
 
+  /// Mono text style helper — shared by crumb/glyph/hint text.
+  TextStyle _mono(
+    AppTypography typography,
+    Color color,
+    double size, {
+    double? letterSpacing,
+    double? height,
+  }) =>
+      TextStyle(
+        color: color,
+        fontFamily: typography.monoFamily,
+        fontSize: size,
+        letterSpacing: letterSpacing,
+        height: height,
+      );
+
+  /// Tap target wrapping a mono [glyph] in [Semantics] + [PressFeedback]; sized
+  /// [box]×[box] (Material min). Used by the crumb-jump, search-close and
+  /// settings buttons.
+  Widget _glyphButton({
+    required String semanticsLabel,
+    required Key? buttonKey,
+    required VoidCallback onTap,
+    required double box,
+    required String glyph,
+    required TextStyle style,
+  }) {
+    return Semantics(
+      label: semanticsLabel,
+      button: true,
+      child: PressFeedback(
+        key: buttonKey,
+        onTap: onTap,
+        child: SizedBox(
+          width: box,
+          height: box,
+          child: Center(child: Text(glyph, style: style)),
+        ),
+      ),
+    );
+  }
+
+  /// The three Void theme extensions, fetched in one go.
+  ({AppPalette palette, AppTypography typography, AppGeometry geometry})
+      _theme() {
+    final t = Theme.of(context);
+    return (
+      palette: t.extension<AppPalette>()!,
+      typography: t.extension<AppTypography>()!,
+      geometry: t.extension<AppGeometry>()!,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<AppPalette>()!;
-    final typography = Theme.of(context).extension<AppTypography>()!;
-    final geometry = Theme.of(context).extension<AppGeometry>()!;
+    final (:palette, :typography, :geometry) = _theme();
     final mq = MediaQuery.of(context);
     final heroHeight = mq.size.height * geometry.heroFraction;
     final bottomInset = mq.viewPadding.bottom;
@@ -432,189 +400,97 @@ class _VoidScreenState extends State<VoidScreen>
           child: LayoutBuilder(
             builder: (context, c) {
               final availableH = c.maxHeight;
-              // B-033: a single AnimatedBuilder listens to BOTH the
-              // immersive ramp and the swipe-up slide. Hero height +
-              // browser top/bottom interpolate off `s` (slide 0..1) so the
-              // hero growth and browser slide can never drift apart
-              // mid-frame.
+              // B-033: one AnimatedBuilder on both ramps so shared metrics never drift.
               return AnimatedBuilder(
                 animation: Listenable.merge([_immersiveT, _browserSlideT]),
                 builder: (context, _) {
-                  final t = _immersiveT.value;
-                  final s = _browserPresentation ==
-                          BrowserPresentation.swipeUp
-                      ? _browserSlideT.value
-                      : 1.0;
-                  // reservedBottom shrinks to 0 in immersive so the hero
-                  // meets the screen edge; otherwise it pushes the crumb +
-                  // hairline above the Android gesture-nav bar (B-002).
-                  final reservedBottom = bottomInset * (1 - t);
-                  final showChildren = t < 0.999;
-                  // B-018 per-skin transport contract: hosted heroes
-                  // (Spectrum, Dot, Void) opt-in to chrome-owned transport
-                  // placement; bespoke heroes (Polo) opt-out and paint
-                  // their own controls. The shell suppresses the row
-                  // entirely when the active hero is bespoke, regardless
-                  // of the global transport setting.
-                  final activeConfig = _resolvedScreenConfig();
-                  final hostsTransport = activeConfig.hostsChromeTransport;
-                  // Transport pins to either the top of the browser band
-                  // (just below the hero) or to the bottom (just above the
-                  // crumb), or it's hidden. The browser's vertical slot
-                  // shrinks from whichever side the strip claims.
-                  final isTransportTop = hostsTransport &&
-                      _transportPosition == TransportPosition.top;
-                  final isTransportBottom = hostsTransport &&
-                      _transportPosition == TransportPosition.bottom;
-                  final hasTransport = isTransportTop || isTransportBottom;
-                  final browserBottom = reservedBottom +
-                      _crumbHeight +
-                      (isTransportBottom ? _transportHeight : 0.0);
-                  // The hero takes one of two non-immersive shapes:
-                  //   * EXPANDED (s=1): the canonical `heroHeight`. The
-                  //     browser is at rest occupying the rest of the band.
-                  //   * COLLAPSED (s=0): the hero grows down to claim the
-                  //     freed browser slot, leaving only the hint band.
-                  // For 0<s<1 we lerp between the two so the slide reads
-                  // as a single coherent motion (B-033).
-                  final double heroHCollapsed = availableH -
-                      browserBottom -
-                      _swipeHintZoneHeight -
-                      (isTransportTop ? _transportHeight : 0.0);
-                  final double heroHExpanded = heroHeight;
-                  final double baseHeroH =
-                      heroHCollapsed + (heroHExpanded - heroHCollapsed) * s;
-                  // Hero height interpolates from `baseHeroH` (non-
-                  // immersive) to the full available height (immersive).
-                  // Everything else hangs off the bottom edge so the
-                  // hero growth never collides with their fixed slot
-                  // (B-003: no layout-time overflow mid-transition).
-                  final heroH = baseHeroH + (availableH - baseHeroH) * t;
-                  // Browser top/bottom slide together. At s=1 the browser
-                  // rests under the hero (or top transport). At s=0 the
-                  // whole browser is parked offscreen below the viewport
-                  // — its top sits at availableH (the bottom edge) and
-                  // its bottom sits one browser-height below that.
-                  final double restingBrowserTop =
-                      heroHExpanded + (isTransportTop ? _transportHeight : 0.0);
-                  final double restingBrowserBottom = browserBottom;
-                  // Height of the browser at rest — used to extend the
-                  // bottom anchor offscreen by the same amount as the top.
-                  final double restingBrowserHeight = (availableH -
-                          restingBrowserTop -
-                          restingBrowserBottom)
-                      .clamp(0.0, availableH);
-                  final double parkedTop = availableH;
-                  final double parkedBottom = -restingBrowserHeight;
-                  final double browserTop =
-                      parkedTop + (restingBrowserTop - parkedTop) * s;
-                  final double browserBottomAnimated = parkedBottom +
-                      (restingBrowserBottom - parkedBottom) * s;
-                  // Hint band is only meaningful while the browser is
-                  // (mostly) collapsed in swipe-up mode. Fade it out as
-                  // the slide progresses so it doesn't crash into the
-                  // incoming browser chrome.
-                  final bool swipeUp = _browserPresentation ==
-                      BrowserPresentation.swipeUp;
-                  final double hintOpacity =
-                      swipeUp ? (1.0 - s).clamp(0.0, 1.0) : 0.0;
+                  final m = _layout(availableH, heroHeight, bottomInset);
+                  final hasTransport =
+                      m.isTransportTop || m.isTransportBottom;
                   return Stack(
                     children: [
-                      // Hero — anchored top, animated height. Wrapped in a
-                      // gesture surface that owns tap (play/pause) and
-                      // horizontal swipe (prev/next).
+                      // Hero — anchored top, animated height; gesture surface owns taps + seek.
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
-                        height: heroH,
+                        height: m.heroH,
                         child: _buildHeroGestureSurface(
                           child: _buildHeroFor(_resolvedScreenConfig()),
                         ),
                       ),
-                      // Browser — always rendered (B-033) so the slide
-                      // animation always has a target. Parked offscreen
-                      // when collapsed; slides up into its resting slot as
-                      // `s` ramps to 1. Wrapped in IgnorePointer at s≈0 so
-                      // the parked browser can't intercept stray touches.
-                      if (showChildren)
+                      // Browser — always in the tree (B-033) so the slide has a
+                      // target; parked offscreen + IgnorePointer at s≈0 when collapsed.
+                      if (m.showChildren)
                         Positioned(
-                          top: browserTop,
+                          top: m.browserTop,
                           left: 0,
                           right: 0,
-                          bottom: browserBottomAnimated,
+                          bottom: m.browserBottomAnimated,
                           child: IgnorePointer(
-                            ignoring: s < 0.01,
+                            ignoring: m.s < 0.01,
                             child: ClipRect(
                               clipBehavior: Clip.hardEdge,
                               child: VoidBrowser(
                                 key: _browserKey,
                                 controller: _libraryController,
                                 searchController: _searchController,
-                                // B-032: swipe-up presentation gives the
-                                // browser a drag-down close affordance.
-                                // Fixed presentation keeps the browser
-                                // anchored — no handle, no close gesture.
-                                isDismissable: swipeUp && _browserExpanded,
+                                // B-032: drag-down close only in swipe-up;
+                                // fixed stays anchored (no handle/gesture).
+                                isDismissable: m.swipeUp && _browserExpanded,
                                 onDragDownClose: _collapseSwipeUpBrowser,
                               ),
                             ),
                           ),
                         ),
-                      // Swipe-up hint band — a thin strip at the bottom
-                      // of the freed browser slot. The expanded hero sits
-                      // directly above it. Tap / upward drag expands the
-                      // browser into view. Fades out (B-033) as the
-                      // browser slides up into its place.
-                      if (showChildren && swipeUp && hintOpacity > 0.001)
+                      // Swipe-up hint band — tap / upward drag expands the
+                      // browser; fades as the browser slides up (B-033).
+                      if (m.showChildren && m.swipeUp && m.hintOpacity > 0.001)
                         Positioned(
                           left: 0,
                           right: 0,
                           height: _swipeHintZoneHeight,
-                          bottom: browserBottom,
+                          bottom: m.browserBottom,
                           child: IgnorePointer(
                             ignoring: _browserExpanded,
                             child: Opacity(
-                              opacity: hintOpacity,
-                              child:
-                                  _buildSwipeUpHint(palette, typography),
+                              opacity: m.hintOpacity,
+                              child: _buildSwipeUpHint(palette, typography),
                             ),
                           ),
                         ),
-                      // Transport row — top (just below hero) or bottom
-                      // (just above crumb). Hidden in immersive or when
-                      // position == off.
-                      if (showChildren && hasTransport)
+                      // Transport row — top (below hero) or bottom (above crumb);
+                      // hidden in immersive or when position == off.
+                      if (m.showChildren && hasTransport)
                         Positioned(
                           left: 0,
                           right: 0,
-                          top: isTransportTop ? heroH : null,
-                          bottom: isTransportBottom
-                              ? reservedBottom + _crumbHeight
+                          top: m.isTransportTop ? m.heroH : null,
+                          bottom: m.isTransportBottom
+                              ? m.reservedBottom + _crumbHeight
                               : null,
                           height: _transportHeight,
                           child: const TransportRow(),
                         ),
                       // Crumb — anchored above the gesture-nav bar.
-                      if (showChildren)
+                      if (m.showChildren)
                         Positioned(
                           left: 0,
                           right: 0,
-                          bottom: reservedBottom,
+                          bottom: m.reservedBottom,
                           height: _crumbHeight,
                           child: _buildCrumb(palette, typography, geometry),
                         ),
                       // Settings button — top-right, hidden in immersive.
-                      if (showChildren)
+                      if (m.showChildren)
                         _buildSettingsButton(palette, typography),
-                      // Cold-launch gesture hint — always above everything.
+                      // Cold-launch gesture hint — above everything.
                       _buildHint(palette, typography),
-                      // Progress hairline — at the bottom, above the
-                      // gesture-nav bar in non-immersive (B-002).
+                      // Progress hairline — bottom, above gesture-nav bar (B-002).
                       Positioned(
                         left: 0,
                         right: 0,
-                        bottom: reservedBottom,
+                        bottom: m.reservedBottom,
                         child: _buildProgressHairline(palette),
                       ),
                     ],
@@ -629,9 +505,67 @@ class _VoidScreenState extends State<VoidScreen>
     );
   }
 
-  /// B-032: collapse the swipe-up browser. Mirrors the back-button branch
-  /// of [_onPopInvoked] so the drag-down close gesture and Android back
-  /// converge on a single code path. No-op outside the swipe-up presentation.
+  /// Frame's animated layout off the immersive ramp `t` and swipe-up slide `s`.
+  /// Everything hangs off the bottom edge so hero growth never overflows a fixed
+  /// slot mid-transition (B-003); hero lerps collapsed (s=0) ↔ expanded (s=1).
+  ({
+    double s,
+    double reservedBottom,
+    bool showChildren,
+    bool isTransportTop,
+    bool isTransportBottom,
+    double browserBottom,
+    double heroH,
+    double browserTop,
+    double browserBottomAnimated,
+    bool swipeUp,
+    double hintOpacity,
+  }) _layout(double availableH, double heroHeight, double bottomInset) {
+    final t = _immersiveT.value;
+    final swipeUp = _browserPresentation == BrowserPresentation.swipeUp;
+    final s = swipeUp ? _browserSlideT.value : 1.0;
+    // reservedBottom keeps crumb + hairline above the gesture-nav bar (B-002);
+    // shrinks to 0 in immersive so the hero meets the edge.
+    final reservedBottom = bottomInset * (1 - t);
+    // B-018: only hosted heroes (not bespoke Polo) get a chrome transport row.
+    final hostsTransport = _resolvedScreenConfig().hostsChromeTransport;
+    final isTransportTop =
+        hostsTransport && _transportPosition == TransportPosition.top;
+    final isTransportBottom =
+        hostsTransport && _transportPosition == TransportPosition.bottom;
+    final browserBottom = reservedBottom +
+        _crumbHeight +
+        (isTransportBottom ? _transportHeight : 0.0);
+    final heroHCollapsed = availableH -
+        browserBottom -
+        _swipeHintZoneHeight -
+        (isTransportTop ? _transportHeight : 0.0);
+    final baseHeroH = heroHCollapsed + (heroHeight - heroHCollapsed) * s;
+    final heroH = baseHeroH + (availableH - baseHeroH) * t;
+    final restingBrowserTop =
+        heroHeight + (isTransportTop ? _transportHeight : 0.0);
+    final restingBrowserHeight =
+        (availableH - restingBrowserTop - browserBottom).clamp(0.0, availableH);
+    final browserTop = availableH + (restingBrowserTop - availableH) * s;
+    final browserBottomAnimated =
+        -restingBrowserHeight + (browserBottom + restingBrowserHeight) * s;
+    return (
+      s: s,
+      reservedBottom: reservedBottom,
+      showChildren: t < 0.999,
+      isTransportTop: isTransportTop,
+      isTransportBottom: isTransportBottom,
+      browserBottom: browserBottom,
+      heroH: heroH,
+      browserTop: browserTop,
+      browserBottomAnimated: browserBottomAnimated,
+      swipeUp: swipeUp,
+      // Hint fades as the slide progresses so it can't collide with browser chrome.
+      hintOpacity: swipeUp ? (1.0 - s).clamp(0.0, 1.0) : 0.0,
+    );
+  }
+
+  /// B-032: collapse the swipe-up browser (mirrors [_onPopInvoked]'s back branch).
   void _collapseSwipeUpBrowser() {
     if (!mounted) return;
     if (_browserPresentation != BrowserPresentation.swipeUp) return;
@@ -639,24 +573,16 @@ class _VoidScreenState extends State<VoidScreen>
     _setBrowserExpanded(false);
   }
 
-  /// B-033: single entry point for flipping `_browserExpanded`. Calls
-  /// [setState] and drives [_browserSlideCtrl] in the matching direction so
-  /// the slide animation stays in lockstep with the boolean state. All
-  /// other code paths that want to expand / collapse the swipe-up browser
-  /// go through here.
+  /// B-033: single entry point for flipping `_browserExpanded`; keeps the
+  /// slide controller in lockstep with the boolean.
   void _setBrowserExpanded(bool next) {
     if (_browserExpanded == next) return;
     setState(() => _browserExpanded = next);
-    if (next) {
-      _browserSlideCtrl.forward();
-    } else {
-      _browserSlideCtrl.reverse();
-    }
+    next ? _browserSlideCtrl.forward() : _browserSlideCtrl.reverse();
   }
 
-  /// Android back: collapse the swipe-up browser, then exit search, then
-  /// walk one folder up the library tree. Only when all three are
-  /// exhausted does PopScope let the pop through and the OS leave the app.
+  /// Android back: collapse the swipe-up browser, then exit search, then walk
+  /// one folder up. Only when all three are exhausted does the OS leave.
   void _onPopInvoked(bool didPop, Object? _) {
     if (didPop) return;
     if (_browserExpanded &&
@@ -670,31 +596,23 @@ class _VoidScreenState extends State<VoidScreen>
     }
     if (_libraryController.currentPath != null) {
       _libraryController.navigateUp();
-      return;
     }
   }
 
   /// Fixed slot height for the crumb (path readout / search input).
   static const double _crumbHeight = 56.0;
 
-  /// Fixed slot height for the transport row — seek strip + icon row.
-  /// Kept in sync with [TransportRow.transportHeight].
+  /// Transport-row slot height; kept in sync with [TransportRow].
   static const double _transportHeight = TransportRow.transportHeight;
 
-  /// Height of the swipe-up hint band when the browser is collapsed in
-  /// swipe-up mode. The hero claims everything above this band so the
-  /// visualisation has room to breathe instead of stranding empty space.
+  /// Swipe-up hint band height when collapsed; the hero claims everything above.
   static const double _swipeHintZoneHeight = 56.0;
 
-  /// Resolve the active visualisation config. Prefer the value passed via
-  /// the constructor (used by tests and by [MediaControllerPage]), falling
-  /// back to [SettingsService.screenConfigNotifier] for legacy callers.
+  /// Active config: constructor value, else [SettingsService.screenConfigNotifier].
   ScreenConfig _resolvedScreenConfig() =>
       widget.config ?? _settings.screenConfigNotifier.value;
 
-  /// Map the active screen type onto its hero widget. The hero is purely
-  /// the visualisation — gestures and chrome live in the surrounding
-  /// Void shell.
+  /// Map the active screen type onto its hero widget.
   Widget _buildHeroFor(ScreenConfig config) {
     switch (config.type) {
       case ScreenType.void_:
@@ -714,16 +632,9 @@ class _VoidScreenState extends State<VoidScreen>
     }
   }
 
-  /// Wraps the hero in a gesture surface so taps and horizontal drags drive
-  /// the player regardless of which visualisation is rendered inside.
-  /// Vertical drag is wired only when the swipe-up browser is collapsed —
-  /// the same arena where the hint band lives.
-  ///
-  /// The surface owns the interaction (see [HeroFeedbackSurface]): tap-zones
-  /// (left → previous, centre → play/pause, right → next) and a horizontal
-  /// drag-to-seek with a live time readout. `positionMs`/`durationMs` are
-  /// getters so the hero is not rebuilt on every position tick — they're only
-  /// read at the start of a seek drag.
+  /// Wraps the hero in a [HeroFeedbackSurface]; vertical drag is wired only when
+  /// the swipe-up browser is collapsed. positionMs/durationMs are getters so
+  /// position ticks don't rebuild.
   Widget _buildHeroGestureSurface({required Widget child}) {
     final player = context.read<AudioPlayerProvider>();
     final bool acceptVertical =
@@ -748,9 +659,8 @@ class _VoidScreenState extends State<VoidScreen>
     AppTypography typography,
     AppGeometry geometry,
   ) {
-    // Mirrors v6_monk's #crumb: a path readout that morphs into "? <query>|"
-    // when long-pressed. The hidden TextField captures keystrokes while in
-    // search mode; tapping outside or clearing the query collapses back.
+    // Path readout that morphs into "? <query>" on long-press; a hidden
+    // TextField captures keystrokes in search mode, collapsing on tap-away.
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -761,12 +671,9 @@ class _VoidScreenState extends State<VoidScreen>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onLongPress: _searchMode ? null : _enterSearchMode,
-        onTap: _searchMode ? null : null,
         child: Builder(
           builder: (context) {
             if (_searchMode) {
-              // Search crumb keeps its own 12-px vertical padding; the
-              // input + close glyph self-size around it.
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -777,36 +684,22 @@ class _VoidScreenState extends State<VoidScreen>
             }
             LibraryController? controller;
             try {
-              controller = Provider.of<LibraryController>(context, listen: true);
-            } catch (_) {
-              controller = null;
-            }
+              controller = Provider.of<LibraryController>(context);
+            } catch (_) {/* not provided */}
             final path = controller?.currentPath;
-            final crumbStyle = TextStyle(
-              color: palette.fgSecondary,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.crumbSize,
-            );
-            // B-015: render the jump-to-now-playing glyph when the playing
-            // track lives outside the currently-browsed folder.
-            //
-            // B-031: hide-only debounce. The crumb rebuilds on every
-            // library/playback notification and `currentPath` / `songInfo`
-            // can briefly agree mid-track-change. We treat the "should-be-
-            // visible" predicate as authoritative and only allow the glyph
-            // to flip to hidden once the predicate has been false for
-            // ~200 ms. A timer schedules a rebuild when the window expires
-            // so a genuine match still hides the glyph after the debounce.
+            final crumbStyle =
+                _mono(typography, palette.fgSecondary, typography.crumbSize);
+            // B-015: show the jump glyph when the playing track lives outside
+            // the browsed folder; B-031 debounces the hide (see
+            // _resolveJumpGlyphVisible).
             final player = context.watch<AudioPlayerProvider>();
             final playingPath = player.songInfo?.track.path;
             final divergent = playingPath != null &&
                 playingPath.isNotEmpty &&
                 p.dirname(playingPath) != (path ?? '');
             final showJumpGlyph = _resolveJumpGlyphVisible(divergent);
-            // The path readout keeps its 12-px vertical padding to preserve
-            // the existing crumb baseline; the 44×44 glyph hit target lives
-            // outside that padding so it can extend to the row edges and
-            // satisfy the Material minimum (matches B-013's × pattern).
+            // 12-px vertical padding preserves the crumb baseline; the 44×44 glyph
+            // hit target sits outside it (Material min, B-013).
             return Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -831,53 +724,25 @@ class _VoidScreenState extends State<VoidScreen>
     );
   }
 
-  /// B-015: tap target for "take me to what's playing right now".
-  ///
-  /// The glyph is `⊙` in `fgPrimary` at `rowSize`. The hit target is a 44×44
-  /// square so the control matches B-013's accessibility-minimum pattern.
-  /// Visible only when `dirname(playingPath) != currentPath` — the parent
-  /// decides; this widget just renders the affordance and wires the tap.
-  ///
-  /// B-033: bumped from `crumbSize` / `fgSecondary` to `rowSize` /
-  /// `fgPrimary`. On a real device the previous styling was nearly
-  /// invisible against the dark chrome.
+  /// B-015: "jump to what's playing" tap target — `⊙` in fgPrimary at rowSize
+  /// (B-033 contrast bump), 44×44 hit target (B-013).
   Widget _buildJumpGlyph(
     AppPalette palette,
     AppTypography typography,
     String playingPath,
   ) {
-    return Semantics(
-      label: 'jump to now-playing folder',
-      button: true,
-      child: PressFeedback(
-        key: const ValueKey('void-crumb-jump-to-playing'),
-        onTap: () => _jumpToNowPlaying(playingPath),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(
-            child: Text(
-              '⊙', // ⊙ — CIRCLED DOT OPERATOR
-              style: TextStyle(
-                color: palette.fgPrimary,
-                fontFamily: typography.monoFamily,
-                fontSize: typography.rowSize,
-                height: 1,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return _glyphButton(
+      semanticsLabel: 'jump to now-playing folder',
+      buttonKey: const ValueKey('void-crumb-jump-to-playing'),
+      onTap: () => _jumpToNowPlaying(playingPath),
+      box: 44,
+      glyph: '⊙', // ⊙ — CIRCLED DOT OPERATOR
+      style: _mono(typography, palette.fgPrimary, typography.rowSize, height: 1),
     );
   }
 
-  /// B-031: source-of-truth for the crumb glyph's visibility. Returns the
-  /// latched flag; flips it eagerly to `true` whenever the underlying
-  /// [divergent] predicate is true, and only flips it back to `false` once
-  /// the predicate has been false continuously for
-  /// [_jumpGlyphHideDebounce] (~200 ms). This filters out one-frame races
-  /// between `library.currentPath` and `playback.songInfo` updates around
-  /// track changes.
+  /// B-031: latch true immediately when [divergent]; false only after the
+  /// predicate stays false for [_jumpGlyphHideDebounce].
   bool _resolveJumpGlyphVisible(bool divergent) {
     if (divergent) {
       _jumpGlyphHideTimer?.cancel();
@@ -886,9 +751,7 @@ class _VoidScreenState extends State<VoidScreen>
       return true;
     }
     if (!_jumpGlyphLatched) return false;
-    // Predicate is false but the latch is still true — schedule (or keep)
-    // a hide timer. We only arm a fresh timer if none is pending so the
-    // window doesn't keep getting reset by ordinary rebuilds.
+    // Latch still true — arm one hide timer (don't reset on ordinary rebuilds).
     _jumpGlyphHideTimer ??= Timer(_jumpGlyphHideDebounce, () {
       _jumpGlyphHideTimer = null;
       if (!mounted) return;
@@ -897,31 +760,16 @@ class _VoidScreenState extends State<VoidScreen>
     return true;
   }
 
-  /// Duration of the swipe-up browser open animation. Must stay in sync
-  /// with [_browserExpanded] state changes: there's no explicit slide-in
-  /// animation; the browser swaps in atomically when `_browserExpanded`
-  /// flips, but we still await a short window so the new VoidBrowser has a
-  /// chance to mount and lay out its first frame before we navigate +
-  /// scroll. ~250 ms keeps the interaction reading as a single gesture.
+  /// Settle window after opening the browser so its first frame lays out before
+  /// we navigate + scroll; ~250 ms reads as one gesture.
   static const Duration _browserOpenSettleDuration =
       Duration(milliseconds: 250);
 
-  /// B-015 / B-031: navigate the browser to [playingPath]'s parent folder
-  /// and centre the now-playing row in view. The sequence:
-  ///
-  ///   1. If the browser is in swipe-up presentation AND dismissed, open it
-  ///      first and wait one settle window so its first frame is laid out.
-  ///   2. `loadFolder(parent)` if we aren't already there.
-  ///   3. Pump frames until the target row's `GlobalKey.currentContext` is
-  ///      non-null OR ~500 ms have elapsed (lazy-built lists may need a few
-  ///      frames before the SliverList builds the target row).
-  ///   4. Centre the row via `Scrollable.ensureVisible`. If the row never
-  ///      built, fall back to `ScrollController.animateTo(index * rowHeight)`
-  ///      so the user sees SOMETHING happen even for very long folders.
+  /// B-015 / B-031: open the swipe-up browser if dismissed, navigate to
+  /// [playingPath]'s parent, centre the now-playing row.
   Future<void> _jumpToNowPlaying(String playingPath) async {
     final parent = p.dirname(playingPath);
     if (parent.isEmpty) return;
-    // B-031 step 1: open the swipe-up browser if it's currently dismissed.
     if (_browserPresentation == BrowserPresentation.swipeUp &&
         !_browserExpanded) {
       _setBrowserExpanded(true);
@@ -936,28 +784,15 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   Widget _buildSearchCrumb(AppPalette palette, AppTypography typography) {
-    // B-013: input renders at row-size (visual parity with the result rows
-    // above), the × glyph keeps its tertiary tone but ships with a 44 px
-    // square hit target, and the whole row accepts a downward swipe as a
-    // dismissal gesture.
-    final textStyle = TextStyle(
-      color: palette.fgPrimary,
-      fontFamily: typography.monoFamily,
-      fontSize: typography.rowSize,
-    );
-    // The × glyph itself stays at the same visual weight as before
-    // (typography.crumbSize, fgTertiary). Only its hit target grows.
-    final closeGlyphStyle = TextStyle(
-      color: palette.fgTertiary,
-      fontFamily: typography.monoFamily,
-      fontSize: typography.crumbSize,
-    );
+    // B-013: input at row-size; × keeps tertiary tone at crumbSize with a 44 px
+    // hit target; row accepts a downward swipe as dismissal.
+    final textStyle = _mono(typography, palette.fgPrimary, typography.rowSize);
+    final closeGlyphStyle =
+        _mono(typography, palette.fgTertiary, typography.crumbSize);
     return GestureDetector(
       key: const ValueKey('void-search-crumb-region'),
       behavior: HitTestBehavior.opaque,
-      // Downward fling / drag dismisses the search session, mirroring the
-      // × tap. We only act on a meaningfully-downward gesture so the
-      // TextField still gets to own intra-text scroll/long-press.
+      // Downward fling dismisses (mirrors × tap); TextField keeps scroll/long-press.
       onVerticalDragEnd: (d) {
         final v = d.primaryVelocity ?? 0;
         if (v > 200) _exitSearchMode();
@@ -971,13 +806,8 @@ class _VoidScreenState extends State<VoidScreen>
             child: TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
-              // `autofocus` is the single, reliable keyboard trigger: it shows
-              // the soft keyboard once when the field mounts (and re-mounts on
-              // each fresh search). `_enterSearchMode` deliberately does NOT
-              // also call `requestFocus()` — having both raced the
-              // browser-expand rebuild and made the keyboard flash up then
-              // hide. (requestFocus alone gives focus but doesn't reliably
-              // raise the keyboard, so autofocus is the one to keep.)
+              // autofocus is the single keyboard trigger; requestFocus raced the
+              // expand rebuild and flashed the keyboard.
               autofocus: true,
               cursorColor: palette.fgPrimary,
               cursorWidth: 1,
@@ -987,20 +817,13 @@ class _VoidScreenState extends State<VoidScreen>
               onSubmitted: (_) => _exitSearchMode(),
             ),
           ),
-          Semantics(
-            label: 'close search',
-            button: true,
-            child: PressFeedback(
-              key: const ValueKey('void-search-close'),
-              onTap: _exitSearchMode,
-              child: SizedBox(
-                width: 44,
-                height: 44,
-                child: Center(
-                  child: Text('×', style: closeGlyphStyle),
-                ),
-              ),
-            ),
+          _glyphButton(
+            semanticsLabel: 'close search',
+            buttonKey: const ValueKey('void-search-close'),
+            onTap: _exitSearchMode,
+            box: 44,
+            glyph: '×',
+            style: closeGlyphStyle,
           ),
         ],
       ),
@@ -1027,32 +850,19 @@ class _VoidScreenState extends State<VoidScreen>
   }
 
   Widget _buildSettingsButton(AppPalette palette, AppTypography typography) {
-    // 48 dp tap target with a perceptible glyph (B-004). Pre-fix this was a
-    // ~36 dp `·` rendered in fgTertiary — unreachable on the first try.
+    // B-004: 48 dp tap target with a perceptible glyph.
     return Positioned(
       top: 4,
       right: 4,
-      child: Semantics(
-        label: 'settings',
-        button: true,
-        child: PressFeedback(
-          key: const ValueKey('void-settings-button'),
-          onTap: () => VoidSettingsSheet.push(context),
-          child: Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            child: Text(
-              '⋮', // U+22EE VERTICAL ELLIPSIS — readable in mono
-              style: TextStyle(
-                color: palette.fgPrimary.withAlpha(180),
-                fontFamily: typography.monoFamily,
-                fontSize: typography.rowSize + 4,
-                height: 1,
-              ),
-            ),
-          ),
-        ),
+      child: _glyphButton(
+        semanticsLabel: 'settings',
+        buttonKey: const ValueKey('void-settings-button'),
+        onTap: () => VoidSettingsSheet.push(context),
+        box: 48,
+        glyph: '⋮', // U+22EE VERTICAL ELLIPSIS — readable in mono
+        style: _mono(typography, palette.fgPrimary.withAlpha(180),
+            typography.rowSize + 4,
+            height: 1),
       ),
     );
   }
@@ -1060,26 +870,16 @@ class _VoidScreenState extends State<VoidScreen>
   Widget _buildSwipeUpHint(AppPalette palette, AppTypography typography) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onVerticalDragUpdate: (d) {
-        _swipeUpAccum += d.primaryDelta ?? 0;
-        if (_swipeUpAccum < -30 && !_browserExpanded) {
-          _setBrowserExpanded(true);
-          _swipeUpAccum = 0;
-        }
-      },
-      onVerticalDragEnd: (_) => _swipeUpAccum = 0,
+      onVerticalDragUpdate: _onHeroVerticalDrag,
+      onVerticalDragEnd: _onHeroVerticalDragEnd,
       child: PressFeedback(
         onTap: () => _setBrowserExpanded(true),
         child: Container(
           alignment: Alignment.center,
           child: Text(
             '↑ swipe to browse',
-            style: TextStyle(
-              color: palette.fgTertiary,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.hintSize,
-              letterSpacing: 0.2,
-            ),
+            style: _mono(typography, palette.fgTertiary, typography.hintSize,
+                letterSpacing: 0.2),
           ),
         ),
       ),
@@ -1097,12 +897,8 @@ class _VoidScreenState extends State<VoidScreen>
           duration: const Duration(milliseconds: 800),
           child: Text(
             'tap · long-press · swipe',
-            style: TextStyle(
-              color: palette.fgQuaternary,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.hintSize,
-              letterSpacing: 0.18,
-            ),
+            style: _mono(typography, palette.fgQuaternary, typography.hintSize,
+                letterSpacing: 0.18),
           ),
         ),
       ),

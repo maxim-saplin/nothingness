@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../services/playback_controller.dart';
+import 'package:nothingness/services/playback_controller.dart';
 
 /// Emits a structured, grep-friendly diagnostic line to logcat / debug console.
 ///

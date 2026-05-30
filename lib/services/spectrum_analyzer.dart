@@ -1,12 +1,8 @@
 import 'dart:math' as math;
 
-/// Analyzes raw FFT data to produce visualization-ready bars.
-///
-/// This class handles:
-/// - Logarithmic frequency scaling (to match human hearing).
-/// - Frequency weighting (boosting highs to compensate for pink noise).
-/// - Smoothing (decay) over time.
-/// - Normalization to a 0.0-1.0 range.
+/// Analyzes raw FFT data into visualization-ready bars: log frequency scaling,
+/// frequency weighting (boost highs vs pink noise), time smoothing (decay), and
+/// normalization to 0.0-1.0.
 class SpectrumAnalyzer {
   /// Transforms raw FFT data into visualization bars.
   ///
@@ -26,27 +22,24 @@ class SpectrumAnalyzer {
 
     final buckets = List<double>.filled(barCount, 0.0);
 
-    // We skip the first bin (DC offset) usually.
-    // Using a log scale from index 1 to fft.length.
+    // Log scale from index 1 (skip bin 0 / DC offset) to fft.length.
     final double minIdx = 1.0;
     final double maxIdx = fft.length.toDouble();
     final double logMax = math.log(maxIdx);
     final double logMin = math.log(minIdx);
 
     for (int i = 0; i < barCount; i++) {
-      // Calculate start and end indices for this bar on a logarithmic scale.
-      // We want to map i=[0..barCount] to freq=[minIdx..maxIdx].
+      // Map i=[0..barCount] to freq=[minIdx..maxIdx] on a log scale.
       final double logStart = logMin + (logMax - logMin) * (i / barCount);
       final double logEnd = logMin + (logMax - logMin) * ((i + 1) / barCount);
 
       final int startIdx = math.exp(logStart).floor();
-      // Force the last bar to extend to the end of the FFT array to avoid
-      // floating point precision issues missing the last bin.
-      final int endIdx = (i == barCount - 1) 
-          ? fft.length 
+      // Force last bar to the FFT end so float precision can't drop the last bin.
+      final int endIdx = (i == barCount - 1)
+          ? fft.length
           : math.exp(logEnd).floor();
 
-      // Ensure we have at least one bin and don't go out of bounds.
+      // At least one bin, clamped in bounds.
       final int actualStart = startIdx.clamp(0, fft.length - 1);
       final int actualEnd = math.max(
         actualStart + 1,
@@ -59,31 +52,24 @@ class SpectrumAnalyzer {
         if (v > peak) peak = v;
       }
 
-      // Apply frequency weighting (boost highs).
-      // Audio naturally falls off at higher frequencies (pink noise).
-      // We apply a linear boost from 1.0 (bass) to 4.0 (treble).
+      // Frequency weighting: linear boost 1.0 (bass) → 4.0 (treble) to
+      // compensate for natural high-frequency falloff (pink noise).
       final double weight = 1.0 + (i / barCount) * 3.0;
       peak *= weight;
 
-      // Convert to dB.
-      // math.max(peak, 1e-6) ensures we don't take log(0).
+      // To dB; max(peak, 1e-6) avoids log(0).
       final db = 20 * math.log(math.max(peak, 1e-6)) / math.ln10;
 
-      // Normalize.
-      // We use the noiseGateDb as the floor.
-      // We assume a dynamic range of 50dB above the noise floor.
+      // Normalize over a 50dB dynamic range above the noise-gate floor.
       final threshold = noiseGateDb;
       const dynamicRange = 50.0;
       final normalized = ((db - threshold) / dynamicRange).clamp(0.0, 1.0);
 
-      // Smoothing (Decay).
+      // Smoothing: instant attack on rise, decay by smoothing factor on fall.
       final previous =
           (previousValues != null && previousValues.length > i)
               ? previousValues[i]
               : 0.0;
-
-      // If new value is higher, attack is instant.
-      // If lower, decay by smoothing factor.
       final value =
           normalized > previous
               ? normalized

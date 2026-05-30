@@ -16,12 +16,10 @@ import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/widgets/phone_frame.dart';
 import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
-import 'testing/agent_service.dart';
+import 'debug_hooks.dart';
 import 'theme/themes.dart';
 
-/// Boot stopwatch (B-008) — measures time from `main` entry to first frame.
-/// Kept top-level so [_BootstrapAppState] can stamp the swap-from-splash
-/// timing against the same origin.
+/// Boot stopwatch (B-008) — `main` entry to first frame; top-level so [_BootstrapAppState] stamps swap-from-splash against the same origin.
 final Stopwatch _bootSw = Stopwatch()..start();
 
 void main() {
@@ -30,27 +28,15 @@ void main() {
     debugPrint('[boot] first-frame=${_bootSw.elapsedMilliseconds}ms');
   });
   debugPrint('[boot] runApp=${_bootSw.elapsedMilliseconds}ms');
-  // B-008: keep `runApp` synchronous so the engine paints a cheap first
-  // frame (black [ColoredBox]) before heavy init runs.  All awaits live
-  // inside [_BootstrapAppState.initState] below.
+  // B-008: keep `runApp` synchronous so the engine paints a cheap first frame (black [ColoredBox]) before heavy init; all awaits live in [_BootstrapAppState.initState].
   runApp(const _BootstrapApp());
 }
 
-/// Top-level [NavigatorState] key used by [AgentService.closeSettingsSheet]
-/// and similar route operations driven from the VM service. Kept at file
-/// scope so it is created exactly once per process.
+/// Top-level [NavigatorState] key for [AgentService.closeSettingsSheet] and similar VM-service route ops; at file scope so it is created once per process.
 final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
 
-/// Splash + init host (B-008).
-///
-/// Renders a black [ColoredBox] for the first frame so the Flutter engine
-/// has cheap work to do while the heavy bootstrap (Hive, LibraryService,
-/// AudioService, AudioPlayerProvider) runs in a microtask. Swaps to the
-/// real [NothingApp] once init completes.
-///
-/// Intentionally minimal: no fonts, no images, no service lookups — the
-/// goal is for `build` to be effectively free on the first frame.
+/// Splash + init host (B-008). Renders a black [ColoredBox] for the first frame while the heavy bootstrap (Hive, LibraryService, AudioService, AudioPlayerProvider) runs in a microtask, then swaps to the real [NothingApp]. Intentionally minimal so the first-frame `build` is effectively free.
 class _BootstrapApp extends StatefulWidget {
   const _BootstrapApp();
 
@@ -64,20 +50,17 @@ class _BootstrapAppState extends State<_BootstrapApp> {
   @override
   void initState() {
     super.initState();
-    // Kick the heavy bootstrap off the synchronous build path. A
-    // microtask runs after the current event-loop turn, by which point
-    // the engine has already scheduled and rendered the splash frame.
+    // Kick the heavy bootstrap off the synchronous build path; the microtask runs after the splash frame is rendered.
     scheduleMicrotask(_bootstrap);
   }
 
   Future<void> _bootstrap() async {
     await Hive.initFlutter();
 
-    // Initialize LibraryService to restore file permissions
+    // Restore file permissions.
     await LibraryService().init();
 
-    // Load user settings early so we can choose decoder before starting
-    // AudioService.
+    // Load user settings early so we can choose decoder before starting AudioService.
     final settingsService = SettingsService();
     try {
       await settingsService.loadSettings();
@@ -93,31 +76,27 @@ class _BootstrapAppState extends State<_BootstrapApp> {
           androidNotificationChannelId:
               'com.saplin.nothingness.channel.audio',
           androidNotificationChannelName: 'Audio playback',
-          // Allow foreground service to stop when paused so the wake lock
-          // and notification are released, saving battery.  The service
-          // is re-promoted when playback resumes.
+          // Stop the foreground service when paused to release the wake lock/notification; re-promoted on resume.
           androidStopForegroundOnPause: true,
         ),
       );
     }
 
-    // Initialize audio player before swapping the splash so the first
-    // real frame has live data.
+    // Initialize the audio player before swapping the splash so the first real frame has live data.
     final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
     await audioPlayerProvider.init();
 
-    AgentService.register(provider: audioPlayerProvider);
-    AgentService.registerNavigatorKey(rootNavigatorKey);
+    DebugHooks.navigatorKey = rootNavigatorKey;
+    DebugHooks.provider = audioPlayerProvider;
+    DebugHooks.onAppReady?.call(audioPlayerProvider);
 
-    // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb).
-    // Drains any cold-start action that arrived before the handler attached.
+    // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb); drains any cold-start action that arrived before the handler attached.
     if (Platform.isAndroid) {
       unawaited(AutomationIntentService(audioPlayerProvider).start());
     }
 
     if (!mounted) {
-      // Hot restart raced us; drop the half-built provider rather than
-      // leaving it dangling.
+      // Hot restart raced us; drop the half-built provider rather than leaving it dangling.
       audioPlayerProvider.dispose();
       return;
     }
@@ -131,7 +110,7 @@ class _BootstrapAppState extends State<_BootstrapApp> {
   Widget build(BuildContext context) {
     final provider = _audioPlayerProvider;
     if (provider == null) {
-      // Cheap-render path. No MaterialApp, no theme, no fonts.
+      // Cheap-render path: no MaterialApp, theme, or fonts.
       return const ColoredBox(color: Color(0xFF000000));
     }
     return NothingApp(audioPlayerProvider: provider);
@@ -174,22 +153,15 @@ class _NothingAppState extends State<NothingApp> {
             builder: (context, child) {
               if (child == null) return const SizedBox.shrink();
 
-              // In debug builds AgentService rasterizes the current frame
-              // through this RepaintBoundary so drive.py can grab a PNG on
-              // desktop (where `adb screencap` does not apply). The wrapper
-              // is debug-only to keep release builds untouched.
+              // Debug only: AgentService rasterizes through this RepaintBoundary so drive.py can grab a PNG on desktop (where `adb screencap` doesn't apply).
               if (kDebugMode) {
                 child = RepaintBoundary(
-                  key: AgentService.screenshotBoundaryKey,
+                  key: DebugHooks.screenshotBoundaryKey,
                   child: child,
                 );
               }
 
-              // On automotive OEM displays (e.g. Zeekr DHU) the platform
-              // ignores statusBarIconBrightness/statusBarColor.  Draw a
-              // Flutter scrim over the status-bar area so dark OEM icons
-              // stay readable.  This sits outside ScaledLayout so it uses
-              // raw screen coordinates.
+              // Automotive OEM displays (e.g. Zeekr DHU) ignore statusBarIconBrightness/Color; draw a Flutter scrim over the status-bar area so dark OEM icons stay readable. Outside ScaledLayout so it uses raw screen coordinates.
               final Widget appWithChrome = ValueListenableBuilder<bool>(
                 valueListenable: SettingsService().fullScreenNotifier,
                 builder: (context, isFullScreen, appChild) {
@@ -227,12 +199,7 @@ class _NothingAppState extends State<NothingApp> {
                 child: child,
               );
 
-              // B-042 (debug only): render the whole app inside a letterboxed
-              // narrow-tall "phone frame" so portrait-phone layout can be
-              // exercised on the desktop build. The MediaQuery size override
-              // makes layout/typography see phone dimensions; the screenshot
-              // boundary (wrapping `child` above) then captures phone-sized
-              // frames for drive.py.
+              // B-042 (debug only): render the app inside a letterboxed "phone frame" so portrait layout can be exercised on desktop; the MediaQuery size override makes layout/typography see phone dimensions for drive.py captures.
               if (!kDebugMode) return appWithChrome;
               return ValueListenableBuilder<Size?>(
                 valueListenable: SettingsService().phoneFrameNotifier,
@@ -247,10 +214,7 @@ class _NothingAppState extends State<NothingApp> {
   }
 }
 
-/// Rebuilds the [MaterialApp] when any of the three theme-driving notifiers
-/// change. Listening to operating mode here keeps the tree wired even though
-/// the mode does not directly affect [ThemeData] — downstream surfaces read it
-/// via [SettingsService].
+/// Rebuilds the [MaterialApp] when any of the three theme-driving notifiers change. Operating mode is listened to here (though it doesn't affect [ThemeData]) to keep the tree wired; downstream surfaces read it via [SettingsService].
 class _ThemeListener extends StatefulWidget {
   const _ThemeListener({
     required this.themeIdNotifier,

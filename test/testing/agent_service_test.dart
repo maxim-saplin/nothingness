@@ -1,19 +1,25 @@
 // Unit tests covering the tooling fixes bundled in B-021..B-025
-// (`lib/testing/agent_service.dart`). The agent extensions themselves
+// (`dev/agent_service.dart`). The agent extensions themselves
 // are registered against the Dart VM service in debug mode; here we
 // poke the underlying handlers through `@visibleForTesting` seams.
+//
+// Post-inversion the harness reads its app references from [DebugHooks]
+// instead of its own register* setters, so the B-024 wiring sets
+// `DebugHooks.settingsOpener` directly.
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nothingness/debug_hooks.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/transport_position.dart';
 import 'package:nothingness/services/settings_service.dart';
-import 'package:nothingness/testing/agent_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../dev/agent_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,12 +33,34 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    // Reset the inversion seam between tests.
+    DebugHooks.onAppReady = null;
+    DebugHooks.settingsOpener = null;
+    DebugHooks.libraryController = null;
+    DebugHooks.provider = null;
     // SettingsService is a singleton — reset its mutable notifiers so each
     // test starts from defaults.
     final s = SettingsService();
     s.screenConfigNotifier.value = SettingsService.defaultScreenConfig;
     s.transportPositionNotifier.value =
         SettingsService.defaultTransportPosition;
+  });
+
+  // ---------------------------------------------------------------------------
+  // Dependency inversion: install() arms the harness by registering an
+  // onAppReady hook that the app fires once init completes (instead of the
+  // app importing AgentService and calling register* directly).
+  // ---------------------------------------------------------------------------
+  group('install wires the DebugHooks seam', () {
+    test('install() sets DebugHooks.onAppReady', () {
+      expect(DebugHooks.onAppReady, isNull);
+      AgentService.install();
+      // In debug mode (flutter test) install arms the onAppReady callback so
+      // the app can hand the harness its provider post-init.
+      expect(DebugHooks.onAppReady, isNotNull);
+      // Firing it (as the app does) must not throw with no provider attached.
+      DebugHooks.onAppReady!.call(Object());
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -206,7 +234,7 @@ void main() {
       // Simulate the real opener (Navigator.push) by returning a Future
       // that NEVER completes.
       final neverPops = Completer<void>();
-      AgentService.registerSettingsOpener(() => neverPops.future);
+      DebugHooks.settingsOpener = () => neverPops.future;
 
       try {
         final resp = await AgentService.debugOpenSettingsSheet(
@@ -214,13 +242,13 @@ void main() {
         ).timeout(const Duration(milliseconds: 50));
         expect(resp.isError(), isFalse);
       } finally {
-        AgentService.registerSettingsOpener(null);
+        DebugHooks.settingsOpener = null;
         neverPops.complete(); // clean up the dangling Future.
       }
     });
 
     test('returns an error when no opener is registered', () async {
-      AgentService.registerSettingsOpener(null);
+      DebugHooks.settingsOpener = null;
       final resp = await AgentService.debugOpenSettingsSheet(
         const <String, String>{},
       );

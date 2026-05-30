@@ -40,6 +40,13 @@ class SkinLayout extends StatefulWidget {
   State<SkinLayout> createState() => _SkinLayoutState();
 }
 
+TextStyle _debugLabelStyle(double fontSize) => TextStyle(
+  color: Colors.white,
+  fontWeight: FontWeight.bold,
+  backgroundColor: Colors.black54,
+  fontSize: fontSize,
+);
+
 class _SkinLayoutState extends State<SkinLayout> {
   ui.Image? _image;
   bool _isLoading = true;
@@ -71,7 +78,6 @@ class _SkinLayoutState extends State<SkinLayout> {
         }
       },
       onError: (dynamic exception, StackTrace? stackTrace) {
-        // Handle error
         setState(() => _isLoading = false);
       },
     );
@@ -96,43 +102,35 @@ class _SkinLayoutState extends State<SkinLayout> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate the rendered rect of the image using BoxFit.contain
+        // Rendered rect of the image under BoxFit.contain (centered).
         final Size containerSize = constraints.biggest;
         final Size imageSize = Size(
           _image!.width.toDouble(),
           _image!.height.toDouble(),
         );
 
-        final FittedSizes fittedSizes = applyBoxFit(
-          BoxFit.contain,
-          imageSize,
-          containerSize,
-        );
-        final Size destinationSize = fittedSizes.destination;
-
-        final double dx = (containerSize.width - destinationSize.width) / 2.0;
-        final double dy = (containerSize.height - destinationSize.height) / 2.0;
+        final Size destinationSize =
+            applyBoxFit(BoxFit.contain, imageSize, containerSize).destination;
 
         final Rect renderedImageRect = Rect.fromLTWH(
-          dx,
-          dy,
+          (containerSize.width - destinationSize.width) / 2.0,
+          (containerSize.height - destinationSize.height) / 2.0,
           destinationSize.width,
           destinationSize.height,
         );
 
-        // Calculate absolute LCD rect relative to the RENDERED image rect
-        final absoluteLcdRect = Rect.fromLTWH(
-          renderedImageRect.left +
-              (widget.lcdRect.left * renderedImageRect.width),
-          renderedImageRect.top +
-              (widget.lcdRect.top * renderedImageRect.height),
-          widget.lcdRect.width * renderedImageRect.width,
-          widget.lcdRect.height * renderedImageRect.height,
+        // Map a relative (0..1) rect into the rendered image rect.
+        Rect toAbsolute(Rect r) => Rect.fromLTWH(
+          renderedImageRect.left + (r.left * renderedImageRect.width),
+          renderedImageRect.top + (r.top * renderedImageRect.height),
+          r.width * renderedImageRect.width,
+          r.height * renderedImageRect.height,
         );
+
+        final absoluteLcdRect = toAbsolute(widget.lcdRect);
 
         return Stack(
           children: [
-            // Background Image (Centered)
             Center(
               child: Image.asset(
                 widget.backgroundImagePath,
@@ -140,34 +138,26 @@ class _SkinLayoutState extends State<SkinLayout> {
               ),
             ),
 
-            // LCD Content Area
+            // LCD content area.
             Positioned.fromRect(
               rect: absoluteLcdRect,
               child: widget.lcdContent,
             ),
 
-            // Interactive Control Areas
+            // Interactive control areas.
             if (widget.controlAreas != null)
               ...widget.controlAreas!.map((area) {
-                final absoluteRect = Rect.fromLTWH(
-                  renderedImageRect.left +
-                      (area.rect.left * renderedImageRect.width),
-                  renderedImageRect.top +
-                      (area.rect.top * renderedImageRect.height),
-                  area.rect.width * renderedImageRect.width,
-                  area.rect.height * renderedImageRect.height,
-                );
-
+                final isCircle = area.shape == SkinControlShape.circle;
                 return Positioned.fromRect(
-                  rect: absoluteRect,
+                  rect: toAbsolute(area.rect),
                   child: Stack(
                     children: [
-                      // Touch Interaction & Ripple
+                      // Touch interaction & ripple.
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: area.onTap,
-                          customBorder: area.shape == SkinControlShape.circle
+                          customBorder: isCircle
                               ? const CircleBorder()
                               : RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
@@ -177,30 +167,23 @@ class _SkinLayoutState extends State<SkinLayout> {
                           child: Container(),
                         ),
                       ),
-                      // Debug Visualization
                       if (widget.debugLayout)
                         IgnorePointer(
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.blue.withValues(alpha: 0.3),
                               border: Border.all(color: Colors.blue, width: 2),
-                              shape: area.shape == SkinControlShape.circle
+                              shape: isCircle
                                   ? BoxShape.circle
                                   : BoxShape.rectangle,
-                              borderRadius:
-                                  area.shape == SkinControlShape.rectangle
-                                  ? BorderRadius.circular(10)
-                                  : null,
+                              borderRadius: isCircle
+                                  ? null
+                                  : BorderRadius.circular(10),
                             ),
                             child: Center(
                               child: Text(
                                 area.debugLabel,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  backgroundColor: Colors.black54,
-                                  fontSize: 8,
-                                ),
+                                style: _debugLabelStyle(8),
                                 textAlign: TextAlign.center,
                               ),
                             ),
@@ -211,7 +194,6 @@ class _SkinLayoutState extends State<SkinLayout> {
                 );
               }),
 
-            // Debug Overlay
             if (widget.debugLayout)
               Positioned.fromRect(
                 rect: absoluteLcdRect,
@@ -223,19 +205,14 @@ class _SkinLayoutState extends State<SkinLayout> {
                   child: Center(
                     child: Text(
                       'LCD Area\n${(widget.lcdRect.left * 100).toStringAsFixed(1)}%, ${(widget.lcdRect.top * 100).toStringAsFixed(1)}%\n${(widget.lcdRect.width * 100).toStringAsFixed(1)}% x ${(widget.lcdRect.height * 100).toStringAsFixed(1)}%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        backgroundColor: Colors.black54,
-                        fontSize: 10,
-                      ),
+                      style: _debugLabelStyle(10),
                       textAlign: TextAlign.center,
                     ),
                   ),
                 ),
               ),
 
-            // Media Controls (Optional Overlay - kept at screen bottom)
+            // Media controls (optional overlay pinned near screen bottom).
             if (widget.mediaControls != null)
               Positioned(
                 left: 0,
