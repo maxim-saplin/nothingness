@@ -26,7 +26,12 @@ uv sync   # creates .venv at the repo root and installs websockets
 ### Android (emulator or device)
 
 ```bash
-flutter run -d emulator-5554 --debug
+# On an x86_64 emulator you MUST build x86_64 — this project's
+# android/app/build.gradle.kts defaults `target-platform`/abiFilters to arm64
+# (for release size), and a default `flutter run` would cross-compile
+# flutter_soloud for arm64-v8a, which fails on the snap Flutter toolchain
+# (host glibc headers leak into the NDK aarch64 sysroot — see B-045). Set:
+CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --debug
 ```
 
 After install, **prepare the device** so the first-launch UI doesn't stall on permission dialogs and SoLoud has a playable file in its sandbox. Granting library permissions and staging an audio file is a one-time idempotent step:
@@ -89,6 +94,15 @@ $D play /home/user/Music/foo.mp3      # any readable absolute path works
 3. Default: `android`.
 
 On `linux` / `macos`, ADB calls are bypassed, `shoot` rasterizes via `ext.nothingness.screenshot` (no `adb screencap`), `logcat` tails `/tmp/flutter_run.log`, and `reset` refuses (restart the `flutter run` process to wipe state).
+
+**Running Android *alongside* a live Linux session** (e.g. parallel regression): drive.py resolves the VM URI from the `flutter run` stdout log, defaulting to `/tmp/flutter_run.log`. If a Linux session owns that path, launch the Android run to a separate log and point drive.py at it, else Android reads the stale Linux URI:
+
+```bash
+CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --debug < /dev/null > /tmp/flutter_run_android.log 2>&1 &
+export DRIVE_TARGET=android DRIVE_RUN_LOG=/tmp/flutter_run_android.log   # <- the override
+```
+
+drive.py reads the host-local DDS URI flutter prints there (`A Dart VM Service … available at: http://127.0.0.1:PORT/…`) — no manual `adb forward` needed.
 
 ```bash
 D=.claude/skills/agent-emulator-debugging/scripts/drive.py

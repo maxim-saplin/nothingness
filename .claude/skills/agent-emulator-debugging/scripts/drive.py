@@ -73,7 +73,10 @@ LOCAL_FORWARD_PORT = int(os.environ.get("DRIVE_LOCAL_PORT", "8181"))
 # Where we cache the discovered VM service WebSocket URI between runs.
 WS_CACHE = Path(__file__).with_name(".vm_ws.txt")
 
-FLUTTER_RUN_LOG = Path("/tmp/flutter_run.log")
+# The `flutter run` stdout log to scan for the host-local VM/DDS URI. Override
+# with DRIVE_RUN_LOG when running a second session (e.g. an Android run logging
+# to /tmp/flutter_run_android.log while a Linux session owns the default path).
+FLUTTER_RUN_LOG = Path(os.environ.get("DRIVE_RUN_LOG", "/tmp/flutter_run.log"))
 
 # Valid `flutter run -d <id>` targets we know how to drive. "android" covers
 # any adb-attached device; "linux" / "macos" cover Flutter desktop builds.
@@ -203,8 +206,10 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
             except Exception:
                 pass
 
-    # `flutter run`'s stdout log always has a host-local URI (Android: forwarded
-    # by flutter; desktop: native). Prefer this everywhere.
+    # `flutter run`'s stdout log has a host-local URI on both platforms (Android:
+    # the DDS endpoint, already forwarded by flutter; desktop: native). Prefer
+    # it. Point DRIVE_RUN_LOG at the right log when a Linux session owns the
+    # default path, so Android doesn't read a stale Linux URI.
     uri = _scan_flutter_run_log_for_vm_uri()
     if uri:
         ws = uri.replace("http://", "ws://").rstrip("/") + "/ws"

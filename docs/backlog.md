@@ -25,27 +25,28 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
 
 ---
 
-## B-045 (major): Android debug build fails — flutter_soloud arm64 NDK sysroot leak
+## B-045 (major): default Android emulator run cross-compiles arm64 and fails (flutter_soloud NDK sysroot leak)
 
-- **Symptom** — `flutter run -d emulator-5554 --debug` (and any Android build of
-  the current tree) fails during Gradle `assembleDebug` while cross-compiling the
-  `flutter_soloud-4.0.6` native plugin for **arm64-v8a**. Blocks ALL on-device
-  Android testing — the regression swarm's Android shards (A1-A4, on-device
-  playback RP-01..11) could not run.
-- **Repro** — Android regression worker 2026-05-30, 4 build cycles. NDK 27
-  aarch64 clang (`--target=aarch64-none-linux-android21`) pulls the host snap
-  glibc headers `/snap/flutter/current/usr/include/c++/9/memory` →
-  `error: cast from pointer to smaller type 'uintptr_t' loses information` and
-  `bits/wchar2.h: "Assumed value of MB_LEN_MAX wrong"`. Deterministic
-  host-toolchain/sysroot defect — NOT emulator flakiness (`emulator-5554` stayed
-  `device`; adb push/grant worked).
-- **Notes** — `abiFilters` in `android/app/build.gradle.kts` gate only the `:app`
-  module; the `flutter_soloud` `externalNativeBuild` still enumerates arm64-v8a,
-  and `CI_EMULATOR_ABI=x86_64` did not suppress it. Needs a non-leaking aarch64
-  NDK sysroot (snap glibc headers must not leak into the NDK include path), or
-  constraining the soloud build's abiFilters, or a non-snap Flutter toolchain.
-  Environmental/toolchain — needs maintainer attention; out of scope for the
-  in-app QA campaign. Area — build/tooling.
+- **Symptom** — A plain `flutter run -d emulator-5554 --debug` fails during Gradle
+  `assembleDebug`: `android/app/build.gradle.kts` defaults `target-platform`/
+  abiFilters to **arm64-v8a** (release-size choice) even when the target is an
+  x86_64 emulator, so it cross-compiles `flutter_soloud-4.0.6` for arm64 and the
+  NDK 27 aarch64 clang pulls host snap glibc headers
+  (`/snap/flutter/current/usr/include`) → `cast from pointer to smaller type
+  'uintptr_t' loses information` / `MB_LEN_MAX wrong`. The obvious dev command is
+  a footgun.
+- **WORKAROUND (verified, unblocks testing)** — build x86_64 explicitly:
+  `CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --debug`. After a clean
+  state (`flutter clean`) this builds, installs, and runs; the full Android
+  regression sweep (A1-A4 + playback) then passed with 0 findings on 2026-05-30.
+  Documented in the `agent-emulator-debugging` SKILL, along with the
+  `DRIVE_RUN_LOG` override drive.py now needs to read the Android DDS URI when a
+  Linux session owns `/tmp/flutter_run.log`.
+- **Still open (root cause)** — the **arm64** debug build remains broken on the
+  snap Flutter toolchain (host glibc headers leak into the NDK aarch64 sysroot).
+  Fixes: a non-leaking aarch64 NDK sysroot, a non-snap toolchain, or have the
+  default emulator run honour the device ABI (don't force arm64 for debug/`run`).
+  Area — build/tooling.
 
 ## B-039 (minor): hero swipe direction is unintuitive + no animated card transition
 
