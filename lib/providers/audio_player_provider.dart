@@ -27,7 +27,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   StreamSubscription<MediaItem?>? _androidMediaItemSub;
   StreamSubscription<PlaybackState>? _androidPlaybackStateSub;
 
-  // Reactive state
+  // Reactive state.
   SongInfo? _songInfo;
   bool _isPlaying = false;
   List<AudioTrack> _queue = [];
@@ -36,14 +36,12 @@ class AudioPlayerProvider extends ChangeNotifier {
   bool _isOneShot = false;
   List<double> _spectrumData = List.filled(32, 0.0);
 
-  // Stream subscriptions
   StreamSubscription<List<double>>? _spectrumSubscription;
   final StreamController<List<double>> _spectrumController =
       StreamController<List<double>>.broadcast();
 
   VoidCallback? _oneShotListener;
 
-  // Getters
   SongInfo? get songInfo => _songInfo;
   bool get isPlaying => _isPlaying;
   List<AudioTrack> get queue => _queue;
@@ -64,83 +62,85 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   Future<void> init() async {
     if (_initialized) return;
-
-    if (_isAndroid) {
-      final handler = _androidHandler;
-      if (handler == null) {
-        throw StateError(
-          'AudioPlayerProvider(android): androidHandler is required on Android',
-        );
-      }
-      await handler.ready;
-
-      // Mirror handler streams into provider state.
-      _androidQueueSub = handler.queue.listen((items) {
-        _queue = items
-            .map(
-              (m) => AudioTrack(
-                path: m.id,
-                title: m.title,
-                artist: m.artist ?? '',
-                duration: m.duration,
-                isNotFound: (m.extras?['isNotFound'] as bool?) ?? false,
-              ),
-            )
-            .toList(growable: false);
-        _syncSongInfoFromHandler();
-        notifyListeners();
-      });
-
-      _androidMediaItemSub = handler.mediaItem.listen((m) {
-        _syncSongInfoFromHandler();
-        notifyListeners();
-      });
-
-      _androidPlaybackStateSub = handler.playbackState.listen((s) {
-        _isPlaying = s.playing;
-        _currentIndex = s.queueIndex;
-        _shuffle = s.shuffleMode == AudioServiceShuffleMode.all;
-        _syncSongInfoFromHandler();
-        notifyListeners();
-      });
-
-      // Android spectrum stays off until the UI requests it.
-      _captureEnabled = false;
-    } else {
-      final controller = _controller!;
-      final transport = _transport!;
-
-      await controller.init();
-
-      controller.songInfoNotifier.addListener(_onControllerChanged);
-      controller.isPlayingNotifier.addListener(_onControllerChanged);
-      controller.queueNotifier.addListener(_onControllerChanged);
-      controller.currentIndexNotifier.addListener(_onControllerChanged);
-      controller.shuffleNotifier.addListener(_onControllerChanged);
-
-      // Mirror the controller's one-shot flag so the UI marker stays in sync
-      // when the controller clears it (natural end / abort).
-      _oneShotListener = () {
-        _isOneShot = controller.isOneShotNotifier.value;
-        notifyListeners();
-      };
-      controller.isOneShotNotifier.addListener(_oneShotListener!);
-
-      _songInfo = controller.songInfoNotifier.value;
-      _isPlaying = controller.isPlayingNotifier.value;
-      _queue = controller.queueNotifier.value;
-      _currentIndex = controller.currentIndexNotifier.value;
-      _shuffle = controller.shuffleNotifier.value;
-      _isOneShot = controller.isOneShotNotifier.value;
-
-      _spectrumSubscription = transport.spectrumStream.listen((data) {
-        _spectrumData = data;
-        notifyListeners();
-      });
-    }
-
+    _isAndroid ? await _initAndroid() : await _initController();
     _initialized = true;
     notifyListeners();
+  }
+
+  Future<void> _initAndroid() async {
+    final handler = _androidHandler;
+    if (handler == null) {
+      throw StateError(
+        'AudioPlayerProvider(android): androidHandler is required on Android',
+      );
+    }
+    await handler.ready;
+
+    // Mirror handler streams into provider state.
+    _androidQueueSub = handler.queue.listen((items) {
+      _queue = items
+          .map(
+            (m) => AudioTrack(
+              path: m.id,
+              title: m.title,
+              artist: m.artist ?? '',
+              duration: m.duration,
+              isNotFound: (m.extras?['isNotFound'] as bool?) ?? false,
+            ),
+          )
+          .toList(growable: false);
+      _syncSongInfoFromHandler();
+      notifyListeners();
+    });
+
+    _androidMediaItemSub = handler.mediaItem.listen((m) {
+      _syncSongInfoFromHandler();
+      notifyListeners();
+    });
+
+    _androidPlaybackStateSub = handler.playbackState.listen((s) {
+      _isPlaying = s.playing;
+      _currentIndex = s.queueIndex;
+      _shuffle = s.shuffleMode == AudioServiceShuffleMode.all;
+      _syncSongInfoFromHandler();
+      notifyListeners();
+    });
+
+    // Android spectrum stays off until the UI requests it.
+    _captureEnabled = false;
+  }
+
+  Future<void> _initController() async {
+    final controller = _controller!;
+    final transport = _transport!;
+
+    await controller.init();
+
+    controller.songInfoNotifier.addListener(_onControllerChanged);
+    controller.isPlayingNotifier.addListener(_onControllerChanged);
+    controller.queueNotifier.addListener(_onControllerChanged);
+    controller.currentIndexNotifier.addListener(_onControllerChanged);
+    controller.shuffleNotifier.addListener(_onControllerChanged);
+
+    // Mirror the controller's one-shot flag so the UI marker stays in sync
+    // when the controller clears it (natural end / abort).
+    _oneShotListener = () {
+      _isOneShot = controller.isOneShotNotifier.value;
+      notifyListeners();
+    };
+    controller.isOneShotNotifier.addListener(_oneShotListener!);
+
+    _songInfo = controller.songInfoNotifier.value;
+    _isPlaying = controller.isPlayingNotifier.value;
+    _queue = controller.queueNotifier.value;
+    _currentIndex = controller.currentIndexNotifier.value;
+    _shuffle = controller.shuffleNotifier.value;
+    _isOneShot = controller.isOneShotNotifier.value;
+
+    _spectrumSubscription = transport.spectrumStream.listen((data) {
+      _spectrumData = data;
+      notifyListeners();
+    });
   }
 
   @override
@@ -184,11 +184,7 @@ class AudioPlayerProvider extends ChangeNotifier {
   Future<void> playPause() async {
     if (_isAndroid) {
       final handler = _androidHandler!;
-      if (_isPlaying) {
-        await handler.pause();
-      } else {
-        await handler.play();
-      }
+      _isPlaying ? await handler.pause() : await handler.play();
       return;
     }
     await _controller!.playPause();
@@ -272,6 +268,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   Future<void> shuffleQueue() =>
       _delegate((h) => h.customAction('shuffleQueue'), (c) => c.shuffleQueue());
+
   Future<void> disableShuffle() => _delegate(
     (h) => h.customAction('disableShuffle'),
     (c) => c.disableShuffle(),
@@ -290,68 +287,57 @@ class AudioPlayerProvider extends ChangeNotifier {
   }
 
   void setCaptureEnabled(bool enabled) {
-    if (_isAndroid) {
-      _captureEnabled = enabled;
-      if (!enabled) {
-        _spectrumSubscription?.cancel();
-        _spectrumSubscription = null;
-        _androidHandler?.setCaptureEnabled(false);
-        _spectrumData = List.filled(32, 0.0);
-        notifyListeners();
-      } else {
-        _androidHandler?.setCaptureEnabled(true);
-        _maybeStartAndroidSpectrum();
-      }
+    if (!_isAndroid) {
+      _transport?.setCaptureEnabled(enabled);
       return;
     }
-    _transport?.setCaptureEnabled(enabled);
+    _captureEnabled = enabled;
+    if (enabled) {
+      _androidHandler?.setCaptureEnabled(true);
+      _maybeStartAndroidSpectrum();
+    } else {
+      _spectrumSubscription?.cancel();
+      _spectrumSubscription = null;
+      _androidHandler?.setCaptureEnabled(false);
+      _spectrumData = List.filled(32, 0.0);
+      notifyListeners();
+    }
   }
 
   void updateSpectrumSettings(SpectrumSettings settings) {
-    if (_isAndroid) {
-      _androidHandler?.updateSpectrumSettings(settings);
-      _platformChannels.updateSpectrumSettings(settings);
-      if (_captureEnabled) {
-        _maybeStartAndroidSpectrum();
-      }
+    if (!_isAndroid) {
+      _transport?.updateSpectrumSettings(settings);
       return;
     }
-    _transport?.updateSpectrumSettings(settings);
+    _androidHandler?.updateSpectrumSettings(settings);
+    _platformChannels.updateSpectrumSettings(settings);
+    if (_captureEnabled) _maybeStartAndroidSpectrum();
   }
 
   Future<List<AudioTrack>> scanFolder(String rootPath) =>
       _controller?.scanFolder(rootPath) ?? Future.value(const <AudioTrack>[]);
+
   Future<int> playlistSizeBytes() =>
       _controller?.playlistSizeBytes() ?? Future.value(0);
 
   /// Controller diagnostics; null if no controller is reachable (early init).
-  Map<String, Object?>? diagnosticsSnapshot() {
-    if (_isAndroid) return _androidHandler?.diagnosticsSnapshot();
-    return _controller?.diagnosticsSnapshot();
-  }
+  Map<String, Object?>? diagnosticsSnapshot() => _isAndroid
+      ? _androidHandler?.diagnosticsSnapshot()
+      : _controller?.diagnosticsSnapshot();
 
-  List<String> audioEvents() {
-    if (_isAndroid) return _androidHandler?.audioEvents() ?? const <String>[];
-    return _controller?.audioEvents() ?? const <String>[];
-  }
+  List<String> audioEvents() => _isAndroid
+      ? (_androidHandler?.audioEvents() ?? const <String>[])
+      : (_controller?.audioEvents() ?? const <String>[]);
 
   /// Test seam: simulate an audio interruption event.
-  void debugSimulateInterruption(AudioInterruptionEvent event) {
-    if (_isAndroid) {
-      _androidHandler?.debugSimulateInterruption(event);
-    } else {
-      _controller?.debugSimulateInterruption(event);
-    }
-  }
+  void debugSimulateInterruption(AudioInterruptionEvent event) => _isAndroid
+      ? _androidHandler?.debugSimulateInterruption(event)
+      : _controller?.debugSimulateInterruption(event);
 
   /// Test seam: simulate an audio-becoming-noisy event.
-  void debugSimulateBecomingNoisy() {
-    if (_isAndroid) {
-      _androidHandler?.debugSimulateBecomingNoisy();
-    } else {
-      _controller?.debugSimulateBecomingNoisy();
-    }
-  }
+  void debugSimulateBecomingNoisy() => _isAndroid
+      ? _androidHandler?.debugSimulateBecomingNoisy()
+      : _controller?.debugSimulateBecomingNoisy();
 
   Map<String, Object?> _encodeTrack(AudioTrack t) => <String, Object?>{
         'path': t.path,
@@ -367,11 +353,11 @@ class AudioPlayerProvider extends ChangeNotifier {
     final handler = _androidHandler;
     if (handler == null) return;
     final m = handler.mediaItem.value;
-    final s = handler.playbackState.value;
     if (m == null) {
       _songInfo = null;
       return;
     }
+    final s = handler.playbackState.value;
     _songInfo = SongInfo(
       track: AudioTrack(
         path: m.id,
@@ -387,7 +373,6 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   void _maybeStartAndroidSpectrum() {
     if (!_captureEnabled) return;
-
     _spectrumSubscription?.cancel();
     _spectrumSubscription = _androidHandler!.spectrumStream.listen((data) {
       _spectrumData = data;

@@ -39,28 +39,21 @@ class NothingAudioHandler extends BaseAudioHandler
   final Completer<void> _initCompleter = Completer<void>();
   Future<void> get ready => _initCompleter.future;
 
+  Duration _lastPosition = Duration.zero;
+
   Stream<List<double>> get spectrumStream => _transport.spectrumStream;
 
   void setCaptureEnabled(bool enabled) => _transport.setCaptureEnabled(enabled);
-
   void suspendTimers() => _controller.suspendTimers();
-
   void resumeTimers() => _controller.resumeTimers();
-
   void updateSpectrumSettings(SpectrumSettings settings) =>
       _transport.updateSpectrumSettings(settings);
-
   Map<String, Object?> diagnosticsSnapshot() =>
       _controller.diagnosticsSnapshot();
-
   List<String> audioEvents() => _controller.audioEvents();
-
   void debugSimulateInterruption(AudioInterruptionEvent event) =>
       _controller.debugSimulateInterruption(event);
-
   void debugSimulateBecomingNoisy() => _controller.debugSimulateBecomingNoisy();
-
-  Duration _lastPosition = Duration.zero;
 
   Future<void> _init() async {
     try {
@@ -101,25 +94,20 @@ class NothingAudioHandler extends BaseAudioHandler
       _initCompleter.complete();
     } catch (e, st) {
       debugPrint('[NothingAudioHandler] init error: $e');
-      if (!_initCompleter.isCompleted) {
-        _initCompleter.completeError(e, st);
-      }
+      if (!_initCompleter.isCompleted) _initCompleter.completeError(e, st);
     }
   }
 
-  static MediaItem _toMediaItem(AudioTrack t) {
-    return MediaItem(
-      id: t.path,
-      title: t.title,
-      artist: t.artist,
-      duration: t.duration,
-      extras: <String, Object?>{'isNotFound': t.isNotFound},
-    );
-  }
+  static MediaItem _toMediaItem(AudioTrack t) => MediaItem(
+        id: t.path,
+        title: t.title,
+        artist: t.artist,
+        duration: t.duration,
+        extras: <String, Object?>{'isNotFound': t.isNotFound},
+      );
 
   void _updateQueue() {
-    final items = _controller.queueNotifier.value.map(_toMediaItem).toList();
-    queue.add(items);
+    queue.add(_controller.queueNotifier.value.map(_toMediaItem).toList());
   }
 
   void _updateMediaItem() {
@@ -142,11 +130,10 @@ class NothingAudioHandler extends BaseAudioHandler
 
   void _updatePlaybackState() {
     final playing = _controller.isPlayingNotifier.value;
-    final currentQueue = queue.value;
     final currentMedia = mediaItem.value;
-    final int? idx = currentMedia == null
+    final idx = currentMedia == null
         ? null
-        : currentQueue.indexWhere((m) => m.id == currentMedia.id);
+        : queue.value.indexWhere((m) => m.id == currentMedia.id);
     final shuffle = _controller.shuffleNotifier.value;
 
     playbackState.add(
@@ -180,25 +167,23 @@ class NothingAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     await ready;
-    if (!_controller.isPlayingNotifier.value) {
-      try {
-        await _controller.playPause();
-      } catch (e) {
-        // Some OEM paths invalidate the source while keeping the session alive;
-        // force-reload the current queue item if plain play fails.
-        debugPrint('[NothingAudioHandler] play() failed, forcing reload: $e');
-        final idx = _controller.currentIndexNotifier.value ?? 0;
-        await _controller.playFromQueueIndex(idx);
-      }
+    if (_controller.isPlayingNotifier.value) return;
+    try {
+      await _controller.playPause();
+    } catch (e) {
+      // Some OEM paths invalidate the source while keeping the session alive;
+      // force-reload the current queue item if plain play fails.
+      debugPrint('[NothingAudioHandler] play() failed, forcing reload: $e');
+      await _controller.playFromQueueIndex(
+        _controller.currentIndexNotifier.value ?? 0,
+      );
     }
   }
 
   @override
   Future<void> pause() async {
     await ready;
-    if (_controller.isPlayingNotifier.value) {
-      await _controller.playPause();
-    }
+    if (_controller.isPlayingNotifier.value) await _controller.playPause();
   }
 
   @override
@@ -232,7 +217,6 @@ class NothingAudioHandler extends BaseAudioHandler
   @override
   Future<dynamic> customAction(String name, [dynamic extras]) async {
     await ready;
-
     final map = (extras is Map) ? extras : const <String, Object?>{};
     switch (name) {
       case 'setQueue':
@@ -272,7 +256,6 @@ class NothingAudioHandler extends BaseAudioHandler
         await _controller.exitSearchSession();
         return null;
     }
-
     return super.customAction(name, extras);
   }
 
@@ -288,9 +271,8 @@ class NothingAudioHandler extends BaseAudioHandler
             path: path,
             title: m['title'] as String? ?? '',
             artist: m['artist'] as String? ?? '',
-            duration: durationMs != null
-                ? Duration(milliseconds: durationMs)
-                : null,
+            duration:
+                durationMs != null ? Duration(milliseconds: durationMs) : null,
           );
         })
         .whereType<AudioTrack>()

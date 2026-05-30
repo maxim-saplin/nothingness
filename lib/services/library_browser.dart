@@ -45,24 +45,22 @@ class LibraryBrowser {
     required String basePath,
     required List<LibrarySong> songs,
   }) async {
-    final normalizedBase = _normalizePath(basePath);
-    final folderPaths = <String>{};
+    final base = basePath.endsWith('/')
+        ? basePath.substring(0, basePath.length - 1)
+        : basePath;
+    final extractor = createMetadataExtractor();
+    final seenFolders = <String>{};
     final folders = <LibraryFolder>[];
     final tracks = <AudioTrack>[];
 
-    final extractor = createMetadataExtractor();
-
     for (final song in songs) {
-      if (!song.path.startsWith(normalizedBase)) continue;
-
-      var relative = song.path.substring(normalizedBase.length);
-      if (relative.startsWith('/')) {
-        relative = relative.substring(1);
-      }
+      if (!song.path.startsWith(base)) continue;
+      var relative = song.path.substring(base.length);
+      if (relative.startsWith('/')) relative = relative.substring(1);
       if (relative.isEmpty) continue;
 
-      final parts = relative.split('/');
-      if (parts.length == 1) {
+      final slash = relative.indexOf('/');
+      if (slash < 0) {
         if (!_isSupported(song.path)) continue;
         // Keep MediaStore artist for the hero subtitle, but title from the
         // on-disk filename (minus extension) rather than the ID3 tag, which can
@@ -77,35 +75,31 @@ class LibraryBrowser {
           artist: artist,
         ));
       } else {
-        final childName = parts.first;
-        final childPath = p.join(normalizedBase, childName);
-        if (folderPaths.add(childPath)) {
+        final childName = relative.substring(0, slash);
+        final childPath = p.join(base, childName);
+        if (seenFolders.add(childPath)) {
           folders.add(LibraryFolder(path: childPath, name: childName));
         }
       }
     }
 
-    return _sortedListing(normalizedBase, folders, tracks);
+    return _sortedListing(base, folders, tracks);
   }
 
   /// Lists a folder directly from the file system (used on macOS and tests).
   Future<LibraryListing> listFileSystem(String path) async {
     final directory = Directory(path);
-    if (!await directory.exists()) {
-      throw Exception('Folder does not exist');
-    }
+    if (!await directory.exists()) throw Exception('Folder does not exist');
 
+    final extractor = createMetadataExtractor();
     final folders = <LibraryFolder>[];
     final tracks = <AudioTrack>[];
 
-    final extractor = createMetadataExtractor();
-
     await for (final entity in directory.list()) {
+      final name = p.basename(entity.path);
       if (entity is Directory) {
-        if (!p.basename(entity.path).startsWith('.')) {
-          folders.add(
-            LibraryFolder(path: entity.path, name: p.basename(entity.path)),
-          );
+        if (!name.startsWith('.')) {
+          folders.add(LibraryFolder(path: entity.path, name: name));
         }
       } else if (entity is File && _isSupported(entity.path)) {
         try {
@@ -132,11 +126,6 @@ class LibraryBrowser {
     return LibraryListing(path: path, folders: folders, tracks: tracks);
   }
 
-  bool _isSupported(String filePath) {
-    final ext = p.extension(filePath).replaceAll('.', '').toLowerCase();
-    return supportedExtensions.contains(ext);
-  }
-
-  String _normalizePath(String path) =>
-      path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  bool _isSupported(String filePath) => supportedExtensions
+      .contains(p.extension(filePath).replaceAll('.', '').toLowerCase());
 }

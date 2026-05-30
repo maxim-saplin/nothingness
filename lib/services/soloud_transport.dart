@@ -16,13 +16,12 @@ class SoLoudTransport implements AudioTransport {
   static const Set<String> supportedExtensions =
       SupportedExtensions.supportedExtensions;
   static const Duration _endTolerance = Duration(milliseconds: 120);
+
   static Future<bool> probeAvailable() async {
     try {
       final soloud = SoLoud.instance;
       await soloud.init();
-      if (soloud.isInitialized) {
-        soloud.deinit();
-      }
+      if (soloud.isInitialized) soloud.deinit();
       return true;
     } catch (e) {
       debugPrint('[SoLoudTransport] probe failed: $e');
@@ -33,6 +32,8 @@ class SoLoudTransport implements AudioTransport {
   late final SoLoud _soloud = SoLoud.instance;
   final StreamController<TransportEvent> _eventController =
       StreamController<TransportEvent>.broadcast();
+  final StreamController<List<double>> _spectrumController =
+      StreamController<List<double>>.broadcast();
 
   SoundHandle? _currentHandle;
   AudioSource? _currentSource;
@@ -54,8 +55,6 @@ class SoLoudTransport implements AudioTransport {
   StreamSubscription<List<double>>? _spectrumSub;
   StreamSubscription<StreamSoundEvent>? _soundEventsSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
-  final StreamController<List<double>> _spectrumController =
-      StreamController<List<double>>.broadcast();
   SpectrumSettings _settings = const SpectrumSettings();
   bool _captureEnabled = true;
 
@@ -63,10 +62,14 @@ class SoLoudTransport implements AudioTransport {
   Stream<TransportEvent> get eventStream => _eventController.stream;
 
   @override
+  Stream<List<double>> get spectrumStream => _spectrumController.stream;
+
+  @override
   Future<Duration> get position async {
-    if (_currentHandle == null) return Duration.zero;
+    final handle = _currentHandle;
+    if (handle == null) return Duration.zero;
     try {
-      return _soloud.getPosition(_currentHandle!);
+      return _soloud.getPosition(handle);
     } catch (e) {
       return Duration.zero;
     }
@@ -74,9 +77,10 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   Future<Duration> get duration async {
-    if (_currentSource == null) return Duration.zero;
+    final source = _currentSource;
+    if (source == null) return Duration.zero;
     try {
-      return _soloud.getLength(_currentSource!);
+      return _soloud.getLength(source);
     } catch (e) {
       return Duration.zero;
     }
@@ -111,23 +115,20 @@ class SoLoudTransport implements AudioTransport {
       handleProvider: () async => _currentHandle,
       initialSettings: _settings,
     );
-
     _spectrumSub = _spectrumProvider!.spectrumStream.listen(
       _spectrumController.add,
     );
 
+    _startPositionTimer();
+    if (_captureEnabled) _startSpectrum();
+  }
+
+  void _startPositionTimer() {
     _positionTimer = Timer.periodic(
       const Duration(milliseconds: 300),
       (_) => _checkTrackEnded(),
     );
-
-    if (_captureEnabled) {
-      _startSpectrum();
-    }
   }
-
-  @override
-  Stream<List<double>> get spectrumStream => _spectrumController.stream;
 
   @override
   void updateSpectrumSettings(SpectrumSettings settings) {
@@ -139,11 +140,7 @@ class SoLoudTransport implements AudioTransport {
   @override
   void setCaptureEnabled(bool enabled) {
     _captureEnabled = enabled;
-    if (enabled) {
-      _startSpectrum();
-    } else {
-      _stopSpectrum();
-    }
+    enabled ? _startSpectrum() : _stopSpectrum();
   }
 
   @override
@@ -151,23 +148,21 @@ class SoLoudTransport implements AudioTransport {
     _positionTimer?.cancel();
     _positionTimer = null;
     // Release the audio session to free the AudioMix wake lock.
-    AudioSession.instance.then((s) {
-      s.setActive(false);
-      _audioSessionActive = false;
-    });
+    _setSessionActive(false);
   }
 
   @override
   void resumeTimers() {
     if (_positionTimer != null) return;
-    _positionTimer = Timer.periodic(
-      const Duration(milliseconds: 300),
-      (_) => _checkTrackEnded(),
-    );
+    _startPositionTimer();
     // Re-activate the audio session for playback readiness.
+    _setSessionActive(true);
+  }
+
+  void _setSessionActive(bool active) {
     AudioSession.instance.then((s) {
-      s.setActive(true);
-      _audioSessionActive = true;
+      s.setActive(active);
+      _audioSessionActive = active;
     });
   }
 
@@ -176,9 +171,7 @@ class SoLoudTransport implements AudioTransport {
     await _spectrumProvider?.start();
   }
 
-  Future<void> _stopSpectrum() async {
-    await _spectrumProvider?.stop();
-  }
+  Future<void> _stopSpectrum() async => _spectrumProvider?.stop();
 
   @override
   Future<void> dispose() async {
@@ -205,10 +198,7 @@ class SoLoudTransport implements AudioTransport {
   }
 
   /// Cleanup-only dispose; swallows/logs errors and never throws.
-  Future<void> _safeDispose(
-    AudioSource? source, {
-    String label = 'source',
-  }) async {
+  Future<void> _safeDispose(AudioSource? source, {String label = 'source'}) async {
     if (source == null) return;
     try {
       await _soloud.disposeSource(source);
@@ -218,19 +208,19 @@ class SoLoudTransport implements AudioTransport {
   }
 
   void _checkTrackEnded() {
-    if (_currentHandle == null || _currentSource == null) return;
-
+    final handle = _currentHandle;
+    final source = _currentSource;
+    if (handle == null || source == null) return;
     try {
-      final position = _soloud.getPosition(_currentHandle!);
-      final duration = _soloud.getLength(_currentSource!);
-      final isPaused = _soloud.getPause(_currentHandle!);
+      final position = _soloud.getPosition(handle);
+      final duration = _soloud.getLength(source);
+      final isPaused = _soloud.getPause(handle);
 
       _eventController.add(TransportPositionEvent(position: position));
 
       if (duration > Duration.zero) {
-        final endThreshold = duration > _endTolerance
-            ? duration - _endTolerance
-            : duration;
+        final endThreshold =
+            duration > _endTolerance ? duration - _endTolerance : duration;
         if (position >= endThreshold) {
           _emitEndedIfNeeded(); // Emit even if SoLoud auto-paused at the end.
         } else if (!isPaused) {
@@ -247,8 +237,8 @@ class SoLoudTransport implements AudioTransport {
     _soundEventsSub = source.soundEvents.listen((event) {
       if (_suppressEndedEvent) return;
       if (event.sound != _currentSource) return;
-      if (_currentHandle == null) return;
-      if (event.handle.id != _currentHandle!.id) return;
+      final handle = _currentHandle;
+      if (handle == null || event.handle.id != handle.id) return;
       if (event.event == SoundEventType.handleIsNoMoreValid) {
         _emitEndedIfNeeded();
       }
@@ -258,8 +248,7 @@ class SoLoudTransport implements AudioTransport {
   void _emitEndedIfNeeded() {
     if (_suppressEndedEvent) return;
     final path = _currentPath;
-    if (path == null) return;
-    if (_endedEmittedForPath == path) return;
+    if (path == null || _endedEmittedForPath == path) return;
     _endedEmittedForPath = path;
     _eventController.add(TransportEndedEvent(path: path));
   }
@@ -270,10 +259,8 @@ class SoLoudTransport implements AudioTransport {
     _endedEmittedForPath = null;
     await _safeStop(_currentHandle);
     _currentHandle = null;
-
     await _safeDispose(_currentSource);
     _currentSource = null;
-
     _currentPath = path;
 
     try {
@@ -288,11 +275,8 @@ class SoLoudTransport implements AudioTransport {
         _currentSource = await _openSource(path);
       }
 
-      if (_currentSource != null) {
-        _attachSoundEvents(_currentSource!);
-      }
+      if (_currentSource != null) _attachSoundEvents(_currentSource!);
       _suppressEndedEvent = false;
-
       _eventController.add(TransportLoadedEvent(path: path));
     } catch (e) {
       debugPrint('[SoLoudTransport] Error loading $path: $e');
@@ -354,7 +338,8 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   Future<void> play() async {
-    if (_currentSource == null) {
+    final source = _currentSource;
+    if (source == null) {
       throw StateError('No source loaded. Call load() first.');
     }
 
@@ -367,23 +352,24 @@ class SoLoudTransport implements AudioTransport {
     }
 
     if (_currentHandle == null) {
-      _currentHandle = _soloud.play(_currentSource!, paused: false);
+      _currentHandle = _soloud.play(source, paused: false);
     } else {
       _soloud.setPause(_currentHandle!, false);
     }
-
     _endedEmittedForPath = null;
   }
 
   @override
   Future<void> pause() async {
-    if (_currentHandle == null) return;
-    _soloud.setPause(_currentHandle!, true);
+    final handle = _currentHandle;
+    if (handle == null) return;
+    _soloud.setPause(handle, true);
   }
 
   @override
   Future<void> seek(Duration position) async {
-    if (_currentHandle == null) return;
-    _soloud.seek(_currentHandle!, position);
+    final handle = _currentHandle;
+    if (handle == null) return;
+    _soloud.seek(handle, position);
   }
 }

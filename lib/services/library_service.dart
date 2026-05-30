@@ -23,27 +23,38 @@ class LibraryService {
 
   Box<dynamic>? _box;
 
-  // Map of path -> bookmark string
-  final ValueNotifier<Map<String, String>> rootsNotifier =
-      ValueNotifier<Map<String, String>>({});
+  /// Map of path -> bookmark string.
+  final ValueNotifier<Map<String, String>> rootsNotifier = ValueNotifier({});
 
   Future<void> init() async {
     _box = await Hive.openBox<dynamic>(_boxName);
-    await _restoreRoots();
+    final stored = _box!.get(_rootsKey);
+    if (stored is Map) {
+      final roots = Map<String, String>.from(stored);
+      rootsNotifier.value = roots;
+      if (Platform.isMacOS) {
+        for (final entry in roots.entries) {
+          try {
+            await _secureBookmarks!.resolveBookmark(entry.value);
+            await _secureBookmarks
+                .startAccessingSecurityScopedResource(File(entry.key));
+            debugPrint('Resolved bookmark for ${entry.key}');
+          } catch (e) {
+            debugPrint('Failed to resolve bookmark for ${entry.key}: $e');
+          }
+        }
+      }
+    }
   }
 
   Future<void> addRoot(String path) async {
     if (!_isDesktopRoots) return;
-
     try {
       // Linux has no sandbox — store the raw path as the "bookmark" so the
       // persistence schema stays uniform across desktop OSes.
-      final bookmark = Platform.isMacOS
-          ? await _secureBookmarks!.bookmark(File(path))
-          : path;
-      final currentRoots = Map<String, String>.from(rootsNotifier.value);
-      currentRoots[path] = bookmark;
-      rootsNotifier.value = currentRoots;
+      final bookmark =
+          Platform.isMacOS ? await _secureBookmarks!.bookmark(File(path)) : path;
+      rootsNotifier.value = {...rootsNotifier.value, path: bookmark};
       await _persistRoots();
     } catch (e) {
       debugPrint('Failed to add root $path: $e');
@@ -51,65 +62,34 @@ class LibraryService {
   }
 
   Future<void> removeRoot(String path) async {
-    final currentRoots = Map<String, String>.from(rootsNotifier.value);
-    if (currentRoots.remove(path) != null) {
-      rootsNotifier.value = currentRoots;
+    final roots = Map<String, String>.from(rootsNotifier.value);
+    if (roots.remove(path) != null) {
+      rootsNotifier.value = roots;
       await _persistRoots();
     }
   }
 
-  Future<void> _restoreRoots() async {
-    if (_box == null) return;
+  Future<void> _persistRoots() async =>
+      _box?.put(_rootsKey, rootsNotifier.value);
 
-    final storedRoots = _box!.get(_rootsKey);
-    if (storedRoots is Map) {
-      final roots = Map<String, String>.from(storedRoots);
-      rootsNotifier.value = roots;
-
-      if (Platform.isMacOS) {
-        await _resolveBookmarks(roots);
-      }
-    }
-  }
-
-  Future<void> _resolveBookmarks(Map<String, String> roots) async {
-    for (final entry in roots.entries) {
-      try {
-        await _secureBookmarks!.resolveBookmark(entry.value);
-        await _secureBookmarks.startAccessingSecurityScopedResource(File(entry.key));
-        debugPrint('Resolved bookmark for ${entry.key}');
-      } catch (e) {
-        debugPrint('Failed to resolve bookmark for ${entry.key}: $e');
-      }
-    }
-  }
-
-  Future<void> _persistRoots() async {
-    if (_box == null) return;
-    await _box!.put(_rootsKey, rootsNotifier.value);
-  }
-
-  /// Store the last scan timestamp (Android only)
+  /// Store the last scan timestamp (Android only).
   Future<void> setLastScanTimestamp(int timestampMs) async {
-    if (!Platform.isAndroid || _box == null) return;
-    await _box!.put(_lastScanTimestampKey, timestampMs);
+    if (Platform.isAndroid) await _box?.put(_lastScanTimestampKey, timestampMs);
   }
 
-  /// Get the last scan timestamp (Android only)
-  int? getLastScanTimestamp() {
-    if (!Platform.isAndroid || _box == null) return null;
-    return _box!.get(_lastScanTimestampKey) as int?;
-  }
+  /// Get the last scan timestamp (Android only).
+  int? getLastScanTimestamp() =>
+      Platform.isAndroid ? _box?.get(_lastScanTimestampKey) as int? : null;
 
-  /// Call this when the app is closing to release resources
+  /// Call this when the app is closing to release resources.
   Future<void> dispose() async {
-    if (Platform.isMacOS) {
-      for (final path in rootsNotifier.value.keys) {
-        try {
-          await _secureBookmarks!.stopAccessingSecurityScopedResource(File(path));
-        } catch (e) {
-          debugPrint('Error stopping access for $path: $e');
-        }
+    if (!Platform.isMacOS) return;
+    for (final path in rootsNotifier.value.keys) {
+      try {
+        await _secureBookmarks!
+            .stopAccessingSecurityScopedResource(File(path));
+      } catch (e) {
+        debugPrint('Error stopping access for $path: $e');
       }
     }
   }
