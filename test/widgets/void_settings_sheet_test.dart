@@ -489,6 +489,35 @@ void main() {
           findsOneWidget,
         );
       });
+
+      // B-041 — every screen exposes a text-size control, including Polo
+      // (whose LCD font is bespoke). The old "no options" placeholder is gone.
+      testWidgets('polo screen exposes the void-settings-polo-text-size slider',
+          (tester) async {
+        SettingsService().operatingModeNotifier.value = OperatingMode.own;
+        await SettingsService().saveScreenConfig(const PoloScreenConfig());
+
+        await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+        expect(
+          find.byKey(
+            const ValueKey('void-settings-polo-text-size'),
+            skipOffstage: false,
+          ),
+          findsOneWidget,
+          reason: 'B-041: Polo must expose a text-size control like every '
+              'other screen.',
+        );
+        expect(
+          find.byKey(
+            const ValueKey('void-settings-polo-display'),
+            skipOffstage: false,
+          ),
+          findsNothing,
+          reason: 'B-041: the old Polo "no options" placeholder is replaced '
+              'by the text-size slider.',
+        );
+      });
     });
 
     testWidgets('status strip hides when queue is empty',

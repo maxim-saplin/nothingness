@@ -1173,3 +1173,177 @@ emulate phone|small|tall|tiny|off|WxH` / `window <w> <h>` (SKILL.md documented).
 No native/GTK change. Widget test in `test/widgets/phone_frame_test.dart`.
 Verified live: `emulate phone` → 390×844 frame, screenshot rasterizes 390×844,
 0 overflows down to 280×653.
+
+## B-039 (minor): hero swipe direction is unintuitive + no animated card transition
+
+- **Symptom** — Horizontal swipe on the hero skips prev/next, but two things
+  feel wrong: (1) the direction is backwards relative to a card mental model,
+  and (2) there is no card motion — the track swaps instantly with only a brief
+  `‹`/`›` flash, so it's unclear which way advances vs goes back.
+- **Current behaviour** — Swipe **right** → `next()`, swipe **left** →
+  `previous()` (`lib/screens/void_screen.dart:366-378`, and the B-027 velocity
+  escape `:386-398`: `v>0`→next, `v<0`→prev). Feedback is a glyph flash only
+  (`HeroFeedbackSurface.flashSwipe` / `triggerSwipe`,
+  `lib/widgets/hero_feedback_surface.dart:99-106`) — no card slides.
+- **Desired** —
+  1. **Reverse the mapping** to match the card metaphor: dragging the current
+     card **left** brings the **next** track in (from the right); dragging
+     **right** brings the **previous** track in. (i.e. left→next, right→prev —
+     the opposite of today.)
+  2. **Animated card swipe**: the current track's card slides off in the drag
+     direction while the incoming card animates in from the opposite side,
+     instead of the instant swap + flash.
+- **Notes** — Update both the distance trip (`_onHeroHorizontalDrag`) and the
+  velocity escape (`_onHeroHorizontalDragEnd`) so they stay consistent, plus the
+  `flashSwipe(±1)` direction args and the `_swipeRight`/glyph logic in
+  `hero_feedback_surface.dart:99-106,170-181`. Velocity-gated gestures can't be
+  verified via `adb shell input swipe` (synthetic events miss Flutter's velocity
+  thresholds) — regress with `tester.fling(...)`, see the B-027 pattern in
+  `test/screens/void_screen_test.dart`. Cross-ref the swipe-up browser slide
+  animation (B-033) for the existing card-transition style. Thresholds today:
+  60 dp distance / 300 px·s⁻¹ velocity.
+- **Area** — heroes
+
+**Closed**: 2026-05-30 — reversed the swipe→transport mapping in both the
+distance accumulator (`_onHeroHorizontalDrag`) and the velocity escape
+(`_onHeroHorizontalDragEnd`): drag/flick **left** → `next()`, **right** →
+`previous()` (was the opposite). Added a card-slide transition to
+`HeroFeedbackSurface`: `triggerSwipe({required bool isNext})` fires the existing
+edge glyph (B-012) *and* a new 300 ms `animateCardSwipe(exitDir)` that wraps the
+hero child in a `FractionalTranslation` + `Opacity` — first half slides the
+outgoing card off in the drag direction and fades it out, second half slides the
+(now-updated) card in from the opposite side. At rest the wrapper is the identity
+transform, so layout / hit-testing / the B-018 hero-band measurement are
+unaffected. The void_screen call sites now use `triggerSwipe(isNext: …)`.
+Regression: B-027 direction tests in `test/screens/void_screen_test.dart` flipped
+to the reversed mapping; two new card-slide tests in
+`test/widgets/hero_feedback_surface_test.dart` (next → off-left, previous →
+off-right, settle back to identity). 343 tests pass; analyzer clean.
+
+## B-040 (minor): now-playing should show Artist + Song as two heading levels; default metadata from filename
+
+- **Symptom** — The hero shows the **track title** as the big headline and the
+  **parent folder name** as the subtitle. The `artist` is never displayed, and
+  there's no clear Artist/Song hierarchy.
+- **Desired** —
+  1. Render two distinct heading levels in the hero: **Artist** (H1) and **Song
+     title** (H2) — a real typographic hierarchy, not title + folder.
+  2. Metadata (`title`, `artist`) should **by default be parsed from the
+     filename** (e.g. `Artist - Title.ext`), *not* ID3 tags / MediaStore.
+- **Notes** — `AudioTrack` already carries `artist` (`lib/models/audio_track.dart:16`)
+  but the void hero ignores it: it maps `track.title`→headline and
+  `dirname(track.path)`→subtitle (`lib/widgets/heroes/void_hero.dart:17-18,67-85`).
+  Filename parsing already exists — `DesktopMetadataExtractor` is filename-only
+  (`lib/services/metadata_extractor.dart:179+`, splits on `" - "` via
+  `_splitFilename`), but `AndroidMetadataExtractor` defaults to MediaStore unless
+  `useFilenameOverride` (default `false`, `:23,29-32`); the `useFilenameForMetadata`
+  setting is wired at `lib/testing/agent_service.dart:445`. Flip the default so
+  filename parsing wins, and surface `artist` in the hero (and likely the other
+  heroes/browser rows). Sub-headings will need their own typography tokens — see
+  B-041 for the font-size work, and B-042 to verify the layout at phone size.
+- **Area** — heroes
+
+**Closed**: 2026-05-30 — `VoidHero` now renders a real two-level hierarchy from
+`track.artist` (H1, `heroSize`) and `track.title` (H2, `heroSize *
+songSizeFactor` where `songSizeFactor = 0.5`), both scaled by `config.textScale`;
+the parent-folder subtitle is gone. When the filename yields no artist the song
+title takes the H1 slot (no empty headline), and the `↩`/`≈` queue-mode glyph
+moves to the secondary line. Keys `void-hero-artist` / `void-hero-song` added for
+QA/tests. The filename-default half was already satisfied:
+`SettingsService.defaultUseFilenameForMetadata` is `true`, so
+`createMetadataExtractor` builds `AndroidMetadataExtractor(useFilenameOverride:
+true)` by default — filename parsing wins out of the box. Tests rewritten in
+`test/widgets/heroes/void_hero_test.dart` (artist>song size, empty-artist
+fallback, both levels scale by textScale).
+
+## B-041 (minor): font-size adjustable on ALL screens + set reasonable default sizes
+
+- **Symptom** — The "text size" control isn't available on every screen, and
+  some default sizes are off / inconsistent.
+- **Desired** — Every screen exposes a font-size (text-scale) control, and the
+  out-of-box default sizes are reasonable on a normal display.
+- **Notes** — `textScale` exists on Void / Spectrum / Dot configs but **`PoloScreenConfig`
+  has none** (`lib/models/screen_config.dart:58,89,171,251`), and the settings
+  sheet only renders three "text size" rows (`lib/widgets/void_settings_sheet.dart:747,889,918`)
+  — Polo is missing. Default inconsistency to fix while here:
+  `SpectrumScreenConfig` const default `textScale = 0.6` but its `fromJson`
+  default is `1.0` (`screen_config.dart:101` vs `:127`) — first run and a
+  missing-key reload disagree. Pick sane per-screen defaults and make const ==
+  fromJson. Hero title size is `typography.heroSize * config.textScale`
+  (`void_hero.dart:75`); confirm the new Artist/Song levels (B-040) both scale.
+- **Area** — settings
+
+**Closed**: 2026-05-30 — added `double textScale` (default 1.0) to
+`PoloScreenConfig` (copyWith + JSON round-trip) and wired it through
+`RetroLcdDisplay` (multiplies the LCD title/artist/time sizes) so Polo's bespoke
+LCD font now scales; replaced Polo's `void-settings-polo-display` "no options"
+placeholder with a `void-settings-polo-text-size` slider (50–150%, 10 divisions)
+in the DISPLAY group — every screen now exposes a text-size control. Aligned all
+`SpectrumScreenConfig.fromJson` defaults to the const constructor defaults so
+first-run == missing-key reload: `textScale` 0.6, `spectrumHeightFactor` 0.5,
+`mediaControlScale` 0.6, and both colour schemes `cyan` (were 1.0/1.0/1.0 and
+`classic`). Tests: Polo textScale round-trip + the corrected Spectrum-defaults
+assertion in `test/models/screen_config_test.dart`; Polo text-size slider
+presence in `test/widgets/void_settings_sheet_test.dart`.
+
+## B-043 (minor): searching does not raise a collapsed (swipe-up) browser
+
+- **Symptom** — With the browser in swipe-up presentation and collapsed, entering
+  search focuses the input but the browser stays parked offscreen, so search
+  results are invisible.
+- **Repro** — Set browser presentation to swipe-up (collapsed), trigger search
+  (long-press crumb). Search field activates; results list never appears.
+- **Desired** — Entering search auto-expands the browser when it's collapsed.
+- **Notes** — `_enterSearchMode()` sets `_searchMode = true` and focuses the
+  field but never expands the browser (`lib/screens/void_screen.dart:317-322`).
+  It should call `_setBrowserExpanded(true)` when
+  `_browserPresentation == BrowserPresentation.swipeUp && !_browserExpanded`
+  (state at `:94`). Mirror the reverse on `_exitSearchMode` if the browser
+  should re-collapse. Cross-ref the swipe-up browser work (B-033).
+- **Area** — browser
+
+**Closed**: 2026-05-30 — `_enterSearchMode` now auto-expands a collapsed
+swipe-up browser via `_setBrowserExpanded(true)` and latches
+`_searchAutoExpandedBrowser`; `_maybeRestoreBrowserAfterSearch` (called from both
+`_exitSearchMode` and the focus-out funnel `_onSearchFocusChanged`) re-collapses
+it on dismissal — but only if search was what opened it, so a browser the user
+expanded themselves before searching stays open. Two tests in
+`test/screens/void_screen_test.dart` (`_b043Tests`): auto-expand + re-collapse,
+and the user-opened-stays-open case.
+
+## B-045 (major): default Android emulator run cross-compiles arm64 and fails (flutter_soloud NDK sysroot leak)
+
+- **Symptom** — A plain `flutter run -d emulator-5554 --debug` fails during Gradle
+  `assembleDebug`: `android/app/build.gradle.kts` defaults `target-platform`/
+  abiFilters to **arm64-v8a** (release-size choice) even when the target is an
+  x86_64 emulator, so it cross-compiles `flutter_soloud-4.0.6` for arm64 and the
+  NDK 27 aarch64 clang pulls host snap glibc headers
+  (`/snap/flutter/current/usr/include`) → `cast from pointer to smaller type
+  'uintptr_t' loses information` / `MB_LEN_MAX wrong`. The obvious dev command is
+  a footgun.
+- **WORKAROUND (verified, unblocks testing)** — build x86_64 explicitly:
+  `CI_EMULATOR_ABI=x86_64 flutter run -d emulator-5554 --debug`. After a clean
+  state (`flutter clean`) this builds, installs, and runs; the full Android
+  regression sweep (A1-A4 + playback) then passed with 0 findings on 2026-05-30.
+  Documented in the `agent-emulator-debugging` SKILL, along with the
+  `DRIVE_RUN_LOG` override drive.py now needs to read the Android DDS URI when a
+  Linux session owns `/tmp/flutter_run.log`.
+- **Still open (root cause)** — the **arm64** debug build remains broken on the
+  snap Flutter toolchain (host glibc headers leak into the NDK aarch64 sysroot).
+  Fixes: a non-leaking aarch64 NDK sysroot, a non-snap toolchain, or have the
+  default emulator run honour the device ABI (don't force arm64 for debug/`run`).
+  Area — build/tooling.
+
+**Closed**: 2026-05-30 — took the "honour the device ABI for debug/run" fix in
+`android/app/build.gradle.kts`: the unconditional arm64 force is now gated on
+`isReleaseBuild` (derived from `gradle.startParameter.taskNames` containing
+`Release`/`Bundle`). For release/app-bundle builds `target-platform`,
+`abiFilters`, and the x86_64 jniLibs strip stay arm64-only (size); for debug /
+profile they're left unset so the ABI `flutter run` already detected for the
+connected device wins — a plain `flutter run -d emulator-5554 --debug` builds
+x86_64 and no longer cross-compiles arm64, so the snap-toolchain glibc-header
+leak is never hit on the default dev path. `CI_EMULATOR_ABI=x86_64` is kept as an
+explicit escape hatch. NOTE: gradle-config-only change; not built/run-verified in
+this WSL2 environment (no working Android toolchain here — see the SKILL). The
+underlying arm64-debug-on-snap-toolchain breakage is unchanged but is no longer
+reachable by the default workflow.

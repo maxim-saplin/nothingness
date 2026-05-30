@@ -386,6 +386,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         activeConfig is SpectrumScreenConfig ? activeConfig : null;
     final dotCfg = activeConfig is DotScreenConfig ? activeConfig : null;
     final voidCfg = activeConfig is VoidScreenConfig ? activeConfig : null;
+    final poloCfg = activeConfig is PoloScreenConfig ? activeConfig : null;
     final spectrum = _settings.settingsNotifier.value;
 
     return [
@@ -652,17 +653,8 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         ..._buildSpectrumDisplayRows(spectrumCfg, palette, typography, geometry),
       if (type == ScreenType.dot && dotCfg != null)
         ..._buildDotDisplayRows(dotCfg, palette, typography, geometry),
-      if (type == ScreenType.polo)
-        _row(
-          key: const ValueKey('void-settings-polo-display'),
-          label: 'polo',
-          value: 'no options',
-          onTap: () {},
-          palette: palette,
-          typography: typography,
-          geometry: geometry,
-          enabled: false,
-        ),
+      if (type == ScreenType.polo && poloCfg != null)
+        ..._buildPoloDisplayRows(poloCfg, palette, typography, geometry),
       if (type == ScreenType.void_ && voidCfg != null)
         ..._buildVoidDisplayRows(voidCfg, palette, typography, geometry),
 
@@ -915,6 +907,35 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     return [
       _sliderRow(
         key: const ValueKey('void-settings-void-text-size'),
+        label: 'text size',
+        valueText: '${(cfg.textScale * 100).round()}%',
+        min: 0.5,
+        max: 1.5,
+        divisions: 10,
+        currentValue: cfg.textScale,
+        onChanged: (v) {
+          _settings.saveScreenConfig(cfg.copyWith(textScale: v));
+          setState(() {});
+        },
+        palette: palette,
+        typography: typography,
+        geometry: geometry,
+      ),
+    ];
+  }
+
+  /// Polo DISPLAY rows (B-041). Polo's LCD font is bespoke, but every screen
+  /// must expose a text-size control — this scales the LCD readout typography
+  /// within its fixed display rect.
+  List<Widget> _buildPoloDisplayRows(
+    PoloScreenConfig cfg,
+    AppPalette palette,
+    AppTypography typography,
+    AppGeometry geometry,
+  ) {
+    return [
+      _sliderRow(
+        key: const ValueKey('void-settings-polo-text-size'),
         label: 'text size',
         valueText: '${(cfg.textScale * 100).round()}%',
         min: 0.5,

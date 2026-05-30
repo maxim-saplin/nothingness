@@ -121,24 +121,30 @@ class SpectrumScreenConfig extends ScreenConfig {
     'textColorScheme': textColorScheme.name,
   };
 
+  // B-041: fromJson defaults MUST match the const constructor defaults so a
+  // first run (const SpectrumScreenConfig()) and a missing-key reload agree.
+  // Previously textScale / spectrumHeightFactor / mediaControlScale defaulted
+  // to 1.0 and the colour schemes to `classic`, all of which disagreed with
+  // the const defaults below — the same latent inconsistency the ticket
+  // flagged for textScale (0.6 vs 1.0).
   factory SpectrumScreenConfig.fromJson(Map<String, dynamic> json) {
     return SpectrumScreenConfig(
       showMediaControls: json['showMediaControls'] as bool? ?? true,
-      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+      textScale: (json['textScale'] as num?)?.toDouble() ?? 0.6,
       spectrumWidthFactor:
           (json['spectrumWidthFactor'] as num?)?.toDouble() ?? 1.0,
       spectrumHeightFactor:
-          (json['spectrumHeightFactor'] as num?)?.toDouble() ?? 1.0,
-      mediaControlScale: (json['mediaControlScale'] as num?)?.toDouble() ?? 1.0,
+          (json['spectrumHeightFactor'] as num?)?.toDouble() ?? 0.5,
+      mediaControlScale: (json['mediaControlScale'] as num?)?.toDouble() ?? 0.6,
       mediaSliderWidthFactor:
           (json['mediaSliderWidthFactor'] as num?)?.toDouble() ?? 1.0,
       mediaControlColorScheme: SpectrumColorScheme.values.firstWhere(
         (c) => c.name == (json['mediaControlColorScheme'] as String?),
-        orElse: () => SpectrumColorScheme.classic,
+        orElse: () => SpectrumColorScheme.cyan,
       ),
       textColorScheme: SpectrumColorScheme.values.firstWhere(
         (c) => c.name == (json['textColorScheme'] as String?),
-        orElse: () => SpectrumColorScheme.classic,
+        orElse: () => SpectrumColorScheme.cyan,
       ),
     );
   }
@@ -257,9 +263,16 @@ class PoloScreenConfig extends ScreenConfig {
   final Rect nextRect;
   final Color textColor;
 
+  /// Multiplier applied to the LCD readout typography (B-041). Every screen
+  /// exposes a text-size control; for Polo it scales the bespoke LCD font
+  /// within its fixed display rect. Range 0.5..1.5; default 1.0 keeps the
+  /// existing visual.
+  final double textScale;
+
   const PoloScreenConfig({
     this.backgroundImagePath = 'assets/images/polo.webp',
     this.fontFamily = 'Press Start 2P',
+    this.textScale = 1.0,
     this.lcdRect = const Rect.fromLTWH(0.31, 0.38, 0.37, 0.14),
     // Initial guesses for controls - adjust in debug mode
     this.playPauseRect = const Rect.fromLTWH(
@@ -287,6 +300,7 @@ class PoloScreenConfig extends ScreenConfig {
     'name': name,
     'backgroundImagePath': backgroundImagePath,
     'fontFamily': fontFamily,
+    'textScale': textScale,
     // lcdRect is configuration-driven by code, not persisted
     'textColor': textColor.toARGB32(),
   };
@@ -299,6 +313,7 @@ class PoloScreenConfig extends ScreenConfig {
       backgroundImagePath:
           json['backgroundImagePath'] as String? ?? 'assets/images/polo.webp',
       fontFamily: json['fontFamily'] as String? ?? 'Press Start 2P',
+      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
       // lcdRect uses default from constructor
       textColor: json['textColor'] != null
           ? Color(json['textColor'] as int)
@@ -312,10 +327,12 @@ class PoloScreenConfig extends ScreenConfig {
     Rect? prevRect,
     Rect? nextRect,
     Color? textColor,
+    double? textScale,
   }) {
     return PoloScreenConfig(
       backgroundImagePath: backgroundImagePath,
       fontFamily: fontFamily,
+      textScale: textScale ?? this.textScale,
       lcdRect: lcdRect ?? this.lcdRect,
       playPauseRect: playPauseRect ?? this.playPauseRect,
       prevRect: prevRect ?? this.prevRect,

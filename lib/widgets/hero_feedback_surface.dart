@@ -15,6 +15,13 @@ import '../theme/app_typography.dart';
 ///     that fades in then out over ~180 ms when a horizontal swipe has
 ///     been recognised.
 ///
+/// B-039 adds a **card swipe** transition on top of the flash: when a
+/// horizontal swipe trips prev/next, the current hero "card" slides off in
+/// the drag direction and the incoming card animates in from the opposite
+/// side, instead of the old instant content swap. The slide wraps the hero
+/// child (a [FractionalTranslation] + [Opacity]); at rest it is the
+/// identity transform so layout and hit-testing are unaffected.
+///
 /// The overlay paints in `fgSecondary` so it stays visible against any
 /// hero visualisation without dominating it. Both effects are pointer-
 /// transparent, so the underlying gesture detector still owns hit-testing.
@@ -40,9 +47,17 @@ class HeroFeedbackSurface extends StatefulWidget {
   static const Key tapRingKey = ValueKey<String>('hero-tap-ring');
   static const Key swipeFlashKey = ValueKey<String>('hero-swipe-flash');
 
+  /// B-039: key on the [FractionalTranslation] that drives the card slide,
+  /// so tests can read its current `translation`.
+  static const Key cardSlideKey = ValueKey<String>('hero-card-slide');
+
   /// Duration of each feedback animation.
   static const Duration ringDuration = Duration(milliseconds: 180);
   static const Duration swipeFlashDuration = Duration(milliseconds: 180);
+
+  /// B-039: duration of the card slide-off / slide-in transition. A touch
+  /// longer than the flash so the motion reads as a card moving, not a blink.
+  static const Duration cardSwipeDuration = Duration(milliseconds: 300);
 
   /// Diameter of the tap ring at the end of its expansion.
   static const double ringMaxDiameter = 96.0;
@@ -66,8 +81,13 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
     with TickerProviderStateMixin {
   late final AnimationController _ringCtrl;
   late final AnimationController _swipeCtrl;
+  // B-039: drives the card slide-off / slide-in transition.
+  late final AnimationController _cardCtrl;
   Offset? _ringCenter;
   bool _swipeRight = true;
+  // B-039: horizontal direction the OUTGOING card slides (as a fraction of
+  // the hero width). -1 = exits left (next), +1 = exits right (previous).
+  double _cardExitDir = -1;
 
   @override
   void initState() {
@@ -80,12 +100,17 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       vsync: this,
       duration: HeroFeedbackSurface.swipeFlashDuration,
     );
+    _cardCtrl = AnimationController(
+      vsync: this,
+      duration: HeroFeedbackSurface.cardSwipeDuration,
+    );
   }
 
   @override
   void dispose() {
     _ringCtrl.dispose();
     _swipeCtrl.dispose();
+    _cardCtrl.dispose();
     super.dispose();
   }
 
@@ -108,6 +133,63 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
       ..forward();
   }
 
+  /// B-039: run the card slide. [exitDir] is the horizontal direction the
+  /// OUTGOING card travels as a fraction of the hero width: -1 slides it off
+  /// to the left (incoming card enters from the right), +1 slides it off to
+  /// the right (incoming enters from the left).
+  void animateCardSwipe(double exitDir) {
+    if (exitDir == 0) return;
+    setState(() => _cardExitDir = exitDir);
+    _cardCtrl
+      ..reset()
+      ..forward();
+  }
+
+  /// B-039: combined directional feedback for a recognised prev/next swipe —
+  /// the edge glyph flash (B-012) plus the card slide. [isNext] selects the
+  /// card metaphor direction: `next` slides the current card off to the left
+  /// (next enters from the right); `previous` slides it off to the right.
+  void triggerSwipe({required bool isNext}) {
+    flashSwipe(isNext ? 1 : -1);
+    animateCardSwipe(isNext ? -1.0 : 1.0);
+  }
+
+  /// B-039: wraps [child] in the card-slide transform driven by [_cardCtrl].
+  /// First half (0→0.5): the outgoing card translates from rest toward
+  /// [_cardExitDir] and fades out. Second half (0.5→1): the incoming card
+  /// (the child now reflects the new track) starts off-screen on the
+  /// opposite side and translates back to rest while fading in.
+  Widget _buildCardSlide({required Widget child}) {
+    return AnimatedBuilder(
+      animation: _cardCtrl,
+      builder: (context, inner) {
+        final t = _cardCtrl.value;
+        double dx;
+        double opacity;
+        if (t <= 0) {
+          // At rest — identity transform so layout/hit-testing/measurement
+          // (and idle frames) are completely unaffected.
+          dx = 0;
+          opacity = 1;
+        } else if (t < 0.5) {
+          final p = t / 0.5;
+          dx = _cardExitDir * p;
+          opacity = 1 - p;
+        } else {
+          final p = (t - 0.5) / 0.5;
+          dx = -_cardExitDir * (1 - p);
+          opacity = p;
+        }
+        return FractionalTranslation(
+          key: HeroFeedbackSurface.cardSlideKey,
+          translation: Offset(dx, 0),
+          child: Opacity(opacity: opacity.clamp(0.0, 1.0), child: inner),
+        );
+      },
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
@@ -124,7 +206,11 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
           onHorizontalDragEnd: widget.onHorizontalDragEnd,
           onVerticalDragUpdate: widget.onVerticalDragUpdate,
           onVerticalDragEnd: widget.onVerticalDragEnd,
-          child: widget.child,
+          // B-039: the hero child rides the card-slide transform. The
+          // GestureDetector stays opaque + full-bleed, so hit-testing is
+          // unaffected while the card translates. At rest the transform is
+          // the identity (dx 0, opacity 1).
+          child: _buildCardSlide(child: widget.child),
         ),
         // Tap ring overlay — only mounted when there's a live animation
         // (or one just finished). Pointer-transparent so the gesture

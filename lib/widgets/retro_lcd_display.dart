@@ -7,22 +7,29 @@ class RetroLcdDisplay extends StatelessWidget {
   final String fontFamily;
   final Color textColor;
 
+  /// B-041: multiplier applied to the LCD font sizes so Polo participates in
+  /// the per-screen text-size control. The base sizes are still derived from
+  /// the LCD rect height; this scales them within that rect.
+  final double textScale;
+
   const RetroLcdDisplay({
     super.key,
     required this.songInfo,
     this.fontFamily = 'Press Start 2P',
     this.textColor = Colors.black,
+    this.textScale = 1.0,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate responsive font sizes based on available height
+        // Calculate responsive font sizes based on available height, then
+        // apply the per-screen text-size multiplier (B-041).
         final h = constraints.maxHeight;
-        final titleSize = h * 0.22;
-        final artistSize = h * 0.18;
-        final timeSize = h * 0.15;
+        final titleSize = h * 0.22 * textScale;
+        final artistSize = h * 0.18 * textScale;
+        final timeSize = h * 0.15 * textScale;
 
         if (songInfo == null) {
           return Center(

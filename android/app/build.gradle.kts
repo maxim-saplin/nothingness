@@ -16,11 +16,26 @@ if (keystorePropertiesFile.exists()) {
 
 val ciEmulatorAbi = System.getenv("CI_EMULATOR_ABI")
 
-// Default to arm64 for production/release builds, allow x86_64 override for emulator CI.
-extra["target-platform"] = if (ciEmulatorAbi == "x86_64") {
-    "android-x64"
-} else {
-    "android-arm64"
+// B-045: a plain `flutter run -d emulator-5554 --debug` used to be a footgun.
+// This file unconditionally forced target-platform / abiFilters to arm64-v8a
+// (a release-size choice), so a debug run against an x86_64 emulator
+// cross-compiled flutter_soloud for arm64 — and the NDK 27 aarch64 sysroot
+// leaked host snap glibc headers, breaking the build. Fix: only force arm64
+// for RELEASE / app-bundle builds. Debug / profile builds leave
+// target-platform unset so the ABI that `flutter run` already detected for
+// the connected device (passed via -Ptarget-platform) wins — the emulator
+// builds x86_64 with no env var needed. CI_EMULATOR_ABI=x86_64 stays as an
+// explicit escape hatch (e.g. an x86_64 release on CI).
+val isReleaseBuild = gradle.startParameter.taskNames.any { name ->
+    name.contains("Release", ignoreCase = true) ||
+        name.contains("Bundle", ignoreCase = true)
+}
+
+when {
+    ciEmulatorAbi == "x86_64" -> extra["target-platform"] = "android-x64"
+    isReleaseBuild -> extra["target-platform"] = "android-arm64"
+    // else (debug / profile): leave target-platform unset; honour the
+    // device ABI Flutter detected.
 }
 
 android {
@@ -51,10 +66,13 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         ndk {
-            if (ciEmulatorAbi == "x86_64") {
-                abiFilters.add("x86_64")
-            } else {
-                abiFilters.add("arm64-v8a")
+            // B-045: mirror the target-platform decision above. Only restrict
+            // to a single ABI for CI-x86_64 or release/arm64 builds; debug /
+            // profile builds leave abiFilters unset so the build packages
+            // whatever Flutter compiled for the connected device's ABI.
+            when {
+                ciEmulatorAbi == "x86_64" -> abiFilters.add("x86_64")
+                isReleaseBuild -> abiFilters.add("arm64-v8a")
             }
         }
     }
@@ -84,7 +102,10 @@ android {
     packaging {
         jniLibs {
             val jniExcludes = mutableListOf("**/armeabi-v7a/**")
-            if (ciEmulatorAbi != "x86_64") {
+            // B-045: keep the x86_64 native libs for debug/profile (they may
+            // target an x86_64 emulator). Only strip them for release/arm64
+            // builds, where size matters and the target is real arm64 HW.
+            if (ciEmulatorAbi != "x86_64" && isReleaseBuild) {
                 jniExcludes += "**/x86_64/**"
             }
             excludes += jniExcludes

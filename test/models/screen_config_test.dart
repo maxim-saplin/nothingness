@@ -59,13 +59,22 @@ void main() {
         final json = {'type': 'spectrum'};
         final config = ScreenConfig.fromJson(json) as SpectrumScreenConfig;
 
-        expect(config.showMediaControls, true);
-        expect(config.textScale, 1.0);
-        expect(config.spectrumWidthFactor, 1.0);
-        expect(config.spectrumHeightFactor, 1.0);
-        expect(config.mediaControlScale, 1.0);
-        expect(config.mediaControlColorScheme, SpectrumColorScheme.classic);
-        expect(config.textColorScheme, SpectrumColorScheme.classic);
+        // B-041: fromJson defaults must equal the const constructor defaults
+        // so a first run and a missing-key reload agree.
+        const defaults = SpectrumScreenConfig();
+        expect(config.showMediaControls, defaults.showMediaControls);
+        expect(config.textScale, defaults.textScale);
+        expect(config.spectrumWidthFactor, defaults.spectrumWidthFactor);
+        expect(config.spectrumHeightFactor, defaults.spectrumHeightFactor);
+        expect(config.mediaControlScale, defaults.mediaControlScale);
+        expect(config.mediaControlColorScheme, defaults.mediaControlColorScheme);
+        expect(config.textColorScheme, defaults.textColorScheme);
+        // Explicit values (these are the const defaults today).
+        expect(config.textScale, 0.6);
+        expect(config.spectrumHeightFactor, 0.5);
+        expect(config.mediaControlScale, 0.6);
+        expect(config.mediaControlColorScheme, SpectrumColorScheme.cyan);
+        expect(config.textColorScheme, SpectrumColorScheme.cyan);
       });
     });
 
@@ -205,6 +214,26 @@ void main() {
         expect(config.backgroundImagePath, 'assets/images/polo.webp');
         expect(config.fontFamily, 'Press Start 2P');
         expect(config.textColor, const Color(0xFF000000));
+        // B-041: Polo gains a text-size control; default 1.0.
+        expect(config.textScale, 1.0);
+      });
+
+      // B-041 — Polo participates in the per-screen text-size control.
+      test('textScale round-trips through toJson / fromJson and copyWith', () {
+        const config = PoloScreenConfig(textScale: 1.3);
+        final json = config.toJson();
+        expect(json['textScale'], 1.3);
+
+        final restored = ScreenConfig.fromJson(json) as PoloScreenConfig;
+        expect(restored.textScale, 1.3);
+
+        // const default is 1.0 and matches the fromJson default (no key).
+        expect(const PoloScreenConfig().textScale, 1.0);
+
+        final bumped = const PoloScreenConfig().copyWith(textScale: 0.7);
+        expect(bumped.textScale, 0.7);
+        // copyWith preserves other fields.
+        expect(bumped.fontFamily, const PoloScreenConfig().fontFamily);
       });
     });
 

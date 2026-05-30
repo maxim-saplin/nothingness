@@ -132,6 +132,84 @@ void main() {
     });
   });
 
+  group('card swipe (B-039)', () {
+    FractionalTranslation cardSlide(WidgetTester tester) =>
+        tester.widget<FractionalTranslation>(
+          find.byKey(HeroFeedbackSurface.cardSlideKey),
+        );
+
+    testWidgets('triggerSwipe(isNext: true) slides the card off LEFT then '
+        'settles back to rest', (tester) async {
+      final key = GlobalKey<HeroFeedbackSurfaceState>();
+      await tester.pumpWidget(host(
+        SizedBox(
+          width: 400,
+          height: 400,
+          child: HeroFeedbackSurface(
+            key: key,
+            onTap: () {},
+            onHorizontalDragUpdate: (_) {},
+            onHorizontalDragEnd: (_) {},
+            child: const ColoredBox(color: Colors.black),
+          ),
+        ),
+      ));
+
+      // At rest: identity transform (no layout / hit-test impact).
+      expect(cardSlide(tester).translation, Offset.zero);
+      // The › glyph confirms the flash fires alongside the slide for `next`.
+      expect(find.text('›'), findsNothing);
+
+      key.currentState!.triggerSwipe(isNext: true);
+      await tester.pump(); // schedule first frame
+      await tester.pump(const Duration(milliseconds: 75)); // ~t=0.25
+
+      expect(cardSlide(tester).translation.dx, lessThan(0),
+          reason: 'B-039: for `next` the outgoing card must slide off to the '
+              'LEFT (negative dx).');
+      expect(find.text('›'), findsOneWidget,
+          reason: 'B-039: `next` swipe also fires the › edge flash.');
+
+      // Drive the full slide; it must return to the identity transform.
+      await tester.pump(HeroFeedbackSurface.cardSwipeDuration);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(cardSlide(tester).translation.dx, closeTo(0, 0.001),
+          reason: 'B-039: the card must settle back at rest after the slide.');
+    });
+
+    testWidgets('triggerSwipe(isNext: false) slides the card off RIGHT',
+        (tester) async {
+      final key = GlobalKey<HeroFeedbackSurfaceState>();
+      await tester.pumpWidget(host(
+        SizedBox(
+          width: 400,
+          height: 400,
+          child: HeroFeedbackSurface(
+            key: key,
+            onTap: () {},
+            onHorizontalDragUpdate: (_) {},
+            onHorizontalDragEnd: (_) {},
+            child: const ColoredBox(color: Colors.black),
+          ),
+        ),
+      ));
+
+      key.currentState!.triggerSwipe(isNext: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 75));
+
+      expect(cardSlide(tester).translation.dx, greaterThan(0),
+          reason: 'B-039: for `previous` the outgoing card must slide off to '
+              'the RIGHT (positive dx).');
+      expect(find.text('‹'), findsOneWidget,
+          reason: 'B-039: `previous` swipe fires the ‹ edge flash.');
+
+      await tester.pump(HeroFeedbackSurface.cardSwipeDuration);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(cardSlide(tester).translation.dx, closeTo(0, 0.001));
+    });
+  });
+
   group('gesture pass-through', () {
     testWidgets('horizontal drag callback fires', (tester) async {
       int drags = 0;

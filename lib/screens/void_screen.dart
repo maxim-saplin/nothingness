@@ -37,10 +37,12 @@ import '../widgets/void_settings_sheet.dart';
 ///   * Crumb — single-line current-path readout (morphs to a search input).
 ///   * Progress hairline — 1 px bottom edge tracking position / duration.
 ///
-/// Hero gestures:
+/// Hero gestures (B-039 — card metaphor):
 ///   * Tap → toggle play/pause.
-///   * Horizontal swipe left (> 40 px) → previous track.
-///   * Horizontal swipe right → next track.
+///   * Drag the card LEFT → next track (card slides off left, the next card
+///     animates in from the right).
+///   * Drag the card RIGHT → previous track (card slides off right, the
+///     previous card animates in from the left).
 ///
 /// Immersive mode hides the browser / transport / crumb / progress and
 /// scales the hero to fill the screen. Driven by
@@ -97,6 +99,10 @@ class _VoidScreenState extends State<VoidScreen>
   bool _showHint = false;
   bool _hintFaded = false;
   bool _searchMode = false;
+  // B-043: set when entering search auto-expanded a collapsed swipe-up
+  // browser (so its results are visible). Mirrored on exit to re-collapse the
+  // browser only if search was the thing that opened it.
+  bool _searchAutoExpandedBrowser = false;
   double _horizDragAccum = 0;
   // B-027: latched while the current horizontal drag has already produced a
   // prev/next event (either via the 60-dp distance accumulator below or via
@@ -308,14 +314,38 @@ class _VoidScreenState extends State<VoidScreen>
       // results panel keys off the controller, so empty it to mirror the
       // visual collapse. _exitSearchMode already does this; mirror it here.
       _searchController.clear();
+      // B-043: re-collapse the swipe-up browser if entering search was what
+      // opened it.
+      _maybeRestoreBrowserAfterSearch();
       // B-014: restore the queue captured at the start of this search
       // session, if any. No-op when the user never tapped a result.
       _endSearchSession();
     }
   }
 
+  /// B-043: undo the search-driven browser expansion. No-op unless
+  /// [_enterSearchMode] auto-expanded a collapsed swipe-up browser (so a
+  /// browser the user opened themselves before searching stays open).
+  void _maybeRestoreBrowserAfterSearch() {
+    if (!_searchAutoExpandedBrowser) return;
+    _searchAutoExpandedBrowser = false;
+    if (_browserPresentation == BrowserPresentation.swipeUp &&
+        _browserExpanded) {
+      _setBrowserExpanded(false);
+    }
+  }
+
   void _enterSearchMode() {
     setState(() => _searchMode = true);
+    // B-043: a collapsed swipe-up browser keeps the results list parked
+    // offscreen, so search would focus the input but show nothing. Expand
+    // the browser now and remember we did, so _exitSearchMode can restore
+    // the collapsed state on dismissal.
+    if (_browserPresentation == BrowserPresentation.swipeUp &&
+        !_browserExpanded) {
+      _searchAutoExpandedBrowser = true;
+      _setBrowserExpanded(true);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _searchFocusNode.requestFocus();
     });
@@ -325,6 +355,8 @@ class _VoidScreenState extends State<VoidScreen>
     _searchController.clear();
     _searchFocusNode.unfocus();
     setState(() => _searchMode = false);
+    // B-043: re-collapse the swipe-up browser if search opened it.
+    _maybeRestoreBrowserAfterSearch();
     // B-014: restore the prior queue. The provider/controller handle the
     // no-active-session case as a no-op.
     _endSearchSession();
@@ -364,15 +396,17 @@ class _VoidScreenState extends State<VoidScreen>
     _horizDragAccum += d.primaryDelta ?? 0;
     final player = context.read<AudioPlayerProvider>();
     if (_horizDragAccum > _horizDistanceThreshold) {
-      // Right-ward swipe → next track.
-      player.next();
-      _heroFeedbackKey.currentState?.flashSwipe(1);
+      // B-039: dragging the card RIGHT brings the PREVIOUS track in (card
+      // slides off to the right, previous enters from the left).
+      player.previous();
+      _heroFeedbackKey.currentState?.triggerSwipe(isNext: false);
       _horizDragAccum = 0;
       _horizDragFired = true;
     } else if (_horizDragAccum < -_horizDistanceThreshold) {
-      // Left-ward swipe → previous track.
-      player.previous();
-      _heroFeedbackKey.currentState?.flashSwipe(-1);
+      // B-039: dragging the card LEFT brings the NEXT track in (card slides
+      // off to the left, next enters from the right).
+      player.next();
+      _heroFeedbackKey.currentState?.triggerSwipe(isNext: true);
       _horizDragAccum = 0;
       _horizDragFired = true;
     }
@@ -383,17 +417,22 @@ class _VoidScreenState extends State<VoidScreen>
   /// fire prev/next based on the sign of the velocity. The `_horizDragFired`
   /// guard prevents a long+fast drag from double-firing (once on distance,
   /// once on velocity).
+  ///
+  /// B-039: direction follows the card metaphor — a rightward flick (v > 0)
+  /// brings the PREVIOUS track in, a leftward flick (v < 0) brings the NEXT.
   void _onHeroHorizontalDragEnd(DragEndDetails d) {
     if (!_horizDragFired) {
       final v = d.primaryVelocity ?? 0;
       if (v.abs() > _horizVelocityThreshold) {
         final player = context.read<AudioPlayerProvider>();
         if (v > 0) {
-          player.next();
-          _heroFeedbackKey.currentState?.flashSwipe(1);
-        } else {
+          // Rightward flick → previous (B-039).
           player.previous();
-          _heroFeedbackKey.currentState?.flashSwipe(-1);
+          _heroFeedbackKey.currentState?.triggerSwipe(isNext: false);
+        } else {
+          // Leftward flick → next (B-039).
+          player.next();
+          _heroFeedbackKey.currentState?.triggerSwipe(isNext: true);
         }
       }
     }

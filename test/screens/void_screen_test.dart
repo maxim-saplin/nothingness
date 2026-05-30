@@ -423,6 +423,10 @@ void main() {
     });
   });
 
+  // NOTE: B-039 reversed the swipe→transport mapping to match the card
+  // metaphor: dragging/flicking RIGHT (positive) now brings the PREVIOUS
+  // track in, LEFT (negative) brings the NEXT. The B-027 velocity-escape
+  // mechanism is unchanged; only the direction these tests assert flipped.
   group('B-027: hero swipe velocity escape', () {
     // The hero band sits at the top of the screen — pick a point well inside
     // it for our flings. MaterialApp's MediaQuery is driven by the engine
@@ -463,10 +467,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(provider.nextCalls, greaterThanOrEqualTo(1),
-          reason: 'B-027: long slow rightward swipe must fire next '
-              '(existing 60-dp accumulator behaviour preserved).');
-      expect(provider.previousCalls, 0);
+      // B-039: rightward drag → PREVIOUS (was next before the reversal).
+      expect(provider.previousCalls, greaterThanOrEqualTo(1),
+          reason: 'B-039: long slow rightward swipe must fire previous '
+              '(60-dp accumulator preserved; direction reversed).');
+      expect(provider.nextCalls, 0);
     });
 
     testWidgets('fast short flick (<60 dp, high velocity) FIRES — rightward',
@@ -482,10 +487,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(provider.nextCalls, 1,
-          reason: 'B-027: fast short rightward flick must fire next via '
+      // B-039: rightward flick → PREVIOUS (card slides off right).
+      expect(provider.previousCalls, 1,
+          reason: 'B-039: fast short rightward flick must fire previous via '
               'the velocity escape, even when distance is under 60 dp.');
-      expect(provider.previousCalls, 0);
+      expect(provider.nextCalls, 0);
     });
 
     testWidgets('fast short flick (<60 dp, high velocity) FIRES — leftward',
@@ -500,10 +506,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(provider.previousCalls, 1,
-          reason: 'B-027: fast short leftward flick must fire previous via '
-              'the velocity escape; direction = sign of velocity.');
-      expect(provider.nextCalls, 0);
+      // B-039: leftward flick → NEXT (card slides off left).
+      expect(provider.nextCalls, 1,
+          reason: 'B-039: fast short leftward flick must fire next via the '
+              'velocity escape; direction = sign of velocity (reversed).');
+      expect(provider.previousCalls, 0);
     });
 
     testWidgets('low-velocity short swipe (<60 dp, <300 px/s) does NOT fire',
@@ -534,7 +541,7 @@ void main() {
       // drag (accumulator resets after firing, then has only 20 px left, so
       // no second distance trip). End velocity is ~800 px/s, well over the
       // 300 px/s velocity threshold. With the fired-guard in place the
-      // gesture must still produce exactly one next() — not two.
+      // gesture must still produce exactly one event — not two.
       await tester.flingFrom(
         heroPoint,
         const Offset(80, 0),
@@ -542,11 +549,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(provider.nextCalls, 1,
-          reason: 'B-027: when a single drag both trips distance AND ends '
-              'above the velocity threshold, the velocity escape must NOT '
-              're-fire — exactly one transport event per gesture.');
-      expect(provider.previousCalls, 0);
+      // B-039: rightward → previous; the guard must keep it to exactly one.
+      expect(provider.previousCalls, 1,
+          reason: 'B-027/B-039: when a single rightward drag both trips '
+              'distance AND ends above the velocity threshold, the velocity '
+              'escape must NOT re-fire — exactly one transport event.');
+      expect(provider.nextCalls, 0);
     });
   });
 
@@ -555,6 +563,8 @@ void main() {
   _b032Tests();
 
   _b033Tests();
+
+  _b043Tests();
 
   group('B-030 follow-up: chrome tappables wear PressFeedback', () {
     testWidgets('settings ⋮ button has a PressFeedback ancestor',
@@ -1115,6 +1125,74 @@ void _b033Tests() {
       expect(style.color, equals(palette.fgPrimary),
           reason: 'B-033: glyph must render in palette.fgPrimary '
               '(was fgSecondary — too low contrast).');
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// B-043 tests — entering search auto-expands a collapsed swipe-up browser.
+// ---------------------------------------------------------------------------
+
+void _b043Tests() {
+  group('B-043: search auto-expands a collapsed swipe-up browser', () {
+    setUp(() {
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.swipeUp;
+    });
+    tearDown(() {
+      SettingsService().browserPresentationNotifier.value =
+          SettingsService.defaultBrowserPresentation;
+    });
+
+    testWidgets(
+        'entering search expands the collapsed browser; exiting re-collapses',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // Collapsed swipe-up: hint band visible, browser parked offscreen.
+      expect(find.text('↑ swipe to browse'), findsOneWidget,
+          reason: 'B-043: precondition — browser collapsed before search.');
+
+      // Enter search by long-pressing the crumb path readout.
+      await tester.longPress(find.text('~'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget,
+          reason: 'B-043: search input must be up.');
+      expect(find.text('↑ swipe to browse'), findsNothing,
+          reason: 'B-043: entering search must auto-expand the collapsed '
+              'swipe-up browser so results are visible.');
+
+      // Close search via the × glyph.
+      await tester.tap(find.byKey(const ValueKey('void-search-close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('↑ swipe to browse'), findsOneWidget,
+          reason: 'B-043: exiting search must re-collapse the browser that '
+              'search opened.');
+    });
+
+    testWidgets(
+        'does NOT re-collapse a browser the user opened before searching',
+        (tester) async {
+      await _pump(tester, const SpectrumScreenConfig());
+
+      // User opens the browser themselves first.
+      await tester.tap(find.text('↑ swipe to browse'));
+      await tester.pumpAndSettle();
+      expect(find.text('↑ swipe to browse'), findsNothing,
+          reason: 'B-043: precondition — user-opened browser is expanded.');
+
+      // Enter then exit search.
+      await tester.longPress(find.text('~'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('void-search-close')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('↑ swipe to browse'), findsNothing,
+          reason: 'B-043: search must NOT collapse a browser the user opened '
+              'themselves — only the one search auto-expanded.');
     });
   });
 }

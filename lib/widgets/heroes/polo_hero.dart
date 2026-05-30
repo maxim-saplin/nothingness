@@ -51,6 +51,7 @@ class PoloHero extends StatelessWidget {
           songInfo: player.songInfo,
           fontFamily: config.fontFamily,
           textColor: config.textColor,
+          textScale: config.textScale,
         ),
         controlAreas: [
           SkinControlArea(
