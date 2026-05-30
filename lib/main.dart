@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import 'models/theme_id.dart';
@@ -37,78 +38,77 @@ final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
 
 /// Splash + init host (B-008). Renders a black [ColoredBox] for the first frame while the heavy bootstrap (Hive, LibraryService, AudioService, AudioPlayerProvider) runs in a microtask, then swaps to the real [NothingApp]. Intentionally minimal so the first-frame `build` is effectively free.
-class _BootstrapApp extends StatefulWidget {
+class _BootstrapApp extends HookWidget {
   const _BootstrapApp();
 
   @override
-  State<_BootstrapApp> createState() => _BootstrapAppState();
-}
-
-class _BootstrapAppState extends State<_BootstrapApp> {
-  AudioPlayerProvider? _audioPlayerProvider;
-
-  @override
-  void initState() {
-    super.initState();
-    // Kick the heavy bootstrap off the synchronous build path; the microtask runs after the splash frame is rendered.
-    scheduleMicrotask(_bootstrap);
-  }
-
-  Future<void> _bootstrap() async {
-    await Hive.initFlutter();
-
-    // Restore file permissions.
-    await LibraryService().init();
-
-    // Load user settings early so we can choose decoder before starting AudioService.
-    final settingsService = SettingsService();
-    try {
-      await settingsService.loadSettings();
-    } catch (e) {
-      debugPrint('[main] loadSettings failed, falling back to defaults: $e');
-    }
-
-    NothingAudioHandler? handler;
-    if (Platform.isAndroid) {
-      handler = await AudioService.init(
-        builder: () => NothingAudioHandler(),
-        config: const AudioServiceConfig(
-          androidNotificationChannelId:
-              'com.saplin.nothingness.channel.audio',
-          androidNotificationChannelName: 'Audio playback',
-          // Stop the foreground service when paused to release the wake lock/notification; re-promoted on resume.
-          androidStopForegroundOnPause: true,
-        ),
-      );
-    }
-
-    // Initialize the audio player before swapping the splash so the first real frame has live data.
-    final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
-    await audioPlayerProvider.init();
-
-    DebugHooks.navigatorKey = rootNavigatorKey;
-    DebugHooks.provider = audioPlayerProvider;
-    DebugHooks.onAppReady?.call(audioPlayerProvider);
-
-    // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb); drains any cold-start action that arrived before the handler attached.
-    if (Platform.isAndroid) {
-      unawaited(AutomationIntentService(audioPlayerProvider).start());
-    }
-
-    if (!mounted) {
-      // Hot restart raced us; drop the half-built provider rather than leaving it dangling.
-      audioPlayerProvider.dispose();
-      return;
-    }
-    debugPrint('[boot] swap=${_bootSw.elapsedMilliseconds}ms');
-    setState(() {
-      _audioPlayerProvider = audioPlayerProvider;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final provider = _audioPlayerProvider;
+    final audioPlayerProvider = useState<AudioPlayerProvider?>(null);
+
+    // One-shot heavy bootstrap (empty deps → runs once). The microtask keeps it
+    // off the synchronous build path so the splash frame renders first; the
+    // `disposed` latch replaces the old State.mounted guard for the hot-restart race.
+    useEffect(() {
+      var disposed = false;
+
+      Future<void> bootstrap() async {
+        await Hive.initFlutter();
+
+        // Restore file permissions.
+        await LibraryService().init();
+
+        // Load user settings early so we can choose decoder before starting AudioService.
+        final settingsService = SettingsService();
+        try {
+          await settingsService.loadSettings();
+        } catch (e) {
+          debugPrint(
+              '[main] loadSettings failed, falling back to defaults: $e');
+        }
+
+        NothingAudioHandler? handler;
+        if (Platform.isAndroid) {
+          handler = await AudioService.init(
+            builder: () => NothingAudioHandler(),
+            config: const AudioServiceConfig(
+              androidNotificationChannelId:
+                  'com.saplin.nothingness.channel.audio',
+              androidNotificationChannelName: 'Audio playback',
+              // Stop the foreground service when paused to release the wake lock/notification; re-promoted on resume.
+              androidStopForegroundOnPause: true,
+            ),
+          );
+        }
+
+        // Initialize the audio player before swapping the splash so the first real frame has live data.
+        final provider = AudioPlayerProvider(androidHandler: handler);
+        await provider.init();
+
+        DebugHooks.navigatorKey = rootNavigatorKey;
+        DebugHooks.provider = provider;
+        DebugHooks.onAppReady?.call(provider);
+
+        // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb); drains any cold-start action that arrived before the handler attached.
+        if (Platform.isAndroid) {
+          unawaited(AutomationIntentService(provider).start());
+        }
+
+        if (disposed) {
+          // Hot restart raced us; drop the half-built provider rather than leaving it dangling.
+          provider.dispose();
+          return;
+        }
+        debugPrint('[boot] swap=${_bootSw.elapsedMilliseconds}ms');
+        audioPlayerProvider.value = provider;
+      }
+
+      // Kick the heavy bootstrap off the synchronous build path; the microtask runs after the splash frame is rendered.
+      scheduleMicrotask(bootstrap);
+
+      return () => disposed = true;
+    }, const []);
+
+    final provider = audioPlayerProvider.value;
     if (provider == null) {
       // Cheap-render path: no MaterialApp, theme, or fonts.
       return const ColoredBox(color: Color(0xFF000000));
@@ -215,7 +215,7 @@ class _NothingAppState extends State<NothingApp> {
 }
 
 /// Rebuilds the [MaterialApp] when any of the three theme-driving notifiers change. Operating mode is listened to here (though it doesn't affect [ThemeData]) to keep the tree wired; downstream surfaces read it via [SettingsService].
-class _ThemeListener extends StatefulWidget {
+class _ThemeListener extends HookWidget {
   const _ThemeListener({
     required this.themeIdNotifier,
     required this.themeVariantNotifier,
@@ -229,36 +229,12 @@ class _ThemeListener extends StatefulWidget {
   final Widget Function(BuildContext, ThemeId, ThemeVariant) builder;
 
   @override
-  State<_ThemeListener> createState() => _ThemeListenerState();
-}
-
-class _ThemeListenerState extends State<_ThemeListener> {
-  @override
-  void initState() {
-    super.initState();
-    widget.themeIdNotifier.addListener(_onChanged);
-    widget.themeVariantNotifier.addListener(_onChanged);
-    widget.operatingModeNotifier.addListener(_onChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.themeIdNotifier.removeListener(_onChanged);
-    widget.themeVariantNotifier.removeListener(_onChanged);
-    widget.operatingModeNotifier.removeListener(_onChanged);
-    super.dispose();
-  }
-
-  void _onChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return widget.builder(
-      context,
-      widget.themeIdNotifier.value,
-      widget.themeVariantNotifier.value,
-    );
+    final themeId = useValueListenable(themeIdNotifier);
+    final themeVariant = useValueListenable(themeVariantNotifier);
+    // Operating mode doesn't affect ThemeData, but we still subscribe so a
+    // change rebuilds the tree (parity with the old explicit listener wiring).
+    useValueListenable(operatingModeNotifier);
+    return builder(context, themeId, themeVariant);
   }
 }

@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
-class RetroTicker extends StatefulWidget {
+class RetroTicker extends HookWidget {
   final String text;
   final TextStyle style;
   final Duration scrollInterval;
@@ -16,117 +17,105 @@ class RetroTicker extends StatefulWidget {
   });
 
   @override
-  State<RetroTicker> createState() => _RetroTickerState();
-}
-
-class _RetroTickerState extends State<RetroTicker> {
-  String _displayString = '';
-  Timer? _timer;
-  int _offset = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkScroll();
-  }
-
-  @override
-  void didUpdateWidget(RetroTicker oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
-      _checkScroll();
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _checkScroll() {
-    // Width is measured in build(); just reset state here.
-    _timer?.cancel();
-    _offset = 0;
-  }
-
-  void _startScrolling(String fullText) {
-    if (_timer != null && _timer!.isActive) return;
-
-    _displayString = fullText;
-
-    _timer = Timer.periodic(widget.scrollInterval, (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        _offset++;
-        if (_offset >= fullText.length) {
-          _offset = 0;
-        }
-      });
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Mutable marquee state, held across rebuilds.
+    final displayString = useRef<String>('');
+    final timer = useRef<Timer?>(null);
+    final offset = useState<int>(0);
+
+    void stopScrolling() {
+      timer.value?.cancel();
+      timer.value = null;
+      offset.value = 0;
+    }
+
+    void startScrolling(String fullText) {
+      if (timer.value != null && timer.value!.isActive) return;
+
+      displayString.value = fullText;
+
+      timer.value = Timer.periodic(scrollInterval, (t) {
+        if (!context.mounted) {
+          t.cancel();
+          return;
+        }
+        var next = offset.value + 1;
+        if (next >= fullText.length) {
+          next = 0;
+        }
+        offset.value = next;
+      });
+    }
+
+    // Reset the marquee whenever text/style changes (was _checkScroll +
+    // didUpdateWidget): cancel any running timer and rewind the offset. Width
+    // is measured in build, so the timer is (re)started there as needed.
+    useEffect(() {
+      timer.value?.cancel();
+      timer.value = null;
+      offset.value = 0;
+      return null;
+    }, [text, style]);
+
+    // Cancel the timer on dispose.
+    useEffect(() {
+      return () => timer.value?.cancel();
+    }, const []);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
+          text: TextSpan(text: text, style: style),
           maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout();
 
         if (textPainter.width <= constraints.maxWidth) {
           // Fits — render statically and stop any running scroll.
-          _timer?.cancel();
-          _offset = 0;
+          stopScrolling();
           return Text(
-            widget.text,
-            style: widget.style,
+            text,
+            style: style,
             textAlign: TextAlign.center,
             overflow: TextOverflow.visible,
             maxLines: 1,
           );
         } else {
           // Overflows — rotate a gap-padded copy char-by-char ("TEXT    ").
-          final gap = ' ' * widget.gapSpaces;
-          final scrollingText = '${widget.text}$gap';
+          final gap = ' ' * gapSpaces;
+          final scrollingText = '$text$gap';
 
           // Defer start to avoid setState during build.
-          if (_timer == null || !_timer!.isActive) {
+          if (timer.value == null || !timer.value!.isActive) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _startScrolling(scrollingText);
+              startScrolling(scrollingText);
             });
           }
 
-          if (_displayString.isEmpty) {
+          if (displayString.value.isEmpty) {
             return Text(
-              widget.text,
-              style: widget.style,
+              text,
+              style: style,
               maxLines: 1,
               overflow: TextOverflow.clip,
             );
           }
 
           // Rotate by the current offset: "ABC   " -> "BC   A" -> ...
-          final effectiveOffset = _offset % _displayString.length;
-          final rotated = _displayString.substring(effectiveOffset) +
-              _displayString.substring(0, effectiveOffset);
+          final effectiveOffset = offset.value % displayString.value.length;
+          final rotated = displayString.value.substring(effectiveOffset) +
+              displayString.value.substring(0, effectiveOffset);
 
           return Text(
             rotated,
-            style: widget.style,
+            style: style,
             textAlign: TextAlign.center,
             maxLines: 1,
             softWrap: false,
-            overflow: TextOverflow.clip, 
+            overflow: TextOverflow.clip,
           );
         }
       },
     );
   }
 }
-

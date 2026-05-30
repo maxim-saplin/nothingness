@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import '../models/log_entry.dart';
@@ -9,59 +10,8 @@ import '../providers/audio_player_provider.dart';
 import '../services/logging_service.dart';
 import '../services/settings_service.dart';
 
-class LogScreen extends StatefulWidget {
+class LogScreen extends HookWidget {
   const LogScreen({super.key});
-
-  @override
-  State<LogScreen> createState() => _LogScreenState();
-}
-
-class _LogScreenState extends State<LogScreen> {
-  Timer? _audioPollTimer;
-  List<String> _audioEvents = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    final settings = SettingsService();
-    settings.audioDiagnosticsOverlayNotifier.addListener(_syncPolling);
-    _syncPolling();
-  }
-
-  @override
-  void dispose() {
-    SettingsService().audioDiagnosticsOverlayNotifier.removeListener(
-      _syncPolling,
-    );
-    _audioPollTimer?.cancel();
-    super.dispose();
-  }
-
-  void _syncPolling() {
-    final enabled = SettingsService().audioDiagnosticsOverlayNotifier.value;
-    _audioPollTimer?.cancel();
-    if (!enabled) {
-      if (_audioEvents.isNotEmpty) {
-        setState(() => _audioEvents = const []);
-      }
-      return;
-    }
-    _audioPollTimer = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) => _refreshAudioEvents(),
-    );
-    _refreshAudioEvents();
-  }
-
-  void _refreshAudioEvents() {
-    if (!mounted) return;
-    final provider = context.read<AudioPlayerProvider?>();
-    if (provider == null) return;
-    final events = provider.audioEvents();
-    if (!listEquals(events, _audioEvents)) {
-      setState(() => _audioEvents = events);
-    }
-  }
 
   Color _levelColor(LogLevel level) {
     switch (level) {
@@ -78,6 +28,35 @@ class _LogScreenState extends State<LogScreen> {
   Widget build(BuildContext context) {
     final logging = LoggingService();
     final settings = SettingsService();
+
+    final audioEvents = useState<List<String>>(const []);
+    final enabled = useValueListenable(
+      settings.audioDiagnosticsOverlayNotifier,
+    );
+
+    void refreshAudioEvents() {
+      if (!context.mounted) return;
+      final provider = context.read<AudioPlayerProvider?>();
+      if (provider == null) return;
+      final events = provider.audioEvents();
+      if (!listEquals(events, audioEvents.value)) {
+        audioEvents.value = events;
+      }
+    }
+
+    useEffect(() {
+      if (!enabled) {
+        if (audioEvents.value.isNotEmpty) audioEvents.value = const [];
+        return null;
+      }
+      final timer = Timer.periodic(
+        const Duration(milliseconds: 500),
+        (_) => refreshAudioEvents(),
+      );
+      refreshAudioEvents();
+      return timer.cancel;
+    }, [enabled]);
+
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E14),
       appBar: AppBar(
@@ -97,7 +76,7 @@ class _LogScreenState extends State<LogScreen> {
         builder: (context, audioDiag, _) {
           return Column(
             children: [
-              if (audioDiag) _audioEventsPanel(),
+              if (audioDiag) _audioEventsPanel(audioEvents.value),
               Expanded(
                 child: ValueListenableBuilder<List<LogEntry>>(
                   valueListenable: logging.logsNotifier,
@@ -166,8 +145,7 @@ class _LogScreenState extends State<LogScreen> {
     );
   }
 
-  Widget _audioEventsPanel() {
-    final events = _audioEvents;
+  Widget _audioEventsPanel(List<String> events) {
     return Container(
       width: double.infinity,
       constraints: const BoxConstraints(maxHeight: 240),

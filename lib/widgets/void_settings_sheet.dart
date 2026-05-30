@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -35,7 +36,7 @@ import 'press_feedback.dart';
 /// single builder renders. The active [AppPalette] / [AppTypography] /
 /// [AppGeometry] are read into instance fields at the top of [build] so the row
 /// builders don't thread them through.
-class VoidSettingsSheet extends StatefulWidget {
+class VoidSettingsSheet extends HookWidget {
   const VoidSettingsSheet({super.key});
 
   static Future<void> push(BuildContext context) => Navigator.of(context).push(
@@ -43,83 +44,106 @@ class VoidSettingsSheet extends StatefulWidget {
       );
 
   @override
-  State<VoidSettingsSheet> createState() => _VoidSettingsSheetState();
+  Widget build(BuildContext context) {
+    final settings = SettingsService();
+
+    // Mutating any watched notifier rebuilds the whole sheet, so cycle/slider
+    // handlers never need an explicit setState.
+    useListenable(Listenable.merge(<Listenable>[
+      settings.operatingModeNotifier,
+      settings.themeIdNotifier,
+      settings.themeVariantNotifier,
+      settings.screenConfigNotifier,
+      settings.immersiveNotifier,
+      settings.transportPositionNotifier,
+      settings.browserPresentationNotifier,
+      settings.fullScreenNotifier,
+      settings.uiScaleNotifier,
+      settings.settingsNotifier,
+      settings.useFilenameForMetadataNotifier,
+      settings.smartFoldersPresentationNotifier,
+      settings.debugLayoutNotifier,
+      settings.audioDiagnosticsOverlayNotifier,
+      settings.eqSettingsNotifier,
+    ]));
+
+    final versionLabel = useState('...');
+    final hasNotification = useState(false);
+    final hasAudio = useState(false);
+
+    useEffect(() {
+      var active = true;
+      Future<void> loadVersion() async {
+        try {
+          final info = await PackageInfo.fromPlatform();
+          if (!active) return;
+          versionLabel.value = '${info.version}+${info.buildNumber}';
+        } catch (_) {
+          // Non-fatal — keep the placeholder.
+        }
+      }
+
+      loadVersion();
+      return () => active = false;
+    }, const []);
+
+    // Permission probe — re-runnable from external-settings rows.
+    final refreshPermissions = useCallback(() async {
+      if (!PlatformChannels.isAndroid) return;
+      final p = PlatformChannels();
+      final notif = await p.isNotificationAccessGranted();
+      final audio = await p.hasAudioPermission();
+      hasNotification.value = notif;
+      hasAudio.value = audio;
+    }, const []);
+
+    useEffect(() {
+      refreshPermissions();
+      return null;
+    }, const []);
+
+    final theme = Theme.of(context);
+    return _SettingsView(
+      settings: settings,
+      versionLabel: versionLabel.value,
+      hasNotification: hasNotification.value,
+      hasAudio: hasAudio.value,
+      refreshPermissions: refreshPermissions,
+      p: theme.extension<AppPalette>()!,
+      t: theme.extension<AppTypography>()!,
+      g: theme.extension<AppGeometry>()!,
+    );
+  }
 }
 
-class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
-  final SettingsService _settings = SettingsService();
+class _SettingsView extends StatelessWidget {
+  const _SettingsView({
+    required this.settings,
+    required this.versionLabel,
+    required this.hasNotification,
+    required this.hasAudio,
+    required this.refreshPermissions,
+    required AppPalette p,
+    required AppTypography t,
+    required AppGeometry g,
+  })  : _p = p,
+        _t = t,
+        _g = g;
 
-  bool _hasAudio = false;
-  bool _hasNotification = false;
-  String _versionLabel = '...';
+  final SettingsService settings;
+  final String versionLabel;
+  final bool hasNotification;
+  final bool hasAudio;
+  final Future<void> Function() refreshPermissions;
 
-  late AppPalette _p;
-  late AppTypography _t;
-  late AppGeometry _g;
+  SettingsService get _settings => settings;
+  String get _versionLabel => versionLabel;
+  bool get _hasNotification => hasNotification;
+  bool get _hasAudio => hasAudio;
 
-  // Mutating any watched notifier rebuilds the whole sheet, so cycle/slider
-  // handlers never need an explicit setState.
-  late final List<Listenable> _watched = <Listenable>[
-    _settings.operatingModeNotifier,
-    _settings.themeIdNotifier,
-    _settings.themeVariantNotifier,
-    _settings.screenConfigNotifier,
-    _settings.immersiveNotifier,
-    _settings.transportPositionNotifier,
-    _settings.browserPresentationNotifier,
-    _settings.fullScreenNotifier,
-    _settings.uiScaleNotifier,
-    _settings.settingsNotifier,
-    _settings.useFilenameForMetadataNotifier,
-    _settings.smartFoldersPresentationNotifier,
-    _settings.debugLayoutNotifier,
-    _settings.audioDiagnosticsOverlayNotifier,
-    _settings.eqSettingsNotifier,
-  ];
-
-  void _onAnySettingChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    for (final l in _watched) {
-      l.addListener(_onAnySettingChanged);
-    }
-    _refreshPermissions();
-    _loadVersion();
-  }
-
-  @override
-  void dispose() {
-    for (final l in _watched) {
-      l.removeListener(_onAnySettingChanged);
-    }
-    super.dispose();
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      setState(() => _versionLabel = '${info.version}+${info.buildNumber}');
-    } catch (_) {
-      // Non-fatal — keep the placeholder.
-    }
-  }
-
-  Future<void> _refreshPermissions() async {
-    if (!PlatformChannels.isAndroid) return;
-    final p = PlatformChannels();
-    final notif = await p.isNotificationAccessGranted();
-    final audio = await p.hasAudioPermission();
-    if (!mounted) return;
-    setState(() {
-      _hasNotification = notif;
-      _hasAudio = audio;
-    });
-  }
+  final AppPalette _p;
+  final AppTypography _t;
+  final AppGeometry _g;
 
   /// Next value in [values] after [cur], wrapping around.
   T _next<T>(List<T> values, T cur) =>
@@ -163,12 +187,12 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
   Future<void> _openNotificationSettings() async {
     await PlatformChannels().openNotificationSettings();
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    await _refreshPermissions();
+    await refreshPermissions();
   }
 
   Future<void> _requestMicPermission() async {
     await Permission.microphone.request();
-    await _refreshPermissions();
+    await refreshPermissions();
   }
 
   Future<void> _openLogs(BuildContext context) => Navigator.of(context)
@@ -180,11 +204,6 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    _p = theme.extension<AppPalette>()!;
-    _t = theme.extension<AppTypography>()!;
-    _g = theme.extension<AppGeometry>()!;
-
     // Status strip + header live OUTSIDE the ListView so they stay pinned. The
     // provider is nullable so unit tests that don't wrap the sheet in a
     // ChangeNotifierProvider keep working — the strip is omitted.
@@ -198,13 +217,13 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
           builder: (context, mode, _) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _header(),
+              _header(context),
               if (player != null && player.queue.isNotEmpty)
                 ..._statusStrip(player),
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.zero,
-                  children: _buildGroups(mode),
+                  children: _buildGroups(context, mode),
                 ),
               ),
             ],
@@ -226,7 +245,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
     ];
   }
 
-  List<Widget> _buildGroups(OperatingMode mode) {
+  List<Widget> _buildGroups(BuildContext context, OperatingMode mode) {
     final isOwn = mode == OperatingMode.own;
     final isBackground = mode == OperatingMode.background;
     final cfg = _settings.screenConfigNotifier.value;
@@ -269,7 +288,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
               save: true)),
       _Slider('void-settings-ui-scale', 'ui scale', _uiScaleLabel(), 0.75, 3.0, 9,
           _settings.uiScaleNotifier.value < 0
-              ? _effectiveAutoUiScale()
+              ? _effectiveAutoUiScale(context)
               : _settings.uiScaleNotifier.value.clamp(0.75, 3.0),
           _settings.saveUiScale,
           trailing: _autoChip(isAuto: _settings.uiScaleNotifier.value < 0)),
@@ -429,7 +448,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
       _Slider(keyId, label, '${(value * 100).round()}%', min, 1.0, divisions,
           value, onChanged);
 
-  double _effectiveAutoUiScale() {
+  double _effectiveAutoUiScale(BuildContext context) {
     final dpr = View.of(context).devicePixelRatio;
     if (dpr <= 0) return 1.0;
     final logicalWidth = MediaQuery.of(context).size.width;
@@ -472,7 +491,7 @@ class _VoidSettingsSheetState extends State<VoidSettingsSheet> {
         _ => const SizedBox.shrink(),
       };
 
-  Widget _header() => Container(
+  Widget _header(BuildContext context) => Container(
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(

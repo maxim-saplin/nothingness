@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 enum SkinControlShape { rectangle, circle }
 
@@ -18,7 +19,14 @@ class SkinControlArea {
   });
 }
 
-class SkinLayout extends StatefulWidget {
+TextStyle _debugLabelStyle(double fontSize) => TextStyle(
+  color: Colors.white,
+  fontWeight: FontWeight.bold,
+  backgroundColor: Colors.black54,
+  fontSize: fontSize,
+);
+
+class SkinLayout extends HookWidget {
   final String backgroundImagePath;
   final Rect lcdRect;
   final Widget lcdContent;
@@ -37,76 +45,58 @@ class SkinLayout extends StatefulWidget {
   });
 
   @override
-  State<SkinLayout> createState() => _SkinLayoutState();
-}
-
-TextStyle _debugLabelStyle(double fontSize) => TextStyle(
-  color: Colors.white,
-  fontWeight: FontWeight.bold,
-  backgroundColor: Colors.black54,
-  fontSize: fontSize,
-);
-
-class _SkinLayoutState extends State<SkinLayout> {
-  ui.Image? _image;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadImage();
-  }
-
-  @override
-  void didUpdateWidget(SkinLayout oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.backgroundImagePath != widget.backgroundImagePath) {
-      _loadImage();
-    }
-  }
-
-  Future<void> _loadImage() async {
-    setState(() => _isLoading = true);
-    final ImageStream stream = AssetImage(
-      widget.backgroundImagePath,
-    ).resolve(ImageConfiguration.empty);
-    final Completer<ui.Image> completer = Completer();
-    final ImageStreamListener listener = ImageStreamListener(
-      (ImageInfo info, bool synchronousCall) {
-        if (!completer.isCompleted) {
-          completer.complete(info.image);
-        }
-      },
-      onError: (dynamic exception, StackTrace? stackTrace) {
-        setState(() => _isLoading = false);
-      },
-    );
-
-    stream.addListener(listener);
-    final image = await completer.future;
-    stream.removeListener(listener);
-
-    if (mounted) {
-      setState(() {
-        _image = image;
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_isLoading || _image == null) {
+    final image = useState<ui.Image?>(null);
+    final isLoading = useState<bool>(true);
+
+    // Reload the background whenever the asset path changes (matches the old
+    // didUpdateWidget branch); the effect re-runs on path change and on first
+    // build, mirroring initState + didUpdateWidget.
+    useEffect(() {
+      var disposed = false;
+      isLoading.value = true;
+      final ImageStream stream = AssetImage(
+        backgroundImagePath,
+      ).resolve(ImageConfiguration.empty);
+      final Completer<ui.Image> completer = Completer();
+      late final ImageStreamListener listener;
+      listener = ImageStreamListener(
+        (ImageInfo info, bool synchronousCall) {
+          if (!completer.isCompleted) {
+            completer.complete(info.image);
+          }
+        },
+        onError: (dynamic exception, StackTrace? stackTrace) {
+          if (!disposed) isLoading.value = false;
+        },
+      );
+
+      stream.addListener(listener);
+      completer.future.then((loaded) {
+        stream.removeListener(listener);
+        if (disposed) return;
+        image.value = loaded;
+        isLoading.value = false;
+      });
+
+      return () {
+        disposed = true;
+        stream.removeListener(listener);
+      };
+    }, [backgroundImagePath]);
+
+    if (isLoading.value || image.value == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final loadedImage = image.value!;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         // Rendered rect of the image under BoxFit.contain (centered).
         final Size containerSize = constraints.biggest;
         final Size imageSize = Size(
-          _image!.width.toDouble(),
-          _image!.height.toDouble(),
+          loadedImage.width.toDouble(),
+          loadedImage.height.toDouble(),
         );
 
         final Size destinationSize =
@@ -127,13 +117,13 @@ class _SkinLayoutState extends State<SkinLayout> {
           r.height * renderedImageRect.height,
         );
 
-        final absoluteLcdRect = toAbsolute(widget.lcdRect);
+        final absoluteLcdRect = toAbsolute(lcdRect);
 
         return Stack(
           children: [
             Center(
               child: Image.asset(
-                widget.backgroundImagePath,
+                backgroundImagePath,
                 fit: BoxFit.contain,
               ),
             ),
@@ -141,12 +131,12 @@ class _SkinLayoutState extends State<SkinLayout> {
             // LCD content area.
             Positioned.fromRect(
               rect: absoluteLcdRect,
-              child: widget.lcdContent,
+              child: lcdContent,
             ),
 
             // Interactive control areas.
-            if (widget.controlAreas != null)
-              ...widget.controlAreas!.map((area) {
+            if (controlAreas != null)
+              ...controlAreas!.map((area) {
                 final isCircle = area.shape == SkinControlShape.circle;
                 return Positioned.fromRect(
                   rect: toAbsolute(area.rect),
@@ -167,7 +157,7 @@ class _SkinLayoutState extends State<SkinLayout> {
                           child: Container(),
                         ),
                       ),
-                      if (widget.debugLayout)
+                      if (debugLayout)
                         IgnorePointer(
                           child: Container(
                             decoration: BoxDecoration(
@@ -194,7 +184,7 @@ class _SkinLayoutState extends State<SkinLayout> {
                 );
               }),
 
-            if (widget.debugLayout)
+            if (debugLayout)
               Positioned.fromRect(
                 rect: absoluteLcdRect,
                 child: Container(
@@ -204,7 +194,7 @@ class _SkinLayoutState extends State<SkinLayout> {
                   ),
                   child: Center(
                     child: Text(
-                      'LCD Area\n${(widget.lcdRect.left * 100).toStringAsFixed(1)}%, ${(widget.lcdRect.top * 100).toStringAsFixed(1)}%\n${(widget.lcdRect.width * 100).toStringAsFixed(1)}% x ${(widget.lcdRect.height * 100).toStringAsFixed(1)}%',
+                      'LCD Area\n${(lcdRect.left * 100).toStringAsFixed(1)}%, ${(lcdRect.top * 100).toStringAsFixed(1)}%\n${(lcdRect.width * 100).toStringAsFixed(1)}% x ${(lcdRect.height * 100).toStringAsFixed(1)}%',
                       style: _debugLabelStyle(10),
                       textAlign: TextAlign.center,
                     ),
@@ -213,12 +203,12 @@ class _SkinLayoutState extends State<SkinLayout> {
               ),
 
             // Media controls (optional overlay pinned near screen bottom).
-            if (widget.mediaControls != null)
+            if (mediaControls != null)
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 40,
-                child: widget.mediaControls!,
+                child: mediaControls!,
               ),
           ],
         );
