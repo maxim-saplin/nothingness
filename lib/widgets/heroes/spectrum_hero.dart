@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/screen_config.dart';
 import '../../models/spectrum_settings.dart';
-import '../../providers/audio_player_provider.dart';
+import '../../services/playback_controller.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_typography.dart';
 import '../spectrum_visualizer.dart';
@@ -26,7 +26,7 @@ class SpectrumHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
     final hasTrack = player.songInfo?.track != null;
 
     // Three identical fgPrimary stops collapse to a uniform monochrome bar; the visualiser still lerps between them.

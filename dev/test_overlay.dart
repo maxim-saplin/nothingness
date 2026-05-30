@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nothingness/models/audio_track.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/theme/app_palette.dart';
 import 'playback_diagnostics.dart';
 import 'test_harness.dart';
@@ -26,7 +26,7 @@ class TestOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -144,7 +144,7 @@ class _QueueList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<PlaybackController>();
     final palette = Theme.of(context).extension<AppPalette>();
     // Test overlay is only mounted from dev/main_test.dart, which always wraps
     // the app in a themed MaterialApp; the fallback is purely defensive.

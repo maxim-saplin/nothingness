@@ -59,7 +59,7 @@ void main() {
   });
 
   tearDown(() async {
-    await controller.dispose();
+    await controller.shutdown();
     try {
       if (Hive.isBoxOpen('playlistBox_search_$testNumber')) {
         await Hive.box('playlistBox_search_$testNumber').close();

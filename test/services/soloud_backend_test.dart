@@ -29,6 +29,6 @@ void main() {
     expect(tracks.any((t) => t.path.endsWith('a.mp3')), isTrue);
     expect(tracks.any((t) => t.path.endsWith('c.flac')), isTrue);
 
-    await controller.dispose();
+    await controller.shutdown();
   });
 }

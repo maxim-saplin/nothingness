@@ -9,7 +9,6 @@ import 'package:provider/provider.dart';
 
 import 'models/theme_id.dart';
 import 'models/theme_variant.dart';
-import 'providers/audio_player_provider.dart';
 import 'screens/media_controller_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nothingness/services/library_service.dart';
@@ -17,6 +16,8 @@ import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/widgets/phone_frame.dart';
 import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
+import 'services/playback_controller.dart';
+import 'services/soloud_transport.dart';
 import 'debug_hooks.dart';
 import 'theme/themes.dart';
 
@@ -37,13 +38,13 @@ void main() {
 final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
 
-/// Splash + init host (B-008). Renders a black [ColoredBox] for the first frame while the heavy bootstrap (Hive, LibraryService, AudioService, AudioPlayerProvider) runs in a microtask, then swaps to the real [NothingApp]. Intentionally minimal so the first-frame `build` is effectively free.
+/// Splash + init host (B-008). Renders a black [ColoredBox] for the first frame while the heavy bootstrap (Hive, LibraryService, AudioService, PlaybackController) runs in a microtask, then swaps to the real [NothingApp]. Intentionally minimal so the first-frame `build` is effectively free.
 class _BootstrapApp extends HookWidget {
   const _BootstrapApp();
 
   @override
   Widget build(BuildContext context) {
-    final audioPlayerProvider = useState<AudioPlayerProvider?>(null);
+    final playbackController = useState<PlaybackController?>(null);
 
     // One-shot heavy bootstrap (empty deps → runs once). The microtask keeps it
     // off the synchronous build path so the splash frame renders first; the
@@ -66,9 +67,13 @@ class _BootstrapApp extends HookWidget {
               '[main] loadSettings failed, falling back to defaults: $e');
         }
 
-        NothingAudioHandler? handler;
+        // PlaybackController is the single source of truth on both platforms.
+        // On Android the AudioService handler owns + inits the controller (and
+        // observes it to drive the OS MediaSession); elsewhere we build a
+        // transport + controller and init it here.
+        final PlaybackController controller;
         if (Platform.isAndroid) {
-          handler = await AudioService.init(
+          final handler = await AudioService.init(
             builder: () => NothingAudioHandler(),
             config: const AudioServiceConfig(
               androidNotificationChannelId:
@@ -78,28 +83,29 @@ class _BootstrapApp extends HookWidget {
               androidStopForegroundOnPause: true,
             ),
           );
+          await handler.ready;
+          controller = handler.controller;
+        } else {
+          controller = PlaybackController(transport: SoLoudTransport());
+          await controller.init();
         }
 
-        // Initialize the audio player before swapping the splash so the first real frame has live data.
-        final provider = AudioPlayerProvider(androidHandler: handler);
-        await provider.init();
-
         DebugHooks.navigatorKey = rootNavigatorKey;
-        DebugHooks.provider = provider;
-        DebugHooks.onAppReady?.call(provider);
+        DebugHooks.provider = controller;
+        DebugHooks.onAppReady?.call(controller);
 
         // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb); drains any cold-start action that arrived before the handler attached.
         if (Platform.isAndroid) {
-          unawaited(AutomationIntentService(provider).start());
+          unawaited(AutomationIntentService(controller).start());
         }
 
         if (disposed) {
-          // Hot restart raced us; drop the half-built provider rather than leaving it dangling.
-          provider.dispose();
+          // Hot restart raced us; drop the half-built controller rather than leaving it dangling.
+          controller.dispose();
           return;
         }
         debugPrint('[boot] swap=${_bootSw.elapsedMilliseconds}ms');
-        audioPlayerProvider.value = provider;
+        playbackController.value = controller;
       }
 
       // Kick the heavy bootstrap off the synchronous build path; the microtask runs after the splash frame is rendered.
@@ -108,19 +114,19 @@ class _BootstrapApp extends HookWidget {
       return () => disposed = true;
     }, const []);
 
-    final provider = audioPlayerProvider.value;
-    if (provider == null) {
+    final controller = playbackController.value;
+    if (controller == null) {
       // Cheap-render path: no MaterialApp, theme, or fonts.
       return const ColoredBox(color: Color(0xFF000000));
     }
-    return NothingApp(audioPlayerProvider: provider);
+    return NothingApp(playbackController: controller);
   }
 }
 
 class NothingApp extends StatefulWidget {
-  const NothingApp({super.key, required this.audioPlayerProvider});
+  const NothingApp({super.key, required this.playbackController});
 
-  final AudioPlayerProvider audioPlayerProvider;
+  final PlaybackController playbackController;
 
   @override
   State<NothingApp> createState() => _NothingAppState();
@@ -135,8 +141,8 @@ class _NothingAppState extends State<NothingApp> {
   @override
   Widget build(BuildContext context) {
     final settings = SettingsService();
-    return ChangeNotifierProvider.value(
-      value: widget.audioPlayerProvider,
+    return ChangeNotifierProvider<PlaybackController>.value(
+      value: widget.playbackController,
       child: _ThemeListener(
         themeIdNotifier: settings.themeIdNotifier,
         themeVariantNotifier: settings.themeVariantNotifier,

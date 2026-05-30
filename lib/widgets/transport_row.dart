@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../theme/app_palette.dart';
 import 'press_feedback.dart';
 
@@ -48,7 +48,7 @@ class _SeekStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
     final si = player.songInfo;
     final positionMs = si?.position ?? 0;
     final durationMs = si?.duration ?? 0;
@@ -128,7 +128,7 @@ class _IconRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
     final glyphColor = palette.fgPrimary.withValues(alpha: 0.7);
     final isPlaying = player.isPlaying;
 

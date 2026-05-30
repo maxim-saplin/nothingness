@@ -5,12 +5,14 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/operating_mode.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/theme_id.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/theme/themes.dart';
 import 'package:nothingness/widgets/void_settings_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/mock_audio_transport.dart';
 
 Widget _wrap(Widget child) {
   return MaterialApp(
@@ -208,7 +210,7 @@ void main() {
         await _pumpInTallViewport(
           tester,
           _wrap(
-            ChangeNotifierProvider<AudioPlayerProvider>.value(
+            ChangeNotifierProvider<PlaybackController>.value(
               value: provider,
               child: const VoidSettingsSheet(),
             ),
@@ -258,7 +260,7 @@ void main() {
       await _pumpInTallViewport(
         tester,
         _wrap(
-          ChangeNotifierProvider<AudioPlayerProvider>.value(
+          ChangeNotifierProvider<PlaybackController>.value(
             value: provider,
             child: const VoidSettingsSheet(),
           ),
@@ -298,7 +300,7 @@ void main() {
         await _pumpInTallViewport(
           tester,
           _wrap(
-            ChangeNotifierProvider<AudioPlayerProvider>.value(
+            ChangeNotifierProvider<PlaybackController>.value(
               value: provider,
               child: const VoidSettingsSheet(),
             ),
@@ -531,7 +533,7 @@ void main() {
       await _pumpInTallViewport(
         tester,
         _wrap(
-          ChangeNotifierProvider<AudioPlayerProvider>.value(
+          ChangeNotifierProvider<PlaybackController>.value(
             value: provider,
             child: const VoidSettingsSheet(),
           ),
@@ -556,14 +558,15 @@ void main() {
   });
 }
 
-/// Minimal AudioPlayerProvider stub that exposes a controllable queue + shuffle
+/// Minimal PlaybackController stub that exposes a controllable queue + shuffle
 /// state and counts calls to the shuffle/disable shuffle entry points.
-class _StubAudioProvider extends AudioPlayerProvider {
+class _StubAudioProvider extends PlaybackController {
   _StubAudioProvider({
     required List<AudioTrack> queue,
     required bool shuffle,
   })  : _queueOverride = queue,
-        _shuffleOverride = shuffle;
+        _shuffleOverride = shuffle,
+        super(transport: MockAudioTransport());
 
   List<AudioTrack> _queueOverride;
   bool _shuffleOverride;

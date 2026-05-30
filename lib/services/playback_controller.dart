@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/audio_track.dart';
 import '../models/song_info.dart';
+import '../models/spectrum_settings.dart';
 import 'audio_transport.dart';
 import 'metadata_extractor.dart';
 import 'playlist_store.dart';
@@ -20,8 +21,11 @@ enum PlayIntent { play, pause }
 enum _SelectionReason { userTap, previous, autoAdvance, setQueue, other }
 
 /// Single source of truth for playback: user intent, queue, error recovery,
-/// and coordination with the [AudioTransport].
-class PlaybackController {
+/// and coordination with the [AudioTransport]. Also the UI-facing
+/// [ChangeNotifier] — its sub-notifiers (song info, play state, queue, index,
+/// shuffle, one-shot) and the spectrum stream are fanned into [notifyListeners]
+/// so widgets can `context.watch<PlaybackController>()` directly.
+class PlaybackController extends ChangeNotifier {
   PlaybackController({
     required AudioTransport transport,
     PlaylistStore? playlist,
@@ -55,6 +59,42 @@ class PlaybackController {
   ValueNotifier<int?> get currentIndexNotifier =>
       _playlist.currentOrderIndexNotifier;
   ValueNotifier<bool> get shuffleNotifier => _playlist.shuffleNotifier;
+
+  // ---- UI-facing getters (ChangeNotifier surface) ---------------------------
+
+  SongInfo? get songInfo => songInfoNotifier.value;
+  bool get isPlaying => isPlayingNotifier.value;
+  List<AudioTrack> get queue => queueNotifier.value;
+  int? get currentIndex => currentIndexNotifier.value;
+  bool get shuffle => shuffleNotifier.value;
+
+  /// Supported file extensions for the active transport's decoder.
+  static Set<String> get supportedExtensions =>
+      SoLoudTransport.supportedExtensions;
+
+  // ---- Spectrum surface (moved off the old AudioPlayerProvider) -------------
+
+  List<double> _spectrumData = List.filled(32, 0.0);
+  List<double> get spectrumData => _spectrumData;
+  Stream<List<double>> get spectrumStream => _transport.spectrumStream;
+  StreamSubscription<List<double>>? _spectrumSub;
+
+  void setCaptureEnabled(bool enabled) => _transport.setCaptureEnabled(enabled);
+  void updateSpectrumSettings(SpectrumSettings settings) =>
+      _transport.updateSpectrumSettings(settings);
+
+  // Fan every sub-notifier into [notifyListeners]; wired in [init], torn down in
+  // [dispose].
+  late final List<Listenable> _uiNotifiers = <Listenable>[
+    songInfoNotifier,
+    isPlayingNotifier,
+    isOneShotNotifier,
+    queueNotifier,
+    currentIndexNotifier,
+    shuffleNotifier,
+  ];
+  bool _uiWired = false;
+  void _notify() => notifyListeners();
 
   // One-shot: a track played outside the queue. On natural end the queue is
   // restored at `_oneShotResumeIndex + 1`; explicit prev/next clears it.
@@ -176,6 +216,18 @@ class PlaybackController {
     _positionTimer = _newPositionTimer();
     _updateQueueWithNotFoundFlags();
 
+    // Fan sub-notifier changes into ChangeNotifier listeners + mirror spectrum.
+    if (!_uiWired) {
+      _uiWired = true;
+      for (final n in _uiNotifiers) {
+        n.addListener(_notify);
+      }
+      _spectrumSub = _transport.spectrumStream.listen((data) {
+        _spectrumData = data;
+        notifyListeners();
+      });
+    }
+
     final track = _currentTrack;
     if (track != null) {
       try {
@@ -204,17 +256,44 @@ class PlaybackController {
     _transport.resumeTimers();
   }
 
-  Future<void> dispose() async {
+  // Detaches listeners/timers synchronously (ChangeNotifier contract) and
+  // kicks off async resource teardown, exposed via [_teardown] for [shutdown].
+  Future<void>? _teardown;
+
+  @override
+  void dispose() {
     _positionTimer?.cancel();
+    _positionTimer = null;
+    if (_uiWired) {
+      _uiWired = false;
+      for (final n in _uiNotifiers) {
+        n.removeListener(_notify);
+      }
+    }
+    _playlist.queueNotifier.removeListener(_updateQueueWithNotFoundFlags);
+    _playlist.currentOrderIndexNotifier.removeListener(_onIndexChanged);
+    _playlist.shuffleNotifier.removeListener(_updateQueueWithNotFoundFlags);
+    _teardown ??= _disposeAsync();
+    super.dispose();
+  }
+
+  // Cancels subscriptions and disposes the transport + playlist. Awaitable via
+  // [shutdown] so callers/tests can flush the playlist box before exiting.
+  Future<void> _disposeAsync() async {
+    await _spectrumSub?.cancel();
     await _transportEventSub?.cancel();
     await _interruptionSub?.cancel();
     await _noisySub?.cancel();
     await _devicesSub?.cancel();
-    _playlist.queueNotifier.removeListener(_updateQueueWithNotFoundFlags);
-    _playlist.currentOrderIndexNotifier.removeListener(_onIndexChanged);
-    _playlist.shuffleNotifier.removeListener(_updateQueueWithNotFoundFlags);
     await _transport.dispose();
     await _playlist.dispose();
+  }
+
+  /// Synchronous [dispose] plus the awaitable async teardown (transport +
+  /// playlist). Prefer this where the caller can await (e.g. tests, hot-restart).
+  Future<void> shutdown() async {
+    if (_teardown == null) dispose();
+    await _teardown;
   }
 
   void _onIndexChanged() {

@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/library_controller.dart';
 import '../models/audio_track.dart';
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
@@ -78,7 +78,7 @@ class VoidBrowser extends HookWidget {
           controller ??
           LibraryController(
             libraryBrowser: LibraryBrowser(
-              supportedExtensions: AudioPlayerProvider.supportedExtensions,
+              supportedExtensions: PlaybackController.supportedExtensions,
             ),
             libraryService: LibraryService(),
           ),
@@ -219,12 +219,12 @@ class VoidBrowser extends HookWidget {
       final tracks = controller.tracks;
       final index = tracks.indexWhere((t) => t.path == track.path);
       context
-          .read<AudioPlayerProvider>()
+          .read<PlaybackController>()
           .setQueue(tracks, startIndex: index < 0 ? 0 : index);
     }
 
     void playOneShot(AudioTrack track) =>
-        context.read<AudioPlayerProvider>().playOneShot(track);
+        context.read<PlaybackController>().playOneShot(track);
 
     // B-014: install the visible result list as a search-session sub-queue with
     // the tapped track active; the prior queue is restored on search dismiss.
@@ -233,13 +233,13 @@ class VoidBrowser extends HookWidget {
       if (results.isEmpty) return;
       final idx = results.indexWhere((t) => t.path == track.path);
       context
-          .read<AudioPlayerProvider>()
+          .read<PlaybackController>()
           .enterSearchSession(results, idx < 0 ? 0 : idx);
     }
 
     Future<void> playFolderRecursiveShuffled(String path) async {
       try {
-        final player = context.read<AudioPlayerProvider>();
+        final player = context.read<PlaybackController>();
         // Android loads via tracksForCurrentPath after loadFolder; else scanFolder.
         final List<AudioTrack> tracks;
         if (ctrl.isAndroid) {
@@ -323,7 +323,7 @@ class VoidBrowser extends HookWidget {
     Widget fileRow(
         AudioTrack track, LibraryController controller, _BrowserTheme t) {
       final isPlaying =
-          context.watch<AudioPlayerProvider>().songInfo?.track.path ==
+          context.watch<PlaybackController>().songInfo?.track.path ==
               track.path;
       // B-015: per-track GlobalKey via KeyedSubtree gives Scrollable.ensureVisible
       // a stable target; the inner row's ValueKey still drives QA taps + identity.

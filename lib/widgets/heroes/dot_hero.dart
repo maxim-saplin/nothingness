@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/screen_config.dart';
-import '../../providers/audio_player_provider.dart';
+import '../../services/playback_controller.dart';
 import '../../theme/app_palette.dart';
 import 'base_hero_container.dart';
 import 'hero_title_block.dart';
@@ -29,7 +29,7 @@ class DotHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
 
     return LayoutBuilder(
       builder: (context, constraints) {

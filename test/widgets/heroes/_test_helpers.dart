@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/models/theme_id.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/theme/themes.dart';
 import 'package:provider/provider.dart';
 
-/// A minimal AudioPlayerProvider fake for hero widget tests.
+import '../../services/mock_audio_transport.dart';
+
+/// A minimal [PlaybackController] fake for hero/widget tests.
 ///
-/// The real provider only mutates `_songInfo` from its controller / handler
-/// callbacks. For pure visual unit tests we just need to inject a value and
-/// emit `notifyListeners`.
-class FakeAudioPlayerProvider extends AudioPlayerProvider {
+/// The real controller only mutates state from its transport / playlist
+/// callbacks. For pure visual unit tests we just need to inject values and emit
+/// `notifyListeners`, so we override the UI-facing getters directly and never
+/// call [init] (no real audio plumbing is touched).
+class FakeAudioPlayerProvider extends PlaybackController {
   FakeAudioPlayerProvider({
     SongInfo? songInfo,
     List<double>? spectrumData,
     bool isPlaying = false,
   })  : _songInfoOverride = songInfo,
         _spectrumOverride = spectrumData,
-        _isPlayingOverride = isPlaying;
+        _isPlayingOverride = isPlaying,
+        super(transport: MockAudioTransport());
 
   SongInfo? _songInfoOverride;
   List<double>? _spectrumOverride;
@@ -50,12 +54,12 @@ class FakeAudioPlayerProvider extends AudioPlayerProvider {
 }
 
 Widget wrapWithProvider(
-  AudioPlayerProvider provider,
+  PlaybackController provider,
   Widget child, {
   Brightness brightness = Brightness.dark,
   ThemeId themeId = ThemeId.void_,
 }) {
-  return ChangeNotifierProvider<AudioPlayerProvider>.value(
+  return ChangeNotifierProvider<PlaybackController>.value(
     value: provider,
     child: MaterialApp(
       theme: buildAppTheme(id: themeId, brightness: brightness),

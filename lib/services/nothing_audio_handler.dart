@@ -1,11 +1,9 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/audio_track.dart';
-import '../models/spectrum_settings.dart';
 import 'audio_transport.dart';
 import 'soloud_transport.dart';
 import 'playback_controller.dart';
@@ -36,24 +34,14 @@ class NothingAudioHandler extends BaseAudioHandler
   final PlaybackController _controller;
   final AudioTransport _transport;
 
+  /// The single source of truth for playback. The UI watches this directly;
+  /// the handler only OBSERVES it to mirror state into the OS MediaSession.
+  PlaybackController get controller => _controller;
+
   final Completer<void> _initCompleter = Completer<void>();
   Future<void> get ready => _initCompleter.future;
 
   Duration _lastPosition = Duration.zero;
-
-  Stream<List<double>> get spectrumStream => _transport.spectrumStream;
-
-  void setCaptureEnabled(bool enabled) => _transport.setCaptureEnabled(enabled);
-  void suspendTimers() => _controller.suspendTimers();
-  void resumeTimers() => _controller.resumeTimers();
-  void updateSpectrumSettings(SpectrumSettings settings) =>
-      _transport.updateSpectrumSettings(settings);
-  Map<String, Object?> diagnosticsSnapshot() =>
-      _controller.diagnosticsSnapshot();
-  List<String> audioEvents() => _controller.audioEvents();
-  void debugSimulateInterruption(AudioInterruptionEvent event) =>
-      _controller.debugSimulateInterruption(event);
-  void debugSimulateBecomingNoisy() => _controller.debugSimulateBecomingNoisy();
 
   Future<void> _init() async {
     try {
@@ -212,70 +200,5 @@ class NothingAudioHandler extends BaseAudioHandler
   Future<void> skipToPrevious() async {
     await ready;
     await _controller.previous();
-  }
-
-  @override
-  Future<dynamic> customAction(String name, [dynamic extras]) async {
-    await ready;
-    final map = (extras is Map) ? extras : const <String, Object?>{};
-    switch (name) {
-      case 'setQueue':
-        await _controller.setQueue(
-          _decodeTracks(map['tracks']),
-          startIndex: (map['startIndex'] as num?)?.toInt() ?? 0,
-          shuffle: map['shuffle'] as bool? ?? false,
-        );
-        return null;
-      case 'addTracks':
-        await _controller.addTracks(
-          _decodeTracks(map['tracks']),
-          play: map['play'] as bool? ?? false,
-        );
-        return null;
-      case 'shuffleQueue':
-        await _controller.shuffleQueue();
-        return null;
-      case 'disableShuffle':
-        await _controller.disableShuffle();
-        return null;
-      case 'playFromQueueIndex':
-        final idx = (extras as num?)?.toInt();
-        if (idx != null) await _controller.playFromQueueIndex(idx);
-        return null;
-      case 'previous':
-        await _controller.previous();
-        return null;
-      case 'enterSearchSession':
-        // B-014: install search results as a sub-queue, preserving the prior.
-        await _controller.enterSearchSession(
-          _decodeTracks(map['tracks']),
-          (map['tappedIndex'] as num?)?.toInt() ?? 0,
-        );
-        return null;
-      case 'exitSearchSession':
-        await _controller.exitSearchSession();
-        return null;
-    }
-    return super.customAction(name, extras);
-  }
-
-  List<AudioTrack> _decodeTracks(dynamic raw) {
-    if (raw is! List) return const <AudioTrack>[];
-    return raw
-        .whereType<Map>()
-        .map((m) {
-          final path = m['path'] as String? ?? '';
-          if (path.isEmpty) return null;
-          final durationMs = m['durationMs'] as int?;
-          return AudioTrack(
-            path: path,
-            title: m['title'] as String? ?? '',
-            artist: m['artist'] as String? ?? '',
-            duration:
-                durationMs != null ? Duration(milliseconds: durationMs) : null,
-          );
-        })
-        .whereType<AudioTrack>()
-        .toList(growable: false);
   }
 }

@@ -6,7 +6,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import '../models/log_entry.dart';
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../services/logging_service.dart';
 import '../services/settings_service.dart';
 
@@ -30,7 +30,7 @@ class LogScreen extends HookWidget {
 
     void refreshAudioEvents() {
       if (!context.mounted) return;
-      final provider = context.read<AudioPlayerProvider?>();
+      final provider = context.read<PlaybackController?>();
       if (provider == null) return;
       final events = provider.audioEvents();
       if (!listEquals(events, audioEvents.value)) audioEvents.value = events;

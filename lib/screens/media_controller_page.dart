@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
 import '../debug_hooks.dart';
@@ -64,7 +64,7 @@ class MediaControllerPage extends HookWidget {
     /// visualisation deferred — heroes show silence).
     void attachSpectrumSource() {
       if (isAppInBackground.value) return;
-      final player = context.read<AudioPlayerProvider>();
+      final player = context.read<PlaybackController>();
       if (settingsService.operatingModeNotifier.value == OperatingMode.own) {
         player.updateSpectrumSettings(settingsService.settingsNotifier.value);
         player.setCaptureEnabled(true);
@@ -125,7 +125,7 @@ class MediaControllerPage extends HookWidget {
         if (settingsService.operatingModeNotifier.value == OperatingMode.own &&
             !isAppInBackground.value) {
           try {
-            context.read<AudioPlayerProvider>().updateSpectrumSettings(next);
+            context.read<PlaybackController>().updateSpectrumSettings(next);
           } catch (_) {
             // Provider not in scope yet during first-frame bootstrap — fine.
           }
@@ -146,7 +146,7 @@ class MediaControllerPage extends HookWidget {
         if (settingsService.operatingModeNotifier.value ==
             OperatingMode.background) {
           try {
-            final player = context.read<AudioPlayerProvider>();
+            final player = context.read<PlaybackController>();
             if (player.isPlaying) await player.playPause();
           } catch (_) {
             // Provider not in scope — fine; nothing to pause.
@@ -186,17 +186,18 @@ class MediaControllerPage extends HookWidget {
     // App lifecycle (replaces WidgetsBindingObserver.didChangeAppLifecycleState).
     useOnAppLifecycleStateChange((previous, state) {
       if (!PlatformChannels.isAndroid) return;
-      final player = context.read<AudioPlayerProvider>();
+      final player = context.read<PlaybackController>();
       if (state == AppLifecycleState.resumed) {
         isAppInBackground.value = false;
         platformChannels.refreshSessions();
         attachSpectrumSource();
         checkPermissions();
-        player.resumeTimers();
       } else if (state == AppLifecycleState.paused) {
         isAppInBackground.value = true;
+        // Background-mode visualisation only: drop transport spectrum capture.
+        // Timers stay live so the Android handler keeps the MediaSession +
+        // background playback updating (the old provider no-op'd suspend here).
         player.setCaptureEnabled(false);
-        player.suspendTimers();
       }
     });
 

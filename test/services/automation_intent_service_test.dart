@@ -1,25 +1,17 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
 import 'package:nothingness/services/automation_intent_service.dart';
 import 'package:nothingness/services/playback_controller.dart';
-import 'package:nothingness/services/playlist_store.dart';
 
 import 'mock_audio_transport.dart';
 
-/// Subclass of [AudioPlayerProvider] that counts [playPause] calls and
-/// flips a controllable `isPlaying`, so the dispatch logic can be exercised
-/// without touching real audio plumbing.
-class _CountingProvider extends AudioPlayerProvider {
+/// Subclass of [PlaybackController] that counts [playPause] calls and flips a
+/// controllable `isPlaying`, so the dispatch logic can be exercised without
+/// touching real audio plumbing.
+class _CountingProvider extends PlaybackController {
   _CountingProvider({required bool initiallyPlaying})
     : _playing = initiallyPlaying,
-      super.forTests(
-        controller: PlaybackController(
-          transport: MockAudioTransport(),
-          playlist: PlaylistStore(hiveInitializer: () async {}),
-        ),
-        transport: MockAudioTransport(),
-      );
+      super(transport: MockAudioTransport());
 
   bool _playing;
   int playPauseCalls = 0;

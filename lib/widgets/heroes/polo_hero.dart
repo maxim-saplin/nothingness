@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/screen_config.dart';
-import '../../providers/audio_player_provider.dart';
+import '../../services/playback_controller.dart';
 import '../retro_lcd_display.dart';
 import '../skin_layout.dart';
 import 'base_hero_container.dart';
@@ -28,8 +28,8 @@ class PoloHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLight = Theme.of(context).brightness == Brightness.light;
-    final player = context.watch<AudioPlayerProvider>();
-    final transport = context.read<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
+    final transport = context.read<PlaybackController>();
 
     // SkinLayout assumes a 1080×~2400 aspect; FittedBox(contain) letterboxes it while staying tappable (hit-testing propagates through the inner rects).
     final Widget skin = SizedBox(

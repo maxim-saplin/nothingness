@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/screen_config.dart';
-import '../../providers/audio_player_provider.dart';
+import '../../services/playback_controller.dart';
 import '../../theme/app_palette.dart';
 import '../../theme/app_typography.dart';
 import 'base_hero_container.dart';
@@ -23,7 +23,7 @@ class VoidHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
     final track = player.songInfo?.track;
 
     final h1Size = typography.heroSize * config.textScale;

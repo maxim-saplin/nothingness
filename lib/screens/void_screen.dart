@@ -10,7 +10,7 @@ import '../models/browser_presentation.dart';
 import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
 import '../models/transport_position.dart';
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/settings_service.dart';
@@ -79,7 +79,7 @@ class VoidScreen extends HookWidget {
           libraryController ??
           LibraryController(
             libraryBrowser: LibraryBrowser(
-              supportedExtensions: AudioPlayerProvider.supportedExtensions,
+              supportedExtensions: PlaybackController.supportedExtensions,
             ),
             libraryService: LibraryService(),
           ),
@@ -158,7 +158,7 @@ class VoidScreen extends HookWidget {
     void endSearchSession() {
       if (!isMounted()) return;
       // Fire-and-forget; provider treats no-active-session as a no-op.
-      unawaited(context.read<AudioPlayerProvider>().exitSearchSession());
+      unawaited(context.read<PlaybackController>().exitSearchSession());
     }
 
     // B-043: undo a search-driven browser expansion; no-op unless
@@ -471,7 +471,7 @@ class VoidScreen extends HookWidget {
     // the swipe-up browser is collapsed. positionMs/durationMs are getters so
     // position ticks don't rebuild.
     Widget buildHeroGestureSurface({required Widget child}) {
-      final player = context.read<AudioPlayerProvider>();
+      final player = context.read<PlaybackController>();
       final acceptVertical =
           browserPresentation.value == BrowserPresentation.swipeUp &&
               !browserExpanded.value;
@@ -573,7 +573,7 @@ class VoidScreen extends HookWidget {
               final path = controller?.currentPath;
               // B-015: show the jump glyph when the playing track lives outside
               // the browsed folder; B-031 debounces the hide.
-              final player = context.watch<AudioPlayerProvider>();
+              final player = context.watch<PlaybackController>();
               final playingPath = player.songInfo?.track.path;
               final divergent = playingPath != null &&
                   playingPath.isNotEmpty &&
@@ -607,7 +607,7 @@ class VoidScreen extends HookWidget {
     }
 
     Widget buildProgressHairline() {
-      final si = context.watch<AudioPlayerProvider>().songInfo;
+      final si = context.watch<PlaybackController>().songInfo;
       final position = si?.position ?? 0;
       final duration = si?.duration ?? 0;
       final fraction =

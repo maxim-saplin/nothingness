@@ -8,7 +8,7 @@ class DebugHooks {
   static final GlobalKey screenshotBoundaryKey =
       GlobalKey(debugLabel: 'screenshotBoundary');
   static GlobalKey<NavigatorState>? navigatorKey;
-  static Object? provider;          // AudioPlayerProvider
+  static Object? provider;          // PlaybackController
   static Object? libraryController; // LibraryController
   static bool Function()? immersiveLookup;
   static String? Function()? screenLookup;

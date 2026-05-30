@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
 import 'package:nothingness/screens/void_screen.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
@@ -37,15 +36,9 @@ Future<void> main() async {
   await controller.init();
   harness.controller = controller;
 
-  final audioPlayerProvider = AudioPlayerProvider.forTests(
-    controller: controller,
-    transport: harness.transport,
-  );
-  await audioPlayerProvider.init();
-
   runApp(
-    ChangeNotifierProvider.value(
-      value: audioPlayerProvider,
+    ChangeNotifierProvider<PlaybackController>.value(
+      value: controller,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: ThemeData.dark().copyWith(

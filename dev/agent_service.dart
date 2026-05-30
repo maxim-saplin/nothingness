@@ -21,7 +21,7 @@ import 'package:nothingness/models/operating_mode.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/theme_variant.dart';
 import 'package:nothingness/models/transport_position.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/settings_service.dart';
 
 /// Short alias for the response future returned by every handler.
@@ -31,7 +31,7 @@ typedef _R = Future<developer.ServiceExtensionResponse>;
 typedef _Handler = _R Function(String method, Map<String, String> params);
 
 /// Signature for a handler that requires the registered provider.
-typedef _PHandler = _R Function(AudioPlayerProvider p, Map<String, String> p2);
+typedef _PHandler = _R Function(PlaybackController p, Map<String, String> p2);
 
 /// Debug-only VM service extensions for agent-driven app automation.
 ///
@@ -138,7 +138,7 @@ class AgentService {
 
   /// Wraps a provider-requiring handler, erroring when none is registered.
   static _Handler _withProvider(_PHandler fn) => (method, params) async {
-    final p = DebugHooks.provider as AudioPlayerProvider?;
+    final p = DebugHooks.provider as PlaybackController?;
     return p == null ? _error('provider not registered') : fn(p, params);
   };
 
@@ -497,7 +497,7 @@ class AgentService {
   }
 
   static _R _getPlaybackState(
-    AudioPlayerProvider p,
+    PlaybackController p,
     Map<String, String> params,
   ) async {
     final info = p.songInfo;
@@ -531,27 +531,27 @@ class AgentService {
     });
   }
 
-  static _R _play(AudioPlayerProvider p, Map<String, String> params) async {
+  static _R _play(PlaybackController p, Map<String, String> params) async {
     if (!p.isPlaying) await p.playPause();
     return _ok({'isPlaying': true});
   }
 
-  static _R _pause(AudioPlayerProvider p, Map<String, String> params) async {
+  static _R _pause(PlaybackController p, Map<String, String> params) async {
     if (p.isPlaying) await p.playPause();
     return _ok({'isPlaying': false});
   }
 
-  static _R _next(AudioPlayerProvider p, Map<String, String> params) async {
+  static _R _next(PlaybackController p, Map<String, String> params) async {
     await p.next();
     return _ok({'ok': true});
   }
 
-  static _R _prev(AudioPlayerProvider p, Map<String, String> params) async {
+  static _R _prev(PlaybackController p, Map<String, String> params) async {
     await p.previous();
     return _ok({'ok': true});
   }
 
-  static _R _setQueue(AudioPlayerProvider p, Map<String, String> params) async {
+  static _R _setQueue(PlaybackController p, Map<String, String> params) async {
     final pathsCsv = params['paths'];
     if (pathsCsv == null || pathsCsv.isEmpty) {
       return _error('paths parameter required (comma-separated)');
@@ -567,17 +567,17 @@ class AgentService {
   }
 
   static _R _getDiagnostics(
-    AudioPlayerProvider p,
+    PlaybackController p,
     Map<String, String> params,
   ) async => _ok({'snapshot': p.diagnosticsSnapshot()});
 
   static _R _getAudioEvents(
-    AudioPlayerProvider p,
+    PlaybackController p,
     Map<String, String> params,
   ) async => _ok({'audioEvents': p.audioEvents()});
 
   static _R _simulateInterruption(
-    AudioPlayerProvider p,
+    PlaybackController p,
     Map<String, String> params,
   ) async {
     final phase = params['phase'] ?? 'begin';
@@ -597,7 +597,7 @@ class AgentService {
   }
 
   static _R _simulateNoisy(
-    AudioPlayerProvider p,
+    PlaybackController p,
     Map<String, String> params,
   ) async {
     p.debugSimulateBecomingNoisy();
@@ -698,7 +698,7 @@ class AgentService {
   static _R _playTrackByPath(String method, Map<String, String> params) async {
     final path = params['path'];
     if (path == null || path.isEmpty) return _error('path parameter required');
-    final p = DebugHooks.provider as AudioPlayerProvider?;
+    final p = DebugHooks.provider as PlaybackController?;
     if (p == null) return _error('provider not registered');
 
     await p.playOneShot(AudioTrack(path: path, title: path.split('/').last));

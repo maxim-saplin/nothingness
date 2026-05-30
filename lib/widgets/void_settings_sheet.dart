@@ -14,7 +14,7 @@ import '../models/spectrum_settings.dart';
 import '../models/theme_id.dart';
 import '../models/theme_variant.dart';
 import '../models/transport_position.dart';
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../screens/help_screen.dart';
 import '../screens/log_screen.dart';
 import '../services/platform_channels.dart';
@@ -494,7 +494,7 @@ class VoidSettingsSheet extends HookWidget {
 
     /// Non-scrolling status rows between header and MODE group: queue size
     /// (read-only) and a live shuffle toggle.
-    List<Widget> statusStrip(AudioPlayerProvider player) {
+    List<Widget> statusStrip(PlaybackController player) {
       final count = player.queue.length;
       return [
         buildSpec(_Cycle('void-settings-status-queue', 'queue',
@@ -508,7 +508,7 @@ class VoidSettingsSheet extends HookWidget {
     // Status strip + header live OUTSIDE the ListView so they stay pinned. The
     // provider is nullable so unit tests that don't wrap the sheet in a
     // ChangeNotifierProvider keep working — the strip is omitted.
-    final player = context.watch<AudioPlayerProvider?>();
+    final player = context.watch<PlaybackController?>();
 
     return Scaffold(
       backgroundColor: p.background,

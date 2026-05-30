@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../providers/audio_player_provider.dart';
+import 'playback_controller.dart';
 
 /// B-031: receives Android intent actions from `MainActivity` and dispatches
 /// them against the in-app player. Warm start arrives via `onAutomationAction`;
@@ -10,13 +10,13 @@ import '../providers/audio_player_provider.dart';
 /// `playPause`) mirror `ext.nothingness.*` in `dev/agent_service.dart`.
 class AutomationIntentService {
   AutomationIntentService(
-    this._provider, {
+    this._controller, {
     MethodChannel? channel,
   }) : _channel = channel ?? const MethodChannel(_channelName);
 
   static const String _channelName = 'com.saplin.nothingness/automation';
 
-  final AudioPlayerProvider _provider;
+  final PlaybackController _controller;
   final MethodChannel _channel;
 
   bool _started = false;
@@ -52,13 +52,13 @@ class AutomationIntentService {
   Future<void> _dispatch(String action) async {
     switch (action) {
       case 'play':
-        if (!_provider.isPlaying) await _provider.playPause();
+        if (!_controller.isPlaying) await _controller.playPause();
         break;
       case 'pause':
-        if (_provider.isPlaying) await _provider.playPause();
+        if (_controller.isPlaying) await _controller.playPause();
         break;
       case 'playPause':
-        await _provider.playPause();
+        await _controller.playPause();
         break;
       default:
         debugPrint('[AutomationIntentService] unknown action: $action');
