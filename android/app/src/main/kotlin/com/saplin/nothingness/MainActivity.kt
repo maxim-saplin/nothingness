@@ -18,14 +18,13 @@ import android.view.KeyEvent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceActivity
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : AudioServiceActivity() {
-    
+
     companion object {
         private const val TAG = "MainActivity"
         private const val MEDIA_CHANNEL = "com.saplin.nothingness/media"
@@ -55,6 +54,8 @@ class MainActivity : AudioServiceActivity() {
     // `consumePendingAutomationAction` on startup.
     private var pendingAutomationAction: String? = null
 
+    private val mediaSession get() = MediaSessionService.getInstance()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // B-031: an automation intent that cold-starts the app is buffered
@@ -78,86 +79,46 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
         audioCaptureService = AudioCaptureService(this)
-        
+
         // Method channel for media controls and song info
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL).setMethodCallHandler { call, result ->
+        MethodChannel(messenger, MEDIA_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
-                "getSongInfo" -> {
-                    val songInfo = MediaSessionService.getInstance()?.getCurrentSongInfo()
-                    if (songInfo != null) {
-                        result.success(mapOf(
-                            "title" to songInfo.title,
-                            "artist" to songInfo.artist,
-                            "album" to songInfo.album,
-                            "isPlaying" to songInfo.isPlaying,
-                            "position" to songInfo.position,
-                            "duration" to songInfo.duration
-                        ))
-                    } else {
-                        result.success(null)
-                    }
-                }
-                "play" -> {
-                    MediaSessionService.getInstance()?.play()
-                    result.success(null)
-                }
-                "pause" -> {
-                    MediaSessionService.getInstance()?.pause()
-                    result.success(null)
-                }
-                "playPause" -> {
-                    MediaSessionService.getInstance()?.playPause()
-                    result.success(null)
-                }
-                "next" -> {
-                    MediaSessionService.getInstance()?.next()
-                    result.success(null)
-                }
-                "previous" -> {
-                    MediaSessionService.getInstance()?.previous()
-                    result.success(null)
-                }
+                "getSongInfo" -> result.success(mediaSession?.getCurrentSongInfo()?.let {
+                    mapOf(
+                        "title" to it.title,
+                        "artist" to it.artist,
+                        "album" to it.album,
+                        "isPlaying" to it.isPlaying,
+                        "position" to it.position,
+                        "duration" to it.duration,
+                    )
+                })
+                "play" -> { mediaSession?.play(); result.success(null) }
+                "pause" -> { mediaSession?.pause(); result.success(null) }
+                "playPause" -> { mediaSession?.playPause(); result.success(null) }
+                "next" -> { mediaSession?.next(); result.success(null) }
+                "previous" -> { mediaSession?.previous(); result.success(null) }
                 "dispatchExternalMediaKey" -> {
-                    val keyCode = (call.argument<Number>("keyCode"))?.toInt()
-                    if (keyCode == null) {
-                        result.error("INVALID", "keyCode required", null)
-                    } else {
-                        result.success(dispatchExternalMediaKey(keyCode))
-                    }
+                    val keyCode = call.argument<Number>("keyCode")?.toInt()
+                    if (keyCode == null) result.error("INVALID", "keyCode required", null)
+                    else result.success(dispatchExternalMediaKey(keyCode))
                 }
-                "seekTo" -> {
-                    val position = call.argument<Long>("position") ?: 0L
-                    MediaSessionService.getInstance()?.seekTo(position)
-                    result.success(null)
-                }
-                "isNotificationAccessGranted" -> {
-                    result.success(isNotificationAccessGranted())
-                }
-                "openNotificationSettings" -> {
-                    openNotificationAccessSettings()
-                    result.success(null)
-                }
-                "refreshSessions" -> {
-                    MediaSessionService.getInstance()?.refreshSessions()
-                    result.success(null)
-                }
-                "hasAudioPermission" -> {
-                    result.success(audioCaptureService?.hasPermission() ?: false)
-                }
-                "requestAudioPermission" -> {
-                    requestAudioPermission()
-                    result.success(null)
-                }
+                "seekTo" -> { mediaSession?.seekTo(call.argument<Long>("position") ?: 0L); result.success(null) }
+                "isNotificationAccessGranted" -> result.success(isNotificationAccessGranted())
+                "openNotificationSettings" -> { openNotificationAccessSettings(); result.success(null) }
+                "refreshSessions" -> { mediaSession?.refreshSessions(); result.success(null) }
+                "hasAudioPermission" -> result.success(audioCaptureService?.hasPermission() ?: false)
+                "requestAudioPermission" -> { requestAudioPermission(); result.success(null) }
                 "updateSpectrumSettings" -> {
                     @Suppress("UNCHECKED_CAST")
-                    val settings = call.arguments as? Map<String, Any>
-                    if (settings != null) {
-                        val noiseGateDb = (settings["noiseGateDb"] as? Number)?.toDouble() ?: -35.0
-                        val barCount = (settings["barCount"] as? Number)?.toInt() ?: 12
-                        val decaySpeed = (settings["decaySpeed"] as? Number)?.toDouble() ?: 0.12
-                        audioCaptureService?.updateSettings(noiseGateDb, barCount, decaySpeed)
+                    (call.arguments as? Map<String, Any>)?.let { s ->
+                        audioCaptureService?.updateSettings(
+                            (s["noiseGateDb"] as? Number)?.toDouble() ?: -35.0,
+                            (s["barCount"] as? Number)?.toInt() ?: 12,
+                            (s["decaySpeed"] as? Number)?.toDouble() ?: 0.12,
+                        )
                     }
                     result.success(null)
                 }
@@ -176,16 +137,12 @@ class MainActivity : AudioServiceActivity() {
         // B-031: automation channel for external intent dispatch.
         // Kotlin → Dart: invokeMethod("onAutomationAction", "play"|"pause"|"playPause")
         // Dart → Kotlin: consumePendingAutomationAction (drain on startup)
-        automationChannel = MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            AUTOMATION_CHANNEL,
-        ).also { channel ->
+        automationChannel = MethodChannel(messenger, AUTOMATION_CHANNEL).also { channel ->
             channel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "consumePendingAutomationAction" -> {
-                        val pending = pendingAutomationAction
+                        result.success(pendingAutomationAction)
                         pendingAutomationAction = null
-                        result.success(pending)
                     }
                     else -> result.notImplemented()
                 }
@@ -193,57 +150,45 @@ class MainActivity : AudioServiceActivity() {
         }
 
         // MediaStore channel: change notifications + version checks
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL).setMethodCallHandler { call, result ->
+        MethodChannel(messenger, MEDIASTORE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
-                "getMediaStoreVersion" -> {
+                "getMediaStoreVersion" -> result.success(
                     try {
                         // Available on Android 11+ (API 30). For older devices, return null.
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                            val version = MediaStore.getVersion(
-                                applicationContext,
-                                MediaStore.VOLUME_EXTERNAL
-                            )
-                            result.success(version)
-                        } else {
-                            result.success(null)
-                        }
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R)
+                            MediaStore.getVersion(applicationContext, MediaStore.VOLUME_EXTERNAL)
+                        else null
                     } catch (e: Exception) {
                         Log.w(TAG, "getMediaStoreVersion failed", e)
-                        result.success(null)
+                        null
                     }
-                }
-                "rescanFolder" -> {
-                    val folderPath = call.argument<String>("path")
-                    result.success(rescanFolder(folderPath))
-                }
+                )
+                "rescanFolder" -> result.success(rescanFolder(call.argument<String>("path")))
                 else -> result.notImplemented()
             }
         }
 
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_EVENTS_CHANNEL).setStreamHandler(
+        EventChannel(messenger, MEDIASTORE_EVENTS_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     mediaStoreEventSink = events
                     registerMediaStoreObserver()
                 }
-
                 override fun onCancel(arguments: Any?) {
                     unregisterMediaStoreObserver()
                     mediaStoreEventSink = null
                 }
             }
         )
-        
+
         // Event channel for spectrum data stream
-        EventChannel(flutterEngine.dartExecutor.binaryMessenger, SPECTRUM_CHANNEL).setStreamHandler(
+        EventChannel(messenger, SPECTRUM_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     spectrumEventSink = events
-                    val sessionId = (arguments as? Number)?.toInt()
-                    lastSpectrumSessionId = sessionId
-                    startSpectrumCapture(sessionId)
+                    lastSpectrumSessionId = (arguments as? Number)?.toInt()
+                    startSpectrumCapture(lastSpectrumSessionId)
                 }
-                
                 override fun onCancel(arguments: Any?) {
                     stopSpectrumCapture()
                     spectrumEventSink = null
@@ -251,23 +196,8 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
         )
-        
-        // Set up song info callback
-        setupSongInfoCallback(flutterEngine)
     }
-    
-    private fun setupSongInfoCallback(flutterEngine: FlutterEngine) {
-        // Poll for song info updates since the service might not be ready immediately
-        val songInfoChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
-        
-        MediaSessionService.getInstance()?.setSongInfoCallback { songInfo ->
-            mainHandler.post {
-                // Notify Flutter of song info changes if needed
-                // The Flutter side polls getSongInfo, but we could also push updates here
-            }
-        }
-    }
-    
+
     private fun startSpectrumCapture(sessionId: Int? = null) {
         // Player spectrum is handled by SoLoud FFT in Dart.
         // Native capture is only used for the microphone path (sessionId == null).
@@ -284,9 +214,7 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    private fun stopSpectrumCapture() {
-        audioCaptureService?.stopCapture()
-    }
+    private fun stopSpectrumCapture() = audioCaptureService?.stopCapture()
 
     private fun registerMediaStoreObserver() {
         if (mediaStoreObserver != null) return
@@ -297,11 +225,7 @@ class MainActivity : AudioServiceActivity() {
             }
         }
         try {
-            contentResolver.registerContentObserver(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                true,
-                observer
-            )
+            contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
             mediaStoreObserver = observer
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register MediaStore observer", e)
@@ -324,40 +248,25 @@ class MainActivity : AudioServiceActivity() {
             Log.w(TAG, "rescanFolder called without a path")
             return false
         }
-
         return try {
             val directory = File(folderPath)
             if (!directory.exists() || !directory.isDirectory) {
                 Log.w(TAG, "rescanFolder target is not a directory: $folderPath")
                 return false
             }
-
             val filePaths = directory.listFiles()
-                ?.filter { it.isFile }
-                ?.map { it.absolutePath }
-                ?.toTypedArray()
-                ?: emptyArray()
-
+                ?.filter { it.isFile }?.map { it.absolutePath }?.toTypedArray() ?: emptyArray()
             if (filePaths.isNotEmpty()) {
-                MediaScannerConnection.scanFile(
-                    applicationContext,
-                    filePaths,
-                    null,
-                    null,
-                )
+                MediaScannerConnection.scanFile(applicationContext, filePaths, null, null)
             }
-
-            Log.d(
-                TAG,
-                "Issued MediaScanner scan requests for ${filePaths.size} file(s) in $folderPath",
-            )
+            Log.d(TAG, "Issued MediaScanner scan requests for ${filePaths.size} file(s) in $folderPath")
             true
         } catch (e: Exception) {
             Log.w(TAG, "Failed to rescan folder $folderPath", e)
             false
         }
     }
-    
+
     /// Dispatch a media-button key event to whichever external session is
     /// currently active. Preferred path: the NotificationListenerService that
     /// already holds the active MediaController (single permission, already
@@ -366,7 +275,7 @@ class MainActivity : AudioServiceActivity() {
     /// `true` if any path accepted the dispatch.
     private fun dispatchExternalMediaKey(keyCode: Int): Boolean {
         val listenerDispatched = try {
-            MediaSessionService.getInstance()?.dispatchMediaButtonEvent(keyCode) == true
+            mediaSession?.dispatchMediaButtonEvent(keyCode) == true
         } catch (e: Exception) {
             Log.w(TAG, "dispatchExternalMediaKey listener path failed", e)
             false
@@ -376,10 +285,8 @@ class MainActivity : AudioServiceActivity() {
         return try {
             val am = applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val now = SystemClock.uptimeMillis()
-            val down = KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0)
-            val up = KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0)
-            am.dispatchMediaKeyEvent(down)
-            am.dispatchMediaKeyEvent(up)
+            am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0))
+            am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0))
             true
         } catch (e: Exception) {
             Log.w(TAG, "dispatchExternalMediaKey AudioManager fallback failed", e)
@@ -390,66 +297,44 @@ class MainActivity : AudioServiceActivity() {
     /// B-031: map an incoming intent's action to one of the short tokens
     /// Dart understands (`play`, `pause`, `playPause`). Returns null for
     /// MAIN/LAUNCHER and anything else we don't own.
-    private fun extractAutomationAction(intent: Intent?): String? {
-        return when (intent?.action) {
-            ACTION_PLAY -> "play"
-            ACTION_PAUSE -> "pause"
-            ACTION_PLAY_PAUSE -> "playPause"
-            else -> null
+    private fun extractAutomationAction(intent: Intent?): String? = when (intent?.action) {
+        ACTION_PLAY -> "play"
+        ACTION_PAUSE -> "pause"
+        ACTION_PLAY_PAUSE -> "playPause"
+        else -> null
+    }
+
+    private fun isNotificationAccessGranted(): Boolean =
+        Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+            ?.contains(packageName) == true
+
+    private fun openNotificationAccessSettings() =
+        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+
+    private fun requestAudioPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), PERMISSION_REQUEST_CODE)
         }
     }
 
-    private fun isNotificationAccessGranted(): Boolean {
-        val enabledListeners = Settings.Secure.getString(
-            contentResolver,
-            "enabled_notification_listeners"
-        )
-        return enabledListeners?.contains(packageName) == true
-    }
-    
-    private fun openNotificationAccessSettings() {
-        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-        startActivity(intent)
-    }
-    
-    private fun requestAudioPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                PERMISSION_REQUEST_CODE
-            )
-        }
-    }
-    
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "Audio permission granted")
-                // Restart spectrum capture if event sink is active
-                if (spectrumEventSink != null) {
-                    startSpectrumCapture(lastSpectrumSessionId)
-                }
-            } else {
-                Log.w(TAG, "Audio permission denied")
-            }
+        if (requestCode != PERMISSION_REQUEST_CODE) return
+        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "Audio permission granted")
+            // Restart spectrum capture if event sink is active
+            if (spectrumEventSink != null) startSpectrumCapture(lastSpectrumSessionId)
+        } else {
+            Log.w(TAG, "Audio permission denied")
         }
     }
-    
+
     override fun onResume() {
         super.onResume()
         // Refresh sessions when returning to the app (e.g., after granting notification access)
-        MediaSessionService.getInstance()?.refreshSessions()
+        mediaSession?.refreshSessions()
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         stopSpectrumCapture()
