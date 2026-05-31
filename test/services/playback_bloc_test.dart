@@ -150,7 +150,7 @@ void main() {
     act: (b) async {
       b.add(const GoToIndex(1));
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      tx.emitTrackEnded(); // tail end
+      b.add(const TrackEnded("ended")); // tail end
       await Future<void>.delayed(const Duration(milliseconds: 20));
       b.add(const TogglePlayPause()); // press play after exhaustion
     },
@@ -181,7 +181,7 @@ void main() {
     act: (b) async {
       b.add(const GoToIndex(0));
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      tx.emitTrackEnded();
+      b.add(const TrackEnded("ended"));
     },
     wait: const Duration(milliseconds: 80),
     verify: (b) => expect(b.state, isA<PbActive>().having((s) => s.index, 'i', 1)),
@@ -194,9 +194,9 @@ void main() {
       tx.loadDelay = const Duration(milliseconds: 50);
       b.add(const GoToIndex(0));
       await Future<void>.delayed(const Duration(milliseconds: 80)); // active idx0
-      tx.emitTrackEnded(); // advance to 1 (parks in load)
+      b.add(const TrackEnded("ended")); // advance to 1 (parks in load)
       await Future<void>.delayed(const Duration(milliseconds: 10));
-      tx.emitTrackEnded(); // duplicate while loading -> must be ignored
+      b.add(const TrackEnded("ended")); // duplicate while loading -> must be ignored
     },
     wait: const Duration(milliseconds: 150),
     verify: (b) {

@@ -104,6 +104,15 @@ final class SeekTo extends PbCommand {
   final Duration position;
 }
 
+/// Adopt the already-playing track at [index] as the active state WITHOUT
+/// reloading the transport — used to restore a queue (e.g. search-session exit)
+/// while audio keeps playing.
+final class AdoptCurrent extends PbEvent {
+  const AdoptCurrent(this.index, {required this.playing});
+  final int index;
+  final bool playing;
+}
+
 final class TrackEnded extends PbEvent {
   const TrackEnded(this.path);
   final String? path;
@@ -147,10 +156,10 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     on<InterruptionBegan>(_onInterruptionBegan, transformer: sequential());
     on<InterruptionEnded>(_onInterruptionEnded, transformer: sequential());
     on<BecameNoisy>(_onNoisy, transformer: sequential());
-
-    _sub = _transport.eventStream.listen((e) {
-      if (e is TransportEndedEvent) add(TrackEnded(e.path));
-    });
+    on<AdoptCurrent>(_onAdopt, transformer: sequential());
+    // The owner (PlaybackController) arbitrates transport events — it feeds
+    // [TrackEnded] for queue tracks (and handles one-shot ends itself) — so the
+    // bloc doesn't subscribe to the transport stream directly.
   }
 
   final AudioTransport _transport;
@@ -163,17 +172,13 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   bool _pausedByInterruption = false;
   int _transientCount = 0;
   DateTime? _transientWindowStart;
-  StreamSubscription<TransportEvent>? _sub;
+
+  // Last load failure, surfaced for the controller's diagnostics snapshot.
+  ({String path, String reason, String message})? lastError;
 
   Set<String> get failedPaths => Set.unmodifiable(_failedPaths);
 
   static Future<bool> _defaultFileExists(String _) async => true;
-
-  @override
-  Future<void> close() async {
-    await _sub?.cancel();
-    return super.close();
-  }
 
   // ---- command handler (restartable) ---------------------------------------
 
@@ -248,6 +253,7 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       }
       if (_shouldPreflight(track.path) && !await _fileExists(track.path)) {
         if (emit.isDone) return;
+        lastError = (path: track.path, reason: 'preflight_missing', message: 'File does not exist');
         _failedPaths.add(track.path);
         idx += step;
         continue;
@@ -284,6 +290,11 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
 
   // null = give up (transient threshold). 0 = retry same index. 1 = skip past.
   Future<int?> _recoverFromLoadError(AudioTrack track, Object e) async {
+    lastError = (
+      path: track.path,
+      reason: _isTransient(e) ? 'transport_load_transient' : 'transport_load_error',
+      message: e.toString(),
+    );
     if (_isTransient(e)) {
       final now = DateTime.now();
       if (_transientWindowStart == null ||
@@ -366,6 +377,13 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     if (s.isPlaying) {
       await _transport.pause();
       if (s is PbActive) emit(PbActive(index: s.index, track: s.track, playing: false));
+    }
+  }
+
+  Future<void> _onAdopt(AdoptCurrent event, Emitter<PbState> emit) async {
+    final t = _playlist.trackForOrderIndex(event.index);
+    if (t != null) {
+      emit(PbActive(index: event.index, track: t, playing: event.playing));
     }
   }
 
