@@ -88,7 +88,9 @@ void main() {
       // Natural end: should restore queue at index 2.
       transport.emitTrackEnded();
       await pumpUntil(
-        () => !controller.isOneShot && controller.currentIndexNotifier.value == 2,
+        () => !controller.isOneShot &&
+            controller.currentIndexNotifier.value == 2 &&
+            transport.loadedPath == '/queue/track_2.mp3',
       );
 
       expect(controller.isOneShot, isFalse);

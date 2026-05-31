@@ -106,7 +106,8 @@ void main() {
 
       // Natural end of the first search-result track.
       transport.emitTrackEnded();
-      await pumpUntil(() => controller.currentIndexNotifier.value == 1);
+      await pumpUntil(() => controller.currentIndexNotifier.value == 1 &&
+          transport.loadedPath == '/lib/the_offspring.mp3');
 
       expect(controller.isInSearchSession, isTrue);
       expect(controller.currentIndexNotifier.value, 1);
@@ -190,7 +191,8 @@ void main() {
       // RESTORED queue (C), not anything from the search list.
       transport.resetCalls();
       transport.emitTrackEnded();
-      await pumpUntil(() => controller.currentIndexNotifier.value == 2);
+      await pumpUntil(() => controller.currentIndexNotifier.value == 2 &&
+          transport.loadedPath == '/queue/c.mp3');
 
       expect(controller.currentIndexNotifier.value, 2);
       expect(transport.loadedPath, '/queue/c.mp3');

@@ -649,7 +649,8 @@ void main() {
       transport.emitTrackEnded();
 
       // Wait for the load failure → skip → load success chain to settle.
-      await pumpUntil(() => controller.currentIndexNotifier.value == 3);
+      await pumpUntil(() => controller.currentIndexNotifier.value == 3 &&
+          transport.loadedPath == '/path/track_4.mp3');
 
       // Verify we are now on Track 4
       expect(controller.currentIndexNotifier.value, 3, reason: 'Should have skipped Track 3 and be on Track 4');

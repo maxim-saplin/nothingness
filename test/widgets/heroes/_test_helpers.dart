@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/models/theme_id.dart';
 import 'package:nothingness/services/playback_controller.dart';
@@ -51,6 +52,25 @@ class FakeAudioPlayerProvider extends PlaybackController {
     _isPlayingOverride = value;
     notifyListeners();
   }
+
+  // Visual-only fake: playback commands are no-ops so widget tests don't spin up
+  // the real bloc/settle machinery (which would leave pending timers).
+  @override
+  Future<void> playPause() async {}
+  @override
+  Future<void> next() async {}
+  @override
+  Future<void> previous() async {}
+  @override
+  Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {}
+  @override
+  Future<void> setQueue(List<AudioTrack> tracks,
+      {int startIndex = 0, bool shuffle = false}) async {}
+  @override
+  Future<void> playFromQueueIndex(int orderIndex,
+      {bool isAutoSkip = false,
+      bool respectPauseIntent = false,
+      int direction = 1}) async {}
 }
 
 Widget wrapWithProvider(

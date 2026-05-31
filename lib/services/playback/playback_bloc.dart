@@ -76,6 +76,14 @@ final class TogglePlayPause extends PbCommand {
   const TogglePlayPause();
 }
 
+/// Set the desired play/pause intent explicitly (the owner toggles its own
+/// authoritative intent and sends the result here). play=true resumes/loads;
+/// play=false pauses — without changing the track.
+final class SetIntent extends PbCommand {
+  const SetIntent(this.play);
+  final bool play;
+}
+
 final class GoNext extends PbCommand {
   const GoNext();
 }
@@ -145,9 +153,11 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     Future<bool> Function(String path)? fileExists,
     this.preflightFileExists = true,
     this.transientRetryDelay = const Duration(milliseconds: 200),
+    void Function(String)? onLog,
   })  : _transport = transport,
         _playlist = playlist,
         _fileExists = fileExists ?? _defaultFileExists,
+        _log = onLog ?? _noLog,
         super(const PbStopped()) {
     // One restartable handler for ALL commands → a newer command cancels the
     // in-flight one (latest command wins) with no manual generation tracking.
@@ -167,6 +177,9 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   final Future<bool> Function(String path) _fileExists;
   final bool preflightFileExists;
   final Duration transientRetryDelay;
+  final void Function(String) _log;
+
+  static void _noLog(String _) {}
 
   final Set<String> _failedPaths = <String>{};
   bool _pausedByInterruption = false;
@@ -177,6 +190,12 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   ({String path, String reason, String message})? lastError;
 
   Set<String> get failedPaths => Set.unmodifiable(_failedPaths);
+
+  /// Clear failed-track flags + last error (e.g. on a fresh queue).
+  void clearFailed() {
+    _failedPaths.clear();
+    lastError = null;
+  }
 
   static Future<bool> _defaultFileExists(String _) async => true;
 
@@ -200,13 +219,40 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
             // Queue ended / idle → (re)load and play the current/last index.
             await _drive(emit, s.index ?? 0, intentPlay: true, direction: 1, userTap: false);
         }
+      case SetIntent():
+        final s = state;
+        if (event.play) {
+          switch (s) {
+            case PbActive(playing: true):
+              break;
+            case PbActive(playing: false):
+              await _transport.play();
+              if (!emit.isDone) emit(PbActive(index: s.index, track: s.track, playing: true));
+            case PbLoading():
+              await _drive(emit, s.index, intentPlay: true, direction: 1, userTap: false);
+            case PbStopped():
+              await _drive(emit, s.index ?? 0, intentPlay: true, direction: 1, userTap: false);
+          }
+        } else {
+          // An explicit pause cancels any interruption auto-resume.
+          _pausedByInterruption = false;
+          switch (s) {
+            case PbActive(playing: true):
+              await _transport.pause();
+              if (!emit.isDone) emit(PbActive(index: s.index, track: s.track, playing: false));
+            case PbLoading(intentPlay: true):
+              await _drive(emit, s.index, intentPlay: false, direction: 1, userTap: false);
+            default:
+              break;
+          }
+        }
       case GoNext():
         final n = _playlist.nextOrderIndex();
         if (n != null) {
           // Commit the index now so a rapid chain of nexts advances per tap
           // (each cancels the prior load but the index has already moved).
           await _playlist.setCurrentOrderIndex(n);
-          await _drive(emit, n, intentPlay: true, direction: 1, userTap: false);
+          await _drive(emit, n, intentPlay: true, direction: 1, userTap: false, defer: true);
         }
       case GoPrevious():
         await _onPrevious(emit);
@@ -234,7 +280,10 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   // `emit.isDone` (set when a newer command supersedes this one) short-circuits
   // every step, so stale work neither emits nor touches the transport.
   Future<void> _drive(Emitter<PbState> emit, int start,
-      {required bool intentPlay, required int direction, required bool userTap}) async {
+      {required bool intentPlay,
+      required int direction,
+      required bool userTap,
+      bool defer = false}) async {
     if (_playlist.length == 0) {
       if (!emit.isDone) emit(const PbStopped());
       return;
@@ -253,13 +302,29 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       }
       if (_shouldPreflight(track.path) && !await _fileExists(track.path)) {
         if (emit.isDone) return;
+        _log('PreflightMissing: path=${track.path}');
         lastError = (path: track.path, reason: 'preflight_missing', message: 'File does not exist');
         _failedPaths.add(track.path);
         idx += step;
         continue;
       }
 
+      // Commit the index now (after preflight, before the heavy load) so the
+      // hero advances and a duplicate ended sees PbLoading (B-036).
+      if (_playlist.currentOrderIndexNotifier.value != idx) {
+        await _playlist.setCurrentOrderIndex(idx);
+        if (emit.isDone) return;
+      }
       emit(PbLoading(index: idx, track: track, intentPlay: intentPlay));
+      if (defer && attempts == 0) {
+        // For rapid user nav (next/prev), defer the FIRST load a microtask so a
+        // synchronous burst supersedes this handler (restartable) before it
+        // loads — the burst then loads only the track you land on. Tap/auto-
+        // advance (defer:false) loads immediately so index⟺loaded stays tight.
+        await Future<void>.delayed(Duration.zero);
+        if (emit.isDone) return;
+      }
+      _log('StartLoad: path=${track.path}');
       try {
         await _transport.load(track.path, title: track.title, artist: track.artist);
       } catch (e) {
@@ -274,7 +339,6 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       }
       if (emit.isDone) return;
       _failedPaths.remove(track.path);
-      await _playlist.setCurrentOrderIndex(idx);
       if (intentPlay && !_pausedByInterruption) {
         await _transport.play();
       } else {
@@ -319,6 +383,7 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       if (p != null) await _drive(emit, p, intentPlay: true, direction: -1, userTap: false);
       return;
     }
+    final isTail = cur == _playlist.length - 1;
     Duration position;
     try {
       position = await _transport.position;
@@ -326,14 +391,38 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       position = Duration.zero;
     }
     if (emit.isDone) return;
-    final atStart = !state.isPlaying || position <= const Duration(seconds: 3);
-    if (!atStart) {
-      // >3s in → restart current.
-      await _drive(emit, cur, intentPlay: true, direction: 1, userTap: false);
+    // Ended tail (stopped / at 0) or >3s in → restart the current track; else
+    // step back to the previous (head → restart).
+    final endedTail = isTail && (!state.isPlaying || position == Duration.zero);
+    if (endedTail || position > const Duration(seconds: 3)) {
+      await _restartCurrent(emit, cur);
       return;
     }
     final p = _playlist.previousOrderIndex();
-    await _drive(emit, p ?? cur, intentPlay: true, direction: p != null ? -1 : 1, userTap: false);
+    if (p == null) {
+      await _restartCurrent(emit, cur);
+      return;
+    }
+    await _drive(emit, p, intentPlay: true, direction: -1, userTap: false, defer: true);
+  }
+
+  // Restart [idx] from 0: reload (robust against a consumed/ended source),
+  // seek to zero, and play. Matches the legacy previous()-restart behavior.
+  Future<void> _restartCurrent(Emitter<PbState> emit, int idx) async {
+    final t = _playlist.trackForOrderIndex(idx);
+    if (t == null) return;
+    emit(PbLoading(index: idx, track: t, intentPlay: true));
+    try {
+      await _transport.load(t.path, title: t.title, artist: t.artist);
+    } catch (_) {
+      if (!emit.isDone) emit(PbStopped(index: idx));
+      return;
+    }
+    if (emit.isDone) return;
+    await _transport.seek(Duration.zero);
+    await _transport.play();
+    if (emit.isDone) return;
+    emit(PbActive(index: idx, track: t, playing: true));
   }
 
   // ---- transport / system events (sequential) ------------------------------
@@ -342,6 +431,9 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     // B-036: an advance is already in flight (we're loading the next track) →
     // ignore a duplicate/stale ended so we don't double-advance.
     if (state is PbLoading) return;
+    // Only auto-advance if we were actually playing — a stale ended while
+    // paused must not advance the queue.
+    if (state is PbActive && !(state as PbActive).playing) return;
     final n = _playlist.nextOrderIndex();
     if (n == null) {
       emit(PbStopped(index: _playlist.currentOrderIndexNotifier.value));

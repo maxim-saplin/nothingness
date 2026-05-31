@@ -9,6 +9,7 @@ import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import 'audio_transport.dart';
+import 'playback/playback_bloc.dart';
 import 'spectrum_source.dart';
 import 'metadata_extractor.dart';
 import 'playback_telemetry.dart';
@@ -17,9 +18,6 @@ import 'soloud_transport.dart';
 
 /// The user's explicit intent for playback state.
 enum PlayIntent { play, pause }
-
-/// Why a selection/play attempt is happening.
-enum _SelectionReason { userTap, previous, autoAdvance, setQueue, other }
 
 /// Single source of truth for playback: user intent, queue, error recovery,
 /// and coordination with the [AudioTransport]. Also the UI-facing
@@ -44,9 +42,18 @@ class PlaybackController extends ChangeNotifier {
       recentLogCapacity: recentLogCapacity,
       debugPlaybackLogs: debugPlaybackLogs,
     );
+    _bloc = PlaybackBloc(
+      transport: _transport,
+      playlist: _playlist,
+      fileExists: _fileExists,
+      preflightFileExists: preflightFileExists,
+      onLog: _telemetry.log,
+    );
   }
 
   late final PlaybackTelemetry _telemetry;
+  late final PlaybackBloc _bloc;
+  StreamSubscription<PbState>? _blocSub;
 
   final AudioTransport _transport;
   final PlaylistStore _playlist;
@@ -120,61 +127,23 @@ class PlaybackController extends ChangeNotifier {
   int _savedIndex = 0;
   bool get isInSearchSession => _savedQueue != null;
 
-  // Paths of files that failed to load (backend-agnostic).
+  // Failed paths the controller marks itself (one-shot preflight miss); the
+  // queue's not-found flags merge these with the bloc's failed set.
   final Set<String> _failedTrackPaths = <String>{};
 
-  // Path being loaded; only errors matching it are acted on (transports emit
-  // late/spurious errors for a path after we've moved on).
+  // One-shot's in-flight load path + stale-async guard (the bloc owns queue
+  // playback; one-shot is driven directly by the controller).
   String? _pendingLoadPath;
-  int _transientErrorCount = 0;
-  DateTime? _transientWindowStart;
-
-  // Playback engine (desired-state + single reconciler). The desired state is
-  // {currentOrderIndexNotifier (track), _userIntent (play/pause), _seekTo,
-  // _navDir (scan direction), _opGeneration (latest-wins token)}. Every command
-  // updates this synchronously and kicks [_reconcile], a single-flight worker
-  // that drives the transport toward the LATEST desired state, abandoning
-  // superseded work after each await — so rapid taps / BT buttons feel instant
-  // and stale commands are never replayed.
-  int _opGeneration = 0; // bumped by every command; the latest-wins token
-  int _navDir = 1; // scan direction for skipping failed tracks
-  Duration? _seekTo; // pending seek (e.g. previous()-restart), applied once
-  bool _reconciling = false; // single-flight guard
-  bool _rekick = false; // a command arrived mid-reconcile; re-run after it ends
-  Completer<void>? _settled; // completes when the transport converges
-  String? _loadedPath; // path the transport currently holds (null = none)
-  // Commanded index (may point at a missing/failed track); the reconciler
-  // resolves it to a playable track and only THEN commits
-  // currentOrderIndexNotifier — so a missing track never shows as current.
-  int? _targetIndex;
-  // B-036: true while an end-triggered advance is in flight; guards against
-  // duplicate/stale `ended` events double-advancing and skipping a track.
+  int _opGeneration = 0;
+  // B-036: true while a one-shot end-transition is in flight.
   bool _handlingEnded = false;
-  _SelectionReason _lastSelectionReason = _SelectionReason.other;
-  int _lastSelectionDirection = 1;
-
-  // Diagnostics: last-error attribution + queue-tail latch.
-  String? _lastErrorPath;
-  String? _lastErrorReason;
-  String? _lastErrorMessage;
-  DateTime? _lastErrorAt;
-  DateTime? _endedAtQueueTailAt;
-
   StreamSubscription<TransportEvent>? _transportEventSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _noisySub;
   StreamSubscription<AudioDevicesChangedEvent>? _devicesSub;
-  bool _pausedByInterruption = false;
   Timer? _positionTimer;
 
   static Future<bool> _defaultFileExists(String path) => File(path).exists();
-
-  void _recordError(String path, String reason, String message) {
-    _lastErrorPath = path;
-    _lastErrorReason = reason;
-    _lastErrorMessage = message;
-    _lastErrorAt = DateTime.now();
-  }
 
   /// Recent controller logs (if enabled), for test/diagnostics.
   List<String> recentLogs() => _telemetry.recentLogs;
@@ -196,6 +165,7 @@ class PlaybackController extends ChangeNotifier {
     await _transport.init();
 
     _transportEventSub = _transport.eventStream.listen(_handleTransportEvent);
+    _blocSub = _bloc.stream.listen(_onBlocState);
     _telemetry.log('Initialized: subscribed to transport events');
 
     // Audio focus / interruption events; unavailable in some test/host envs.
@@ -227,15 +197,38 @@ class PlaybackController extends ChangeNotifier {
     }
 
     final track = _currentTrack;
-    if (track != null) {
+    final idx = _playlist.currentOrderIndexNotifier.value;
+    if (track != null && idx != null) {
       try {
-        await _loadTrack(track);
+        await _loadTrack(track); // load for display (paused) on restore
       } catch (e) {
         // Ignore startup load errors; handled when the user tries to play.
         debugPrint('Failed to load initial track: $e');
       }
+      _bloc.add(AdoptCurrent(idx, playing: false));
     }
     await _emitSongInfo(force: true);
+  }
+
+  // Mirror the bloc's authoritative state into the UI-facing notifiers.
+  void _onBlocState(PbState s) {
+    // Queue-end resets intent to pause so the play button reacts; otherwise the
+    // controller's command methods own _userIntent.
+    if (s is PbStopped) _userIntent = PlayIntent.pause;
+    isPlayingNotifier.value = s.isPlaying;
+    _updateQueueWithNotFoundFlags();
+    unawaited(_emitSongInfo(force: true));
+  }
+
+  // Await the bloc converging to a stable (non-Loading) state after a command,
+  // so `await next()/playPause()` etc. still settle on the played track. A no-op
+  // command (already-stable, nothing emitted) falls through the timeout.
+  Future<void> _settle() async {
+    try {
+      await _bloc.stream
+          .firstWhere((s) => s is PbActive || s is PbStopped)
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
   }
 
   Timer _newPositionTimer() =>
@@ -262,8 +255,6 @@ class PlaybackController extends ChangeNotifier {
   void dispose() {
     _positionTimer?.cancel();
     _positionTimer = null;
-    if (_settled != null && !_settled!.isCompleted) _settled!.complete();
-    _settled = null;
     if (_uiWired) {
       _uiWired = false;
       for (final n in _uiNotifiers) {
@@ -281,6 +272,8 @@ class PlaybackController extends ChangeNotifier {
   // [shutdown] so callers/tests can flush the playlist box before exiting.
   Future<void> _disposeAsync() async {
     _spectrum.dispose();
+    await _blocSub?.cancel();
+    await _bloc.close();
     await _transportEventSub?.cancel();
     await _interruptionSub?.cancel();
     await _noisySub?.cancel();
@@ -302,9 +295,10 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void _updateQueueWithNotFoundFlags() {
+    final failed = {..._bloc.failedPaths, ..._failedTrackPaths};
     queueNotifier.value = [
       for (final t in _playlist.queueNotifier.value)
-        _failedTrackPaths.contains(t.path) ? t.copyWith(isNotFound: true) : t,
+        failed.contains(t.path) ? t.copyWith(isNotFound: true) : t,
     ];
   }
 
@@ -312,45 +306,17 @@ class PlaybackController extends ChangeNotifier {
 
   void _onInterruption(AudioInterruptionEvent event) {
     _telemetry.event('interruption', {'begin': event.begin, 'type': event.type.name});
-
-    if (event.begin) {
-      switch (event.type) {
-        case AudioInterruptionType.duck:
-          return; // Keep playing; OS attenuates volume.
-        case AudioInterruptionType.pause:
-        case AudioInterruptionType.unknown:
-          if (isPlayingNotifier.value) {
-            // Don't flip _userIntent — the user still wants to play.
-            _pausedByInterruption = true;
-            unawaited(_transport.pause());
-            isPlayingNotifier.value = false;
-          }
-      }
-      return;
-    }
-
-    // Interruption ended. duck never paused; unknown == permanent focus loss.
-    if (event.type == AudioInterruptionType.duck) return;
-    final shouldResume = event.type == AudioInterruptionType.pause &&
-        _pausedByInterruption &&
-        _userIntent == PlayIntent.play;
-    _pausedByInterruption = false;
-    if (shouldResume) {
-      unawaited(_transport.play());
-      isPlayingNotifier.value = true;
-    }
+    if (_oneShot) return; // one-shot is controller-driven; leave it alone
+    _bloc.add(event.begin
+        ? InterruptionBegan(event.type)
+        : InterruptionEnded(event.type));
   }
 
   void _onBecomingNoisy() {
     _telemetry.event('becomingNoisy');
-    // Headphones unplugged / BT disconnected: treat as explicit pause per
-    // Android guidance — never auto-resume.
-    _pausedByInterruption = false;
-    _userIntent = PlayIntent.pause;
-    if (isPlayingNotifier.value) {
-      unawaited(_transport.pause());
-      isPlayingNotifier.value = false;
-    }
+    if (_oneShot) return;
+    _userIntent = PlayIntent.pause; // headphones yanked = explicit pause
+    _bloc.add(const BecameNoisy());
   }
 
   void _onDevicesChanged(AudioDevicesChangedEvent event) {
@@ -398,62 +364,28 @@ class PlaybackController extends ChangeNotifier {
     }
     // Mark failed now (UI turns red); the in-flight load()'s catch advances.
     _telemetry.log('PendingLoadError: path=$path (defer advance to load/catch)');
-    _recordError(path, 'transport_error_event', 'TransportErrorEvent');
     if (_failedTrackPaths.add(path)) _updateQueueWithNotFoundFlags();
   }
 
   void _handleTrackEnded(String? path) {
     _telemetry.event('transportEnded', {'path': path ?? ''});
-
-    // B-036: ignore ended while an advance is in flight — a duplicate event
-    // before the first advance commits would double-advance and skip a track.
-    if (_handlingEnded) {
-      _telemetry.log('Ignore ended: advance already in flight path=${path ?? 'null'}');
-      return;
-    }
-
-    // The current source is consumed by its natural end; if it is replayed
-    // (e.g. play after the queue finished at the tail), force a fresh reload.
-    if (path != null && path == _loadedPath) _loadedPath = null;
-
     if (_oneShot) {
+      // B-036: ignore a duplicate ended while a one-shot transition is running.
+      if (_handlingEnded) return;
       _handlingEnded = true;
       final future =
           _oneShotRepeatOne ? _restartOneShot() : _finishOneShot(manual: false);
       unawaited(future.whenComplete(() => _handlingEnded = false));
       return;
     }
-
-    if (_userIntent == PlayIntent.play) {
-      // Natural end → just another desired-state change, through the reconciler.
-      final next = _playlist.nextOrderIndex();
-      _handlingEnded = true;
-      final f = next == null
-          ? (() {
-              // Queue finished: stop AND reset intent to pause so the play
-              // button reacts (toggles back to play) instead of staying stuck.
-              _endedAtQueueTailAt = DateTime.now();
-              return _stopPlayback(resetIntent: true);
-            })()
-          : _commandIndex(next, PlayIntent.play, dir: 1);
-      unawaited(f.whenComplete(() => _handlingEnded = false));
-    } else {
-      isPlayingNotifier.value = false;
-    }
+    // Queue auto-advance + B-036 dedup now live in the bloc.
+    _bloc.add(TrackEnded(path));
   }
 
   void _onTrackLoaded(String? path) {
     if (path == null) return;
     _telemetry.event('transportLoaded', {'path': path});
-    _loadedPath = path; // authoritative: the transport now holds this path
-    if (_pendingLoadPath == path) {
-      _telemetry.log('OnLoaded: clearing pending for path=$path');
-      _pendingLoadPath = null;
-    }
-    if (_failedTrackPaths.remove(path)) {
-      _telemetry.log('OnLoaded: removed failed flag for path=$path');
-      _updateQueueWithNotFoundFlags();
-    }
+    _updateQueueWithNotFoundFlags();
     _emitSongInfo(force: true);
   }
 
@@ -467,308 +399,51 @@ class PlaybackController extends ChangeNotifier {
     _emitSongInfo(force: true);
   }
 
-  /// Best-effort gapless look-ahead (B-037): preload the next auto-advance
-  /// track. No-op at the tail, during a one-shot, or for a known-failed track.
-  void _preloadNext() {
-    if (_oneShot) return;
-    final nextIdx = _playlist.nextOrderIndex();
-    if (nextIdx == null) return;
-    final track = _playlist.trackForOrderIndex(nextIdx);
-    if (track == null || _failedTrackPaths.contains(track.path)) return;
-    unawaited(_transport.preload(track.path));
-  }
-
-  // Resolve the first playable track at/after [start] in [dir], skipping
-  // known-failed tracks (a direct user tap on [start] gets one retry). Returns
-  // the landed (orderIndex, track), or null when nothing in range is playable.
-  (int, AudioTrack)? _resolveDesiredTrack(int start, int dir,
-      {required bool userTap}) {
-    final step = dir == 0 ? 1 : dir.sign;
-    var idx = start;
-    for (var n = 0; n < _playlist.length; n++) {
-      if (idx < 0 || idx >= _playlist.length) return null;
-      final track = _playlist.trackForOrderIndex(idx);
-      if (track == null) return null;
-      final failed = _failedTrackPaths.contains(track.path);
-      if (failed && !(userTap && idx == start)) {
-        idx += step;
-        continue;
-      }
-      return (idx, track);
-    }
-    return null;
-  }
-
-  // Kick the single-flight reconciler; returns a future that settles when the
-  // transport has converged to the latest desired state (so `await next()` etc.
-  // still resolve once the landed track is live).
-  Future<void> _kick() {
-    _settled ??= Completer<void>();
-    if (_reconciling) {
-      // A command landed mid-reconcile; flag a re-run so it can't be dropped in
-      // the window between the loop converging and the completion callback.
-      _rekick = true;
-      return _settled!.future;
-    }
-    _reconciling = true;
-    _rekick = false;
-    _runReconcile();
-    return _settled!.future;
-  }
-
-  void _runReconcile() {
-    // Start on a microtask so a synchronous burst of commands (e.g. 5 rapid
-    // next() taps) fully settles the target before the first heavy load — the
-    // burst then loads only the track you land on, not each intermediate.
-    unawaited(Future<void>.microtask(_reconcile).whenComplete(() {
-      if (_rekick) {
-        _rekick = false;
-        _runReconcile(); // process commands that arrived during the last pass
-        return;
-      }
-      _reconciling = false;
-      final c = _settled;
-      _settled = null;
-      if (c != null && !c.isCompleted) c.complete();
-    }));
-  }
-
-  // Drive the transport toward the LATEST desired state. Re-reads the target
-  // each pass and checks [_opGeneration] after every await, so a newer command
-  // (tap, BT button, ended event) supersedes in-flight work instead of queuing.
-  Future<void> _reconcile() async {
-    if (_oneShot) return; // one-shot drives the transport directly
-    while (true) {
-      final gen = _opGeneration;
-      final start = _targetIndex ?? _playlist.currentOrderIndexNotifier.value;
-      if (_playlist.length == 0 || start == null) {
-        await _stopPlayback();
-        return;
-      }
-      final userTap = _lastSelectionReason == _SelectionReason.userTap;
-      final resolved = _resolveDesiredTrack(start, _navDir, userTap: userTap);
-      if (resolved == null) {
-        await _stopPlayback();
-        return;
-      }
-      final (landedIdx, track) = resolved;
-
-      // Heavy step: (re)load only when the wrong track is held. Preflight
-      // BEFORE committing the index so a missing track never shows as current.
-      if (_loadedPath != track.path) {
-        if (_shouldPreflightExists(track.path) &&
-            !await _fileExists(track.path)) {
-          if (gen != _opGeneration) continue;
-          _telemetry.log('PreflightMissing: path=${track.path}');
-          _markFailed(track.path, 'preflight_missing', 'File does not exist');
-          _targetIndex = landedIdx + _navDir.sign; // step past, don't commit
-          continue;
-        }
-        if (_playlist.currentOrderIndexNotifier.value != landedIdx) {
-          await _playlist.setCurrentOrderIndex(landedIdx);
-        }
-        _targetIndex = landedIdx;
-        isPlayingNotifier.value = _userIntent == PlayIntent.play; // optimistic
-        _pendingLoadPath = track.path;
-        _telemetry.log('Reconcile load: ${track.path}');
-        try {
-          await _loadTrack(track);
-        } catch (e) {
-          if (gen != _opGeneration) continue;
-          if (await _recoverFromLoadError(track, e, landedIdx)) continue;
-          return; // gave up (transient threshold hit; _stopPlayback already ran)
-        }
-        if (gen != _opGeneration) continue;
-        _loadedPath = track.path;
-        _pendingLoadPath = null;
-        if (_failedTrackPaths.remove(track.path)) _updateQueueWithNotFoundFlags();
-      } else {
-        if (_playlist.currentOrderIndexNotifier.value != landedIdx) {
-          await _playlist.setCurrentOrderIndex(landedIdx);
-        }
-        _targetIndex = landedIdx;
-      }
-
-      // Cheap step: apply the LATEST intent + any pending seek.
-      if (gen != _opGeneration) continue;
-      final wantPlay = _userIntent == PlayIntent.play && !_pausedByInterruption;
-      if (wantPlay) {
-        await _transport.play();
-      } else {
-        await _transport.pause();
-      }
-      if (gen != _opGeneration) continue;
-      isPlayingNotifier.value = wantPlay;
-      if (_seekTo != null) {
-        await _transport.seek(_seekTo!);
-        _seekTo = null;
-      }
-      _emitSongInfo(force: true);
-      _preloadNext();
-      if (_opGeneration == gen) return; // converged and nothing newer
-    }
-  }
-
-  void _markFailed(String path, String reason, String message) {
-    _recordError(path, reason, message);
-    _failedTrackPaths.add(path);
-    _pendingLoadPath = null;
-    _updateQueueWithNotFoundFlags();
-  }
-
-  // After a load throws: transient → brief backoff and retry the same index
-  // (bail after 3 in a 5s window); definitive → mark failed and step past it.
-  // Returns true to keep reconciling, false to stop.
-  Future<bool> _recoverFromLoadError(AudioTrack track, Object e, int idx) async {
-    _telemetry.log('LoadError: path=${track.path} error=$e');
-    final transient = _isTransientTransportError(e);
-    _recordError(track.path,
-        transient ? 'transport_load_transient' : 'transport_load_error',
-        e.toString());
-    _pendingLoadPath = null;
-    if (transient) {
-      final now = DateTime.now();
-      if (_transientWindowStart == null ||
-          now.difference(_transientWindowStart!).inSeconds > 5) {
-        _transientWindowStart = now;
-        _transientErrorCount = 0;
-      }
-      _transientErrorCount += 1;
-      if (_transientErrorCount >= 3) {
-        await _stopPlayback();
-        return false;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      return true; // retry same index (still not loaded)
-    }
-    _failedTrackPaths.add(track.path);
-    _updateQueueWithNotFoundFlags();
-    debugPrint('Error playing track: $e');
-    _targetIndex = idx + _navDir.sign; // step past the bad track (don't commit)
-    return true;
-  }
-
-  // Issue a command: go to [index] with [intent] (skipping failed tracks in
-  // [dir]). Updates the cheap UI state synchronously (index + name + optimistic
-  // isPlaying) then kicks the reconciler; the returned future settles when the
-  // landed track is live.
-  Future<void> _commandIndex(int index, PlayIntent intent,
-      {required int dir, bool userTap = false}) {
-    _userIntent = intent;
-    _navDir = dir == 0 ? 1 : dir.sign;
-    _lastSelectionReason = userTap
-        ? _SelectionReason.userTap
-        : (_navDir < 0 ? _SelectionReason.previous : _SelectionReason.autoAdvance);
-    _lastSelectionDirection = _navDir;
-    if (index != _playlist.length - 1) _endedAtQueueTailAt = null;
-    ++_opGeneration;
-    _targetIndex = index;
-    _playlist.setCurrentOrderIndex(index); // instant index → hero advance
-    _emitNameOnly(index, intent); // instant name (no transport IPC)
-    isPlayingNotifier.value = intent == PlayIntent.play;
-    return _kick();
-  }
-
-  // Push only the track NAME synchronously (position/duration corrected once
-  // the reconciler's load settles) so titles flow at tap speed.
-  void _emitNameOnly(int index, PlayIntent intent) {
-    final track = _playlist.trackForOrderIndex(index);
-    if (track == null) return;
-    songInfoNotifier.value = SongInfo(
-      track: track,
-      isPlaying: intent == PlayIntent.play,
-      position: 0,
-      duration: track.duration?.inMilliseconds ?? 0,
-    );
-  }
-
-  // Restart the current track from 0 (previous() within 3s / at an ended tail):
-  // same index, seek 0, play — the reconciler skips the reload (same path).
-  Future<void> _restartCurrent() {
-    final cur = _playlist.currentOrderIndexNotifier.value;
-    if (cur == null) return Future<void>.value();
-    _userIntent = PlayIntent.play;
-    _seekTo = Duration.zero;
-    _navDir = 1;
-    _targetIndex = cur;
-    ++_opGeneration;
-    isPlayingNotifier.value = true;
-    return _kick();
-  }
 
   // ---- Public transport controls --------------------------------------------
 
-  Future<void> playPause() {
-    if (_playlist.length == 0) return Future<void>.value();
-    // One-shot drives the transport directly (it bypasses the reconciler).
+  Future<void> playPause() async {
+    if (_playlist.length == 0) return;
+    // One-shot drives the transport directly (bloc is dormant during one-shot).
     if (_oneShot) {
-      _userIntent =
-          _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
-      final play = _userIntent == PlayIntent.play;
+      final play = !isPlayingNotifier.value;
+      _userIntent = play ? PlayIntent.play : PlayIntent.pause;
       isPlayingNotifier.value = play;
-      final f = play ? _transport.play() : _transport.pause();
-      return f.then((_) => _emitSongInfo());
+      await (play ? _transport.play() : _transport.pause());
+      await _emitSongInfo();
+      return;
     }
-    // Nothing loaded yet: start from the first index.
-    if (_playlist.currentOrderIndexNotifier.value == null) {
-      return _commandIndex(0, PlayIntent.play, dir: 1, userTap: true);
-    }
-    // Toggle on intent (the reconciler converges to the latest, so a stale load
-    // can't un-pause us). Queue-end resets intent to pause (see
-    // _handleTrackEnded), so pressing play after the queue finishes correctly
-    // starts instead of toggling a stale play-intent back to pause.
+    // Toggle our authoritative intent and tell the bloc explicitly (so a
+    // setQueue/load race can't lose the user's pause).
     _userIntent =
         _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
-    _targetIndex = _playlist.currentOrderIndexNotifier.value;
-    isPlayingNotifier.value = _userIntent == PlayIntent.play;
-    ++_opGeneration;
-    return _kick();
+    _bloc.add(SetIntent(_userIntent == PlayIntent.play));
+    await _settle();
   }
 
-  Future<void> next() {
-    if (_oneShot) return _finishOneShot(manual: true);
-    final target = _playlist.nextOrderIndex();
-    if (target == null) return Future<void>.value(); // tail: no wrap
-    return _commandIndex(target, PlayIntent.play, dir: 1);
+  Future<void> next() async {
+    if (_oneShot) {
+      await _finishOneShot(manual: true);
+      return;
+    }
+    if (_playlist.nextOrderIndex() == null) return; // tail: no wrap
+    _userIntent = PlayIntent.play;
+    _bloc.add(const GoNext());
+    await _settle();
   }
 
   Future<void> previous() async {
-    if (_oneShot) return _finishOneShot(manual: true, backward: true);
-
-    final currentIdx = _playlist.currentOrderIndexNotifier.value;
-    if (currentIdx == null) {
-      final prev = _playlist.previousOrderIndex();
-      return prev == null
-          ? Future<void>.value()
-          : _commandIndex(prev, PlayIntent.play, dir: -1);
+    if (_oneShot) {
+      await _finishOneShot(manual: true, backward: true);
+      return;
     }
-
-    final isTail = currentIdx == _playlist.length - 1;
-    try {
-      final position = await _transport.position;
-      final isEndedLikeState =
-          !isPlayingNotifier.value || position == Duration.zero;
-      final endedTailRecently = isTail &&
-          _endedAtQueueTailAt != null &&
-          DateTime.now().difference(_endedAtQueueTailAt!) <
-              const Duration(seconds: 5);
-      // At an ended tail, or within the first 3s, restart the current track
-      // rather than stepping back.
-      if ((isTail && (isEndedLikeState || endedTailRecently)) ||
-          position > const Duration(seconds: 3)) {
-        return _restartCurrent();
-      }
-      final prev = _playlist.previousOrderIndex();
-      return prev == null
-          ? _restartCurrent()
-          : _commandIndex(prev, PlayIntent.play, dir: -1);
-    } catch (e) {
-      _telemetry.log('previous() position error: $e');
-      final prev = _playlist.previousOrderIndex();
-      return prev == null
-          ? _restartCurrent()
-          : _commandIndex(prev, PlayIntent.play, dir: -1);
+    if (_playlist.currentOrderIndexNotifier.value == null &&
+        _playlist.previousOrderIndex() == null) {
+      return;
     }
+    _userIntent = PlayIntent.play;
+    _bloc.add(const GoPrevious());
+    await _settle();
   }
 
   Future<void> seek(Duration position) async {
@@ -776,61 +451,24 @@ class PlaybackController extends ChangeNotifier {
     _emitSongInfo();
   }
 
-  // ---- Selection / play-with-auto-advance -----------------------------------
-
-  _SelectionReason _classifySelection({
-    required bool isAutoSkip,
-    required bool respectPauseIntent,
-    required int direction,
-  }) {
-    if (!isAutoSkip && !respectPauseIntent) return _SelectionReason.userTap;
-    if (respectPauseIntent) return _SelectionReason.setQueue;
-    if (!isAutoSkip) return _SelectionReason.other;
-    return direction < 0
-        ? _SelectionReason.previous
-        : _SelectionReason.autoAdvance;
-  }
-
   Future<void> playFromQueueIndex(
     int orderIndex, {
     bool isAutoSkip = false,
     bool respectPauseIntent = false,
     int direction = 1,
-  }) {
-    if (orderIndex < 0 || orderIndex >= _playlist.length) {
-      return Future<void>.value();
-    }
-    if (_playlist.trackForOrderIndex(orderIndex) == null) {
-      return Future<void>.value();
-    }
-    _navDir = direction == 0 ? 1 : direction.sign;
-    _lastSelectionReason = _classifySelection(
-      isAutoSkip: isAutoSkip,
-      respectPauseIntent: respectPauseIntent,
+  }) async {
+    if (orderIndex < 0 || orderIndex >= _playlist.length) return;
+    if (_playlist.trackForOrderIndex(orderIndex) == null) return;
+    final intentPlay = !(respectPauseIntent && _userIntent == PlayIntent.pause);
+    _userIntent = intentPlay ? PlayIntent.play : PlayIntent.pause;
+    _bloc.add(GoToIndex(
+      orderIndex,
+      intentPlay: intentPlay,
       direction: direction,
-    );
-    _lastSelectionDirection = _navDir;
-
-    // setQueue may honor a standing pause intent: show the index + name but do
-    // not start playback (the next play command loads it via the reconciler).
-    if (respectPauseIntent && _userIntent == PlayIntent.pause) {
-      ++_opGeneration;
-      _targetIndex = orderIndex;
-      _playlist.setCurrentOrderIndex(orderIndex);
-      _emitNameOnly(orderIndex, PlayIntent.pause);
-      isPlayingNotifier.value = false;
-      return Future<void>.value();
-    }
-
-    if (!respectPauseIntent) _userIntent = PlayIntent.play;
-    if (orderIndex != _playlist.length - 1) _endedAtQueueTailAt = null;
-    ++_opGeneration;
-    // Set the commanded index but DON'T commit it — the reconciler resolves a
-    // playable track (skipping missing/failed ones) and commits that, so a
-    // missing track never flashes as the current index.
-    _targetIndex = orderIndex;
-    isPlayingNotifier.value = _userIntent == PlayIntent.play;
-    return _kick();
+      userTap: !isAutoSkip && !respectPauseIntent,
+      respectPauseIntent: respectPauseIntent,
+    ));
+    await _settle();
   }
 
   bool _shouldPreflightExists(String path) {
@@ -867,7 +505,6 @@ class PlaybackController extends ChangeNotifier {
     _oneShot = true;
     isOneShotNotifier.value = true;
     _userIntent = PlayIntent.play;
-    _endedAtQueueTailAt = null;
     _pendingLoadPath = track.path;
     _telemetry.log('OneShot start: ${track.path} resumeAt=$_oneShotResumeIndex');
     isPlayingNotifier.value = true;
@@ -1028,7 +665,7 @@ class PlaybackController extends ChangeNotifier {
         currentIdx == null ? null : _playlist.trackForOrderIndex(currentIdx);
 
     // Failed markers belonged to result tracks, not the original queue.
-    _failedTrackPaths.clear();
+    _bloc.clearFailed();
 
     if (savedQueue.isEmpty) {
       // Prior queue was emptied — restore as empty (no reload).
@@ -1047,8 +684,11 @@ class PlaybackController extends ChangeNotifier {
     }
     restoreIndex = restoreIndex.clamp(0, savedQueue.length - 1).toInt();
 
-    // Restore via the playlist directly so the transport is NOT reloaded.
+    // Restore via the playlist directly so the transport is NOT reloaded; the
+    // bloc adopts the still-playing track as its active state (no reload).
     await _playlist.setQueue(savedQueue, startBaseIndex: restoreIndex);
+    _bloc.add(AdoptCurrent(_playlist.currentOrderIndexNotifier.value ?? restoreIndex,
+        playing: isPlayingNotifier.value));
     _updateQueueWithNotFoundFlags();
     _telemetry.log('SearchSession exit: len=${savedQueue.length} '
         'index=$restoreIndex active=${activeTrack?.path ?? "null"}');
@@ -1062,13 +702,12 @@ class PlaybackController extends ChangeNotifier {
     int startIndex = 0,
     bool shuffle = false,
   }) async {
-    _failedTrackPaths.clear();
+    _bloc.clearFailed();
     // Set intent BEFORE any await so a concurrent playPause can cancel it.
     if (tracks.isNotEmpty) _userIntent = PlayIntent.play;
 
     await _playlist.setQueue(tracks,
         startBaseIndex: startIndex, enableShuffle: shuffle);
-    _endedAtQueueTailAt = null;
     _updateQueueWithNotFoundFlags();
 
     if (tracks.isNotEmpty) {
@@ -1150,31 +789,26 @@ class PlaybackController extends ChangeNotifier {
     return const {'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus'};
   }
 
-  bool _isTransientTransportError(Object error) {
-    // JustAudio "Connection aborted" / 10000000 from rapid track changes or
-    // codec re-init; transient.
-    final s = error.toString().toLowerCase();
-    return s.contains('connection aborted') || s.contains('10000000');
-  }
-
   /// Structured snapshot of controller state for debugging / emulator tooling.
-  Map<String, Object?> diagnosticsSnapshot() => <String, Object?>{
-        'userIntent': _userIntent.name,
-        'isPlaying': isPlayingNotifier.value,
-        'currentOrderIndex': _playlist.currentOrderIndexNotifier.value,
-        'currentPath': _currentTrack?.path,
-        'queueLength': _playlist.length,
-        'failedTrackPaths': _failedTrackPaths.toList()..sort(),
-        'pendingLoadPath': _pendingLoadPath,
-        'lastSelectionReason': _lastSelectionReason.name,
-        'lastSelectionDirection': _lastSelectionDirection,
-        'lastError': <String, Object?>{
-          'path': _lastErrorPath,
-          'reason': _lastErrorReason,
-          'message': _lastErrorMessage,
-          'at': _lastErrorAt?.toIso8601String(),
-        },
-        'recentLogs': recentLogs(),
-        'audioEvents': _telemetry.audioEvents,
-      };
+  Map<String, Object?> diagnosticsSnapshot() {
+    final err = _bloc.lastError;
+    return <String, Object?>{
+      'userIntent': _userIntent.name,
+      'isPlaying': isPlayingNotifier.value,
+      'currentOrderIndex': _playlist.currentOrderIndexNotifier.value,
+      'currentPath': _currentTrack?.path,
+      'queueLength': _playlist.length,
+      'failedTrackPaths': _bloc.failedPaths.toList()..sort(),
+      'pendingLoadPath': null,
+      'lastSelectionReason': 'other',
+      'lastSelectionDirection': 1,
+      'lastError': <String, Object?>{
+        'path': err?.path,
+        'reason': err?.reason,
+        'message': err?.message,
+      },
+      'recentLogs': recentLogs(),
+      'audioEvents': _telemetry.audioEvents,
+    };
+  }
 }

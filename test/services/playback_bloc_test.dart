@@ -71,6 +71,7 @@ void main() {
     'GoToIndex loads then plays',
     build: () => build(),
     act: (b) => b.add(const GoToIndex(0)),
+    wait: const Duration(milliseconds: 60),
     expect: () => [
       isA<PbLoading>().having((s) => s.index, 'i', 0),
       isA<PbActive>().having((s) => s.index, 'i', 0).having((s) => s.playing, 'p', true),
@@ -97,6 +98,7 @@ void main() {
       b.add(const GoNext());
     },
     skip: 2,
+    wait: const Duration(milliseconds: 60),
     expect: () => [
       isA<PbLoading>().having((s) => s.index, 'i', 1),
       isA<PbActive>().having((s) => s.index, 'i', 1),
@@ -121,6 +123,7 @@ void main() {
       b.add(const TogglePlayPause()); // resume
     },
     skip: 2,
+    wait: const Duration(milliseconds: 80),
     expect: () => [
       isA<PbActive>().having((s) => s.playing, 'p', false),
       isA<PbActive>().having((s) => s.playing, 'p', true),
