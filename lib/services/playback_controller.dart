@@ -9,6 +9,7 @@ import '../models/audio_track.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import 'audio_transport.dart';
+import 'spectrum_source.dart';
 import 'metadata_extractor.dart';
 import 'playback_telemetry.dart';
 import 'playlist_store.dart';
@@ -80,16 +81,16 @@ class PlaybackController extends ChangeNotifier {
   static Set<String> get supportedExtensions =>
       SoLoudTransport.supportedExtensions;
 
-  // ---- Spectrum surface (moved off the old AudioPlayerProvider) -------------
+  // ---- Spectrum facade — state/lifecycle live in [SpectrumSource] ----------
 
-  List<double> _spectrumData = List.filled(32, 0.0);
-  List<double> get spectrumData => _spectrumData;
-  Stream<List<double>> get spectrumStream => _transport.spectrumStream;
-  StreamSubscription<List<double>>? _spectrumSub;
+  late final SpectrumSource _spectrum =
+      SpectrumSource(_transport)..addListener(notifyListeners);
 
-  void setCaptureEnabled(bool enabled) => _transport.setCaptureEnabled(enabled);
+  List<double> get spectrumData => _spectrum.data;
+  Stream<List<double>> get spectrumStream => _spectrum.stream;
+  void setCaptureEnabled(bool enabled) => _spectrum.setCaptureEnabled(enabled);
   void updateSpectrumSettings(SpectrumSettings settings) =>
-      _transport.updateSpectrumSettings(settings);
+      _spectrum.updateSettings(settings);
 
   // Fan every sub-notifier into [notifyListeners]; wired in [init], torn down in
   // [dispose].
@@ -206,10 +207,7 @@ class PlaybackController extends ChangeNotifier {
       for (final n in _uiNotifiers) {
         n.addListener(_notify);
       }
-      _spectrumSub = _transport.spectrumStream.listen((data) {
-        _spectrumData = data;
-        notifyListeners();
-      });
+      _spectrum.start();
     }
 
     final track = _currentTrack;
@@ -264,7 +262,7 @@ class PlaybackController extends ChangeNotifier {
   // Cancels subscriptions and disposes the transport + playlist. Awaitable via
   // [shutdown] so callers/tests can flush the playlist box before exiting.
   Future<void> _disposeAsync() async {
-    await _spectrumSub?.cancel();
+    _spectrum.dispose();
     await _transportEventSub?.cancel();
     await _interruptionSub?.cancel();
     await _noisySub?.cancel();
