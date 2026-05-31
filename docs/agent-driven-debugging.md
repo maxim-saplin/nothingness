@@ -50,120 +50,28 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
 
 ## Primary CLI: `drive.py`
 
-For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto-discovers the VM service WebSocket (scanning logcat + `/tmp/flutter_run.log`), caches it between calls, resolves the main isolate, wraps every `ext.nothingness.*` extension as a typed subcommand, and offers screenshot, hot-reload, hot-restart, and clear-data conveniences.
+For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto-discovers the VM service WebSocket (scanning logcat + `/tmp/flutter_run.log`), caches it next to the script (`.vm_ws.txt`), resolves the main isolate, wraps every `ext.nothingness.*` extension as a typed subcommand, and offers screenshot, hot-reload, hot-restart, and clear-data conveniences.
 
-The script is managed by `uv`: it carries a PEP 723 inline metadata block and a `#!/usr/bin/env -S uv run --script` shebang, so `./drive.py …` works directly with no setup. For a stable project venv (useful for IDE completion), run `uv sync` once after checkout — it creates `.venv/` and installs `websockets` from the repo-root `pyproject.toml`.
+**The operational entry point — `drive.py preflight`/`contract`, the full command surface, the "which lens when" guide, hazards, and per-target launch recipes — lives in `.claude/skills/agent-emulator-debugging/SKILL.md`.** Run `drive.py preflight` first; it detects the host (WSL?), flutter devices, adb, and any live `flutter run`, and recommends the next command. This doc holds the **per-extension reference** (params/returns) and the architecture; the skill holds the command-line workflow. Don't restate the command list here.
 
-```bash
-# All examples assume the app is running in debug mode on emulator-5554.
+The script is managed by `uv`: it carries a PEP 723 inline metadata block and a `#!/usr/bin/env -S uv run --script` shebang, so `./drive.py …` works directly with no setup. For a stable project venv (useful for IDE completion), run `uv sync` once after checkout.
 
-# State
-.claude/skills/agent-emulator-debugging/scripts/drive.py inspect
-.claude/skills/agent-emulator-debugging/scripts/drive.py tree 40
-.claude/skills/agent-emulator-debugging/scripts/drive.py overflows
-
-# Navigation
-.claude/skills/agent-emulator-debugging/scripts/drive.py screen void
-.claude/skills/agent-emulator-debugging/scripts/drive.py nav /storage/emulated/0/Music
-.claude/skills/agent-emulator-debugging/scripts/drive.py up
-.claude/skills/agent-emulator-debugging/scripts/drive.py settings open
-.claude/skills/agent-emulator-debugging/scripts/drive.py settings close
-
-# Theming
-.claude/skills/agent-emulator-debugging/scripts/drive.py variant dark
-.claude/skills/agent-emulator-debugging/scripts/drive.py mode own
-
-# Playback
-.claude/skills/agent-emulator-debugging/scripts/drive.py play /sdcard/Music/foo.mp3
-.claude/skills/agent-emulator-debugging/scripts/drive.py pause
-.claude/skills/agent-emulator-debugging/scripts/drive.py resume
-.claude/skills/agent-emulator-debugging/scripts/drive.py next
-.claude/skills/agent-emulator-debugging/scripts/drive.py prev
-
-# Preferences
-.claude/skills/agent-emulator-debugging/scripts/drive.py pref void_hint_shown=false:bool
-.claude/skills/agent-emulator-debugging/scripts/drive.py clearpref void_hint_shown
-
-# Lifecycle
-.claude/skills/agent-emulator-debugging/scripts/drive.py reload      # hot reload (via /tmp/flutter_input fifo)
-.claude/skills/agent-emulator-debugging/scripts/drive.py restart     # hot restart
-.claude/skills/agent-emulator-debugging/scripts/drive.py reset       # force-stop + clear data + cold launch
-
-# Diagnostics
-.claude/skills/agent-emulator-debugging/scripts/drive.py shoot before_x       # → .tmp/agent_shots/before_x.png
-.claude/skills/agent-emulator-debugging/scripts/drive.py logcat 500
-.claude/skills/agent-emulator-debugging/scripts/drive.py call setSetting name=fullScreen value=true  # arbitrary extension
-.claude/skills/agent-emulator-debugging/scripts/drive.py replay script.txt    # one extension call per newline
-```
-
-The cache lives next to the script as `.vm_ws.txt`. If you kill `flutter run` and restart it, `drive.py reset` (or simply deleting the cache) refreshes it.
-
-Subcommand source: `.claude/skills/agent-emulator-debugging/scripts/drive.py`. For extensions drive.py doesn't yet wrap, use `drive.py call <ext> k=v k=v …` to make an arbitrary `ext.nothingness.*` call — no need to drop down to the raw `curl` recipe below.
+For extensions drive.py doesn't yet wrap, `drive.py call ext.nothingness.<name> k=v k=v …` makes an arbitrary call (fully-qualified name required) — no need to drop down to the raw `curl` recipe below. The exact registered set is whatever `drive.py contract` reports against the running build.
 
 ## Quick Start
 
-### 1. Launch the app in debug mode
+**Launch + per-target setup (Linux desktop, Android x86_64, WSL adb bridge) and the device-prep `pm grant` / sandbox-push snippets live in the skill** (`.claude/skills/agent-emulator-debugging/SKILL.md` → Step 0 and Appendix). Run `drive.py preflight` and follow its recommendation. The essentials: always launch `-t dev/main_debug.dart` (it wires the harness; plain `flutter run` exposes no extensions, and `dev/main_test.dart` is for `integration_test/` only); extensions are debug-mode only.
 
-```bash
-# Android emulator
-flutter run -d emulator-5554 --debug -t dev/main_debug.dart
+The sections below are the **raw VM-service protocol** — useful when you need to talk to the VM directly rather than through `drive.py`.
 
-# macOS
-flutter run -d macos --debug -t dev/main_debug.dart
-```
+### 1. Extract the base URL
 
-> The `-t dev/main_debug.dart` entrypoint is **required** for agent-driven debugging — it installs the harness onto the `lib/debug_hooks.dart` seam so the `ext.nothingness.*` extensions register. Plain `lib/main.dart` (the default `flutter run`) ships without the harness and exposes no extensions.
-
-> **Never use `-t dev/main_test.dart`** for agent-driven debugging. That entrypoint uses fake transport with no real audio — it exists only for `integration_test/` deterministic test automation.
-
-The output contains the observatory URL:
+`flutter run` output contains the observatory URL; extract `BASE=http://127.0.0.1:<port>/<auth>=`:
 ```
 A Dart VM Service on sdk gphone64 arm64 is available at: http://127.0.0.1:PORT/AUTH=/
 ```
 
-#### 1a. (Android) Prepare device — runtime permissions + sandbox audio files
-
-Fresh-installed Android builds stop at the in-app `Permissions Required` overlay until the user taps `Grant Permissions` and approves the OS dialog. SoLoud also can't open shared-storage paths like `/sdcard/...` on emulators (raises `SoLoudFileNotFoundException`) — files have to live under the app's private dir.
-
-Use raw `adb` for both — idempotent and works pre- or post-launch:
-
-```bash
-# Grant runtime perms (idempotent)
-for P in RECORD_AUDIO READ_MEDIA_AUDIO READ_EXTERNAL_STORAGE POST_NOTIFICATIONS; do
-  adb -s emulator-5554 shell pm grant com.saplin.nothingness "android.permission.$P" || true
-done
-
-# Stage one or more host audio files into the app sandbox
-adb -s emulator-5554 push .tmp/test_tone.wav \
-    /data/user/0/com.saplin.nothingness/files/test_tone.wav
-adb -s emulator-5554 push /path/to/another.mp3 \
-    /data/user/0/com.saplin.nothingness/files/another.mp3
-```
-
-After staging `foo.wav`, queue it as `/data/user/0/com.saplin.nothingness/files/foo.wav`.
-
-Permissions granted: `RECORD_AUDIO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `POST_NOTIFICATIONS`. `pm grant` requires no UI interaction.
-
-Linux/macOS desktop has no sandbox — skip both steps and pass any readable absolute host path to `drive.py play` directly.
-
-### 2. Extract the base URL
-
-From the flutter run output, extract:
-- `BASE=http://127.0.0.1:<port>/<auth>=`
-
-### 2b. Helper script (preferred)
-
-`drive.py` covers every common workflow (state inspection, queue setup, widget tree, screenshots, hot reload, replay scripts) for both Android and Linux/macOS desktop. See `.claude/skills/agent-emulator-debugging/SKILL.md` for the full subcommand surface.
-
-```bash
-D=.claude/skills/agent-emulator-debugging/scripts/drive.py
-
-$D inspect                                       # router/library/playback/overflows
-$D play /data/user/0/com.saplin.nothingness/files/track1.mp3
-$D tree 20                                       # widget tree, depth-capped
-```
-
-### 3. Get the isolate ID
+### 2. Get the isolate ID
 
 ```bash
 python3 - <<'PY'
@@ -251,7 +159,30 @@ These extensions were added during the `ui-revamp` arc to drive the unified Void
 | `requestLibraryPermission` | — | `{granted: bool}` | Programmatically trigger the storage / audio permission flow on Android. |
 | `getOverflowReports` | `clear=true` (optional) | `{reports: [...]}` | Returns the `FlutterError.onError` ring buffer, including layout overflow incidents. |
 
-Total: **27 extensions** registered from the `_extensions` map in `dev/agent_service.dart`. Use `drive.py` (see top of this doc) for typed access from the command line.
+### Runtime inspection
+
+| Extension | Params | Returns | Purpose |
+|---|---|---|---|
+| `probeText` | `key` (ValueKey string) | `{text, style:{fontSize, color (ARGB hex), fontWeight, fontFamily, height, letterSpacing}, widgetType, size:{w,h}}` | Walks the element tree to the `ValueKey<String>(key)` widget's `RenderParagraph` and returns the **live rendered** text + resolved `TextStyle`. Reads what was actually painted, not a `toStringDeep` dump. |
+| `getFrameTimings` | `clear=true` (optional) | `{count, janky16, janky33, worstBuildUs, worstRasterUs, worstTotalUs, frames:[…≤200]}` | Frame-timing ring buffer (cap 600) fed by `SchedulerBinding.addTimingsCallback`. `janky16`/`janky33` count frames over 16/33 ms total. `clear=true` starts a fresh measurement window. |
+
+The full set is registered from the `_extensions` map in `dev/agent_service.dart`. **Don't quote a fixed count** — run `drive.py contract` to list the `ext.nothingness.*` names + count the running build actually registered (it reads `getIsolate.extensionRPCs` live). Use `drive.py` (see the skill) for typed access from the command line.
+
+### Runtime inspection perspectives
+
+Five `drive.py` subcommands look *inside* a running build — at painted text, frame timing, the VM timeline, CPU samples, and live variables. The last three are raw VM-service RPCs, not `ext.nothingness.*` calls. The harness also brackets `_next`/`_prev` with `Timeline.startSync('agent.skip')`/`finishSync()` markers (instrumentation only), so skip handlers show up as spans on the timeline.
+
+- **`probe <key>`** → `probeText`. Reach for it to assert what a label *actually rendered* — text and resolved `TextStyle` (size, ARGB color, weight, family, height, letterSpacing) — instead of trusting a tree dump. e.g. `drive.py probe hero-song`.
+- **`frames [--clear]`** → `getFrameTimings`. Reach for it for visible-rebuild jank: `frames --clear`, drive the actions, then `frames` and read `janky16`/`janky33`/`worst*Us`. **Caveat:** on the headless Linux desktop build `addTimingsCallback` fires only when on-screen compositor frames are produced, so background-only activity (a skip storm with no visible change) leaves `count=0`. It populates during real UI churn (navigation, hero rebuilds) and is the primary jank lens **on device (Android)**. On Linux, prefer `timeline`+`breakpoint` to prove UI-isolate blocking.
+- **`timeline [--clear]`** → raw VM timeline RPCs. `--clear` does `setVMTimelineFlags {recordedStreams:[Dart,Embedder,GC]}` + `clearVMTimeline`; bare returns a per-name `summary` of completed (`dur`) spans plus `marked_spans` (the `agent.skip` spans with `args.dir`). Reach for it to see what ran on the UI isolate during a window. `getVMTimestamp` is unavailable on this VM, so the time origin is derived from `getVMTimeline`.
+- **`profile [--seconds N]`** → raw `getCpuSamples` over a window (default 2s); returns `sampleCount` + top self-time `functions`. Does **not** pause the isolate. Reach for it to find a CPU hot spot. (CPU payloads can exceed 8 MiB, so the raw caller uses a 64 MiB frame ceiling.)
+- **`breakpoint --line N [--uri <pkg-uri>] [--watch e1,e2] [--trigger next|prev|none] [--timeout S]`** → a **true** breakpoint + variable watch. Default uri `package:nothingness/services/playback_controller.dart`, default line 692 (the `await _loadTrack` UI-isolate await). It sets the breakpoint, fires the trigger fire-and-forget on a separate connection, waits for `PauseBreakpoint`, runs `getStack` + `evaluateInFrame` per `--watch` expr, then **always** `removeBreakpoint`+`resume` in a `finally`. Reach for it for "stop here and inspect variables", not tight loops.
+
+  **Caveats:**
+  - **`breakpoint` pauses the UI isolate, which freezes ALL `ext.nothingness.*` extensions.** It must run **ALONE** — never concurrently with any other `drive.py` call or another driver. It always resumes in a `finally`; if a session is ever orphaned, recover with the standard `rm .vm_ws.txt && drive.py restart`.
+  - **`--trigger next` no-ops at the last queue index** (`nextOrderIndex()` returns null → no load runs). Use `--trigger prev` from the end, or position the queue so a load actually fires.
+
+(`drive.py call` takes the fully-qualified name — `call ext.nothingness.<method>` — but these five are wrapped subcommands, so you won't need `call` for them.)
 
 ### Response Format
 
@@ -370,8 +301,7 @@ To add a new extension:
 
 1. Add a handler method in `dev/agent_service.dart`
 2. Register it in `AgentService.register()` with `developer.registerExtension('ext.nothingness.<name>', _handler)`
-3. Update the count in the `debugPrint` message
-4. Document it in this file
+3. Document it in the reference table above (no count to maintain — `drive.py contract` reads the live list)
 
 Generic primitives (`getWidgetTree`, `tapByKey`) work for any UI without new extensions. Domain shortcuts are optional convenience for frequently-used agent workflows.
 

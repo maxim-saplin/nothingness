@@ -63,10 +63,20 @@ class DesktopMetadataExtractor implements MetadataExtractor {
 }
 
 /// Builds an [AudioTrack] from the filename's artist/title split.
+///
+/// B-047: the split keys on the *leftmost* separator, so a filename that
+/// embeds the artist again in the title (e.g. `Artist - Artist - Song.ext`)
+/// leaves the artist in the title. Apply [_dropEmbeddedArtist] — the same
+/// guard the Android MediaStore path already uses — so the desktop/filename
+/// path strips the redundant prefix too.
 AudioTrack _parseFilenameMetadata(String filePath) {
   final base = p.basename(filePath);
   final (artist, title) = _splitFilename(base);
-  return AudioTrack(path: filePath, title: title ?? base, artist: artist);
+  return AudioTrack(
+    path: filePath,
+    title: title == null ? base : _dropEmbeddedArtist(title, artist),
+    artist: artist,
+  );
 }
 
 /// Drops a leading `"<artist> - "` the MediaStore title inherited from the

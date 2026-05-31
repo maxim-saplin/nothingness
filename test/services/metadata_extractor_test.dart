@@ -68,6 +68,17 @@ void main() {
       expect(track.artist, 'Artist');
     });
 
+    // B-047: a filename that embeds the artist again in the title leaves the
+    // artist in the title after the leftmost-separator split. The desktop path
+    // must drop the redundant prefix — the same guard the Android path uses.
+    test('drops a redundant artist prefix the filename embedded in the title',
+        () async {
+      final track = await extractor
+          .extractMetadata('/path/Nirvana - Nirvana - Rape me.wav');
+      expect(track.artist, 'Nirvana');
+      expect(track.title, 'Rape me');
+    });
+
     test('uses entire filename as title when no separator found', () async {
       final track = await extractor.extractMetadata('/path/SongTitle.mp3');
       expect(track.title, 'SongTitle');

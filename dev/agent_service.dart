@@ -5,6 +5,7 @@ import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -47,6 +48,12 @@ class AgentService {
       Queue<Map<String, Object?>>();
   static const int _maxOverflowReports = 64;
 
+  /// Ring buffer of per-frame build/raster timings; exposed via
+  /// `getFrameTimings`.
+  static final Queue<Map<String, Object?>> _frameTimings =
+      Queue<Map<String, Object?>>();
+  static const int _maxFrameTimings = 600;
+
   static bool _installed = false;
 
   /// Short name → handler; `ext.nothingness.` is prepended at registration.
@@ -83,6 +90,9 @@ class AgentService {
     'requestLibraryPermission': _requestLibraryPermission,
     'getOverflowReports': _getOverflowReports,
     'screenshot': _screenshot,
+    // Runtime inspection.
+    'probeText': _probeText,
+    'getFrameTimings': _getFrameTimings,
   };
 
   /// Install the harness: arm the overflow hook now and defer VM-service
@@ -93,7 +103,10 @@ class AgentService {
     if (!kDebugMode || _installed) return;
     _installed = true;
     _installOverflowHook();
-    DebugHooks.onAppReady = (_) => _registerExtensions();
+    DebugHooks.onAppReady = (_) {
+      _registerExtensions();
+      _installFrameHook();
+    };
   }
 
   /// Register all agent extensions (one `ext.nothingness.<name>` per entry).
@@ -131,6 +144,22 @@ class AgentService {
       // and the previous handler, e.g. Crashlytics).
       previous?.call(details);
     };
+  }
+
+  /// Record per-frame build/raster timings into [_frameTimings] (ring buffer).
+  static void _installFrameHook() {
+    SchedulerBinding.instance.addTimingsCallback((List<FrameTiming> timings) {
+      for (final t in timings) {
+        if (_frameTimings.length >= _maxFrameTimings) {
+          _frameTimings.removeFirst();
+        }
+        _frameTimings.addLast({
+          'build_us': t.buildDuration.inMicroseconds,
+          'raster_us': t.rasterDuration.inMicroseconds,
+          'total_us': t.totalSpan.inMicroseconds,
+        });
+      }
+    });
   }
 
   static developer.ServiceExtensionResponse _ok(Map<String, Object?> data) =>
@@ -540,12 +569,22 @@ class AgentService {
   }
 
   static _R _next(PlaybackController p, Map<String, String> params) async {
-    await p.next();
+    developer.Timeline.startSync('agent.skip', arguments: {'dir': 'next'});
+    try {
+      await p.next();
+    } finally {
+      developer.Timeline.finishSync();
+    }
     return _ok({'ok': true});
   }
 
   static _R _prev(PlaybackController p, Map<String, String> params) async {
-    await p.previous();
+    developer.Timeline.startSync('agent.skip', arguments: {'dir': 'prev'});
+    try {
+      await p.previous();
+    } finally {
+      developer.Timeline.finishSync();
+    }
     return _ok({'ok': true});
   }
 
@@ -779,6 +818,91 @@ class AgentService {
         .toList(growable: false);
     if (clear) _overflowReports.clear();
     return _ok({'reports': reports, 'count': reports.length});
+  }
+
+  /// Read a keyed widget's live rendered text and resolved [TextStyle].
+  static _R _probeText(String method, Map<String, String> params) async {
+    final key = params['key'];
+    if (key == null || key.isEmpty) return _error('key parameter required');
+    final el = _findElementByKey(key);
+    if (el == null) return _error('no widget found with key "$key"');
+
+    RenderObject? ro = el.findRenderObject();
+    if (ro is! RenderParagraph) {
+      _walkSubtree(el, (e) {
+        final r = e.findRenderObject();
+        if (r is RenderParagraph) {
+          ro = r;
+          return true;
+        }
+        return false;
+      }, includeSelf: true);
+    }
+    final para = ro;
+    if (para is! RenderParagraph) {
+      return _ok({
+        'key': key,
+        'widgetType': el.widget.runtimeType.toString(),
+        'text': null,
+        'note': 'no RenderParagraph under key',
+      });
+    }
+
+    final plain = para.text.toPlainText();
+    final style = para.text.style;
+    return _ok({
+      'key': key,
+      'text': plain,
+      'widgetType': el.widget.runtimeType.toString(),
+      'style': {
+        'fontSize': style?.fontSize,
+        'color': style?.color?.toARGB32().toRadixString(16),
+        'fontWeight': style?.fontWeight?.value,
+        'fontFamily': style?.fontFamily,
+        'height': style?.height,
+        'letterSpacing': style?.letterSpacing,
+      },
+      'size': para.hasSize
+          ? {'w': para.size.width, 'h': para.size.height}
+          : null,
+    });
+  }
+
+  static _R _getFrameTimings(
+    String method,
+    Map<String, String> params,
+  ) async {
+    final clear = (params['clear'] ?? 'false') == 'true';
+    if (clear) {
+      _frameTimings.clear();
+      return _ok({'cleared': true});
+    }
+    final frames = _frameTimings.toList(growable: false);
+    int totalOf(Map<String, Object?> f) => (f['total_us'] as int?) ?? 0;
+    int buildOf(Map<String, Object?> f) => (f['build_us'] as int?) ?? 0;
+    int rasterOf(Map<String, Object?> f) => (f['raster_us'] as int?) ?? 0;
+    final janky16 = frames.where((f) => totalOf(f) > 16000).length;
+    final janky33 = frames.where((f) => totalOf(f) > 33000).length;
+    var worstBuildUs = 0;
+    var worstRasterUs = 0;
+    var worstTotalUs = 0;
+    for (final f in frames) {
+      if (buildOf(f) > worstBuildUs) worstBuildUs = buildOf(f);
+      if (rasterOf(f) > worstRasterUs) worstRasterUs = rasterOf(f);
+      if (totalOf(f) > worstTotalUs) worstTotalUs = totalOf(f);
+    }
+    final lastN = frames.length > 200
+        ? frames.sublist(frames.length - 200)
+        : frames;
+    return _ok({
+      'count': frames.length,
+      'janky16': janky16,
+      'janky33': janky33,
+      'worstBuildUs': worstBuildUs,
+      'worstRasterUs': worstRasterUs,
+      'worstTotalUs': worstTotalUs,
+      'frames': lastN,
+    });
   }
 
   static _R _screenshot(String method, Map<String, String> params) async {

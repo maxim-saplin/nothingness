@@ -131,6 +131,14 @@ class PlaybackController extends ChangeNotifier {
 
   // Operation generation to ignore stale async continuations (rapid taps).
   int _opGeneration = 0;
+  // B-048: coalesce a burst of user next/previous taps. Without this each tap
+  // spawns its own playFromQueueIndex → load chain that serializes as one
+  // blocking transaction per tap on the UI isolate. Keep only the latest target;
+  // a single in-flight worker loads it, and taps arriving mid-load just retarget
+  // and return at once.
+  int? _navTarget;
+  int _navDirection = 1;
+  bool _navigating = false;
   // B-036: true while an end-triggered advance is in flight; guards against
   // duplicate/stale `ended` events double-advancing and skipping a track.
   bool _handlingEnded = false;
@@ -470,16 +478,32 @@ class PlaybackController extends ChangeNotifier {
     unawaited(_transport.preload(track.path));
   }
 
-  // Auto-skip play to [orderIndex] in [direction], if non-null.
-  Future<void> _stepToIndex(int? orderIndex, int direction) async {
-    if (orderIndex != null) {
-      await playFromQueueIndex(orderIndex,
-          isAutoSkip: true, direction: direction);
+  // B-048: coalesce rapid user navigation. A burst of next/previous taps keeps
+  // only the latest [target]; the in-flight worker loads it and any tap arriving
+  // mid-load just retargets and returns at once, so the UI isolate isn't blocked
+  // per tap and at most the in-flight load + one final load run. Auto-advance
+  // (ended events) calls [playFromQueueIndex] directly and is unaffected.
+  Future<void> _navigate(int target, int direction) async {
+    _navTarget = target;
+    _navDirection = direction;
+    if (_navigating) return; // the running worker will pick up the latest target
+    _navigating = true;
+    try {
+      while (_navTarget != null) {
+        final t = _navTarget!;
+        final d = _navDirection;
+        _navTarget = null;
+        await playFromQueueIndex(t, isAutoSkip: true, direction: d);
+      }
+    } finally {
+      _navigating = false;
     }
   }
 
-  Future<void> _stepToPreviousIndex() =>
-      _stepToIndex(_playlist.previousOrderIndex(), -1);
+  Future<void> _stepToPreviousIndex() {
+    final target = _playlist.previousOrderIndex();
+    return target == null ? Future<void>.value() : _navigate(target, -1);
+  }
 
   // ---- Public transport controls --------------------------------------------
 
@@ -512,7 +536,8 @@ class PlaybackController extends ChangeNotifier {
       await _finishOneShot(manual: true);
       return;
     }
-    await _stepToIndex(_playlist.nextOrderIndex(), 1);
+    final target = _playlist.nextOrderIndex();
+    if (target != null) await _navigate(target, 1);
   }
 
   Future<void> previous() async {

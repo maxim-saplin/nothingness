@@ -1394,3 +1394,28 @@ explicit escape hatch. NOTE: gradle-config-only change; not built/run-verified i
 this WSL2 environment (no working Android toolchain here — see the SKILL). The
 underlying arm64-debug-on-snap-toolchain breakage is unchanged but is no longer
 reachable by the default workflow.
+
+## B-047 (minor): Void H2 song line still renders "artist + song" — B-046 embedded-artist strip incomplete
+
+- **Symptom** — On the Void screen, the song heading (H2, ValueKey `hero-song`) shows the artist prefixed to the title (e.g. "Artist - Title"), while the artist heading (H1, ValueKey `hero-artist`) ALSO shows the artist — so the artist appears twice. B-046 stripped the embedded-artist prefix only on the Android MediaStore path.
+- **Repro** — Play a track whose filename embeds the artist inside the title, switch to the Void hero, and read the headings with `drive.py probe hero-artist` / `drive.py probe hero-song`. Runtime evidence (Linux desktop, `DRIVE_TARGET=linux`, 2026-05-31):
+  - **REPRODUCED on Linux** with `.tmp/music_b047/Nirvana - Nirvana - Rape me.wav` (library scan): `hero-artist` (H1) = `"Nirvana"`; `hero-song` (H2) = `"Nirvana - Rape me"` — artist rendered TWICE. Library-extracted track: `title='Nirvana - Rape me', artist='Nirvana'`. (Other edge cases split cleanly: `Radiohead-Creep.wav`→Creep/Radiohead, `Beatles — Yesterday.wav`→Yesterday/Beatles, `Queen − Queen.wav`→Queen/Queen.)
+  - **Metadata-path finding** — On Linux the path is `DesktopMetadataExtractor` → `_parseFilenameMetadata` → `_splitFilename`, which splits on the LEFTMOST `-`/`−`/`—` only, leaving the duplicated artist in the title. The B-046 fix `_dropEmbeddedArtist` lived ONLY inside `AndroidMetadataExtractor`; the desktop path never called it. So the trigger is NOT Android-MediaStore-specific.
+- **Desired** — H1 (`hero-artist`) shows the artist only; H2 (`hero-song`) shows the title only.
+- **Notes** — `metadata_extractor.dart`; the shared guard `_dropEmbeddedArtist` already existed but was only wired into the Android success path. Cross-ref **B-046** (and predecessors B-040/B-041).
+- **Area** — heroes
+
+**Closed**: 2026-05-31 — applied the existing `_dropEmbeddedArtist` guard inside `_parseFilenameMetadata` so the desktop/filename path (and the Android filename fallback) drop a redundant `"<artist> - "` prefix too: `Nirvana - Nirvana - Rape me.wav` → title `Rape me`, artist `Nirvana`; `Adele - Adele.wav` is left intact (prefix matches but isn't redundant). Reused shared logic — no new splitter. Test: `metadata_extractor_test.dart` (B-047 double-artist case). Runtime-confirmed via library scan (`getLibraryState`). Found with the new `drive.py probe` render-introspection lens.
+
+## B-048 (major): Rapid skips lock the UI — each skip is a UI-isolate transaction
+
+- **Symptom** — Tapping next/skip rapidly makes the UI unresponsive; you cannot do many quick skips in a row. Each skip behaves like a blocking transaction on the UI thread.
+- **Repro** — On the Void screen with a queue loaded, fire a burst of rapid `next` calls and observe each skip serialize as a discrete load. Runtime evidence (Linux desktop, `DRIVE_TARGET=linux`, 2026-05-31):
+  - **Timeline** — `agent.skip` spans were serialized one-per-`next()`, ~210–250 ms apart (each a full, non-overlapping skip transaction; no coalescing).
+  - **Breakpoint** (`--line 692 --watch track.path,op,_userIntent`, run alone): HIT at `_playWithAutoAdvance` @ `playback_controller.dart:692` (the `await _loadTrack(track)`) running on the UI-isolate microtask loop — proving the load awaits on the UI isolate. App auto-resumed.
+  - **Frames** — not observable on the headless Linux renderer (`addTimingsCallback` delivers no entries with no on-screen compositor frames); frame jank is the expected on-device manifestation.
+- **Desired** — Rapid skips should coalesce / load off the UI critical path so the UI stays responsive during a skip storm.
+- **Notes** — `lib/services/playback_controller.dart`: `next()`/`previous()` → `playFromQueueIndex()` → `_playWithAutoAdvance()` awaits `_loadTrack()`; no debounce/lock, and the `_opGeneration` guard only cancels stale work *after* the await, so concurrent taps each spawn a blocking load chain.
+- **Area** — playback
+
+**Closed**: 2026-05-31 — coalesce rapid user navigation: `next()` and the step-back path of `previous()` now route through a single-flight `_navigate` worker that keeps only the latest target, so a tap burst performs at most the in-flight load + one final load, and taps arriving mid-load retarget and return immediately (UI not blocked per tap). Auto-advance (ended events) still calls `playFromQueueIndex` directly and is unaffected; all B-036/B-037 guards preserved. Test: `playback_controller_skip_bug_test.dart` (B-048 burst → `loadCalls == [track_1, track_2]`). Runtime-confirmed (6 concurrent taps → index 0→2, app responsive). Diagnosed with the new `drive.py timeline`/`breakpoint` lenses.

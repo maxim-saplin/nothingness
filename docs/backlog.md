@@ -26,6 +26,6 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
 ---
 
 _No open items._ All tracked issues have been resolved and moved to
-[`backlog_done.md`](backlog_done.md) (last closed: **B-046** on 2026-05-31).
-The next id to assign is **B-047** — check `backlog_done.md` before reusing any
+[`backlog_done.md`](backlog_done.md) (last closed: **B-048** on 2026-05-31).
+The next id to assign is **B-049** — check `backlog_done.md` before reusing any
 number.

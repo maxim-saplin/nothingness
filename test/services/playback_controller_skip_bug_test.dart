@@ -208,6 +208,38 @@ void main() {
     expect(transport.preloadCalls, contains('/path/track_2.mp3'));
   });
 
+  test('B-048: a burst of next() taps coalesces — no per-tap load pile-up',
+      () async {
+    final tracks = createTracks(5);
+    // A load window wide enough that the burst piles up while the first load is
+    // still in flight — that is the rapid-tap scenario.
+    transport.loadDelay = const Duration(milliseconds: 60);
+    await controller.setQueue(tracks);
+    await pumpUntil(() => controller.currentIndexNotifier.value == 0);
+
+    transport.loadCalls.clear();
+
+    // Fire four next() taps in one synchronous burst (un-awaited), as a rapid
+    // finger would. Pre-fix each spawned its own load chain (track_1..track_4);
+    // with coalescing only the in-flight load (track_1) + the latest target
+    // (track_2) run, and taps 2..4 return immediately.
+    final burst = <Future<void>>[
+      controller.next(),
+      controller.next(),
+      controller.next(),
+      controller.next(),
+    ];
+    await Future.wait(burst);
+    await pumpUntil(() => controller.isPlayingNotifier.value &&
+        controller.currentIndexNotifier.value == 2);
+
+    expect(controller.currentIndexNotifier.value, 2,
+        reason: 'burst coalesces to in-flight load (1) + latest target (2)');
+    expect(transport.loadCalls, ['/path/track_1.mp3', '/path/track_2.mp3'],
+        reason: 'intermediate targets must not each load (no pile-up)');
+    expect(controller.isPlayingNotifier.value, true);
+  });
+
   test('B-037: no preload at the queue tail', () async {
     final tracks = createTracks(2);
     await controller.setQueue(tracks);

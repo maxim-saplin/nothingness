@@ -8,29 +8,36 @@ abuse). It is driven by the `agent-emulator-debugging` skill (`drive.py` + the
 `ext.nothingness.*` VM-service extensions) on a Linux desktop build and an
 Android emulator, plus deterministic `flutter test` / `integration_test/`.
 
-See also: `docs/agent-driven-debugging.md` (extension reference),
+See also: `.claude/skills/agent-emulator-debugging/SKILL.md` (the harness:
+`drive.py` commands, the "which lens when" guide, hazards, per-target launch),
+`docs/agent-driven-debugging.md` (per-extension reference + architecture),
 `docs/device-testing.md` (integration tests), `docs/backlog.md` /
 `docs/backlog_done.md` (issue trail), `test/README.md` (async test conventions).
 
 ## How to run
 
+**Harness mechanics live in the skill** — run `drive.py preflight` first to
+detect which target is reachable on this host (it won't assume), then follow its
+recommendation. The skill documents every command, the runtime-inspection lenses
+(`probe`/`frames`/`timeline`/`profile`/`breakpoint`), and the hazards. This
+playbook covers only the **QA process** layered on top.
+
 ```bash
 D=.claude/skills/agent-emulator-debugging/scripts/drive.py
-# Linux desktop (preferred for layout/gesture/portrait work; no ADB flakiness):
-export DRIVE_TARGET=linux         # app launched via `flutter run -d linux` + fifo
-# Android emulator (required for permissions, MediaStore/smart-roots, media-session):
-export DRIVE_TARGET=android       # emulator-5554 via adb
-
+$D preflight                      # detect host/devices/live-run; recommends DRIVE_TARGET
+export DRIVE_TARGET=linux         # or android — whatever preflight reports (see skill for launch)
 $D inspect                        # router + library + playback + overflow snapshot
 $D replay tool/regression/<area>.txt   # run a scripted regression script
 ```
 
-**Golden rules** (apply to every session):
+Linux desktop is preferred for layout/gesture/portrait work (no ADB flakiness);
+Android is required for permissions, MediaStore/smart-roots, and media-session.
+
+**Golden rules** (the QA-specific ones; the general harness hazards — cadence
+≤5/s, never kill the live run, velocity gestures need widget tests, the `frames`
+Linux caveat — are in the skill's **Hazards** box, don't re-learn them here):
 - One action, then read state back (`inspect` / `getPlaybackState` / `getAudioEvents`). Assert only the fields that matter.
-- Keep mutating RPCs **≤5/s** with jitter; high-frequency hammering belongs in `flutter test` (`test/p6_adversarial_test.dart`), not the VM service.
-- **Never** `adb force-stop` / `pm clear` / `drive.py reset --force` a live `flutter run` (60-90s rebuild). Use `drive.py restart` (hot) and the audio side-channel (`simulateInterruption`, `simulateNoisy`).
-- **Velocity-gated gestures cannot be driven via adb/VM service** — verify hero swipes / flings in widget tests with `tester.fling(...)` (see `test/screens/void_screen_test.dart`, B-027).
-- Timing claims come from the **timestamped** `getAudioEvents` ring buffer, never from wall-clock between `inspect` calls (RPC latency makes playback look 2-3× too fast).
+- Timing claims come from the **timestamped** `getAudioEvents` ring buffer, never from wall-clock between `inspect` calls (RPC latency makes playback look 2-3× too fast). For frame/UI-isolate timing, cite `frames` (jank counts + worst build/raster µs), `timeline` (per-name span summary + `agent.skip` markers), `profile` (CPU self-time), or `breakpoint` (true UI-isolate pause + variable watch) — see the skill for which lens to reach for and the Linux `frames` caveat.
 - A finding is only filed with a **repro + evidence** (state JSON snippet + `drive.py shoot` PNG + `drive.py overflows`).
 
 ## Platform legend
@@ -188,7 +195,7 @@ exercise it** (this is the single biggest reliability lever):
 | Lifecycle / interruption storms | `integration_test` + light device confirm | `simulateInterruption` begin/end churn; on device via `$D call ...simulateInterruption` (never force-stop) |
 | Missing / malformed files | `flutter test` + device smoke | `TestHarness.setExistsMap` false; `$D play /does/not/exist.wav` then read overflow/lastError |
 | Extreme settings values | device (≤5/s) + test | `$D emulate 280x653`, uiScale/textScale extremes; rapid flips in test |
-| Concurrent drivers on one app instance | **forbidden** | one worker leases one device; collisions corrupt results |
+| Concurrent drivers on one app instance | **forbidden** | one worker leases one device; collisions corrupt results. `breakpoint` is doubly so — it pauses the UI isolate (freezing all `ext.nothingness.*`), so it must run ALONE, never beside another drive.py call |
 
 Adversarial findings use the same `CAND-*` format and flow to the same triage.
 
@@ -222,7 +229,7 @@ Orchestration mechanics (the parts that bit us):
   `run_in_background` writer (a plain `&` writer dies).
 
 What is and isn't VM-service-drivable:
-- **Not drivable via the 27 extensions** (push to widget/integration tests):
+- **Not drivable via the `ext.nothingness.*` extensions** (run `drive.py contract` for the live set; push these to widget/integration tests):
   velocity-gated gestures (`tester.fling`), per-skin config retention
   (B-028/B-023), search entry + browser expand/collapse (B-043), swipe-up
   animation. The device sweep can confirm overflow/state but not these.
