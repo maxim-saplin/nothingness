@@ -140,6 +140,7 @@ class PlaybackController extends ChangeNotifier {
   int _navDir = 1; // scan direction for skipping failed tracks
   Duration? _seekTo; // pending seek (e.g. previous()-restart), applied once
   bool _reconciling = false; // single-flight guard
+  bool _rekick = false; // a command arrived mid-reconcile; re-run after it ends
   Completer<void>? _settled; // completes when the transport converges
   String? _loadedPath; // path the transport currently holds (null = none)
   // Commanded index (may point at a missing/failed track); the reconciler
@@ -503,19 +504,33 @@ class PlaybackController extends ChangeNotifier {
   // still resolve once the landed track is live).
   Future<void> _kick() {
     _settled ??= Completer<void>();
-    if (!_reconciling) {
-      _reconciling = true;
-      // Start on a microtask so a synchronous burst of commands (e.g. 5 rapid
-      // next() taps) fully settles the target before the first heavy load —
-      // the burst then loads only the track you land on, not each intermediate.
-      unawaited(Future<void>.microtask(_reconcile).whenComplete(() {
-        _reconciling = false;
-        final c = _settled;
-        _settled = null;
-        if (c != null && !c.isCompleted) c.complete();
-      }));
+    if (_reconciling) {
+      // A command landed mid-reconcile; flag a re-run so it can't be dropped in
+      // the window between the loop converging and the completion callback.
+      _rekick = true;
+      return _settled!.future;
     }
+    _reconciling = true;
+    _rekick = false;
+    _runReconcile();
     return _settled!.future;
+  }
+
+  void _runReconcile() {
+    // Start on a microtask so a synchronous burst of commands (e.g. 5 rapid
+    // next() taps) fully settles the target before the first heavy load — the
+    // burst then loads only the track you land on, not each intermediate.
+    unawaited(Future<void>.microtask(_reconcile).whenComplete(() {
+      if (_rekick) {
+        _rekick = false;
+        _runReconcile(); // process commands that arrived during the last pass
+        return;
+      }
+      _reconciling = false;
+      final c = _settled;
+      _settled = null;
+      if (c != null && !c.isCompleted) c.complete();
+    }));
   }
 
   // Drive the transport toward the LATEST desired state. Re-reads the target
