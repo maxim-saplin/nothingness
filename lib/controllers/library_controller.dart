@@ -278,14 +278,10 @@ class LibraryController extends ChangeNotifier {
     final filtered = <AudioTrack>[];
     for (final song in _androidSongs.where((s) => s.path.startsWith(path))) {
       try {
-        final t = await extractor.extractMetadata(song.path);
-        // Use the on-disk filename as the title, not the ID3 tag.
-        filtered.add(AudioTrack(
-          path: t.path,
-          title: p.basenameWithoutExtension(t.path),
-          artist: t.artist,
-          isNotFound: t.isNotFound,
-        ));
+        // B-047: use the extractor's parsed title AND artist (single parse
+        // path shared with buildVirtualListing); the raw-filename title kept
+        // the embedded artist/track-number prefix and ignored the setting.
+        filtered.add(await extractor.extractMetadata(song.path));
       } catch (_) {
         filtered.add(AudioTrack(
           path: song.path,

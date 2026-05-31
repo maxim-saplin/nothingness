@@ -62,6 +62,13 @@ void main() {
       expect(track.artist, 'Artist');
     });
 
+    // B-047: en-dash (U+2013) is common in real filenames and was unhandled.
+    test('parses filename with en-dash separator', () async {
+      final track = await extractor.extractMetadata('/path/Artist – Title.mp3');
+      expect(track.title, 'Title');
+      expect(track.artist, 'Artist');
+    });
+
     test('uses first separator from left when multiple exist', () async {
       final track = await extractor.extractMetadata('/path/Artist - Song - Remix.mp3');
       expect(track.title, 'Song - Remix');

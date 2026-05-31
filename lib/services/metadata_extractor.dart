@@ -108,10 +108,13 @@ String _stripExtensions(String name) {
   // separator, so real names like "50 Cent - …" or "2Pac - …" are left alone.
   base = base.replaceFirst(RegExp(r'^\s*\d{1,3}\s*[-.)]\s*'), '');
 
-  // First separator from the left: '-', '−' or '—'.
-  final sepIndex = [base.indexOf('-'), base.indexOf('−'), base.indexOf('—')]
-      .where((i) => i >= 0)
-      .fold<int>(-1, (a, b) => a < 0 ? b : (b < a ? b : a));
+  // First separator from the left: hyphen '-', en-dash '–', minus '−', em-dash '—'.
+  final sepIndex = [
+    base.indexOf('-'),
+    base.indexOf('–'),
+    base.indexOf('−'),
+    base.indexOf('—'),
+  ].where((i) => i >= 0).fold<int>(-1, (a, b) => a < 0 ? b : (b < a ? b : a));
 
   if (sepIndex < 0) return ('', _stripExtensions(base));
 
@@ -126,7 +129,8 @@ String _stripExtensions(String name) {
   if (isOnlyExtension) {
     final sep = base[sepIndex];
     // "Artist -.mp3" -> title "Artist -".
-    if (artistPart.endsWith(' ') && (sep == '-' || sep == '−' || sep == '—')) {
+    if (artistPart.endsWith(' ') &&
+        (sep == '-' || sep == '–' || sep == '−' || sep == '—')) {
       return (artist, _stripExtensions(base));
     }
     // Separator at end or immediately followed by an extension -> empty title.
