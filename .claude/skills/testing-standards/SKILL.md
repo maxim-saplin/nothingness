@@ -11,7 +11,8 @@ We mirror the `lib/` directory structure within `test/` to ensure tests are easy
 - `test/services/` -> Unit tests for services (mock dependencies).
 - `test/widgets/` -> Widget tests for reusable components.
 - `test/screens/` -> Widget tests for full pages.
-- `test/testing/` -> Unit tests for test harness helpers under `lib/testing/`.
+
+The debug/automation harness lives out of tree under `dev/` (e.g. `dev/test_harness.dart`, `dev/fake_audio_transport.dart`); production reaches it only through the thin `lib/debug_hooks.dart` seam.
 
 We also use Flutter's emulator/device integration tests:
 
@@ -32,9 +33,9 @@ Use `integration_test/` when validating **cross-widget behavior** or contracts t
 
 ### Test-only entrypoint
 
-When integration tests need deterministic behavior (no real audio files, no plugin-level playback), use a test-only entrypoint such as:
+When integration tests need deterministic behavior (no real audio files, no plugin-level playback), use the out-of-tree test-only entrypoint:
 
-- `lib/main_test.dart`
+- `dev/main_test.dart`
 
 This can wire:
 

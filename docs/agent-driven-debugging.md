@@ -7,10 +7,15 @@ Owner: Nothingness
 
 The app exposes custom Dart VM service extensions under `ext.nothingness.*` that allow an external agent (AI or script) to fully drive the app in debug mode — reading state, triggering actions, and inspecting the UI — without screenshots or user interaction.
 
-Extensions are registered in `lib/testing/agent_service.dart` and wired into the production entrypoint:
-- `lib/main.dart` (debug builds)
+Extensions live in the out-of-tree harness `dev/agent_service.dart` (no longer in `lib/`). The production entrypoint `lib/main.dart` does **not** import the harness; it only populates the thin `lib/debug_hooks.dart` seam in debug builds. To attach the harness, launch the agent-driving entrypoint:
 
-`lib/main_test.dart` does **not** include AgentService — it is exclusively for deterministic `integration_test/` automation with fake transport and should never be used for agent-driven debugging.
+```bash
+flutter run -t dev/main_debug.dart
+```
+
+`dev/main_debug.dart` calls `AgentService.install()` (which wires `DebugHooks.onAppReady`) and then runs the normal `lib/main.dart` app, so the `ext.nothingness.*` extensions register once init completes. The plain `lib/main.dart` entrypoint will **not** expose these extensions.
+
+`dev/main_test.dart` does **not** include AgentService — it is exclusively for deterministic `integration_test/` automation with fake transport and should never be used for agent-driven debugging.
 
 Extensions are **only active in debug mode** (`kDebugMode` guard) and are completely stripped from release builds.
 
@@ -31,7 +36,7 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
                  │  ext.nothingness.*
                  ▼
 ┌─────────────────────────────────────────────────┐
-│  AgentService (lib/testing/agent_service.dart)  │
+│  AgentService (dev/agent_service.dart)  │
 │  ├── Generic: getWidgetTree, tapByKey, ...      │
 │  └── Domain:  getPlaybackState, play, ...       │
 └────────────────┬────────────────────────────────┘
@@ -39,7 +44,7 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
                  ▼
 ┌─────────────────────────────────────────────────┐
 │  App internals                                  │
-│  AudioPlayerProvider, SettingsService, etc.      │
+│  PlaybackController, SettingsService, etc.       │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -101,13 +106,15 @@ Subcommand source: `.claude/skills/agent-emulator-debugging/scripts/drive.py`. F
 
 ```bash
 # Android emulator
-flutter run -d emulator-5554 --debug
+flutter run -d emulator-5554 --debug -t dev/main_debug.dart
 
 # macOS
-flutter run -d macos --debug
+flutter run -d macos --debug -t dev/main_debug.dart
 ```
 
-> **Never use `-t lib/main_test.dart`** for agent-driven debugging. That entrypoint uses fake transport with no real audio — it exists only for `integration_test/` deterministic test automation.
+> The `-t dev/main_debug.dart` entrypoint is **required** for agent-driven debugging — it installs the harness onto the `lib/debug_hooks.dart` seam so the `ext.nothingness.*` extensions register. Plain `lib/main.dart` (the default `flutter run`) ships without the harness and exposes no extensions.
+
+> **Never use `-t dev/main_test.dart`** for agent-driven debugging. That entrypoint uses fake transport with no real audio — it exists only for `integration_test/` deterministic test automation.
 
 The output contains the observatory URL:
 ```
@@ -205,7 +212,7 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/a.m
 | `getSemantics` | — | `{semantics: "..."}` | Semantics tree (requires accessibility enabled). |
 | `tapByKey` | `key` (ValueKey string) | `{tapped: "key"}` | Find widget by `ValueKey<String>` and invoke its tap callback. |
 | `getSettings` | — | Full settings JSON | Read current app settings, including screen and spectrum configuration. |
-| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported: `fullScreen`, `debugLayout`, `useFilenameForMetadata`, `audioDiagnosticsOverlay`. |
+| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported names include `fullScreen`, `debugLayout`, `useFilenameForMetadata`, `screen`, `themeVariant`, `operatingMode`, `uiScale`, `immersive`, `transport`, `browserPresentation`. |
 
 ### Playback Shortcuts
 
@@ -244,7 +251,7 @@ These extensions were added during the `ui-revamp` arc to drive the unified Void
 | `requestLibraryPermission` | — | `{granted: bool}` | Programmatically trigger the storage / audio permission flow on Android. |
 | `getOverflowReports` | `clear=true` (optional) | `{reports: [...]}` | Returns the `FlutterError.onError` ring buffer, including layout overflow incidents. |
 
-Total: **26 extensions** registered in `lib/testing/agent_service.dart:67-145`. Use `drive.py` (see top of this doc) for typed access from the command line.
+Total: **27 extensions** registered from the `_extensions` map in `dev/agent_service.dart`. Use `drive.py` (see top of this doc) for typed access from the command line.
 
 ### Response Format
 
@@ -262,16 +269,16 @@ All responses follow JSON-RPC 2.0:
 
 ## Stable UI Keys (for tapByKey)
 
-To use `tapByKey` with the real app, add `ValueKey<String>` to production widgets you want agents to interact with. The keys below are only available in the `main_test.dart` test overlay and are **not** present in production builds:
+To use `tapByKey` with the real app, add `ValueKey<String>` to production widgets you want agents to interact with. The keys below are only available in the `dev/main_test.dart` test overlay and are **not** present in production builds:
 
 | Key | Widget | Available in |
 |---|---|---|
-| `test.dump` | Diagnostics dump button | `main_test.dart` only |
-| `test.emitEnded` | Emit track-ended event | `main_test.dart` only |
-| `test.prev` | Previous track | `main_test.dart` only |
-| `test.playPause` | Play/pause toggle | `main_test.dart` only |
-| `test.next` | Next track | `main_test.dart` only |
-| `test.queueItem.<index>` | Queue list item at index | `main_test.dart` only |
+| `test.dump` | Diagnostics dump button | `dev/main_test.dart` only |
+| `test.emitEnded` | Emit track-ended event | `dev/main_test.dart` only |
+| `test.prev` | Previous track | `dev/main_test.dart` only |
+| `test.playPause` | Play/pause toggle | `dev/main_test.dart` only |
+| `test.next` | Next track | `dev/main_test.dart` only |
+| `test.queueItem.<index>` | Queue list item at index | `dev/main_test.dart` only |
 
 For the real app, use `getWidgetTree` to discover the widget hierarchy and add `ValueKey`s to production widgets as needed.
 
@@ -314,15 +321,12 @@ The entry should show `pack: com.saplin.nothingness` with `client: ...audio_sess
 
 ## Example: Real-Device BT Route Diagnostics (Bug #2 / #3)
 
-For "spectrum dies / no car audio" reports, the user drives with the diagnostics overlay on; we read the audio-event log afterwards.
+For "spectrum dies / no car audio" reports, the user drives with the app running; the audio-event ring buffer captures route swaps in-process, and we read it afterwards over the VM service (there is no in-app log viewer).
 
 ```bash
-# 1. Enable the in-app overlay (also accessible via Settings → DIAGNOSTICS)
-curl -s "${BASE}/ext.nothingness.setSetting?isolateId=${ISOLATE}&name=audioDiagnosticsOverlay&value=true"
+# 1. User drives, plugs in / out of BT, hits the problem.
 
-# 2. User drives, plugs in / out of BT, hits the problem, opens Logs in app.
-
-# 3. Pull the full diagnostics blob for analysis
+# 2. Pull the full diagnostics blob for analysis
 curl -s "${BASE}/ext.nothingness.getDiagnostics?isolateId=${ISOLATE}" \
   | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['result']['snapshot']['audioEvents'], indent=2))"
 ```
@@ -364,7 +368,7 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/data/user/
 
 To add a new extension:
 
-1. Add a handler method in `lib/testing/agent_service.dart`
+1. Add a handler method in `dev/agent_service.dart`
 2. Register it in `AgentService.register()` with `developer.registerExtension('ext.nothingness.<name>', _handler)`
 3. Update the count in the `debugPrint` message
 4. Document it in this file

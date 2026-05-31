@@ -20,8 +20,7 @@ const AppTypography _voidTypography = AppTypography(
 const AppGeometry _voidGeometry = AppGeometry(
   rowHeight: 34.0,
   dividerThickness: 1.0,
-  // Void doesn't snap a sheet — it pushes a route. 0 disables snap callers.
-  sheetSnapHeight: 0.0,
+  sheetSnapHeight: 0.0, // Void pushes a route, no snap.
   heroFraction: 0.32,
 );
 

@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import '../models/spectrum_settings.dart';
-import '../services/audio_transport.dart';
+import 'package:nothingness/models/spectrum_settings.dart';
+import 'package:nothingness/services/audio_transport.dart';
 
 enum FakeLoadOutcomeType { success, notFound, error }
 

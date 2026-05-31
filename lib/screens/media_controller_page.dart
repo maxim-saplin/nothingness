@@ -1,282 +1,226 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
-import '../models/spectrum_settings.dart';
-import '../providers/audio_player_provider.dart';
+import '../services/playback_controller.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
-import '../testing/agent_service.dart';
+import '../debug_hooks.dart';
 import '../widgets/scaled_layout.dart';
 import '../widgets/void_settings_sheet.dart';
 import 'void_screen.dart';
 
-class MediaControllerPage extends StatefulWidget {
+/// Fires [onReassemble] on hot reload (Flutter's `State.reassemble` seam, which
+/// has no first-class hook). Used to refresh source-derived config defaults.
+void _useReassemble(VoidCallback onReassemble) => use(_ReassembleHook(onReassemble));
+
+class _ReassembleHook extends Hook<void> {
+  const _ReassembleHook(this.onReassemble);
+  final VoidCallback onReassemble;
+
+  @override
+  _ReassembleHookState createState() => _ReassembleHookState();
+}
+
+class _ReassembleHookState extends HookState<void, _ReassembleHook> {
+  @override
+  void build(BuildContext context) {}
+
+  @override
+  void reassemble() => hook.onReassemble();
+}
+
+class MediaControllerPage extends HookWidget {
   const MediaControllerPage({super.key});
 
   @override
-  State<MediaControllerPage> createState() => _MediaControllerPageState();
-}
+  Widget build(BuildContext context) {
+    final platformChannels = useMemoized(PlatformChannels.new);
+    final settingsService = useMemoized(SettingsService.new);
 
-class _MediaControllerPageState extends State<MediaControllerPage>
-    with WidgetsBindingObserver {
-  final _platformChannels = PlatformChannels();
-  final _settingsService = SettingsService();
-  // Per-session latch so we don't push the user into the Android Settings
-  // "Notification access" page every time they re-toggle background mode
-  // (B-006). Reset on cold launch via natural state recreation.
-  bool _promptedNotifThisSession = false;
+    // Per-session latch so re-toggling background mode doesn't re-open the
+    // Android "Notification access" page (B-006).
+    final promptedNotifThisSession = useRef(false);
+    final isAppInBackground = useRef(false);
 
-  SpectrumSettings _settings = const SpectrumSettings();
-  OperatingMode _operatingMode = OperatingMode.own;
-  ScreenConfig _screenConfig = const SpectrumScreenConfig();
-  bool _isAppInBackground = false;
+    // Build reacts to settings + active screen straight off the notifiers
+    // (their own source of truth), so handlers only run side effects.
+    final settings = useValueListenable(settingsService.settingsNotifier);
+    final screenConfig = useValueListenable(settingsService.screenConfigNotifier);
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    String currentScreenName() => switch (
+        settingsService.screenConfigNotifier.value.type) {
+      ScreenType.spectrum => 'spectrum',
+      ScreenType.polo => 'polo',
+      ScreenType.dot => 'dot',
+      ScreenType.void_ => 'void',
+    };
 
-    _bootstrap();
-    _settingsService.screenConfigNotifier.addListener(
-      _handleScreenConfigChanged,
-    );
-    _settingsService.operatingModeNotifier.addListener(
-      _handleOperatingModeChanged,
-    );
-    _settingsService.settingsNotifier.addListener(_handleSpectrumSettingsChanged);
-
-    // The active screen is sourced from settings — kept here so transitions
-    // away from Void don't leave a stale lookup behind.
-    AgentService.registerScreenLookup(_currentScreenName);
-    AgentService.registerSettingsOpener(_openSettingsForActiveScreen);
-
-    if (PlatformChannels.isAndroid) {
-      _checkPermissions();
+    /// Toggle the player's spectrum capture: own mode re-enables capture and
+    /// pushes latest settings; background mode disables it (background
+    /// visualisation deferred — heroes show silence).
+    void attachSpectrumSource() {
+      if (isAppInBackground.value) return;
+      final player = context.read<PlaybackController>();
+      if (settingsService.operatingModeNotifier.value == OperatingMode.own) {
+        player.updateSpectrumSettings(settingsService.settingsNotifier.value);
+        player.setCaptureEnabled(true);
+      } else {
+        player.setCaptureEnabled(false);
+      }
     }
-  }
 
-  String _currentScreenName() {
-    switch (_screenConfig.type) {
-      case ScreenType.spectrum:
-        return 'spectrum';
-      case ScreenType.polo:
-        return 'polo';
-      case ScreenType.dot:
-        return 'dot';
-      case ScreenType.void_:
-        return 'void';
+    Future<void> checkPermissions() async {
+      if (!context.mounted) return;
+      // Android 13+ (API 33) drops the media notification without
+      // POST_NOTIFICATIONS; request once on startup (idempotent).
+      if (!await Permission.notification.isGranted) {
+        await Permission.notification.request();
+      }
+      attachSpectrumSource();
     }
-  }
 
-  /// Settings-opener closure exposed to [AgentService]. All four
-  /// visualisations now share the Void chrome, so there's only one sheet
-  /// — [VoidSettingsSheet].
-  Future<void> _openSettingsForActiveScreen() async {
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const VoidSettingsSheet()),
-    );
-  }
-
-  Future<void> _bootstrap() async {
-    await _loadSettings();
-  }
-
-  @override
-  void dispose() {
-    AgentService.registerSettingsOpener(null);
-    AgentService.registerScreenLookup(null);
-    WidgetsBinding.instance.removeObserver(this);
-    _settingsService.screenConfigNotifier.removeListener(
-      _handleScreenConfigChanged,
-    );
-    _settingsService.settingsNotifier.removeListener(
-      _handleSpectrumSettingsChanged,
-    );
-    _settingsService.operatingModeNotifier.removeListener(
-      _handleOperatingModeChanged,
-    );
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!PlatformChannels.isAndroid) return;
-
-    final player = context.read<AudioPlayerProvider>();
-    if (state == AppLifecycleState.resumed) {
-      _isAppInBackground = false;
-      _platformChannels.refreshSessions();
-      _attachSpectrumSource();
-      _checkPermissions();
-      player.resumeTimers();
-    } else if (state == AppLifecycleState.paused) {
-      _isAppInBackground = true;
-      player.setCaptureEnabled(false);
-      player.suspendTimers();
+    Future<void> ensureBackgroundPermissions() async {
+      if (!await Permission.microphone.isGranted) {
+        await Permission.microphone.request();
+      }
+      // Notification-listener access needs a manual settings toggle; open it
+      // only the FIRST time per session (B-006).
+      final hasListener = await platformChannels.isNotificationAccessGranted();
+      if (!hasListener && !promptedNotifThisSession.value) {
+        promptedNotifThisSession.value = true;
+        await platformChannels.openNotificationSettings();
+      }
+      await checkPermissions();
     }
-  }
 
-  @override
-  void didChangePlatformBrightness() {
-    // Re-apply the overlay style so status-bar icons match the new theme.
-    _settingsService.setFullScreen(
-      _settingsService.fullScreenNotifier.value,
-      save: false,
-    );
-  }
-
-  @override
-  void reassemble() {
-    super.reassemble();
-    // Developer Optimization:
-    // When editing PoloScreenConfig constructor defaults (coordinates),
-    // we want Hot Reload to immediately apply them.
-    // We force a fresh instance creation to pick up the new default values.
-    if (_screenConfig.type == ScreenType.polo) {
-      // Use the constructor to get new default values from source code
-      final newConfig = const PoloScreenConfig();
-      // Update the service, which notifies this widget to rebuild
-      _settingsService.screenConfigNotifier.value = newConfig;
-      debugPrint(
-        '[Hot Reload] PoloScreenConfig refreshed from source defaults',
+    /// Settings-opener exposed to [AgentService]; all visualisations share the
+    /// single [VoidSettingsSheet].
+    Future<void> openSettingsForActiveScreen() async {
+      if (!context.mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const VoidSettingsSheet()),
       );
     }
-  }
 
-  void _handleScreenConfigChanged() {
-    setState(() {
-      _screenConfig = _settingsService.screenConfigNotifier.value;
-    });
-  }
+    // DebugHooks wiring (set on mount, cleared on unmount).
+    useEffect(() {
+      DebugHooks.screenLookup = currentScreenName;
+      DebugHooks.settingsOpener = openSettingsForActiveScreen;
+      return () {
+        DebugHooks.settingsOpener = null;
+        DebugHooks.screenLookup = null;
+      };
+    }, const []);
 
-  /// Mirror SpectrumSettings changes (bar count, decay, colour scheme, etc.)
-  /// down to the audio pipeline and pass the fresh snapshot to VoidScreen so
-  /// the hero re-renders. Without this, cycling a knob in the settings sheet
-  /// writes the value to prefs but the visualisation keeps using the old one.
-  void _handleSpectrumSettingsChanged() {
-    if (!mounted) return;
-    final next = _settingsService.settingsNotifier.value;
-    setState(() => _settings = next);
-    if (_operatingMode == OperatingMode.own && !_isAppInBackground) {
-      try {
-        context.read<AudioPlayerProvider>().updateSpectrumSettings(next);
-      } catch (_) {
-        // Provider not in scope yet (during first-frame bootstrap) — fine.
-      }
-    }
-    _platformChannels.updateSpectrumSettings(next);
-  }
-
-  /// Re-wire spectrum source when the user toggles operating mode.
-  ///
-  /// On a switch into background mode we also pause the app's own playback
-  /// (intentionally — not torn down) so the OS does not show two now-playing
-  /// cards. The handler is kept idle rather than disposed so flipping back to
-  /// own mode is instant and the queue / position survives the round-trip.
-  /// When entering background mode for the first time we request mic +
-  /// notification-listener access.
-  Future<void> _handleOperatingModeChanged() async {
-    final mode = _settingsService.operatingModeNotifier.value;
-    if (!mounted) return;
-    setState(() => _operatingMode = mode);
-
-    if (mode == OperatingMode.background) {
-      try {
-        final player = context.read<AudioPlayerProvider>();
-        if (player.isPlaying) {
-          await player.playPause();
+    // Mirror SpectrumSettings changes down to the audio pipeline and into
+    // VoidScreen so the hero re-renders.
+    useEffect(() {
+      void onChanged() {
+        if (!context.mounted) return;
+        final next = settingsService.settingsNotifier.value;
+        if (settingsService.operatingModeNotifier.value == OperatingMode.own &&
+            !isAppInBackground.value) {
+          try {
+            context.read<PlaybackController>().updateSpectrumSettings(next);
+          } catch (_) {
+            // Provider not in scope yet during first-frame bootstrap — fine.
+          }
         }
-      } catch (_) {
-        // Provider not in scope — fine; nothing to pause.
+        platformChannels.updateSpectrumSettings(next);
       }
-      if (PlatformChannels.isAndroid) {
-        await _ensureBackgroundPermissions();
+
+      settingsService.settingsNotifier.addListener(onChanged);
+      return () => settingsService.settingsNotifier.removeListener(onChanged);
+    }, const []);
+
+    // Re-wire spectrum source on operating-mode toggle: background mode pauses
+    // (not tears down) own playback so the OS shows one now-playing card; first
+    // entry also requests mic + notification-listener access.
+    useEffect(() {
+      Future<void> onChanged() async {
+        if (!context.mounted) return;
+        if (settingsService.operatingModeNotifier.value ==
+            OperatingMode.background) {
+          try {
+            final player = context.read<PlaybackController>();
+            if (player.isPlaying) await player.playPause();
+          } catch (_) {
+            // Provider not in scope — fine; nothing to pause.
+          }
+          if (PlatformChannels.isAndroid) await ensureBackgroundPermissions();
+        }
+        attachSpectrumSource();
       }
-    }
-    _attachSpectrumSource();
-  }
 
-  Future<void> _ensureBackgroundPermissions() async {
-    // Request mic permission silently if not yet granted.
-    if (!await Permission.microphone.isGranted) {
-      await Permission.microphone.request();
-    }
-    // Notification-listener access can't be granted via permission_handler —
-    // it requires the user to flip the toggle in system settings. We only
-    // prompt by opening that screen the FIRST time per session (B-006);
-    // subsequent toggles don't re-hijack the screen. The settings sheet
-    // surfaces "notification listener" with a tap-to-re-prompt entry.
-    final hasListener = await _platformChannels.isNotificationAccessGranted();
-    if (!hasListener && !_promptedNotifThisSession) {
-      _promptedNotifThisSession = true;
-      await _platformChannels.openNotificationSettings();
-    }
-    await _checkPermissions();
-  }
+      settingsService.operatingModeNotifier.addListener(onChanged);
+      return () =>
+          settingsService.operatingModeNotifier.removeListener(onChanged);
+    }, const []);
 
-  /// Toggles the player's spectrum capture based on the active mode.
-  /// Background mode disables player capture; the mic-spectrum stream the
-  /// legacy chrome used to subscribe to is no longer routed into heroes —
-  /// background-mode visualisation is deferred (heroes show silence). Own
-  /// mode re-enables capture and pushes the latest spectrum settings.
-  void _attachSpectrumSource() {
-    if (_isAppInBackground) return;
-    final player = context.read<AudioPlayerProvider>();
-    if (_operatingMode == OperatingMode.own) {
-      player.updateSpectrumSettings(_settings);
-      player.setCaptureEnabled(true);
-    } else {
-      player.setCaptureEnabled(false);
-    }
-  }
+    // Bootstrap: load persisted settings + push them through the pipeline.
+    useEffect(() {
+      var active = true;
+      () async {
+        final loaded = await settingsService.loadSettings();
+        if (!active) return;
+        attachSpectrumSource();
+        platformChannels.updateSpectrumSettings(loaded);
 
-  Future<void> _loadSettings() async {
-    final settings = await _settingsService.loadSettings();
-    setState(() {
-      _settings = settings;
-      _operatingMode = _settingsService.operatingModeNotifier.value;
-      _screenConfig = _settingsService.screenConfigNotifier.value;
+        // Cold-start in background mode: surface permission prompts up front.
+        if (settingsService.operatingModeNotifier.value ==
+                OperatingMode.background &&
+            PlatformChannels.isAndroid) {
+          await ensureBackgroundPermissions();
+        }
+      }();
+      if (PlatformChannels.isAndroid) checkPermissions();
+      return () => active = false;
+    }, const []);
+
+    // App lifecycle (replaces WidgetsBindingObserver.didChangeAppLifecycleState).
+    useOnAppLifecycleStateChange((previous, state) {
+      if (!PlatformChannels.isAndroid) return;
+      final player = context.read<PlaybackController>();
+      if (state == AppLifecycleState.resumed) {
+        isAppInBackground.value = false;
+        platformChannels.refreshSessions();
+        attachSpectrumSource();
+        checkPermissions();
+      } else if (state == AppLifecycleState.paused) {
+        isAppInBackground.value = true;
+        // Background-mode visualisation only: drop transport spectrum capture.
+        // Timers stay live so the Android handler keeps the MediaSession +
+        // background playback updating (the old provider no-op'd suspend here).
+        player.setCaptureEnabled(false);
+      }
     });
-    _attachSpectrumSource();
-    _platformChannels.updateSpectrumSettings(settings);
-    _platformChannels.updateEqualizerSettings(
-      _settingsService.eqSettingsNotifier.value,
-    );
 
-    // If we start up in background mode, surface the permission prompts on
-    // first run so the user can complete setup without digging through menus.
-    if (_operatingMode == OperatingMode.background &&
-        PlatformChannels.isAndroid) {
-      await _ensureBackgroundPermissions();
-    }
-  }
+    // Re-apply overlay style so status-bar icons match the new theme.
+    useOnPlatformBrightnessChange((previous, current) {
+      settingsService.setFullScreen(
+        settingsService.fullScreenNotifier.value,
+        save: false,
+      );
+    });
 
-  Future<void> _checkPermissions() async {
-    if (!mounted) return;
-    // On Android 13+ (API 33) the media notification served by audio_service
-    // is silently dropped unless POST_NOTIFICATIONS is granted. Request once
-    // on startup so lock-screen / shade controls work without the user having
-    // to dig through Settings. The plugin is idempotent — no dialog after the
-    // first decision.
-    if (!await Permission.notification.isGranted) {
-      await Permission.notification.request();
-    }
-    _attachSpectrumSource();
-  }
+    // Hot Reload: rebuild PoloScreenConfig so edited constructor defaults
+    // (coordinates) are picked up immediately.
+    _useReassemble(() {
+      if (settingsService.screenConfigNotifier.value.type == ScreenType.polo) {
+        settingsService.screenConfigNotifier.value = const PoloScreenConfig();
+        debugPrint(
+            '[Hot Reload] PoloScreenConfig refreshed from source defaults');
+      }
+    });
 
-  @override
-  Widget build(BuildContext context) {
-    // The Void chrome wraps every visualisation now. MediaControllerPage
-    // keeps the audio-mode plumbing (operating mode, spectrum source,
-    // permission bootstrap, app-lifecycle hooks) but no longer paints any
-    // chrome of its own; UI scale lives inside ScaledLayout, the rest is
-    // owned by VoidScreen.
+    // No chrome of its own: this page keeps the audio-mode plumbing; Void chrome
+    // wraps every visualisation, UI scale lives in ScaledLayout.
     return ScaledLayout(
-      child: VoidScreen(config: _screenConfig, settings: _settings),
+      child: VoidScreen(config: screenConfig, settings: settings),
     );
   }
 }

@@ -49,7 +49,7 @@ void main() {
   });
 
   tearDown(() async {
-    await controller.dispose();
+    await controller.shutdown();
     // Close only the box we opened, not all boxes
     try {
       if (Hive.isBoxOpen('playlistBox_$testNumber')) {

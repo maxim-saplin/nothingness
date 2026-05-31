@@ -9,7 +9,7 @@ Use this skill to drive the real app quickly, inspect runtime state, and unblock
 - An Android emulator/device through `adb` (the default).
 - A Flutter **desktop** build (`-d linux` or `-d macos`) when the emulator path is flaky — common in WSL2. Desktop driving bypasses ADB entirely; everything else (the 27 `ext.nothingness.*` extensions, hot reload, screenshots) is identical.
 
-Always use the real app entrypoint: `lib/main.dart` (never `main_test.dart` — that's reserved for deterministic `integration_test/` runs with fake transport).
+Always launch the agent-driving entrypoint `dev/main_debug.dart` (`flutter run -t dev/main_debug.dart`) — it installs the harness onto the `lib/debug_hooks.dart` seam and then runs the real `lib/main.dart` app, so the `ext.nothingness.*` extensions register. Plain `lib/main.dart` (the default `flutter run`) no longer loads the harness and exposes no extensions. Never use `dev/main_test.dart` — that's reserved for deterministic `integration_test/` runs with fake transport.
 
 ## First-time setup
 
@@ -144,10 +144,9 @@ $D reload                                     # hot reload (sends `r` to /tmp/fl
 $D restart                                    # hot restart
 $D reset                                      # Android only; refuses on desktop
 
-# Audio diagnostics
+# Audio focus simulation
 $D call simulateInterruption phase=begin kind=pause
 $D call simulateNoisy
-$D call setSetting name=audioDiagnosticsOverlay value=true
 $D logcat 500                                 # adb logcat (android); /tmp/flutter_run.log (desktop)
 $D replay smoke.txt                           # one drive.py invocation per line
 ```

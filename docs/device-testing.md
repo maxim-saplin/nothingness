@@ -1,6 +1,6 @@
 # Device/emulator integration testing (no audio files)
 
-This project includes a **test-only entrypoint** (`lib/main_test.dart`) that runs with **no audio assets** and **without plugin-level playback** (via a fake transport + controllable file-exists provider).
+This project includes a **test-only entrypoint** (`dev/main_test.dart`) that runs with **no audio assets** and **without plugin-level playback** (via a fake transport + controllable file-exists provider). It lives in the out-of-tree `dev/` directory (not shipped in `lib/`).
 
 ## Target selection matters
 
@@ -63,7 +63,7 @@ This launches the app with:
 - an always-on test overlay panel (stable selectors + diagnostics button)
 
 ```bash
-flutter run -d <deviceId> -t lib/main_test.dart
+flutter run -d <deviceId> -t dev/main_test.dart
 ```
 
 ## Run the emulator integration test suite
@@ -78,7 +78,7 @@ flutter test -d <deviceId> integration_test/audio_interruption_test.dart
 - Android:
 
 ```bash
-flutter run -d emulator-5554 -t lib/main_test.dart
+flutter run -d emulator-5554 -t dev/main_test.dart
 flutter test -d emulator-5554 integration_test/missing_track_consistency_test.dart
 flutter test -d emulator-5554 integration_test/audio_interruption_test.dart
 ```
@@ -86,7 +86,7 @@ flutter test -d emulator-5554 integration_test/audio_interruption_test.dart
 - macOS:
 
 ```bash
-flutter run -d macos -t lib/main_test.dart
+flutter run -d macos -t dev/main_test.dart
 flutter test -d macos integration_test/missing_track_consistency_test.dart
 flutter test -d macos integration_test/audio_interruption_test.dart
 ```
@@ -123,7 +123,7 @@ adb shell dumpsys activity top | head -200
 
 The test overlay uses stable `ValueKey`s defined in:
 
-- `lib/testing/test_overlay.dart`
+- `dev/test_overlay.dart`
 
 Examples:
 

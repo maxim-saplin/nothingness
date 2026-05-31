@@ -1,12 +1,5 @@
-/// Whether the library browser is permanently anchored to its slot, or
-/// hidden until the user reveals it with a swipe-up.
-///
-/// - [fixed] (default): the browser always occupies its slot between the
-///   hero and the crumb (modulo transport position).
-/// - [swipeUp]: the slot is empty by default — a single "↑ swipe to
-///   browse" hint sits at the bottom. An upward drag on the empty area
-///   slides the browser in; Android Back, or the new `<` hint, collapses
-///   it again.
+/// Whether the library browser is permanently anchored to its slot [fixed]
+/// (default), or hidden until revealed with a [swipeUp] gesture.
 enum BrowserPresentation {
   fixed,
   swipeUp,

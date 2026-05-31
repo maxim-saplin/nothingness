@@ -10,16 +10,17 @@ This document details audio stack choices, data paths, and behaviors for playbac
 - Audio focus events (`audio_session`) are handled in `PlaybackController` only — the transport stays intent-blind. Phone calls pause and auto-resume; headphones/BT disconnect (becoming noisy) pauses without auto-resume.
 
 ## Core Components
-- **`AudioPlayerProvider`**: `ChangeNotifier` that wraps a `PlaybackController` and surfaces state (song info, playing, queue, shuffle, spectrum data) without prop drilling.
-- **`NothingAudioHandler` (Android)**: `audio_service` handler that owns MediaSession/notification state. It mirrors queue/media item/playback state for the OS and delegates playback decisions to `PlaybackController`.
-- **`PlaybackController`**: Single source of truth for playback logic. Responsibilities include:
+- **`PlaybackController`**: A `ChangeNotifier` and the single source of truth for playback logic. The UI watches it directly via `ChangeNotifierProvider<PlaybackController>` (no wrapping provider, no prop drilling). It exposes song info, playing state, queue, and shuffle. Responsibilities include:
   - **User intent tracking**: Maintains `PlayIntent` enum (play/pause) to represent explicit user intent, preventing race conditions between pause and auto-skip.
   - **Queue management**: Owns `PlaylistStore` instance, manages track ordering, shuffle state, and current index.
   - **Deterministic missing-file handling**: Centralized in a bounded scan loop (`_playWithAutoAdvance`) so missing/known-failed tracks are always marked red and skipped consistently across tap/Next/Previous/natural advance.
   - **`isNotFound` tracking**: Backend-agnostic tracking of failed track paths (moved from platform-specific implementations).
   - **SongInfo emission**: Consolidates song info updates from transport position/duration.
   - **Audio focus / route handling**: Subscribes to `AudioSession.interruptionEventStream`, `becomingNoisyEventStream`, and `devicesChangedEventStream`. Pauses on focus loss, auto-resumes on focus regain, and treats becoming-noisy as an explicit user pause (no auto-resume). See [Audio Focus & Interruption](#audio-focus--interruption) below.
-  - **Audio-event diagnostics ring buffer**: Bounded 300-entry log of interruption / route / load / end / error events, exposed via `diagnosticsSnapshot()['audioEvents']` and `audioEvents()` for in-app and VM-service inspection.
+  - **Audio-event diagnostics ring buffer**: Bounded 300-entry log of interruption / route / load / end / error events, exposed via `diagnosticsSnapshot()['audioEvents']` and `audioEvents()` for VM-service inspection.
+- **`PlaybackTelemetry`**: Extracted from `PlaybackController`. Owns structured/diagnostic logging via `package:logging` (`Logger('nothingness.*')`); the controller delegates to it instead of carrying a bespoke logging service.
+- **`SpectrumSource`**: Extracted from `PlaybackController`. Owns FFT/spectrum sourcing (SoLoud FFT by default, or the Android mic stream when selected) and exposes the spectrum data the UI renders.
+- **`NothingAudioHandler` (Android)**: `audio_service` handler that owns MediaSession/notification state. It wraps the **same** `PlaybackController` as a pure observer + command-forwarder — it observes the controller's notifiers to mirror queue/media-item/playback state for the OS and forwards OS media-button commands (play/pause/next/previous/seek) back to the controller. No `customAction` IPC bridge.
 - **`AudioTransport` (interface)**: Thin abstraction over platform-specific players. Provides minimal interface:
   - Load audio files (`load(String path)`)
   - Play/pause/seek control
@@ -29,25 +30,22 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - Does NOT handle: queue management, skip logic, user intent tracking
 - **`AudioTransport` implementations**:
   - **`SoLoudTransport`**: Thin wrapper around SoLoud for playback and FFT on all platforms. No queue awareness, no skip logic.
-- **`SpectrumProvider` interface**: Strategy for sourcing FFT bars.
-  - **Transport spectrum**: SoLoud FFT streamed via `NothingAudioHandler.spectrumStream` → `AudioPlayerProvider`.
-  - **`MicrophoneSpectrumProvider`** (Android fallback): Streams FFT bars from native `AudioCaptureService` via EventChannel; requires mic permission.
-- **`MediaControllerPage`**: Uses Provider for player state; switches capture based on `SpectrumSettings.audioSource` (transport spectrum by default, mic when explicitly selected on Android).
+- **Spectrum sourcing** (`SpectrumSource`): SoLoud FFT by default; on Android the mic stream from native `AudioCaptureService` is delivered via a `PlatformChannels` EventChannel when explicitly selected. Mic mode requires mic permission.
+- **`MediaControllerPage` / UI**: Watches `PlaybackController` directly; switches capture based on `SpectrumSettings.audioSource` (transport spectrum by default, mic when explicitly selected on Android).
 
 ## Playback Pipeline (Transport Spectrum)
 ```mermaid
 flowchart LR
-  UI[MediaControllerPage] -->|watch| Provider[AudioPlayerProvider]
-  Provider -->|Android| Handler[NothingAudioHandler]
-  Provider -->|NonAndroid| Controller[PlaybackController]
-  Handler -->|delegates| Controller
+  UI[MediaControllerPage] -->|watch ChangeNotifier| Controller[PlaybackController]
+  Handler[NothingAudioHandler] -.->|observes notifiers / forwards commands Android| Controller
   Controller -->|load/play/pause/seek| Transport[SoLoudTransport]
-  Transport -->|PCM + FFT| Vis[SpectrumVisualizer]
+  Transport -->|PCM + FFT| Spectrum[SpectrumSource]
+  Spectrum --> Vis[SpectrumVisualizer]
   Controller -->|userIntent error recovery| Transport
 ```
 
 ### Lifecycle Notes
-- Transports and controller initialize at bootstrap via `AudioPlayerProvider.init()` → `PlaybackController.init()` → `AudioTransport.init()`; SoLoud visualization is enabled on all platforms once sources are set.
+- Transports and controller initialize at bootstrap via `PlaybackController.init()` → `AudioTransport.init()`; SoLoud visualization is enabled on all platforms once sources are set.
 - On play: `PlaybackController` sets `userIntent = PlayIntent.play`, transport stops prior playback/source, loads, plays, and (re)starts spectrum capture (SoLoud FFT).
 - On pause: `PlaybackController` sets `userIntent = PlayIntent.pause`, transport pauses playback and stops spectrum capture to reduce CPU; resume restarts capture. Error recovery respects `userIntent` - if paused, errors don't trigger auto-skip.
 - On completion: Transport emits `TransportEndedEvent`; `PlaybackController` checks `userIntent` and advances to next track if `userIntent == play`, otherwise stops.
@@ -100,7 +98,8 @@ Exposed via:
 - `controller.audioEvents()` (Dart)
 - `diagnosticsSnapshot()['audioEvents']` (Dart)
 - `ext.nothingness.getAudioEvents` / `ext.nothingness.getDiagnostics` (VM service)
-- In-app **Logs** screen, when **Settings → DIAGNOSTICS → Audio Diagnostics** is enabled (`SettingsService.audioDiagnosticsOverlayNotifier`)
+
+(There is no in-app log viewer — the `LogScreen` and the audio-diagnostics settings rows were removed; inspect the ring buffer over the VM service instead.)
 
 The ring buffer is the primary instrument for diagnosing route-change bugs (`devicesChanged`) that only reproduce on real Bluetooth / automotive hardware.
 
@@ -131,7 +130,7 @@ flowchart LR
 - Switching back to transport mode re-enables transport spectrum (SoLoud FFT).
 
 ## Settings Impact
-- `SpectrumSettings.audioSource`: toggles transport spectrum (default) vs mic provider (Android-only fallback). Transport spectrum uses SoLoud FFT streamed via `NothingAudioHandler.spectrumStream`.
+- `SpectrumSettings.audioSource`: toggles transport spectrum (default) vs mic (Android-only fallback). Transport spectrum uses SoLoud FFT sourced via `SpectrumSource`.
 - `SpectrumSettings.barCount`, `decaySpeed`, `noiseGateDb`: applied in spectrum providers; decay also maps to transport FFT smoothing when supported.
 - Settings load after transport/controller init to avoid init races and are pushed to transports and native side as needed.
 
@@ -158,14 +157,10 @@ flowchart LR
 
 ## Known Limitations / Future Work
 - macOS: spectrum is player-only; no microphone capture path.
-- SoLoud visualization must remain enabled; providers re-enable on start if needed.
+- SoLoud visualization must remain enabled; spectrum sourcing re-enables on start if needed.
 - Android package is arm64-only; adding more ABIs would increase APK size.
-- Android EQ is disabled until a SoLoud filter-based implementation is added.
 - Consider graceful backoff/logging when native mic stream stalls.
 - Possible enhancement: normalize FFT window size to match bar count more tightly.
-
-## Android Equalizer
-**Scope**: Android EQ is currently disabled. The previous implementation relied on `android.media.audiofx.Equalizer` attached to an external player's session id, which is not exposed by SoLoud. A SoLoud filter-based EQ (`SoLoud.addGlobalFilter()`) is planned as a follow-up.
 
 ## References
 - High-level overview: [overview.md](overview.md)

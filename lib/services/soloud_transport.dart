@@ -10,29 +10,30 @@ import '../models/spectrum_settings.dart';
 import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
 import 'soloud_spectrum_provider.dart';
-import 'spectrum_provider.dart';
 
-/// Thin wrapper around SoLoud.
-/// Implements AudioTransport interface - no queue management, no skip logic.
+/// Thin SoLoud-backed AudioTransport — no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
-  static const Set<String> supportedExtensions = SupportedExtensions.supportedExtensions;
+  static const Set<String> supportedExtensions =
+      SupportedExtensions.supportedExtensions;
   static const Duration _endTolerance = Duration(milliseconds: 120);
+
   static Future<bool> probeAvailable() async {
     try {
       final soloud = SoLoud.instance;
       await soloud.init();
-      if (soloud.isInitialized) {
-        soloud.deinit();
-      }
+      if (soloud.isInitialized) soloud.deinit();
       return true;
     } catch (e) {
       debugPrint('[SoLoudTransport] probe failed: $e');
       return false;
     }
   }
+
   late final SoLoud _soloud = SoLoud.instance;
   final StreamController<TransportEvent> _eventController =
       StreamController<TransportEvent>.broadcast();
+  final StreamController<List<double>> _spectrumController =
+      StreamController<List<double>>.broadcast();
 
   SoundHandle? _currentHandle;
   AudioSource? _currentSource;
@@ -41,26 +42,19 @@ class SoLoudTransport implements AudioTransport {
   String? _endedEmittedForPath;
   bool _suppressEndedEvent = false;
 
-  // Look-ahead cache of at most one upcoming source (B-037). Populated by
-  // [preload]; consumed by [load] when the requested path matches, turning the
-  // track transition into an instant in-memory swap instead of a file read.
+  // B-037: at most one preloaded look-ahead source for a gapless in-memory swap.
   AudioSource? _preloadedSource;
   String? _preloadedPath;
 
-  // Cache of audio session + activation state. `setActive(true)` requests
-  // Android audio focus via IPC (~100 ms on emulator). We previously called
-  // it on every `play()` even though the session was already active from
-  // `init()`. B-011: skip the redundant request once we know the session is
-  // active and was never explicitly deactivated.
+  // B-011: cache session + active flag to skip redundant setActive(true)
+  // (Android audio-focus IPC, ~100 ms on emulator) when already active.
   AudioSession? _cachedSession;
   bool _audioSessionActive = false;
-  
+
   SpectrumProvider? _spectrumProvider;
   StreamSubscription<List<double>>? _spectrumSub;
   StreamSubscription<StreamSoundEvent>? _soundEventsSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
-  final StreamController<List<double>> _spectrumController =
-      StreamController<List<double>>.broadcast();
   SpectrumSettings _settings = const SpectrumSettings();
   bool _captureEnabled = true;
 
@@ -68,10 +62,14 @@ class SoLoudTransport implements AudioTransport {
   Stream<TransportEvent> get eventStream => _eventController.stream;
 
   @override
+  Stream<List<double>> get spectrumStream => _spectrumController.stream;
+
+  @override
   Future<Duration> get position async {
-    if (_currentHandle == null) return Duration.zero;
+    final handle = _currentHandle;
+    if (handle == null) return Duration.zero;
     try {
-      return _soloud.getPosition(_currentHandle!);
+      return _soloud.getPosition(handle);
     } catch (e) {
       return Duration.zero;
     }
@@ -79,9 +77,10 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   Future<Duration> get duration async {
-    if (_currentSource == null) return Duration.zero;
+    final source = _currentSource;
+    if (source == null) return Duration.zero;
     try {
-      return _soloud.getLength(_currentSource!);
+      return _soloud.getLength(source);
     } catch (e) {
       return Duration.zero;
     }
@@ -95,9 +94,8 @@ class SoLoudTransport implements AudioTransport {
     _cachedSession = session;
     _audioSessionActive = true;
 
-    // Track focus loss so the next play() correctly re-requests audio focus
-    // even after another app stole it. We only invalidate the cached flag —
-    // PlaybackController still owns the resume-on-gain policy.
+    // Invalidate the active flag on focus loss so the next play() re-requests
+    // focus; PlaybackController owns resume-on-gain.
     _interruptionSub = session.interruptionEventStream.listen((event) {
       if (!event.begin) return;
       switch (event.type) {
@@ -117,24 +115,20 @@ class SoLoudTransport implements AudioTransport {
       handleProvider: () async => _currentHandle,
       initialSettings: _settings,
     );
-
     _spectrumSub = _spectrumProvider!.spectrumStream.listen(
       _spectrumController.add,
     );
 
-    // Check for track ended periodically
+    _startPositionTimer();
+    if (_captureEnabled) _startSpectrum();
+  }
+
+  void _startPositionTimer() {
     _positionTimer = Timer.periodic(
       const Duration(milliseconds: 300),
       (_) => _checkTrackEnded(),
     );
-
-    if (_captureEnabled) {
-      _startSpectrum();
-    }
   }
-
-  @override
-  Stream<List<double>> get spectrumStream => _spectrumController.stream;
 
   @override
   void updateSpectrumSettings(SpectrumSettings settings) {
@@ -146,35 +140,29 @@ class SoLoudTransport implements AudioTransport {
   @override
   void setCaptureEnabled(bool enabled) {
     _captureEnabled = enabled;
-    if (enabled) {
-      _startSpectrum();
-    } else {
-      _stopSpectrum();
-    }
+    enabled ? _startSpectrum() : _stopSpectrum();
   }
 
   @override
   void suspendTimers() {
     _positionTimer?.cancel();
     _positionTimer = null;
-    // Release the audio session so the AudioMix wake lock is freed.
-    AudioSession.instance.then((s) {
-      s.setActive(false);
-      _audioSessionActive = false;
-    });
+    // Release the audio session to free the AudioMix wake lock.
+    _setSessionActive(false);
   }
 
   @override
   void resumeTimers() {
     if (_positionTimer != null) return;
-    _positionTimer = Timer.periodic(
-      const Duration(milliseconds: 300),
-      (_) => _checkTrackEnded(),
-    );
+    _startPositionTimer();
     // Re-activate the audio session for playback readiness.
+    _setSessionActive(true);
+  }
+
+  void _setSessionActive(bool active) {
     AudioSession.instance.then((s) {
-      s.setActive(true);
-      _audioSessionActive = true;
+      s.setActive(active);
+      _audioSessionActive = active;
     });
   }
 
@@ -183,9 +171,7 @@ class SoLoudTransport implements AudioTransport {
     await _spectrumProvider?.start();
   }
 
-  Future<void> _stopSpectrum() async {
-    await _spectrumProvider?.stop();
-  }
+  Future<void> _stopSpectrum() async => _spectrumProvider?.stop();
 
   @override
   Future<void> dispose() async {
@@ -194,51 +180,55 @@ class SoLoudTransport implements AudioTransport {
     await _spectrumSub?.cancel();
     await _soundEventsSub?.cancel();
     await _interruptionSub?.cancel();
-    if (_currentHandle != null) {
-      try {
-        await _soloud.stop(_currentHandle!);
-      } catch (e) {
-        debugPrint('Error stopping handle: $e');
-      }
-    }
-    if (_currentSource != null) {
-      try {
-        await _soloud.disposeSource(_currentSource!);
-      } catch (e) {
-        debugPrint('Error disposing source: $e');
-      }
-    }
+    await _safeStop(_currentHandle);
+    await _safeDispose(_currentSource);
     await _disposePreloaded();
     await _eventController.close();
     await _spectrumController.close();
   }
 
-  void _checkTrackEnded() {
-    if (_currentHandle == null || _currentSource == null) return;
-
+  /// Cleanup-only stop; swallows/logs errors and never throws.
+  Future<void> _safeStop(SoundHandle? handle) async {
+    if (handle == null) return;
     try {
-      final position = _soloud.getPosition(_currentHandle!);
-      final duration = _soloud.getLength(_currentSource!);
-      final isPaused = _soloud.getPause(_currentHandle!);
+      await _soloud.stop(handle);
+    } catch (e) {
+      debugPrint('Error stopping handle: $e');
+    }
+  }
 
-      // Emit position update
+  /// Cleanup-only dispose; swallows/logs errors and never throws.
+  Future<void> _safeDispose(AudioSource? source, {String label = 'source'}) async {
+    if (source == null) return;
+    try {
+      await _soloud.disposeSource(source);
+    } catch (e) {
+      debugPrint('Error disposing $label: $e');
+    }
+  }
+
+  void _checkTrackEnded() {
+    final handle = _currentHandle;
+    final source = _currentSource;
+    if (handle == null || source == null) return;
+    try {
+      final position = _soloud.getPosition(handle);
+      final duration = _soloud.getLength(source);
+      final isPaused = _soloud.getPause(handle);
+
       _eventController.add(TransportPositionEvent(position: position));
 
-      // Check if track ended
       if (duration > Duration.zero) {
-        final endThreshold = duration > _endTolerance
-            ? duration - _endTolerance
-            : duration;
+        final endThreshold =
+            duration > _endTolerance ? duration - _endTolerance : duration;
         if (position >= endThreshold) {
-          // If SoLoud auto-pauses at the end, still emit ended.
-          _emitEndedIfNeeded();
+          _emitEndedIfNeeded(); // Emit even if SoLoud auto-paused at the end.
         } else if (!isPaused) {
-          // Clear ended marker once playback progresses again.
-          _endedEmittedForPath = null;
+          _endedEmittedForPath = null; // Cleared once playback progresses.
         }
       }
     } catch (e) {
-      // Handle may have been disposed
+      // Handle may have been disposed.
     }
   }
 
@@ -247,8 +237,8 @@ class SoLoudTransport implements AudioTransport {
     _soundEventsSub = source.soundEvents.listen((event) {
       if (_suppressEndedEvent) return;
       if (event.sound != _currentSource) return;
-      if (_currentHandle == null) return;
-      if (event.handle.id != _currentHandle!.id) return;
+      final handle = _currentHandle;
+      if (handle == null || event.handle.id != handle.id) return;
       if (event.event == SoundEventType.handleIsNoMoreValid) {
         _emitEndedIfNeeded();
       }
@@ -258,8 +248,7 @@ class SoLoudTransport implements AudioTransport {
   void _emitEndedIfNeeded() {
     if (_suppressEndedEvent) return;
     final path = _currentPath;
-    if (path == null) return;
-    if (_endedEmittedForPath == path) return;
+    if (path == null || _endedEmittedForPath == path) return;
     _endedEmittedForPath = path;
     _eventController.add(TransportEndedEvent(path: path));
   }
@@ -268,53 +257,30 @@ class SoLoudTransport implements AudioTransport {
   Future<void> load(String path, {String? title, String? artist}) async {
     _suppressEndedEvent = true;
     _endedEmittedForPath = null;
-    // Stop current playback
-    if (_currentHandle != null) {
-      try {
-        await _soloud.stop(_currentHandle!);
-      } catch (e) {
-        debugPrint('Error stopping handle: $e');
-      }
-    }
+    await _safeStop(_currentHandle);
     _currentHandle = null;
-
-    if (_currentSource != null) {
-      try {
-        await _soloud.disposeSource(_currentSource!);
-      } catch (e) {
-        debugPrint('Error disposing source: $e');
-      }
-    }
+    await _safeDispose(_currentSource);
     _currentSource = null;
-
     _currentPath = path;
 
     try {
       if (_preloadedSource != null && _preloadedPath == path) {
-        // Gapless promotion (B-037): the upcoming track was already decoded by
-        // a prior [preload], so adopt it directly — no file read, no decode.
+        // B-037 gapless promotion: adopt the already-decoded preload directly.
         _currentSource = _preloadedSource;
         _preloadedSource = null;
         _preloadedPath = null;
       } else {
-        // The requested path isn't the preloaded one; any stale preload is now
-        // useless — drop it so it doesn't leak.
+        // Path differs from the preload; drop the stale cache so it can't leak.
         await _disposePreloaded();
         _currentSource = await _openSource(path);
       }
 
-      if (_currentSource != null) {
-        _attachSoundEvents(_currentSource!);
-      }
+      if (_currentSource != null) _attachSoundEvents(_currentSource!);
       _suppressEndedEvent = false;
-
       _eventController.add(TransportLoadedEvent(path: path));
     } catch (e) {
       debugPrint('[SoLoudTransport] Error loading $path: $e');
-      _eventController.add(TransportErrorEvent(
-        path: path,
-        error: e,
-      ));
+      _eventController.add(TransportErrorEvent(path: path, error: e));
       _suppressEndedEvent = false;
       rethrow;
     }
@@ -322,18 +288,16 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   Future<void> preload(String path) async {
-    // Already current or already preloaded — nothing to do.
     if (path == _currentPath) return;
     if (path == _preloadedPath && _preloadedSource != null) return;
 
-    // A different track is queued than what we hold cached: dispose the stale
-    // cache before decoding the new look-ahead target.
+    // Dispose any stale cache before decoding the new look-ahead target.
     await _disposePreloaded();
 
     try {
       final source = await _openSource(path);
-      // A concurrent load()/preload() may have moved on while we were decoding.
-      // Only keep the cache if it's still wanted and nothing else claimed it.
+      // A concurrent load()/preload() may have moved on while decoding; keep
+      // the cache only if it's still wanted and nothing else claimed it.
       if (path == _currentPath || _preloadedSource != null) {
         await _soloud.disposeSource(source);
         return;
@@ -341,8 +305,7 @@ class SoLoudTransport implements AudioTransport {
       _preloadedSource = source;
       _preloadedPath = path;
     } catch (e) {
-      // Best-effort: a failed preload is silent. The real load() will surface
-      // the error if the user actually reaches this track.
+      // Best-effort: a failed preload is silent; the real load() surfaces it.
       debugPrint('[SoLoudTransport] preload failed for $path: $e');
       _preloadedSource = null;
       _preloadedPath = null;
@@ -370,24 +333,17 @@ class SoLoudTransport implements AudioTransport {
     final source = _preloadedSource;
     _preloadedSource = null;
     _preloadedPath = null;
-    if (source == null) return;
-    try {
-      await _soloud.disposeSource(source);
-    } catch (e) {
-      debugPrint('[SoLoudTransport] Error disposing preloaded source: $e');
-    }
+    await _safeDispose(source, label: 'preloaded source');
   }
 
   @override
   Future<void> play() async {
-    if (_currentSource == null) {
+    final source = _currentSource;
+    if (source == null) {
       throw StateError('No source loaded. Call load() first.');
     }
 
-    // Avoid a redundant Android audio-focus IPC (~100 ms on emulator) when
-    // the session is already active. We track activation explicitly in
-    // init/suspend/resume, and trust the interruption stream to unset the
-    // flag if focus is lost asynchronously. B-011.
+    // B-011: skip the redundant audio-focus IPC when already active.
     if (!_audioSessionActive) {
       final session = _cachedSession ?? await AudioSession.instance;
       _cachedSession ??= session;
@@ -396,24 +352,24 @@ class SoLoudTransport implements AudioTransport {
     }
 
     if (_currentHandle == null) {
-      _currentHandle = _soloud.play(_currentSource!, paused: false);
+      _currentHandle = _soloud.play(source, paused: false);
     } else {
       _soloud.setPause(_currentHandle!, false);
     }
-
     _endedEmittedForPath = null;
   }
 
   @override
   Future<void> pause() async {
-    if (_currentHandle == null) return;
-    _soloud.setPause(_currentHandle!, true);
+    final handle = _currentHandle;
+    if (handle == null) return;
+    _soloud.setPause(handle, true);
   }
 
   @override
   Future<void> seek(Duration position) async {
-    if (_currentHandle == null) return;
-    _soloud.seek(_currentHandle!, position);
+    final handle = _currentHandle;
+    if (handle == null) return;
+    _soloud.seek(handle, position);
   }
 }
-

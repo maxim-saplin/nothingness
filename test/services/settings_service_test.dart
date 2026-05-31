@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/screen_config.dart';
-import 'package:nothingness/models/eq_settings.dart';
 import 'package:nothingness/models/spectrum_settings.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,8 +23,8 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       service = SettingsService();
 
-      // Mock the app media method channel used by PlatformChannels so EQ updates
-      // (best-effort) don't throw MissingPluginException in unit tests.
+      // Mock the app media method channel used by PlatformChannels so settings
+      // pushes (best-effort) don't throw MissingPluginException in unit tests.
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel('com.saplin.nothingness/media'),
@@ -40,8 +39,6 @@ void main() {
       expect(settings.barCount, SettingsService.defaultBarCount);
       expect(settings.colorScheme, SettingsService.defaultColorScheme);
       expect(service.uiScaleNotifier.value, SettingsService.defaultUiScale);
-      expect(service.eqSettingsNotifier.value.enabled, false);
-      expect(service.eqSettingsNotifier.value.gainsDb, const <double>[0, 0, 0, 0, 0]);
     });
 
     test('saveSettings persists data correctly', () async {
@@ -53,9 +50,6 @@ void main() {
 
       await service.saveSettings(newSettings);
       await service.saveUiScale(2.0);
-      await service.saveEqSettings(
-        const EqSettings(enabled: true, gainsDb: <double>[1, 2, 3, 4, 5]),
-      );
 
       // Verify persistence by reading from SharedPreferences directly
       final prefs = await SharedPreferences.getInstance();
@@ -71,10 +65,6 @@ void main() {
       // Check UI Scale
       final uiScale = prefs.getDouble('ui_scale');
       expect(uiScale, 2.0);
-
-      // Check EQ Settings
-      final eqJsonString = prefs.getString('eq_settings');
-      expect(eqJsonString, isNotNull);
     });
 
     test('saveScreenConfig persists screen selection under per-screen key',
@@ -115,10 +105,6 @@ void main() {
         'spectrum_settings': jsonEncode(savedData),
         'ui_scale': 1.5,
         'screen_config': jsonEncode(savedScreenConfig),
-        'eq_settings': jsonEncode(<String, Object?>{
-          'enabled': true,
-          'gainsDb': <double>[1, 2, 3, 4, 5],
-        }),
       });
 
       final settings = await service.loadSettings();
@@ -130,10 +116,6 @@ void main() {
       expect(settings.decaySpeed, DecaySpeed.slow);
 
       expect(service.uiScaleNotifier.value, 1.5);
-
-      final eq = service.eqSettingsNotifier.value;
-      expect(eq.enabled, true);
-      expect(eq.gainsDb, const <double>[1, 2, 3, 4, 5]);
 
       final loadedConfig = service.screenConfigNotifier.value;
       expect(loadedConfig, isA<PoloScreenConfig>());

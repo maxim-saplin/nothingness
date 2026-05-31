@@ -1,34 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
+import 'retro_lcd_display.dart';
 
-/// Touch surface for the hero band: tap-zones for transport, horizontal-drag
-/// to seek, plus lightweight touch feedback.
-///
-/// Interaction model (deliberately simple — the old swipe-card-to-change-track
-/// model was janky and surprising, so it was removed):
-///   * **Tap LEFT third** → previous (the player's `previous()` already does
-///     restart-current-if->3s-else-previous-track).
-///   * **Tap CENTER third** → play/pause.
-///   * **Tap RIGHT third** → next.
-///   * **Horizontal drag** → seek the current track. The drag is *relative*:
-///     it scrubs from the position the drag started at, with the full hero
-///     width mapping to the whole track. A `current / total` readout is shown
-///     while dragging and the audio seeks once, on release.
-///
-/// Feedback overlays:
-///   * **Tap ring** — an expanding monochrome circle that fades out at the tap
-///     point over ~180 ms (B-012 / B-030).
-///   * **Edge flash** — a `‹` / `›` glyph at the matching edge when a prev/next
-///     zone is tapped, for immediate directional feedback.
-///   * **Seek HUD** — the time readout + a thin preview line, shown only while
-///     a seek drag is in progress.
-///
-/// All overlays are pointer-transparent, so the underlying GestureDetector owns
-/// every hit-test. The hero child is passed straight through (no transform), so
-/// layout/hit-testing/measurement are unaffected at rest.
-class HeroFeedbackSurface extends StatefulWidget {
+/// Drives the directional edge flash from outside the widget (replaces the old
+/// `GlobalKey<HeroFeedbackSurfaceState>.flashSwipe`). Each [flash] bumps a
+/// sequence counter + records the direction, then notifies; the surface listens
+/// and runs one flash animation per bump.
+class HeroFlashController extends ChangeNotifier {
+  int _seq = 0;
+  int dir = 0;
+
+  /// Latest flash bump count — distinct values let listeners de-dupe rebuilds.
+  int get seq => _seq;
+
+  /// Fire an edge flash. `d > 0` = rightward (`›`, next), `d < 0` = leftward
+  /// (`‹`, previous); `d == 0` is ignored.
+  void flash(int d) {
+    if (d == 0) return;
+    dir = d;
+    _seq++;
+    notifyListeners();
+  }
+}
+
+/// Touch surface for the hero band. Tap zones: left → previous, centre →
+/// play/pause, right → next. Horizontal drag → relative seek (full width maps
+/// to the whole track; commits once on release). Overlays: tap ring (B-012 /
+/// B-030), directional edge flash, and the seek HUD — all pointer-transparent,
+/// so the GestureDetector owns every hit-test and the child passes through untransformed.
+class HeroFeedbackSurface extends HookWidget {
   const HeroFeedbackSurface({
     super.key,
     required this.child,
@@ -38,11 +41,15 @@ class HeroFeedbackSurface extends StatefulWidget {
     required this.onSeek,
     required this.positionMs,
     required this.durationMs,
+    this.flashController,
     this.onVerticalDragUpdate,
     this.onVerticalDragEnd,
   });
 
   final Widget child;
+
+  /// Optional external driver for the edge flash (prev/next from a drag).
+  final HeroFlashController? flashController;
 
   /// Center-third tap.
   final VoidCallback onPlayPause;
@@ -85,161 +92,133 @@ class HeroFeedbackSurface extends StatefulWidget {
   static const double ringOpacityMultiplier = 1.5;
 
   @override
-  State<HeroFeedbackSurface> createState() => HeroFeedbackSurfaceState();
-}
-
-/// Public state type so callers can drive [flashSwipe] via a [GlobalKey].
-class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
-    with TickerProviderStateMixin {
-  late final AnimationController _ringCtrl;
-  late final AnimationController _swipeCtrl;
-  Offset? _ringCenter;
-  bool _swipeRight = true;
-
-  /// Most-recent measured hero width (from the build's [LayoutBuilder]).
-  double _width = 1;
-
-  // --- Seek drag state ------------------------------------------------------
-  bool _seeking = false;
-  int _seekStartMs = 0;
-  int _seekDurationMs = 0;
-  double _seekAccumDx = 0;
-  int _seekTargetMs = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _ringCtrl = AnimationController(
-      vsync: this,
-      duration: HeroFeedbackSurface.ringDuration,
-    );
-    _swipeCtrl = AnimationController(
-      vsync: this,
-      duration: HeroFeedbackSurface.swipeFlashDuration,
-    );
-  }
-
-  @override
-  void dispose() {
-    _ringCtrl.dispose();
-    _swipeCtrl.dispose();
-    super.dispose();
-  }
-
-  void _spawnRing(Offset localPosition) {
-    setState(() => _ringCenter = localPosition);
-    _ringCtrl
-      ..reset()
-      ..forward();
-  }
-
-  /// Edge-glyph flash. Direction `>0` = rightward (`›`, next), `<0` = leftward
-  /// (`‹`, previous).
-  void flashSwipe(double direction) {
-    if (direction == 0) return;
-    setState(() => _swipeRight = direction > 0);
-    _swipeCtrl
-      ..reset()
-      ..forward();
-  }
-
-  // --- Tap zones ------------------------------------------------------------
-
-  void _onTapUp(TapUpDetails d) {
-    final dx = d.localPosition.dx;
-    if (dx < _width / 3) {
-      flashSwipe(-1);
-      widget.onPrevious();
-    } else if (dx > _width * 2 / 3) {
-      flashSwipe(1);
-      widget.onNext();
-    } else {
-      widget.onPlayPause();
-    }
-  }
-
-  // --- Horizontal drag = seek ----------------------------------------------
-
-  void _onSeekStart(DragStartDetails _) {
-    setState(() {
-      _seeking = true;
-      _seekStartMs = widget.positionMs();
-      _seekDurationMs = widget.durationMs();
-      _seekAccumDx = 0;
-      _seekTargetMs = _seekStartMs;
-    });
-  }
-
-  void _onSeekUpdate(DragUpdateDetails d) {
-    if (_seekDurationMs <= 0) return;
-    _seekAccumDx += d.primaryDelta ?? 0;
-    final raw = _seekStartMs + (_seekAccumDx / _width) * _seekDurationMs;
-    setState(() {
-      _seekTargetMs = raw.clamp(0, _seekDurationMs.toDouble()).round();
-    });
-  }
-
-  void _onSeekEnd(DragEndDetails _) {
-    final hadDuration = _seekDurationMs > 0;
-    final target = _seekTargetMs;
-    setState(() => _seeking = false);
-    if (hadDuration) {
-      widget.onSeek(Duration(milliseconds: target));
-    }
-  }
-
-  /// `m:ss` (or `h:mm:ss` for tracks ≥ 1 h). Mirrors the two-digit padding in
-  /// `retro_lcd_display.dart` — too small to be worth a shared util.
-  static String _clock(int ms) {
-    final d = Duration(milliseconds: ms < 0 ? 0 : ms);
-    String two(int n) => n.toString().padLeft(2, '0');
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (d.inHours > 0) return '${d.inHours}:${two(m)}:${two(s)}';
-    return '$m:${two(s)}';
-  }
-
-  @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
 
+    final ringCtrl =
+        useAnimationController(duration: HeroFeedbackSurface.ringDuration);
+    final swipeCtrl =
+        useAnimationController(duration: HeroFeedbackSurface.swipeFlashDuration);
+
+    final ringCenter = useState<Offset?>(null);
+    final swipeRight = useState(true);
+
+    // Most-recent measured hero width (from the build's [LayoutBuilder]); a ref
+    // since it's read inside gesture handlers, not a rebuild trigger.
+    final width = useRef<double>(1);
+
+    final seeking = useState(false);
+    final seekStartMs = useRef<int>(0);
+    final seekDurationMs = useRef<int>(0);
+    final seekAccumDx = useRef<double>(0);
+    final seekTargetMs = useState<int>(0);
+
+    // Edge-glyph flash. Direction `>0` = rightward (`›`, next), `<0` = leftward
+    // (`‹`, previous).
+    void flashSwipe(double direction) {
+      if (direction == 0) return;
+      swipeRight.value = direction > 0;
+      swipeCtrl
+        ..reset()
+        ..forward();
+    }
+
+    // B-012: external flash driver — run one flash per controller bump using the
+    // recorded direction. useListenable rebuilds on each notify so the effect's
+    // [seq] dep changes; the first run (no prior seq) is skipped so a fresh mount
+    // doesn't flash spuriously.
+    final flashController = this.flashController;
+    final seq = flashController?.seq ?? 0;
+    useListenable(flashController);
+    useEffect(() {
+      if (flashController != null && seq > 0) {
+        flashSwipe(flashController.dir.toDouble());
+      }
+      return null;
+    }, [seq]);
+
+    void spawnRing(Offset localPosition) {
+      ringCenter.value = localPosition;
+      ringCtrl
+        ..reset()
+        ..forward();
+    }
+
+    void onTapUp(TapUpDetails d) {
+      final dx = d.localPosition.dx;
+      if (dx < width.value / 3) {
+        flashSwipe(-1);
+        onPrevious();
+      } else if (dx > width.value * 2 / 3) {
+        flashSwipe(1);
+        onNext();
+      } else {
+        onPlayPause();
+      }
+    }
+
+    void onSeekStart(DragStartDetails _) {
+      seekStartMs.value = positionMs();
+      seekDurationMs.value = durationMs();
+      seekAccumDx.value = 0;
+      seekTargetMs.value = seekStartMs.value;
+      seeking.value = true;
+    }
+
+    void onSeekUpdate(DragUpdateDetails d) {
+      if (seekDurationMs.value <= 0) return;
+      seekAccumDx.value += d.primaryDelta ?? 0;
+      final raw = seekStartMs.value +
+          (seekAccumDx.value / width.value) * seekDurationMs.value;
+      seekTargetMs.value =
+          raw.clamp(0, seekDurationMs.value.toDouble()).round();
+    }
+
+    void onSeekEnd(DragEndDetails _) {
+      final hadDuration = seekDurationMs.value > 0;
+      final target = seekTargetMs.value;
+      seeking.value = false;
+      if (hadDuration) {
+        onSeek(Duration(milliseconds: target));
+      }
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
-          _width = constraints.maxWidth;
+          width.value = constraints.maxWidth;
         }
         return Stack(
           fit: StackFit.expand,
           children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTapDown: (d) => _spawnRing(d.localPosition),
-              onTapUp: _onTapUp,
-              onHorizontalDragStart: _onSeekStart,
-              onHorizontalDragUpdate: _onSeekUpdate,
-              onHorizontalDragEnd: _onSeekEnd,
-              onVerticalDragUpdate: widget.onVerticalDragUpdate,
-              onVerticalDragEnd: widget.onVerticalDragEnd,
-              child: widget.child,
+              onTapDown: (d) => spawnRing(d.localPosition),
+              onTapUp: onTapUp,
+              onHorizontalDragStart: onSeekStart,
+              onHorizontalDragUpdate: onSeekUpdate,
+              onHorizontalDragEnd: onSeekEnd,
+              onVerticalDragUpdate: onVerticalDragUpdate,
+              onVerticalDragEnd: onVerticalDragEnd,
+              child: child,
             ),
             // Tap ring overlay — pointer-transparent.
-            if (_ringCenter != null)
+            if (ringCenter.value != null)
               Positioned.fill(
                 child: IgnorePointer(
                   child: AnimatedBuilder(
                     key: HeroFeedbackSurface.tapRingKey,
-                    animation: _ringCtrl,
+                    animation: ringCtrl,
                     builder: (context, _) {
-                      final t = _ringCtrl.value;
+                      final t = ringCtrl.value;
                       if (t == 0 || t == 1) {
-                        // 0 = idle pre-forward; 1 = settled. Invisible either
-                        // way.
+                        // 0 = idle pre-forward, 1 = settled — invisible either way.
                         return const SizedBox.shrink();
                       }
                       return CustomPaint(
                         painter: _TapRingPainter(
-                          center: _ringCenter!,
+                          center: ringCenter.value!,
                           progress: t,
                           color: palette.fgSecondary,
                         ),
@@ -253,16 +232,15 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
               child: IgnorePointer(
                 child: AnimatedBuilder(
                   key: HeroFeedbackSurface.swipeFlashKey,
-                  animation: _swipeCtrl,
+                  animation: swipeCtrl,
                   builder: (context, _) {
-                    final t = _swipeCtrl.value;
+                    final t = swipeCtrl.value;
                     if (t == 0 || t == 1) return const SizedBox.shrink();
-                    // Triangle envelope: fade in over the first half, out over
-                    // the second so it reads as a flash.
+                    // Triangle envelope: fade in then out so it reads as a flash.
                     final envelope =
                         t < 0.5 ? (t / 0.5) : (1 - (t - 0.5) / 0.5);
                     return Align(
-                      alignment: _swipeRight
+                      alignment: swipeRight.value
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: Padding(
@@ -270,7 +248,7 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
                         child: Opacity(
                           opacity: envelope.clamp(0.0, 1.0),
                           child: Text(
-                            _swipeRight ? '›' : '‹', // › / ‹
+                            swipeRight.value ? '›' : '‹', // › / ‹
                             style: TextStyle(
                               color: palette.fgSecondary,
                               fontFamily: typography.monoFamily,
@@ -287,16 +265,17 @@ class HeroFeedbackSurfaceState extends State<HeroFeedbackSurface>
               ),
             ),
             // Seek HUD — time readout + preview line, only while scrubbing.
-            if (_seeking)
+            if (seeking.value)
               Positioned.fill(
                 child: IgnorePointer(
                   child: _SeekHud(
-                    fraction: _seekDurationMs <= 0
+                    fraction: seekDurationMs.value <= 0
                         ? 0
-                        : (_seekTargetMs / _seekDurationMs).clamp(0.0, 1.0),
-                    label: _seekDurationMs <= 0
+                        : (seekTargetMs.value / seekDurationMs.value)
+                            .clamp(0.0, 1.0),
+                    label: seekDurationMs.value <= 0
                         ? '--:-- / --:--'
-                        : '${_clock(_seekTargetMs)} / ${_clock(_seekDurationMs)}',
+                        : '${formatClock(seekTargetMs.value)} / ${formatClock(seekDurationMs.value)}',
                     palette: palette,
                     typography: typography,
                   ),
@@ -341,8 +320,7 @@ class _SeekHud extends StatelessWidget {
             ),
           ),
         ),
-        // Preview line: a full-height marker at the target x (fraction maps
-        // to an Alignment x of -1..1).
+        // Preview line: full-height marker at the target x (fraction → -1..1).
         Align(
           alignment: Alignment(fraction * 2 - 1, 0),
           child: FractionallySizedBox(
@@ -371,9 +349,8 @@ class _TapRingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Expand from 0 → ringMaxDiameter/2 while fading 1 → 0. B-030: stroke
-    // doubled (1.5 → 3 dp) and the alpha boosted 1.5× so the ring is
-    // visible on a hand-held device against any hero visualisation.
+    // Expand 0 → ringMaxDiameter/2 while fading 1 → 0. B-030: stroke 3 dp +
+    // alpha boosted 1.5× so the ring stays visible on any hero.
     final radius = (HeroFeedbackSurface.ringMaxDiameter / 2) * progress;
     final fade = (1 - progress).clamp(0.0, 1.0);
     final baseAlpha = color.a;

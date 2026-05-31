@@ -1,7 +1,7 @@
 import 'package:audio_session/audio_session.dart';
 
-import '../models/audio_track.dart';
-import '../services/playback_controller.dart';
+import 'package:nothingness/models/audio_track.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'fake_audio_transport.dart';
 
 /// Shared singleton for integration tests (same isolate) to control the app.

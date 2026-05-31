@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
-class RetroTicker extends StatefulWidget {
+class RetroTicker extends HookWidget {
   final String text;
   final TextStyle style;
   final Duration scrollInterval;
@@ -16,141 +17,105 @@ class RetroTicker extends StatefulWidget {
   });
 
   @override
-  State<RetroTicker> createState() => _RetroTickerState();
-}
-
-class _RetroTickerState extends State<RetroTicker> {
-  String _displayString = '';
-  Timer? _timer;
-  int _offset = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkScroll();
-  }
-
-  @override
-  void didUpdateWidget(RetroTicker oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
-      _checkScroll();
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _checkScroll() {
-    _timer?.cancel();
-    _offset = 0;
-
-    // We can't easily measure text width here without LayoutBuilder + TextPainter,
-    // but we can just set up the string for potential scrolling and let the build method determine
-    // if we need to animate based on the constraints.
-    // However, a simpler "ticker" often just rotates regardless if we want that "retro" feel,
-    // or we can try to be smart.
-    // Given the request is "slides char by char to show full song name", let's implement the logic
-    // to measure in the build method or use a LayoutBuilder.
-
-    // A simple char-by-char scroll usually implies: "TEXT    TEXT    " shifting left.
-    // Let's rely on LayoutBuilder in build.
-  }
-
-  void _startScrolling(String fullText) {
-    if (_timer != null && _timer!.isActive) return;
-
-    _displayString = fullText;
-    
-    _timer = Timer.periodic(widget.scrollInterval, (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        _offset++;
-        if (_offset >= fullText.length) {
-          _offset = 0;
-        }
-      });
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Mutable marquee state, held across rebuilds.
+    final displayString = useRef<String>('');
+    final timer = useRef<Timer?>(null);
+    final offset = useState<int>(0);
+
+    void stopScrolling() {
+      timer.value?.cancel();
+      timer.value = null;
+      offset.value = 0;
+    }
+
+    void startScrolling(String fullText) {
+      if (timer.value != null && timer.value!.isActive) return;
+
+      displayString.value = fullText;
+
+      timer.value = Timer.periodic(scrollInterval, (t) {
+        if (!context.mounted) {
+          t.cancel();
+          return;
+        }
+        var next = offset.value + 1;
+        if (next >= fullText.length) {
+          next = 0;
+        }
+        offset.value = next;
+      });
+    }
+
+    // Reset the marquee whenever text/style changes (was _checkScroll +
+    // didUpdateWidget): cancel any running timer and rewind the offset. Width
+    // is measured in build, so the timer is (re)started there as needed.
+    useEffect(() {
+      timer.value?.cancel();
+      timer.value = null;
+      offset.value = 0;
+      return null;
+    }, [text, style]);
+
+    // Cancel the timer on dispose.
+    useEffect(() {
+      return () => timer.value?.cancel();
+    }, const []);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
+          text: TextSpan(text: text, style: style),
           maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout();
 
         if (textPainter.width <= constraints.maxWidth) {
-          // Fits properly
-          _timer?.cancel();
-          _offset = 0;
+          // Fits — render statically and stop any running scroll.
+          stopScrolling();
           return Text(
-            widget.text,
-            style: widget.style,
+            text,
+            style: style,
             textAlign: TextAlign.center,
             overflow: TextOverflow.visible,
             maxLines: 1,
           );
         } else {
-          // Doesn't fit, enable scrolling
-          // We construct a padded string: "TEXT    "
-          // And we rotate it.
-          // Ideally, for a smooth infinite scroll, we want "TEXT    TEXT    "
-          
-          final gap = ' ' * widget.gapSpaces;
-          final scrollingText = '${widget.text}$gap';
-          
-          // If we haven't started scrolling or text changed
-          if (_timer == null || !_timer!.isActive) {
-             // We need to defer this to avoid setState during build
-             WidgetsBinding.instance.addPostFrameCallback((_) {
-               _startScrolling(scrollingText);
-             });
+          // Overflows — rotate a gap-padded copy char-by-char ("TEXT    ").
+          final gap = ' ' * gapSpaces;
+          final scrollingText = '$text$gap';
+
+          // Defer start to avoid setState during build.
+          if (timer.value == null || !timer.value!.isActive) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              startScrolling(scrollingText);
+            });
           }
 
-          // Calculate the substring to show
-          // This is a simple character rotation implementation
-          // "HELLO   " -> "ELLO   H" -> "LLO   HE" etc.
-          
-          // Actually, for a marquee, we usually just render the text offset.
-          // But "slides char by char" usually means the string content changes.
-          
-          if (_displayString.isEmpty) {
-             return Text(
-              widget.text,
-              style: widget.style,
+          if (displayString.value.isEmpty) {
+            return Text(
+              text,
+              style: style,
               maxLines: 1,
               overflow: TextOverflow.clip,
             );
           }
-          
-          // Create the rotated string for the current offset
-          // If _displayString is "ABC   " (length 6)
-          // offset 0: "ABC   "
-          // offset 1: "BC   A"
-          final effectiveOffset = _offset % _displayString.length;
-          final rotated = _displayString.substring(effectiveOffset) + _displayString.substring(0, effectiveOffset);
-          
+
+          // Rotate by the current offset: "ABC   " -> "BC   A" -> ...
+          final effectiveOffset = offset.value % displayString.value.length;
+          final rotated = displayString.value.substring(effectiveOffset) +
+              displayString.value.substring(0, effectiveOffset);
+
           return Text(
             rotated,
-            style: widget.style,
+            style: style,
             textAlign: TextAlign.center,
             maxLines: 1,
             softWrap: false,
-            overflow: TextOverflow.clip, 
+            overflow: TextOverflow.clip,
           );
         }
       },
     );
   }
 }
-

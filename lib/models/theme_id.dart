@@ -1,6 +1,4 @@
-/// Identifier for a registered theme.
-///
-/// `void` is a reserved word in Dart, hence the trailing underscore.
+/// Identifier for a registered theme. `void` is reserved, hence the underscore.
 enum ThemeId {
   void_;
 

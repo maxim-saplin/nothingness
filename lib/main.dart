@@ -4,11 +4,12 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'models/theme_id.dart';
 import 'models/theme_variant.dart';
-import 'providers/audio_player_provider.dart';
 import 'screens/media_controller_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nothingness/services/library_service.dart';
@@ -16,132 +17,121 @@ import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/widgets/phone_frame.dart';
 import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
-import 'testing/agent_service.dart';
+import 'services/playback_controller.dart';
+import 'services/soloud_transport.dart';
+import 'debug_hooks.dart';
 import 'theme/themes.dart';
 
-/// Boot stopwatch (B-008) — measures time from `main` entry to first frame.
-/// Kept top-level so [_BootstrapAppState] can stamp the swap-from-splash
-/// timing against the same origin.
+/// Boot stopwatch (B-008) — `main` entry to first frame; top-level so [_BootstrapAppState] stamps swap-from-splash against the same origin.
 final Stopwatch _bootSw = Stopwatch()..start();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  Logger.root.level = Level.INFO;
+  Logger.root.onRecord.listen((r) {
+    if (kDebugMode) debugPrint('[${r.loggerName}] ${r.message}');
+  });
   WidgetsBinding.instance.addPostFrameCallback((_) {
     debugPrint('[boot] first-frame=${_bootSw.elapsedMilliseconds}ms');
   });
   debugPrint('[boot] runApp=${_bootSw.elapsedMilliseconds}ms');
-  // B-008: keep `runApp` synchronous so the engine paints a cheap first
-  // frame (black [ColoredBox]) before heavy init runs.  All awaits live
-  // inside [_BootstrapAppState.initState] below.
+  // B-008: keep `runApp` synchronous so the engine paints a cheap first frame (black [ColoredBox]) before heavy init; all awaits live in [_BootstrapAppState.initState].
   runApp(const _BootstrapApp());
 }
 
-/// Top-level [NavigatorState] key used by [AgentService.closeSettingsSheet]
-/// and similar route operations driven from the VM service. Kept at file
-/// scope so it is created exactly once per process.
+/// Top-level [NavigatorState] key for [AgentService.closeSettingsSheet] and similar VM-service route ops; at file scope so it is created once per process.
 final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
 
-/// Splash + init host (B-008).
-///
-/// Renders a black [ColoredBox] for the first frame so the Flutter engine
-/// has cheap work to do while the heavy bootstrap (Hive, LibraryService,
-/// AudioService, AudioPlayerProvider) runs in a microtask. Swaps to the
-/// real [NothingApp] once init completes.
-///
-/// Intentionally minimal: no fonts, no images, no service lookups — the
-/// goal is for `build` to be effectively free on the first frame.
-class _BootstrapApp extends StatefulWidget {
+/// Splash + init host (B-008). Renders a black [ColoredBox] for the first frame while the heavy bootstrap (Hive, LibraryService, AudioService, PlaybackController) runs in a microtask, then swaps to the real [NothingApp]. Intentionally minimal so the first-frame `build` is effectively free.
+class _BootstrapApp extends HookWidget {
   const _BootstrapApp();
 
   @override
-  State<_BootstrapApp> createState() => _BootstrapAppState();
-}
-
-class _BootstrapAppState extends State<_BootstrapApp> {
-  AudioPlayerProvider? _audioPlayerProvider;
-
-  @override
-  void initState() {
-    super.initState();
-    // Kick the heavy bootstrap off the synchronous build path. A
-    // microtask runs after the current event-loop turn, by which point
-    // the engine has already scheduled and rendered the splash frame.
-    scheduleMicrotask(_bootstrap);
-  }
-
-  Future<void> _bootstrap() async {
-    await Hive.initFlutter();
-
-    // Initialize LibraryService to restore file permissions
-    await LibraryService().init();
-
-    // Load user settings early so we can choose decoder before starting
-    // AudioService.
-    final settingsService = SettingsService();
-    try {
-      await settingsService.loadSettings();
-    } catch (e) {
-      debugPrint('[main] loadSettings failed, falling back to defaults: $e');
-    }
-
-    NothingAudioHandler? handler;
-    if (Platform.isAndroid) {
-      handler = await AudioService.init(
-        builder: () => NothingAudioHandler(),
-        config: const AudioServiceConfig(
-          androidNotificationChannelId:
-              'com.saplin.nothingness.channel.audio',
-          androidNotificationChannelName: 'Audio playback',
-          // Allow foreground service to stop when paused so the wake lock
-          // and notification are released, saving battery.  The service
-          // is re-promoted when playback resumes.
-          androidStopForegroundOnPause: true,
-        ),
-      );
-    }
-
-    // Initialize audio player before swapping the splash so the first
-    // real frame has live data.
-    final audioPlayerProvider = AudioPlayerProvider(androidHandler: handler);
-    await audioPlayerProvider.init();
-
-    AgentService.register(provider: audioPlayerProvider);
-    AgentService.registerNavigatorKey(rootNavigatorKey);
-
-    // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb).
-    // Drains any cold-start action that arrived before the handler attached.
-    if (Platform.isAndroid) {
-      unawaited(AutomationIntentService(audioPlayerProvider).start());
-    }
-
-    if (!mounted) {
-      // Hot restart raced us; drop the half-built provider rather than
-      // leaving it dangling.
-      audioPlayerProvider.dispose();
-      return;
-    }
-    debugPrint('[boot] swap=${_bootSw.elapsedMilliseconds}ms');
-    setState(() {
-      _audioPlayerProvider = audioPlayerProvider;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final provider = _audioPlayerProvider;
-    if (provider == null) {
-      // Cheap-render path. No MaterialApp, no theme, no fonts.
+    final playbackController = useState<PlaybackController?>(null);
+
+    // One-shot heavy bootstrap (empty deps → runs once). The microtask keeps it
+    // off the synchronous build path so the splash frame renders first; the
+    // `disposed` latch replaces the old State.mounted guard for the hot-restart race.
+    useEffect(() {
+      var disposed = false;
+
+      Future<void> bootstrap() async {
+        await Hive.initFlutter();
+
+        // Restore file permissions.
+        await LibraryService().init();
+
+        // Load user settings early so we can choose decoder before starting AudioService.
+        final settingsService = SettingsService();
+        try {
+          await settingsService.loadSettings();
+        } catch (e) {
+          debugPrint(
+              '[main] loadSettings failed, falling back to defaults: $e');
+        }
+
+        // PlaybackController is the single source of truth on both platforms.
+        // On Android the AudioService handler owns + inits the controller (and
+        // observes it to drive the OS MediaSession); elsewhere we build a
+        // transport + controller and init it here.
+        final PlaybackController controller;
+        if (Platform.isAndroid) {
+          final handler = await AudioService.init(
+            builder: () => NothingAudioHandler(),
+            config: const AudioServiceConfig(
+              androidNotificationChannelId:
+                  'com.saplin.nothingness.channel.audio',
+              androidNotificationChannelName: 'Audio playback',
+              // Stop the foreground service when paused to release the wake lock/notification; re-promoted on resume.
+              androidStopForegroundOnPause: true,
+            ),
+          );
+          await handler.ready;
+          controller = handler.controller;
+        } else {
+          controller = PlaybackController(transport: SoLoudTransport());
+          await controller.init();
+        }
+
+        DebugHooks.navigatorKey = rootNavigatorKey;
+        DebugHooks.provider = controller;
+        DebugHooks.onAppReady?.call(controller);
+
+        // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb); drains any cold-start action that arrived before the handler attached.
+        if (Platform.isAndroid) {
+          unawaited(AutomationIntentService(controller).start());
+        }
+
+        if (disposed) {
+          // Hot restart raced us; drop the half-built controller rather than leaving it dangling.
+          controller.dispose();
+          return;
+        }
+        debugPrint('[boot] swap=${_bootSw.elapsedMilliseconds}ms');
+        playbackController.value = controller;
+      }
+
+      // Kick the heavy bootstrap off the synchronous build path; the microtask runs after the splash frame is rendered.
+      scheduleMicrotask(bootstrap);
+
+      return () => disposed = true;
+    }, const []);
+
+    final controller = playbackController.value;
+    if (controller == null) {
+      // Cheap-render path: no MaterialApp, theme, or fonts.
       return const ColoredBox(color: Color(0xFF000000));
     }
-    return NothingApp(audioPlayerProvider: provider);
+    return NothingApp(playbackController: controller);
   }
 }
 
 class NothingApp extends StatefulWidget {
-  const NothingApp({super.key, required this.audioPlayerProvider});
+  const NothingApp({super.key, required this.playbackController});
 
-  final AudioPlayerProvider audioPlayerProvider;
+  final PlaybackController playbackController;
 
   @override
   State<NothingApp> createState() => _NothingAppState();
@@ -156,8 +146,8 @@ class _NothingAppState extends State<NothingApp> {
   @override
   Widget build(BuildContext context) {
     final settings = SettingsService();
-    return ChangeNotifierProvider.value(
-      value: widget.audioPlayerProvider,
+    return ChangeNotifierProvider<PlaybackController>.value(
+      value: widget.playbackController,
       child: _ThemeListener(
         themeIdNotifier: settings.themeIdNotifier,
         themeVariantNotifier: settings.themeVariantNotifier,
@@ -174,22 +164,15 @@ class _NothingAppState extends State<NothingApp> {
             builder: (context, child) {
               if (child == null) return const SizedBox.shrink();
 
-              // In debug builds AgentService rasterizes the current frame
-              // through this RepaintBoundary so drive.py can grab a PNG on
-              // desktop (where `adb screencap` does not apply). The wrapper
-              // is debug-only to keep release builds untouched.
+              // Debug only: AgentService rasterizes through this RepaintBoundary so drive.py can grab a PNG on desktop (where `adb screencap` doesn't apply).
               if (kDebugMode) {
                 child = RepaintBoundary(
-                  key: AgentService.screenshotBoundaryKey,
+                  key: DebugHooks.screenshotBoundaryKey,
                   child: child,
                 );
               }
 
-              // On automotive OEM displays (e.g. Zeekr DHU) the platform
-              // ignores statusBarIconBrightness/statusBarColor.  Draw a
-              // Flutter scrim over the status-bar area so dark OEM icons
-              // stay readable.  This sits outside ScaledLayout so it uses
-              // raw screen coordinates.
+              // Automotive OEM displays (e.g. Zeekr DHU) ignore statusBarIconBrightness/Color; draw a Flutter scrim over the status-bar area so dark OEM icons stay readable. Outside ScaledLayout so it uses raw screen coordinates.
               final Widget appWithChrome = ValueListenableBuilder<bool>(
                 valueListenable: SettingsService().fullScreenNotifier,
                 builder: (context, isFullScreen, appChild) {
@@ -227,12 +210,7 @@ class _NothingAppState extends State<NothingApp> {
                 child: child,
               );
 
-              // B-042 (debug only): render the whole app inside a letterboxed
-              // narrow-tall "phone frame" so portrait-phone layout can be
-              // exercised on the desktop build. The MediaQuery size override
-              // makes layout/typography see phone dimensions; the screenshot
-              // boundary (wrapping `child` above) then captures phone-sized
-              // frames for drive.py.
+              // B-042 (debug only): render the app inside a letterboxed "phone frame" so portrait layout can be exercised on desktop; the MediaQuery size override makes layout/typography see phone dimensions for drive.py captures.
               if (!kDebugMode) return appWithChrome;
               return ValueListenableBuilder<Size?>(
                 valueListenable: SettingsService().phoneFrameNotifier,
@@ -247,11 +225,8 @@ class _NothingAppState extends State<NothingApp> {
   }
 }
 
-/// Rebuilds the [MaterialApp] when any of the three theme-driving notifiers
-/// change. Listening to operating mode here keeps the tree wired even though
-/// the mode does not directly affect [ThemeData] — downstream surfaces read it
-/// via [SettingsService].
-class _ThemeListener extends StatefulWidget {
+/// Rebuilds the [MaterialApp] when any of the three theme-driving notifiers change. Operating mode is listened to here (though it doesn't affect [ThemeData]) to keep the tree wired; downstream surfaces read it via [SettingsService].
+class _ThemeListener extends HookWidget {
   const _ThemeListener({
     required this.themeIdNotifier,
     required this.themeVariantNotifier,
@@ -265,36 +240,12 @@ class _ThemeListener extends StatefulWidget {
   final Widget Function(BuildContext, ThemeId, ThemeVariant) builder;
 
   @override
-  State<_ThemeListener> createState() => _ThemeListenerState();
-}
-
-class _ThemeListenerState extends State<_ThemeListener> {
-  @override
-  void initState() {
-    super.initState();
-    widget.themeIdNotifier.addListener(_onChanged);
-    widget.themeVariantNotifier.addListener(_onChanged);
-    widget.operatingModeNotifier.addListener(_onChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.themeIdNotifier.removeListener(_onChanged);
-    widget.themeVariantNotifier.removeListener(_onChanged);
-    widget.operatingModeNotifier.removeListener(_onChanged);
-    super.dispose();
-  }
-
-  void _onChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return widget.builder(
-      context,
-      widget.themeIdNotifier.value,
-      widget.themeVariantNotifier.value,
-    );
+    final themeId = useValueListenable(themeIdNotifier);
+    final themeVariant = useValueListenable(themeVariantNotifier);
+    // Operating mode doesn't affect ThemeData, but we still subscribe so a
+    // change rebuilds the tree (parity with the old explicit listener wiring).
+    useValueListenable(operatingModeNotifier);
+    return builder(context, themeId, themeVariant);
   }
 }

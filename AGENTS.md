@@ -12,8 +12,9 @@ This is a Flutter media controller application. Consult the relevant skills in `
 | **flutter-commands** | Running Flutter CLI commands. Covers sandbox permissions. |
 | **github-actions-polling** | Working with CI/CD workflows. Covers polling strategies & failure handling. |
 | **skill-creation** | Creating/modifying skills in `.claude/skills/`. Covers format & best practices. |
-| **agent-emulator-debugging** | Driving the app on emulator via VM service extensions. Includes `scripts/drive.py` — the typed CLI wrapping all 26 `ext.nothingness.*` extensions. |
+| **agent-emulator-debugging** | Driving the app on emulator via VM service extensions. Includes `scripts/drive.py` — the typed CLI wrapping all 27 `ext.nothingness.*` extensions. |
 | **wsl2-adb-setup** | Setting up ADB between WSL2 Linux and a Windows-hosted emulator. Covers mirrored networking and troubleshooting. |
+| **goal-sloc** | Cutting SLOC / simplifying the codebase / hitting a line-count target honestly. Covers preflight (baseline + feedback loops), an honest reduction order, anti-gaming self-audit, and a Flutter reference. |
 
 ## Agent Behavior
 

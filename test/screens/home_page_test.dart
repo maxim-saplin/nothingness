@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/main.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/widgets/transport_row.dart';
 import 'package:provider/provider.dart';
 
+import '../services/mock_audio_transport.dart';
+
 Widget createTestableApp() {
-  final provider = AudioPlayerProvider();
-  return ChangeNotifierProvider<AudioPlayerProvider>.value(
+  final provider = PlaybackController(transport: MockAudioTransport());
+  return ChangeNotifierProvider<PlaybackController>.value(
     value: provider,
-    child: NothingApp(audioPlayerProvider: provider),
+    child: NothingApp(playbackController: provider),
   );
 }
 

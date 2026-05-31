@@ -13,14 +13,12 @@ class SongInfo {
     required this.duration,
   });
 
-  // Convenience getters for backward compatibility
   String get title => track.title;
   String get artist => track.artist;
-  String get album => ''; // Not stored in AudioTrack currently
+  String get album => '';
 
   factory SongInfo.fromMap(Map<dynamic, dynamic> map) {
-    // Create AudioTrack first, then wrap in SongInfo
-    // Note: path may be empty for external players (e.g., Android MediaSessionService)
+    // path may be empty for external players (Android MediaSessionService).
     final track = AudioTrack(
       path: map['path'] as String? ?? '',
       title: map['title'] as String? ?? 'Unknown',
@@ -34,4 +32,3 @@ class SongInfo {
     );
   }
 }
-

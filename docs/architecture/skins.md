@@ -1,6 +1,6 @@
 # Skins & Screen System
 
-Nothingness supports four skins. After the `ui-revamp` arc all skins share a single shell (`VoidScreen`) and are implemented as **hero widgets** under `lib/widgets/heroes/`. `ScreenConfig` selects which hero is active; the surrounding chrome, browser, transport row, and settings sheet are owned by `VoidScreen` regardless of the active skin.
+Nothingness supports four skins. All skins share a single shell (`VoidScreen`) and are implemented as **hero widgets** (`HookWidget`s) under `lib/widgets/heroes/`. `ScreenConfig` (a `sealed class` in `lib/models/screen_config.dart`) selects which hero is active; the surrounding chrome, browser, transport row, and settings sheet are owned by `VoidScreen` regardless of the active skin.
 
 ## Heroes
 

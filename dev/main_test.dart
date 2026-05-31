@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'models/screen_config.dart';
-import 'models/spectrum_settings.dart';
-import 'providers/audio_player_provider.dart';
-import 'screens/void_screen.dart';
-import 'services/playback_controller.dart';
-import 'services/playlist_store.dart';
-import 'testing/test_harness.dart';
-import 'testing/test_overlay.dart';
+import 'package:nothingness/models/screen_config.dart';
+import 'package:nothingness/models/spectrum_settings.dart';
+import 'package:nothingness/screens/void_screen.dart';
+import 'package:nothingness/services/playback_controller.dart';
+import 'package:nothingness/services/playlist_store.dart';
+import 'package:nothingness/models/theme_id.dart';
+import 'package:nothingness/theme/themes.dart';
+import 'test_harness.dart';
+import 'test_overlay.dart';
 
 /// Test-only entrypoint for emulator integration tests.
 ///
@@ -37,20 +38,12 @@ Future<void> main() async {
   await controller.init();
   harness.controller = controller;
 
-  final audioPlayerProvider = AudioPlayerProvider.forTests(
-    controller: controller,
-    transport: harness.transport,
-  );
-  await audioPlayerProvider.init();
-
   runApp(
-    ChangeNotifierProvider.value(
-      value: audioPlayerProvider,
+    ChangeNotifierProvider<PlaybackController>.value(
+      value: controller,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: ThemeData.dark().copyWith(
-          scaffoldBackgroundColor: const Color(0xFF0A0A0F),
-        ),
+        theme: buildAppTheme(id: ThemeId.void_, brightness: Brightness.dark),
         home: Stack(
           children: const [
             VoidScreen(

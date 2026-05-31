@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/theme_id.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/theme/themes.dart';
 import 'package:nothingness/widgets/heroes/polo_hero.dart';
 import 'package:provider/provider.dart';
 
+import '../services/mock_audio_transport.dart';
+
 Widget _buildPoloHero({required Brightness brightness}) {
-  final provider = AudioPlayerProvider();
-  return ChangeNotifierProvider<AudioPlayerProvider>.value(
+  final provider = PlaybackController(transport: MockAudioTransport());
+  return ChangeNotifierProvider<PlaybackController>.value(
     value: provider,
     child: MaterialApp(
       theme: buildAppTheme(id: ThemeId.void_, brightness: brightness),

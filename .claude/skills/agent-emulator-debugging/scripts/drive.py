@@ -5,7 +5,7 @@
 # ///
 """drive.py — CLI driver for the Nothingness app's VM service surface.
 
-Wraps `ext.nothingness.*` extensions exposed by `lib/testing/agent_service.dart`
+Wraps `ext.nothingness.*` extensions exposed by `dev/agent_service.dart`
 so a human or agent can puppet the live app without writing one-off scripts.
 
 Targets:

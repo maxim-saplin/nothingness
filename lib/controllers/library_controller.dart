@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:external_path/external_path.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,44 +9,36 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/audio_track.dart';
-import '../models/log_entry.dart';
 import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
-import '../services/logging_service.dart';
-import '../services/android_media_store_freshness.dart';
 import '../services/media_store_freshness.dart';
 import '../models/supported_extensions.dart';
 import '../services/metadata_extractor.dart';
 import '../services/platform_channels.dart';
 
-// Static function for isolate execution
+final _log = Logger('nothingness.library');
+
+// Static function for isolate execution.
 Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
   RootIsolateToken rootToken,
 ) async {
   BackgroundIsolateBinaryMessenger.ensureInitialized(rootToken);
-  final audioQuery = OnAudioQuery();
-  final songs = await audioQuery.querySongs(
+  final songs = await OnAudioQuery().querySongs(
     sortType: null,
     orderType: OrderType.ASC_OR_SMALLER,
     uriType: UriType.EXTERNAL,
     ignoreCase: true,
   );
   return songs
-      .map((song) => LibrarySong(
-            path: song.data,
-            title: SupportedExtensions.stripFromTitle(song.title),
+      .map((s) => LibrarySong(
+            path: s.data,
+            title: SupportedExtensions.stripFromTitle(s.title),
           ))
       .toList();
 }
 
 class LibraryController extends ChangeNotifier {
-  static const List<Duration> _defaultFolderRescanReloadDelays = <Duration>[
-    Duration(milliseconds: 250),
-    Duration(milliseconds: 500),
-    Duration(milliseconds: 900),
-  ];
-
   LibraryController({
     required this.libraryBrowser,
     required this.libraryService,
@@ -57,22 +50,24 @@ class LibraryController extends ChangeNotifier {
     Future<bool> Function(String path)? androidFolderRescan,
     Future<void> Function(Duration duration)? waitForFolderRescan,
     List<Duration>? folderRescanReloadDelays,
-  }) : _audioQuery = audioQuery ?? OnAudioQuery(),
-       _mediaStoreFreshness =
-           mediaStoreFreshness ??
-           (Platform.isAndroid
-               ? AndroidMediaStoreFreshness()
-               : NoopMediaStoreFreshness()),
-       _isAndroidOverride = isAndroidOverride,
-       _androidSongLoader = androidSongLoader,
-       _androidRootsLoader = androidRootsLoader,
-       _androidFolderRescan =
-           androidFolderRescan ?? PlatformChannels().rescanFolder,
-       _waitForFolderRescan =
-           waitForFolderRescan ??
-           ((duration) => Future<void>.delayed(duration)),
-       _folderRescanReloadDelays =
-           folderRescanReloadDelays ?? _defaultFolderRescanReloadDelays;
+  })  : _audioQuery = audioQuery ?? OnAudioQuery(),
+        _mediaStoreFreshness = mediaStoreFreshness ??
+            (Platform.isAndroid
+                ? AndroidMediaStoreFreshness()
+                : NoopMediaStoreFreshness()),
+        _isAndroidOverride = isAndroidOverride,
+        _androidSongLoader = androidSongLoader,
+        _androidRootsLoader = androidRootsLoader,
+        _androidFolderRescan =
+            androidFolderRescan ?? PlatformChannels().rescanFolder,
+        _waitForFolderRescan =
+            waitForFolderRescan ?? Future<void>.delayed,
+        _folderRescanReloadDelays = folderRescanReloadDelays ??
+            const [
+              Duration(milliseconds: 250),
+              Duration(milliseconds: 500),
+              Duration(milliseconds: 900),
+            ];
 
   final LibraryBrowser libraryBrowser;
   final LibraryService libraryService;
@@ -101,155 +96,108 @@ class LibraryController extends ChangeNotifier {
   List<LibrarySong> _androidSongs = [];
   bool _disposed = false;
 
-  bool get _isAndroid => _isAndroidOverride ?? Platform.isAndroid;
-  bool get isAndroid => _isAndroid;
+  bool get isAndroid => _isAndroidOverride ?? Platform.isAndroid;
 
-  /// Permissions requested by the OWN-mode library gate (B-017).
-  ///
-  /// OWN mode needs only audio access — `permission_handler` maps
-  /// `Permission.audio` to `READ_MEDIA_AUDIO` on API 33+ and to legacy
-  /// `READ_EXTERNAL_STORAGE` on API 29–32. Mic is a BACKGROUND-mode
-  /// dependency and is requested separately from settings, so it MUST NOT
-  /// appear here — otherwise denying mic blocks the entire library.
+  /// OWN-mode library gate permissions (B-017): audio only — mic is a
+  /// separately-requested BACKGROUND-mode dependency, kept out so denying it
+  /// doesn't block the library.
   @visibleForTesting
-  static const List<Permission> ownModePermissionList = <Permission>[
-    Permission.audio,
-  ];
+  static const List<Permission> ownModePermissionList = [Permission.audio];
 
-  /// Returns the OWN-mode `hasPermission` derivation from a `permission_handler`
-  /// status map (B-017). Library access is gated on audio only; the mic /
-  /// notification permissions live behind explicit BACKGROUND-mode buttons.
+  /// OWN-mode `hasPermission` from a `permission_handler` status map (B-017):
+  /// gated on audio only.
   @visibleForTesting
   static bool computeOwnModeHasPermission(
     Map<Permission, PermissionStatus> statuses,
-  ) {
-    return statuses[Permission.audio]?.isGranted ?? false;
-  }
+  ) =>
+      statuses[Permission.audio]?.isGranted ?? false;
 
-  /// All MediaStore songs cached this session (Android only). Empty on
-  /// other platforms or before [_ensureAndroidSongsLoaded] has run.
-  ///
-  /// Used by Void search (B-009) so the result set covers the whole
-  /// library, not just the currently-loaded folder.
+  /// All MediaStore songs cached this session (Android only; empty elsewhere or
+  /// before [_ensureAndroidSongsLoaded]). Used by Void search (B-009) to cover
+  /// the whole library, not just the loaded folder.
   List<LibrarySong> get androidSongs => List.unmodifiable(_androidSongs);
 
   Future<void> init() async {
-    if (_isAndroid) {
-      await _checkAndroidPermission();
-      if (hasPermission) {
-        // Check if library needs refreshing based on MediaStore timestamp
-        final needsRefresh = await _shouldRefreshLibrary();
-        if (needsRefresh) {
-          // Clear cache to force rescan
-          _androidSongs = [];
-        }
-        await _ensureAndroidSongsLoaded();
-        await loadRoot();
-      }
-    }
+    if (!isAndroid) return;
+    await _checkAndroidPermission();
+    if (!hasPermission) return;
+    // Force rescan when MediaStore is newer than last scan.
+    if (await _shouldRefreshLibrary()) _androidSongs = [];
+    await _ensureAndroidSongsLoaded();
+    await loadRoot();
   }
 
-  /// Called when the Library UI navigates to the "Folders" tab.
-  ///
-  /// Android-only: checks whether MediaStore changed and refreshes the library
-  /// if needed. If unchanged, this is a no-op.
+  /// On "Folders" tab navigation (Android-only): refresh if MediaStore changed,
+  /// else no-op.
   Future<void> onFoldersTabVisible() async {
-    if (!_isAndroid) return;
-    if (!hasPermission) return;
-    if (isScanning) return;
-
+    if (!isAndroid || !hasPermission || isScanning) return;
     try {
-      final changed = await _mediaStoreFreshness.consumeIfChanged();
-      if (changed) {
-        await refreshLibrary();
-      }
+      if (await _mediaStoreFreshness.consumeIfChanged()) await refreshLibrary();
     } catch (e) {
       debugPrint('Error checking MediaStore freshness: $e');
     }
   }
 
-  /// Check if library needs refreshing by comparing MediaStore timestamp with cached timestamp
-  Future<bool> _shouldRefreshLibrary() async {
-    try {
-      // Query a small sample of songs to get latest timestamp
-      // We'll get the first few and check their timestamps
-      final sampleSongs = await _audioQuery.querySongs(
+  /// All MediaStore songs via [_audioQuery], sorted ascending by the external
+  /// store. [ignoreCase] is passed through verbatim (null → package default).
+  Future<List<SongModel>> _querySongs({bool? ignoreCase}) => _audioQuery
+      .querySongs(
         sortType: null,
         orderType: OrderType.ASC_OR_SMALLER,
         uriType: UriType.EXTERNAL,
+        ignoreCase: ignoreCase,
       );
 
-      if (sampleSongs.isEmpty) {
-        // No songs in MediaStore, don't refresh
-        return false;
-      }
+  /// Newest MediaStore timestamp, or null if no songs / no timestamps.
+  Future<int?> _queryMaxSongTimestamp() async {
+    int? max;
+    for (final s in await _querySongs()) {
+      final t = (s.dateAdded ?? 0) > (s.dateModified ?? 0)
+          ? s.dateAdded
+          : s.dateModified;
+      if (t != null && (max == null || t > max)) max = t;
+    }
+    return max;
+  }
 
-      // Find the maximum timestamp across all songs
-      int? maxTimestamp;
-      for (final song in sampleSongs) {
-        final timestamp = (song.dateAdded ?? 0) > (song.dateModified ?? 0)
-            ? song.dateAdded
-            : song.dateModified;
-        if (timestamp != null) {
-          maxTimestamp = maxTimestamp == null
-              ? timestamp
-              : (timestamp > maxTimestamp ? timestamp : maxTimestamp);
-        }
-      }
-
-      if (maxTimestamp == null) {
-        // Can't determine timestamp, don't refresh
-        return false;
-      }
-
-      final lastScanTimestamp = libraryService.getLastScanTimestamp();
-      if (lastScanTimestamp == null) {
-        // No cached timestamp, need to scan
-        await libraryService.setLastScanTimestamp(maxTimestamp);
+  /// True if MediaStore has newer content than the cached scan timestamp.
+  Future<bool> _shouldRefreshLibrary() async {
+    try {
+      final max = await _queryMaxSongTimestamp();
+      if (max == null) return false;
+      final last = libraryService.getLastScanTimestamp();
+      if (last == null || max > last) {
+        await libraryService.setLastScanTimestamp(max);
         return true;
       }
-
-      // Refresh if MediaStore has newer content
-      if (maxTimestamp > lastScanTimestamp) {
-        await libraryService.setLastScanTimestamp(maxTimestamp);
-        return true;
-      }
-
       return false;
     } catch (e) {
       debugPrint('Error checking library timestamp: $e');
-      // On error, don't refresh (use cached data)
-      return false;
+      return false; // On error, use cached data.
     }
   }
 
   Future<void> _checkAndroidPermission() async {
     try {
-      final statuses = <Permission, PermissionStatus>{
-        for (final p in ownModePermissionList) p: await p.status,
+      final statuses = {
+        for (final perm in ownModePermissionList) perm: await perm.status,
       };
       hasPermission = computeOwnModeHasPermission(statuses);
-      _safeNotifyListeners();
     } catch (e) {
       debugPrint('Failed to check permissions: $e');
       hasPermission = false;
-      _safeNotifyListeners();
     }
+    _safeNotifyListeners();
   }
 
   Future<void> requestPermission() async {
     isLoading = true;
     error = null;
     _safeNotifyListeners();
-
     try {
-      // B-017: OWN-mode gate requests audio only. Mic + notification-listener
-      // are BACKGROUND-mode dependencies surfaced behind explicit buttons in
-      // settings — bundling them here used to block the library on a mic
-      // denial even though OWN mode doesn't capture audio.
-      final statuses = await ownModePermissionList.request();
-      hasPermission = computeOwnModeHasPermission(statuses);
-
+      // B-017: OWN-mode gate requests audio only (see ownModePermissionList).
+      hasPermission =
+          computeOwnModeHasPermission(await ownModePermissionList.request());
       if (hasPermission) {
         await _ensureAndroidSongsLoaded();
         await loadRoot();
@@ -265,38 +213,30 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> loadRoot() async {
-    if (_isAndroid) {
-      await _loadAndroidRoot();
-    }
+    if (isAndroid) await _loadAndroidRoot();
   }
 
   Future<void> loadFolder(String path) async {
     isLoading = true;
     error = null;
     _safeNotifyListeners();
-
     try {
-      if (_isAndroid) {
+      final LibraryListing listing;
+      if (isAndroid) {
         await _ensureAndroidSongsLoaded();
-        final listing = await libraryBrowser.buildVirtualListing(
+        // No filesystem fallback on Android — surface only MediaStore content
+        // so it stays a music player; an empty path renders empty rather than
+        // dumping into Alarms / Android / Notifications.
+        listing = await libraryBrowser.buildVirtualListing(
           basePath: path,
           songs: _androidSongs,
         );
-
-        // No filesystem fallback on Android — the player surfaces only what
-        // MediaStore knows about so it stays a music player, never a file
-        // browser. If MediaStore is empty for this path the listing renders
-        // empty and the user can refresh / use search instead of being
-        // dumped into Alarms / Android / Notifications / Ringtones.
-        currentPath = listing.path;
-        folders = listing.folders;
-        tracks = listing.tracks;
       } else {
-        final listing = await libraryBrowser.listFileSystem(path);
-        currentPath = listing.path;
-        folders = listing.folders;
-        tracks = listing.tracks;
+        listing = await libraryBrowser.listFileSystem(path);
       }
+      currentPath = listing.path;
+      folders = listing.folders;
+      tracks = listing.tracks;
     } catch (e) {
       error = '$e';
     } finally {
@@ -306,123 +246,86 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> navigateUp() async {
-    if (currentPath == null) return;
+    final path = currentPath;
+    if (path == null) return;
 
-    if (_isAndroid) {
-      final smartEntries = androidSmartRootSections
-          .expand((s) => s.entries)
-          .toSet();
-      if (smartEntries.contains(currentPath)) {
-        // If the user is at a smart-root entry, go back to smart roots list.
-        _clearListing();
-        _safeNotifyListeners();
-        return;
-      }
-    }
-
-    if (libraryService.rootsNotifier.value.containsKey(currentPath)) {
-      _clearListing();
-      _safeNotifyListeners();
+    // At a smart-root entry or a persisted root, go back to the roots list.
+    final atSmartRoot = isAndroid &&
+        androidSmartRootSections.expand((s) => s.entries).contains(path);
+    if (atSmartRoot || libraryService.rootsNotifier.value.containsKey(path)) {
+      _clearListingAndNotify();
       return;
     }
-
-    final parent = Directory(currentPath!).parent.path;
-    if (parent == currentPath) return;
-    await loadFolder(parent);
+    final parent = Directory(path).parent.path;
+    if (parent != path) await loadFolder(parent);
   }
 
   Future<List<AudioTrack>> tracksForCurrentPath() async {
-    if (currentPath == null) return [];
+    final path = currentPath;
+    if (path == null) return [];
 
-    if (_isAndroid) {
-      await _ensureAndroidSongsLoaded();
+    // macOS relies on the file system; reuse the current listing.
+    if (!isAndroid) return tracks;
 
-      // If the current listing already has tracks (e.g., from filesystem fallback), reuse it.
-      if (tracks.isNotEmpty && currentPath != null) {
-        final listCopy = List<AudioTrack>.from(tracks);
-        listCopy.sort((a, b) => a.title.compareTo(b.title));
-        return listCopy;
-      }
+    await _ensureAndroidSongsLoaded();
 
-      final extractor = createMetadataExtractor();
-      final filtered = <AudioTrack>[];
-      for (final song in _androidSongs.where(
-        (song) => song.path.startsWith(currentPath!),
-      )) {
-        try {
-          final track = await extractor.extractMetadata(song.path);
-          // Override the metadata title with the on-disk filename so the
-          // browser, hero, and search rows all show the user's name for
-          // the file rather than whatever ID3 tag the encoder buried in it.
-          filtered.add(AudioTrack(
-            path: track.path,
-            title: p.basenameWithoutExtension(track.path),
-            artist: track.artist,
-            isNotFound: track.isNotFound,
-          ));
-        } catch (e) {
-          filtered.add(AudioTrack(
-            path: song.path,
-            title: p.basenameWithoutExtension(song.path),
-          ));
-        }
-      }
-      filtered.sort((a, b) => a.title.compareTo(b.title));
-      return filtered;
+    // Reuse the current listing if it already has tracks.
+    if (tracks.isNotEmpty) {
+      return [...tracks]..sort((a, b) => a.title.compareTo(b.title));
     }
 
-    // For macOS we rely on the file system; use the current listing or let caller recurse.
-    return tracks;
+    final extractor = createMetadataExtractor();
+    final filtered = <AudioTrack>[];
+    for (final song in _androidSongs.where((s) => s.path.startsWith(path))) {
+      try {
+        final t = await extractor.extractMetadata(song.path);
+        // Use the on-disk filename as the title, not the ID3 tag.
+        filtered.add(AudioTrack(
+          path: t.path,
+          title: p.basenameWithoutExtension(t.path),
+          artist: t.artist,
+          isNotFound: t.isNotFound,
+        ));
+      } catch (_) {
+        filtered.add(AudioTrack(
+          path: song.path,
+          title: p.basenameWithoutExtension(song.path),
+        ));
+      }
+    }
+    return filtered..sort((a, b) => a.title.compareTo(b.title));
   }
 
-  Future<void> refreshLibrary() async {
-    await runRefreshLibraryFlow();
-  }
+  Future<void> refreshLibrary() => runRefreshLibraryFlow();
 
   Future<void> repairCurrentFolderListing() async {
-    if (!_isAndroid || !hasPermission) return;
-
     final path = currentPath;
-    if (path == null || isScanning) return;
+    if (!isAndroid || !hasPermission || path == null || isScanning) return;
 
     isScanning = true;
     error = null;
     _safeNotifyListeners();
-
     try {
-      final initialSignature = _currentListingSignature(path);
-      final started = await _androidFolderRescan(path);
-      if (!started) {
-        LoggingService().log(
-          tag: 'Library',
-          message: 'Folder rescan request failed for $path',
-          level: LogLevel.error,
-        );
+      final initial = _currentListingSignature(path);
+      if (!await _androidFolderRescan(path)) {
+        _log.severe('Folder rescan request failed for $path');
         error = 'Could not repair this folder listing. Try again in a moment.';
         return;
       }
 
-      var latestSignature = initialSignature;
+      var latest = initial;
       for (final delay in _folderRescanReloadDelays) {
         await _waitForFolderRescan(delay);
         await runRefreshLibraryFlow(
           manageScanningState: false,
           pathToReload: path,
         );
-
-        final refreshedSignature = _currentListingSignature(path);
-        if (refreshedSignature != initialSignature ||
-            refreshedSignature != latestSignature) {
-          break;
-        }
-        latestSignature = refreshedSignature;
+        final refreshed = _currentListingSignature(path);
+        if (refreshed != initial || refreshed != latest) break;
+        latest = refreshed;
       }
     } catch (e) {
-      LoggingService().log(
-        tag: 'Library',
-        message: 'Failed to repair folder listing for $path: $e',
-        level: LogLevel.error,
-      );
+      _log.severe('Failed to repair folder listing for $path: $e');
       error = 'Failed to repair this folder listing: $e';
     } finally {
       isScanning = false;
@@ -435,34 +338,18 @@ class LibraryController extends ChangeNotifier {
     bool manageScanningState = true,
     String? pathToReload,
   }) async {
-    await _refreshLibraryImpl(
-      manageScanningState: manageScanningState,
-      pathToReload: pathToReload,
-    );
-  }
-
-  Future<void> _refreshLibraryImpl({
-    required bool manageScanningState,
-    String? pathToReload,
-  }) async {
-    if (!_isAndroid || !hasPermission) return;
+    if (!isAndroid || !hasPermission) return;
 
     if (manageScanningState) {
       isScanning = true;
       error = null;
       _safeNotifyListeners();
     }
-
     try {
       _androidSongs = [];
       await _ensureAndroidSongsLoaded();
-
       final reloadPath = pathToReload ?? currentPath;
-      if (reloadPath != null) {
-        await loadFolder(reloadPath);
-      } else {
-        await loadRoot();
-      }
+      await (reloadPath != null ? loadFolder(reloadPath) : loadRoot());
     } catch (e) {
       error = 'Failed to refresh library: $e';
     } finally {
@@ -477,37 +364,16 @@ class LibraryController extends ChangeNotifier {
     if (_androidSongs.isNotEmpty) return;
     isScanning = true;
     _safeNotifyListeners();
-
     try {
-      // Run in isolate to avoid blocking UI thread
-      final token = RootIsolateToken.instance!;
-      _androidSongs = await compute(_loadAndroidSongsInIsolate, token);
-
-      // Update scan timestamp after successful load
+      // Run in isolate to avoid blocking the UI thread.
+      _androidSongs = await compute(
+        _loadAndroidSongsInIsolate,
+        RootIsolateToken.instance!,
+      );
       if (_androidSongs.isNotEmpty) {
         try {
-          final sampleSongs = await _audioQuery.querySongs(
-            sortType: null,
-            orderType: OrderType.ASC_OR_SMALLER,
-            uriType: UriType.EXTERNAL,
-          );
-          if (sampleSongs.isNotEmpty) {
-            // Find max timestamp
-            int? maxTimestamp;
-            for (final song in sampleSongs) {
-              final timestamp = (song.dateAdded ?? 0) > (song.dateModified ?? 0)
-                  ? song.dateAdded
-                  : song.dateModified;
-              if (timestamp != null) {
-                maxTimestamp = maxTimestamp == null
-                    ? timestamp
-                    : (timestamp > maxTimestamp ? timestamp : maxTimestamp);
-              }
-            }
-            if (maxTimestamp != null) {
-              await libraryService.setLastScanTimestamp(maxTimestamp);
-            }
-          }
+          final max = await _queryMaxSongTimestamp();
+          if (max != null) await libraryService.setLastScanTimestamp(max);
         } catch (e) {
           debugPrint('Error updating scan timestamp: $e');
         }
@@ -516,10 +382,8 @@ class LibraryController extends ChangeNotifier {
       debugPrint(
         'Error loading songs in isolate, falling back to main thread: $e',
       );
-      // Fallback to main thread if isolate fails
       try {
-        final loader = _androidSongLoader ?? _defaultAndroidSongLoader;
-        _androidSongs = await loader();
+        _androidSongs = await (_androidSongLoader ?? _defaultAndroidSongLoader)();
       } catch (e2) {
         debugPrint('Error loading songs: $e2');
         error = 'Failed to load songs: $e2';
@@ -530,60 +394,37 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
-  Future<List<LibrarySong>> _defaultAndroidSongLoader() async {
-    final songs = await _audioQuery.querySongs(
-      sortType: null,
-      orderType: OrderType.ASC_OR_SMALLER,
-      uriType: UriType.EXTERNAL,
-      ignoreCase: true,
-    );
-    return songs
-        .map((song) => LibrarySong(path: song.data, title: song.title))
-        .toList();
-  }
+  Future<List<LibrarySong>> _defaultAndroidSongLoader() async =>
+      (await _querySongs(ignoreCase: true))
+          .map((s) => LibrarySong(path: s.data, title: s.title))
+          .toList();
 
   Future<void> _loadAndroidRoot() async {
     try {
       final roots = await (_androidRootsLoader ?? _defaultAndroidRootsLoader)();
       if (roots.isNotEmpty && _androidSongs.isNotEmpty) {
-        // Compute smart roots (closest music folders) per device/mount.
+        // Smart roots (closest music folders) per device/mount.
         androidSmartRootSections = AndroidSmartRoots.compute(
           deviceRoots: roots,
           songs: _androidSongs,
           maxEntriesPerDevice: 5,
         );
-
         final smartEntries =
             androidSmartRootSections.expand((s) => s.entries).toList()..sort();
 
-        if (smartEntries.isEmpty) {
-          // No music-bearing smart roots: leave the listing empty so the
-          // user sees a "no music found" state instead of the device root
-          // filesystem. Pre-fix, this fell through to `loadFolder(deviceRoot)`
-          // which produced the unwanted "Alarms / Android / Notifications /
-          // Ringtones" Android-file-explorer view (B-001).
-          _clearListing();
-          _safeNotifyListeners();
-          return;
-        }
-
+        // B-001: with no music-bearing smart roots, leave the listing empty
+        // ("no music found") rather than falling through to the device-root
+        // filesystem (the unwanted Alarms / Android / Notifications view).
         if (smartEntries.length == 1) {
-          // Zero-click: if there's exactly one entry overall, open it immediately.
+          // Zero-click: open the sole entry immediately.
           initialAndroidRoot = smartEntries.single;
           await loadFolder(initialAndroidRoot!);
           return;
         }
-
-        // Otherwise show the smart-roots list (root view).
-        _clearListing();
-        _safeNotifyListeners();
-        return;
+        // Empty → no-music state; multiple → smart-roots list.
       }
-
-      // No songs and/or no roots → empty smart-roots view. We do NOT open a
-      // filesystem listing on Android (see comment in `loadFolder`).
-      _clearListing();
-      _safeNotifyListeners();
+      // No songs/roots → empty smart-roots view (no filesystem listing).
+      _clearListingAndNotify();
     } catch (e) {
       debugPrint('Failed to load Android root: $e');
     }
@@ -591,82 +432,61 @@ class LibraryController extends ChangeNotifier {
 
   Future<List<String>> _defaultAndroidRootsLoader() async {
     try {
-      final Set<String> roots = <String>{};
+      final roots = <String>{};
 
-      // 1) App/API-reported external storage dirs (often primary)
+      // 1) App/API-reported external storage dirs (often primary).
       try {
         final paths = await ExternalPath.getExternalStorageDirectories();
-        if (paths != null) {
-          roots.addAll(paths.where((p) => p.isNotEmpty));
-        }
-      } catch (_) {
-        // ignore
-      }
+        if (paths != null) roots.addAll(paths.where((p) => p.isNotEmpty));
+      } catch (_) {}
 
-      // 2) Heuristic: enumerate /storage mount points including USB volumes
+      // 2) Enumerate /storage mount points including USB volumes.
       try {
         final storageDir = Directory('/storage');
         if (await storageDir.exists()) {
-          final entries = storageDir.listSync(followLinks: false);
-          for (final entity in entries) {
-            if (entity is Directory) {
-              final name = entity.uri.pathSegments.isNotEmpty
-                  ? entity.uri.pathSegments.last
-                  : entity.path.split('/').last;
-              // Handle emulated -> emulated/0
-              if (name == 'emulated') {
-                final emu0 = Directory('/storage/emulated/0');
-                if (emu0.existsSync()) {
-                  roots.add(emu0.path);
-                }
-                continue;
-              }
-              // Include other mount points (e.g., XXXX-XXXX, sdcard1)
-              roots.add(entity.path);
+          for (final entity in storageDir.listSync(followLinks: false)) {
+            if (entity is! Directory) continue;
+            final name = entity.uri.pathSegments.isNotEmpty
+                ? entity.uri.pathSegments.last
+                : entity.path.split('/').last;
+            if (name == 'emulated') {
+              // Map emulated -> emulated/0.
+              final emu0 = Directory('/storage/emulated/0');
+              if (emu0.existsSync()) roots.add(emu0.path);
+            } else {
+              roots.add(entity.path); // e.g. XXXX-XXXX, sdcard1
             }
           }
         }
-      } catch (_) {
-        // ignore
-      }
+      } catch (_) {}
 
-      // 3) Fallback to common primary path if nothing found
+      // 3) Fallback to common primary path if nothing found.
       if (roots.isEmpty) {
         final fallback = Directory('/storage/emulated/0');
-        if (fallback.existsSync()) {
-          roots.add(fallback.path);
-        }
+        if (fallback.existsSync()) roots.add(fallback.path);
       }
-
-      // Return deterministic order for UI
-      final list = roots.toList();
-      list.sort();
-      return list;
+      return roots.toList()..sort();
     } catch (_) {
       return [];
     }
   }
 
-  void _clearListing() {
+  void _clearListingAndNotify() {
     currentPath = null;
     folders = [];
     tracks = [];
+    _safeNotifyListeners();
   }
 
   String _currentListingSignature(String expectedPath) {
-    if (currentPath != expectedPath) {
-      return 'path=${currentPath ?? ''}';
-    }
-
-    final folderPaths = folders.map((folder) => folder.path).toList()..sort();
-    final trackPaths = tracks.map((track) => track.path).toList()..sort();
-    return '$expectedPath|folders=${folderPaths.join(',')}|tracks=${trackPaths.join(',')}';
+    if (currentPath != expectedPath) return 'path=${currentPath ?? ''}';
+    String sorted(Iterable<String> paths) => (paths.toList()..sort()).join(',');
+    return '$expectedPath|folders=${sorted(folders.map((f) => f.path))}'
+        '|tracks=${sorted(tracks.map((t) => t.path))}';
   }
 
   void _safeNotifyListeners() {
-    if (!_disposed) {
-      notifyListeners();
-    }
+    if (!_disposed) notifyListeners();
   }
 
   @override

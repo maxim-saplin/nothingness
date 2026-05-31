@@ -65,25 +65,22 @@ class SpectrumSettings {
     SpectrumColorScheme? colorScheme,
     BarStyle? barStyle,
     DecaySpeed? decaySpeed,
-  }) {
-    return SpectrumSettings(
-      noiseGateDb: noiseGateDb ?? this.noiseGateDb,
-      barCount: barCount ?? this.barCount,
-      colorScheme: colorScheme ?? this.colorScheme,
-      barStyle: barStyle ?? this.barStyle,
-      decaySpeed: decaySpeed ?? this.decaySpeed,
-    );
-  }
+  }) =>
+      SpectrumSettings(
+        noiseGateDb: noiseGateDb ?? this.noiseGateDb,
+        barCount: barCount ?? this.barCount,
+        colorScheme: colorScheme ?? this.colorScheme,
+        barStyle: barStyle ?? this.barStyle,
+        decaySpeed: decaySpeed ?? this.decaySpeed,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'noiseGateDb': noiseGateDb,
-      'barCount': barCount.count,
-      'colorScheme': colorScheme.name,
-      'barStyle': barStyle.name,
-      'decaySpeed': decaySpeed.value,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'noiseGateDb': noiseGateDb,
+    'barCount': barCount.count,
+    'colorScheme': colorScheme.name,
+    'barStyle': barStyle.name,
+    'decaySpeed': decaySpeed.value,
+  };
 
   String toJsonString() => jsonEncode(toJson());
 

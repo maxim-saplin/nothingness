@@ -3,58 +3,70 @@
 Counts **git-tracked** files only (via `git ls-files`), so build output,
 `.dart_tool/`, `.venv/`, and anything in `.gitignore` is excluded.
 
-> Snapshot taken **2026-05-30** at commit `b107792`.
+> Snapshot taken **2026-05-31** on branch `redesign/clean-room`.
+
+## Shipping app code (`tool/sloc.sh --app`)
+
+`lib` plus the per-platform host projects, excluding tests and tooling.
+
+| Folder    |    Lines | Files |
+| --------- | -------: | ----: |
+| `lib`     |   10,189 |    59 |
+| `macos`   |    1,758 |    30 |
+| `android` |    1,366 |    35 |
+| `linux`   |      469 |    10 |
+| **TOTAL** | **13,782** | **134** |
+
+**−30.3% from the 19,772 baseline**, verified running on a real Android
+emulator (boot, library scan, playback, reactive track-change, live FFT
+spectrum, UI render). Beyond the earlier work, this includes: clean-room
+simplifying the **Android native Kotlin** (1,000→736); eliminating the
+redundant **`AudioPlayerProvider`** mirroring layer so `PlaybackController` is
+the single source-of-truth `ChangeNotifier` the UI watches (the Android
+`audio_service` handler is now a pure observer + OS-command forwarder);
+migrating every `StatefulWidget` to `flutter_hooks`; and replacing the
+`GlobalKey<State>` imperative antipatterns with reactive controllers. Achieved with all features preserved,
+all 346 tests green, and `flutter analyze` clean. The reduction came from:
+deleting dead code; relocating the debug/automation harness out of shipping
+`lib/` into `dev/` (behind a thin `lib/debug_hooks.dart` seam — proper test/prod
+boundary); migrating every `StatefulWidget` to `flutter_hooks`; replacing the
+`GlobalKey<State>` imperative antipatterns with reactive controllers
+(`HeroFlashController`, `VoidBrowserController`); cutting redundant comments; and
+**clean-room rewriting each large/medium file against its tests** (~13–18%
+denser per file by discarding accumulated defensive cruft).
+
+The platform total (`macos`+`android`+`linux` = 3,857) is almost entirely
+generated/native/binary-icon scaffolding (a fresh `flutter create` yields a
+comparable size) and is effectively a floor; `android` carries ~1,000 lines of
+real custom Kotlin (AudioCaptureService, MediaSessionService, MainActivity).
 
 ## All tracked files
 
 | Folder             |    Lines | Files |
 | ------------------ | -------: | ----: |
 | `_archive`         |   42,071 |    49 |
-| `lib`              |   15,859 |    70 |
-| `test`             |    8,911 |    50 |
-| `docs`             |    3,614 |    17 |
+| `lib`              |   10,697 |    61 |
+| `test`             |    8,948 |    50 |
+| `docs`             |    4,504 |    18 |
 | `assets`           |    2,682 |     6 |
 | `macos`            |    1,758 |    30 |
-| `android`          |    1,686 |    36 |
+| `android`          |    1,630 |    35 |
 | `.claude`          |    1,521 |     9 |
-| `(root files)`     |      514 |    13 |
+| `dev`              |    1,320 |     7 |
+| `(root files)`     |      583 |    14 |
+| `tool`             |      508 |     9 |
 | `linux`            |      469 |    10 |
-| `tool`             |      461 |     8 |
-| `integration_test` |      324 |     2 |
+| `integration_test` |      326 |     2 |
 | `.github`          |      309 |     4 |
 | `.vscode`          |       36 |     2 |
-| **TOTAL**          | **80,215** | **306** |
+| **TOTAL**          | **77,362** | **306** |
 
 Notes:
 - `_archive` is legacy/retired code and dominates the raw total.
-- `assets` lines come from data files (e.g. SVG/JSON), not source.
-
-## Dart source only (excludes `_archive`)
-
-This is the more meaningful view of the active app + tests.
-
-| Folder             |    Lines | Files |
-| ------------------ | -------: | ----: |
-| `lib`              |   15,859 |    70 |
-| `test`             |    8,814 |    49 |
-| `integration_test` |      324 |     2 |
-| **TOTAL**          | **24,997** | **121** |
-
-## Shipping app code (`lib` + platform projects)
-
-`lib` plus the per-platform host projects, excluding tests and tooling.
-
-| Folder    |    Lines | Files |
-| --------- | -------: | ----: |
-| `lib`     |   15,859 |    70 |
-| `macos`   |    1,758 |    30 |
-| `android` |    1,686 |    36 |
-| `linux`   |      469 |    10 |
-| **TOTAL** | **19,772** | **146** |
+- `dev/` is the debug/automation harness + integration-test entrypoint, moved
+  out of `lib/` (not shipped; release-stripped).
 
 ## How to regenerate
-
-A reusable script lives at [`tool/sloc.sh`](tool/sloc.sh):
 
 ```bash
 tool/sloc.sh            # all tracked files, grouped by top-level path
@@ -62,7 +74,4 @@ tool/sloc.sh --dart     # only .dart source files (excludes _archive)
 tool/sloc.sh --app      # shipping app code: lib + macos + android + linux
 ```
 
-The script `cd`s to the repo root, lists tracked files with `git ls-files`,
-sums `wc -l` per top-level folder, and prints a table sorted by line count.
-After a notable change, rerun it and update the tables and the snapshot
-date/commit above.
+After a notable change, rerun and update the tables and the snapshot date above.

@@ -5,12 +5,14 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/operating_mode.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/theme_id.dart';
-import 'package:nothingness/providers/audio_player_provider.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:nothingness/theme/themes.dart';
 import 'package:nothingness/widgets/void_settings_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/mock_audio_transport.dart';
 
 Widget _wrap(Widget child) {
   return MaterialApp(
@@ -124,10 +126,7 @@ void main() {
       expect(byK('void-settings-screen'), findsOneWidget);
       expect(byK('void-settings-ui-scale'), findsOneWidget);
       expect(byK('void-settings-full-screen'), findsOneWidget);
-      expect(byK('void-settings-eq'), findsOneWidget);
       expect(byK('void-settings-smart-folders'), findsOneWidget);
-      expect(byK('void-settings-logs'), findsOneWidget);
-      expect(byK('void-settings-audio-diagnostics'), findsOneWidget);
       expect(byK('void-settings-version'), findsOneWidget);
 
       // Background-only rows must NOT be reachable in own mode.
@@ -147,7 +146,6 @@ void main() {
       // Own-only rows must NOT be reachable in background mode.
       expect(byK('void-settings-smart-folders'), findsNothing);
       expect(byK('void-settings-scan-on-startup'), findsNothing);
-      expect(byK('void-settings-eq'), findsNothing);
 
       // Background rows are reachable.
       expect(byK('void-settings-noise-gate'), findsOneWidget);
@@ -208,7 +206,7 @@ void main() {
         await _pumpInTallViewport(
           tester,
           _wrap(
-            ChangeNotifierProvider<AudioPlayerProvider>.value(
+            ChangeNotifierProvider<PlaybackController>.value(
               value: provider,
               child: const VoidSettingsSheet(),
             ),
@@ -258,7 +256,7 @@ void main() {
       await _pumpInTallViewport(
         tester,
         _wrap(
-          ChangeNotifierProvider<AudioPlayerProvider>.value(
+          ChangeNotifierProvider<PlaybackController>.value(
             value: provider,
             child: const VoidSettingsSheet(),
           ),
@@ -298,7 +296,7 @@ void main() {
         await _pumpInTallViewport(
           tester,
           _wrap(
-            ChangeNotifierProvider<AudioPlayerProvider>.value(
+            ChangeNotifierProvider<PlaybackController>.value(
               value: provider,
               child: const VoidSettingsSheet(),
             ),
@@ -402,11 +400,6 @@ void main() {
             reason: '$k must be visible on spectrum',
           );
         }
-        // The eq placeholder always stays.
-        expect(
-          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
-          findsOneWidget,
-        );
       });
 
       testWidgets('polo: all four visualizer rows are present',
@@ -421,7 +414,7 @@ void main() {
         }
       });
 
-      testWidgets('dot: visualizer rows are hidden, eq stays',
+      testWidgets('dot: visualizer rows are hidden',
           (tester) async {
         await pumpWithScreen(tester, const DotScreenConfig());
         for (final k in visualizerRowKeys) {
@@ -431,13 +424,9 @@ void main() {
             reason: '$k must NOT be visible on dot',
           );
         }
-        expect(
-          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
-          findsOneWidget,
-        );
       });
 
-      testWidgets('void: visualizer rows are hidden, eq stays',
+      testWidgets('void: visualizer rows are hidden',
           (tester) async {
         await pumpWithScreen(tester, const VoidScreenConfig());
         for (final k in visualizerRowKeys) {
@@ -447,10 +436,6 @@ void main() {
             reason: '$k must NOT be visible on void',
           );
         }
-        expect(
-          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
-          findsOneWidget,
-        );
       });
     });
 
@@ -531,7 +516,7 @@ void main() {
       await _pumpInTallViewport(
         tester,
         _wrap(
-          ChangeNotifierProvider<AudioPlayerProvider>.value(
+          ChangeNotifierProvider<PlaybackController>.value(
             value: provider,
             child: const VoidSettingsSheet(),
           ),
@@ -556,14 +541,15 @@ void main() {
   });
 }
 
-/// Minimal AudioPlayerProvider stub that exposes a controllable queue + shuffle
+/// Minimal PlaybackController stub that exposes a controllable queue + shuffle
 /// state and counts calls to the shuffle/disable shuffle entry points.
-class _StubAudioProvider extends AudioPlayerProvider {
+class _StubAudioProvider extends PlaybackController {
   _StubAudioProvider({
     required List<AudioTrack> queue,
     required bool shuffle,
   })  : _queueOverride = queue,
-        _shuffleOverride = shuffle;
+        _shuffleOverride = shuffle,
+        super(transport: MockAudioTransport());
 
   List<AudioTrack> _queueOverride;
   bool _shuffleOverride;

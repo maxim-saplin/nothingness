@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/services/playback_controller.dart';
-import 'package:nothingness/testing/fake_audio_transport.dart';
+import '../../dev/fake_audio_transport.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +29,6 @@ void main() {
     expect(tracks.any((t) => t.path.endsWith('a.mp3')), isTrue);
     expect(tracks.any((t) => t.path.endsWith('c.flac')), isTrue);
 
-    await controller.dispose();
+    await controller.shutdown();
   });
 }

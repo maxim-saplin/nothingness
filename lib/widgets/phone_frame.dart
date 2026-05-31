@@ -1,13 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// B-042: renders [child] inside a letterboxed narrow-tall "phone frame" of
-/// [frame] logical pixels, centered in the available space, so portrait-phone
-/// layout can be exercised on the desktop build. When [frame] is null the
-/// child is returned unchanged (full window).
-///
-/// The [MediaQuery] size override makes `MediaQuery.sizeOf` consumers (responsive
-/// layout, typography) see the phone dimensions rather than the desktop window.
-/// Debug/desktop tooling only — `main.dart` gates this behind `kDebugMode`.
+/// B-042: renders [child] inside a centered, letterboxed narrow-tall "phone frame" of [frame] logical pixels so portrait-phone layout can be exercised on the desktop build; null [frame] returns the child unchanged. The [MediaQuery] size override makes `MediaQuery.sizeOf` consumers see phone dimensions. Debug/desktop tooling only — gated behind `kDebugMode` in `main.dart`.
 class PhoneFrame extends StatelessWidget {
   const PhoneFrame({
     super.key,
@@ -27,10 +20,7 @@ class PhoneFrame extends StatelessWidget {
     return ColoredBox(
       color: letterboxColor,
       child: Center(
-        // FittedBox scales the fixed phone-sized box down to fit the (often
-        // shorter, landscape) desktop window while preserving aspect ratio —
-        // the same letterbox trick the Polo hero uses. The child still lays
-        // out at full phone logical size; only the final pixels are scaled.
+        // FittedBox scales the fixed phone-sized box to fit the desktop window, preserving aspect ratio; the child still lays out at full phone size, only final pixels are scaled.
         child: FittedBox(
           fit: BoxFit.contain,
           child: SizedBox(

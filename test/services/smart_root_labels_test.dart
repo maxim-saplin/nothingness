@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:nothingness/services/smart_root_labels.dart';
+import 'package:nothingness/services/android_smart_roots.dart';
 
 void main() {
   group('labelForPath', () {
@@ -56,29 +56,6 @@ void main() {
     test('trailing slash is tolerated', () {
       final label = labelForPath('/storage/emulated/0/Music/');
       expect(label.display, 'Music');
-    });
-  });
-
-  group('dedupeSmartRoots', () {
-    test('collapses /storage/A/Music and /storage/A/music to one entry', () {
-      final input = <String>[
-        '/storage/A/Music',
-        '/storage/A/music',
-      ];
-      final out = dedupeSmartRoots<String>(input, (s) => s);
-      expect(out, <String>['/storage/A/Music']);
-    });
-
-    test('collapses entries differing only by whitespace', () {
-      final input = <String>['Music', '  Music  ', 'music'];
-      final out = dedupeSmartRoots<String>(input, (s) => s);
-      expect(out, <String>['Music']);
-    });
-
-    test('preserves order and unrelated entries', () {
-      final input = <String>['Music', 'Podcasts', 'music', 'Audiobooks'];
-      final out = dedupeSmartRoots<String>(input, (s) => s);
-      expect(out, <String>['Music', 'Podcasts', 'Audiobooks']);
     });
   });
 

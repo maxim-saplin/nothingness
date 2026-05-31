@@ -6,7 +6,7 @@ This document describes the folder browsing pipeline after moving MediaStore log
 
 - **LibraryBrowser (service)**: Pure logic for building folder listings from MediaStore song paths (Android) or from the local file system (macOS). Returns `LibraryListing` with folders and `AudioTrack` items.
 - **LibraryController (ChangeNotifier)**: Owns library state (current path, loading, errors, folders, tracks, permissions). Delegates all data work to `LibraryBrowser`, handles permission requests on Android, and exposes navigation helpers for the UI.
-- **VoidBrowser (widget)** (`lib/widgets/void_browser.dart`): Presentation-only. Listens to `LibraryController` via Provider, renders the breadcrumb, folders, and tracks, and triggers actions such as `requestPermission`, `loadFolder`, `navigateUp`, `repairCurrentFolderListing`, and `tracksForCurrentPath`. Supports a sliding-up presentation (collapsed hint band → expanded drawer) controlled by the `BrowserPresentation` setting, plus full-name recursive search across the entire library (not just the current folder). Replaces the legacy `LibraryPanel` widget.
+- **VoidBrowser (widget)** (`lib/widgets/void_browser.dart`): Presentation-only `HookWidget`. Listens to `LibraryController` via Provider, renders the breadcrumb, folders, and tracks, and triggers actions such as `requestPermission`, `loadFolder`, `navigateUp`, `repairCurrentFolderListing`, and `tracksForCurrentPath`. Supports a sliding-up presentation (collapsed hint band → expanded drawer) controlled by the `BrowserPresentation` setting, plus full-name recursive search across the entire library (not just the current folder). A `VoidBrowserController` lets the shell drive scroll-to-track reactively (no `GlobalKey<State>`).
 - **LibraryService (macOS bookmarks)**: Persists user-selected roots on macOS; the controller consults it when navigating back to root.
 - **PlatformChannels (Android MediaStore bridge)**: Exposes MediaStore version checks, change notifications, and the folder-level rescan method used by the manual repair action.
 
@@ -38,7 +38,7 @@ This document describes the folder browsing pipeline after moving MediaStore log
 
 1. User picks a folder (persisted by `LibraryService`).
 2. Controller calls `LibraryBrowser.listFileSystem()` to read folders/files directly from disk.
-3. UI renders folders/files; **Play All** uses the existing recursive scan in `AudioPlayerProvider`.
+3. UI renders folders/files; **Play All** uses the existing recursive scan and queues the tracks into `PlaybackController`.
 
 ## Rationale
 

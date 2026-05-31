@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/audio_track.dart';
-import '../providers/audio_player_provider.dart';
-import '../theme/app_palette.dart';
+import 'package:nothingness/models/audio_track.dart';
+import 'package:nothingness/services/playback_controller.dart';
+import 'package:nothingness/theme/app_palette.dart';
 import 'playback_diagnostics.dart';
 import 'test_harness.dart';
 
@@ -20,13 +20,13 @@ class TestKeys {
 
 /// Small always-on overlay for emulator automation.
 ///
-/// This is only used from `main_test.dart` and is not part of the production app.
+/// This is only used from `dev/main_test.dart` and is not part of the production app.
 class TestOverlay extends StatelessWidget {
   const TestOverlay({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<PlaybackController>();
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -144,9 +144,9 @@ class _QueueList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<PlaybackController>();
     final palette = Theme.of(context).extension<AppPalette>();
-    // Test overlay is only mounted from main_test.dart, which always wraps
+    // Test overlay is only mounted from dev/main_test.dart, which always wraps
     // the app in a themed MaterialApp; the fallback is purely defensive.
     final activeColor = palette?.accent ?? Colors.greenAccent;
     return ListView.builder(
