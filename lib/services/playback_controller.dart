@@ -131,14 +131,15 @@ class PlaybackController extends ChangeNotifier {
 
   // Operation generation to ignore stale async continuations (rapid taps).
   int _opGeneration = 0;
-  // B-048: coalesce a burst of user next/previous taps. Without this each tap
-  // spawns its own playFromQueueIndex → load chain that serializes as one
-  // blocking transaction per tap on the UI isolate. Keep only the latest target;
-  // a single in-flight worker loads it, and taps arriving mid-load just retarget
-  // and return at once.
-  int? _navTarget;
+  // B-048: a next/previous tap advances the index IMMEDIATELY (cheap notifier
+  // update → the hero moves per tap, so a burst of 5 taps skips 5 forward) and
+  // DEBOUNCES the heavy transport load, so a whole burst triggers a single load
+  // (the track you land on) instead of one decode/isolate-spawn per tap — which
+  // is what froze the UI thread.
+  Timer? _navDebounce;
   int _navDirection = 1;
-  bool _navigating = false;
+  Completer<void>? _navDone;
+  static const Duration _navLoadDelay = Duration(milliseconds: 180);
   // B-036: true while an end-triggered advance is in flight; guards against
   // duplicate/stale `ended` events double-advancing and skipping a track.
   bool _handlingEnded = false;
@@ -254,6 +255,10 @@ class PlaybackController extends ChangeNotifier {
   void dispose() {
     _positionTimer?.cancel();
     _positionTimer = null;
+    _navDebounce?.cancel();
+    _navDebounce = null;
+    if (_navDone != null && !_navDone!.isCompleted) _navDone!.complete();
+    _navDone = null;
     if (_uiWired) {
       _uiWired = false;
       for (final n in _uiNotifiers) {
@@ -478,31 +483,38 @@ class PlaybackController extends ChangeNotifier {
     unawaited(_transport.preload(track.path));
   }
 
-  // B-048: coalesce rapid user navigation. A burst of next/previous taps keeps
-  // only the latest [target]; the in-flight worker loads it and any tap arriving
-  // mid-load just retargets and returns at once, so the UI isolate isn't blocked
-  // per tap and at most the in-flight load + one final load run. Auto-advance
-  // (ended events) calls [playFromQueueIndex] directly and is unaffected.
-  Future<void> _navigate(int target, int direction) async {
-    _navTarget = target;
+  // B-048: a user next/previous step. Advance the index now (the hero updates
+  // immediately, so rapid taps feel instant and skip per-tap) and debounce the
+  // heavy transport load via [_runNavLoad] so a burst loads only the track you
+  // land on. The returned future completes when that single load finishes, so
+  // `await next()/previous()` still settles on the played track.
+  Future<void> _navStep(int target, int direction) {
     _navDirection = direction;
-    if (_navigating) return; // the running worker will pick up the latest target
-    _navigating = true;
-    try {
-      while (_navTarget != null) {
-        final t = _navTarget!;
-        final d = _navDirection;
-        _navTarget = null;
-        await playFromQueueIndex(t, isAutoSkip: true, direction: d);
-      }
-    } finally {
-      _navigating = false;
-    }
+    _endedAtQueueTailAt = null;
+    ++_opGeneration; // invalidate any in-flight load continuation
+    _playlist.setCurrentOrderIndex(target); // instant per-tap hero advance
+    _navDebounce?.cancel();
+    final done = _navDone ??= Completer<void>();
+    _navDebounce = Timer(_navLoadDelay, _runNavLoad);
+    return done.future;
+  }
+
+  void _runNavLoad() {
+    _navDebounce = null;
+    final c = _navDone;
+    _navDone = null;
+    final idx = _playlist.currentOrderIndexNotifier.value;
+    final f = idx == null
+        ? Future<void>.value()
+        : playFromQueueIndex(idx, isAutoSkip: true, direction: _navDirection);
+    f.whenComplete(() {
+      if (c != null && !c.isCompleted) c.complete();
+    });
   }
 
   Future<void> _stepToPreviousIndex() {
     final target = _playlist.previousOrderIndex();
-    return target == null ? Future<void>.value() : _navigate(target, -1);
+    return target == null ? Future<void>.value() : _navStep(target, -1);
   }
 
   // ---- Public transport controls --------------------------------------------
@@ -537,7 +549,7 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
     final target = _playlist.nextOrderIndex();
-    if (target != null) await _navigate(target, 1);
+    if (target != null) await _navStep(target, 1);
   }
 
   Future<void> previous() async {

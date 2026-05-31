@@ -208,35 +208,32 @@ void main() {
     expect(transport.preloadCalls, contains('/path/track_2.mp3'));
   });
 
-  test('B-048: a burst of next() taps coalesces — no per-tap load pile-up',
+  test('B-048: a burst of next() taps advances per-tap but loads once',
       () async {
-    final tracks = createTracks(5);
-    // A load window wide enough that the burst piles up while the first load is
-    // still in flight — that is the rapid-tap scenario.
-    transport.loadDelay = const Duration(milliseconds: 60);
+    final tracks = createTracks(6);
+    transport.loadDelay = const Duration(milliseconds: 10);
     await controller.setQueue(tracks);
     await pumpUntil(() => controller.currentIndexNotifier.value == 0);
 
     transport.loadCalls.clear();
 
-    // Fire four next() taps in one synchronous burst (un-awaited), as a rapid
-    // finger would. Pre-fix each spawned its own load chain (track_1..track_4);
-    // with coalescing only the in-flight load (track_1) + the latest target
-    // (track_2) run, and taps 2..4 return immediately.
-    final burst = <Future<void>>[
-      controller.next(),
-      controller.next(),
-      controller.next(),
-      controller.next(),
-    ];
-    await Future.wait(burst);
+    // Five rapid taps, as a fast finger would (the first four un-awaited). Each
+    // tap advances the index immediately; the heavy load is debounced so the
+    // whole burst loads only the track we land on — no per-tap decode pile-up.
+    controller.next();
+    controller.next();
+    controller.next();
+    controller.next();
+    await controller.next();
     await pumpUntil(() => controller.isPlayingNotifier.value &&
-        controller.currentIndexNotifier.value == 2);
+        controller.currentIndexNotifier.value == 5);
 
-    expect(controller.currentIndexNotifier.value, 2,
-        reason: 'burst coalesces to in-flight load (1) + latest target (2)');
-    expect(transport.loadCalls, ['/path/track_1.mp3', '/path/track_2.mp3'],
-        reason: 'intermediate targets must not each load (no pile-up)');
+    // Per-tap advance: 5 taps from index 0 → index 5.
+    expect(controller.currentIndexNotifier.value, 5,
+        reason: 'each tap advances the index immediately');
+    // Debounced: the burst loads only the landed track, not every intermediate.
+    expect(transport.loadCalls, ['/path/track_5.mp3'],
+        reason: 'one load for the whole burst (the track we land on)');
     expect(controller.isPlayingNotifier.value, true);
   });
 

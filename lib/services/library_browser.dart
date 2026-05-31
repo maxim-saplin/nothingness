@@ -62,18 +62,22 @@ class LibraryBrowser {
       final slash = relative.indexOf('/');
       if (slash < 0) {
         if (!_isSupported(song.path)) continue;
-        // Keep MediaStore artist for the hero subtitle, but title from the
-        // on-disk filename (minus extension) rather than the ID3 tag, which can
-        // diverge from what the user named the file.
-        String artist = '';
+        // B-047: take the extractor's full title AND artist so the
+        // `useFilenameForMetadata` setting actually decides the source —
+        // filename parsing (default) or ID3 tags. Previously the title was
+        // hardcoded to the raw filename, which kept the track-number/artist
+        // prefix and ignored the setting. Fall back to the bare filename only
+        // when extraction throws.
+        AudioTrack track;
         try {
-          artist = (await extractor.extractMetadata(song.path)).artist;
-        } catch (_) {}
-        tracks.add(AudioTrack(
-          path: song.path,
-          title: p.basenameWithoutExtension(song.path),
-          artist: artist,
-        ));
+          track = await extractor.extractMetadata(song.path);
+        } catch (_) {
+          track = AudioTrack(
+            path: song.path,
+            title: p.basenameWithoutExtension(song.path),
+          );
+        }
+        tracks.add(track);
       } else {
         final childName = relative.substring(0, slash);
         final childPath = p.join(base, childName);

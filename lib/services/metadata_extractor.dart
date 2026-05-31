@@ -103,6 +103,11 @@ String _stripExtensions(String name) {
 
 /// Returns `(artist, title)`; a null title means "use the full basename".
 (String, String?) _splitFilename(String base) {
+  // B-047: drop a leading track-number prefix ("02 - ", "03. ", "1) ") so it is
+  // not mistaken for the artist. Requires 1-3 digits immediately followed by a
+  // separator, so real names like "50 Cent - …" or "2Pac - …" are left alone.
+  base = base.replaceFirst(RegExp(r'^\s*\d{1,3}\s*[-.)]\s*'), '');
+
   // First separator from the left: '-', '−' or '—'.
   final sepIndex = [base.indexOf('-'), base.indexOf('−'), base.indexOf('—')]
       .where((i) => i >= 0)

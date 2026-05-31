@@ -79,6 +79,27 @@ void main() {
       expect(track.title, 'Rape me');
     });
 
+    // B-047: a leading track number must not become the artist — strip it, then
+    // split artist/title from the rest.
+    test('strips a leading track number ("NN - Artist - Title")', () async {
+      final track = await extractor.extractMetadata(
+          '/path/02 - Nirvana - Smells Like Teen Spirit.mp3');
+      expect(track.artist, 'Nirvana');
+      expect(track.title, 'Smells Like Teen Spirit');
+    });
+
+    test('track number with no artist ("NN - Title") → empty artist', () async {
+      final track = await extractor.extractMetadata('/path/01 - intro.mp3');
+      expect(track.artist, '');
+      expect(track.title, 'intro');
+    });
+
+    test('does NOT strip a numeric artist that is not a track number', () async {
+      final track = await extractor.extractMetadata('/path/50 Cent - In Da Club.mp3');
+      expect(track.artist, '50 Cent');
+      expect(track.title, 'In Da Club');
+    });
+
     test('uses entire filename as title when no separator found', () async {
       final track = await extractor.extractMetadata('/path/SongTitle.mp3');
       expect(track.title, 'SongTitle');

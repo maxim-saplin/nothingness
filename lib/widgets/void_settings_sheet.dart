@@ -422,7 +422,7 @@ class VoidSettingsSheet extends HookWidget {
           ],
 
           _Group('LIBRARY'),
-          _Toggle('void-settings-scan-on-startup', 'filename fallback',
+          _Toggle('void-settings-scan-on-startup', 'prefer filename over tags',
               settings.useFilenameForMetadataNotifier.value,
               () => settings.setUseFilenameForMetadata(
                   !settings.useFilenameForMetadataNotifier.value)),
