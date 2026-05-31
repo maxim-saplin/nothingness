@@ -251,21 +251,6 @@ SmartRootLabel labelForPath(String absolutePath, {bool isRemovable = false}) {
 String fallbackDeviceLabel(String deviceRoot) =>
     '${labelForPath(deviceRoot).display} — all music';
 
-/// Collapses near-duplicate entries that differ only by a case-insensitive
-/// whitespace tweak or by `Music` vs `music`. Preserves the first occurrence
-/// (case-preserved) and discards subsequent duplicates.
-List<T> dedupeSmartRoots<T>(List<T> entries, String Function(T) keyFor) {
-  final seen = <String>{};
-  return [
-    for (final entry in entries)
-      if (seen.add(_canonicalKey(keyFor(entry)))) entry,
-  ];
-}
-
-/// Collapse whitespace + lower-case so `Music`/`music`/`Music ` map together.
-String _canonicalKey(String raw) =>
-    raw.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
-
 String _stripTrailingSlash(String path) =>
     path.length > 1 && path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 

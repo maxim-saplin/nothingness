@@ -122,7 +122,3 @@ MetadataExtractor createMetadataExtractor() => Platform.isAndroid
         useFilenameOverride: SettingsService().useFilenameForMetadataNotifier.value,
       )
     : DesktopMetadataExtractor();
-
-/// Main function to extract metadata from a file path.
-Future<AudioTrack> extractMetadata(String filePath) =>
-    createMetadataExtractor().extractMetadata(filePath);

@@ -59,29 +59,6 @@ void main() {
     });
   });
 
-  group('dedupeSmartRoots', () {
-    test('collapses /storage/A/Music and /storage/A/music to one entry', () {
-      final input = <String>[
-        '/storage/A/Music',
-        '/storage/A/music',
-      ];
-      final out = dedupeSmartRoots<String>(input, (s) => s);
-      expect(out, <String>['/storage/A/Music']);
-    });
-
-    test('collapses entries differing only by whitespace', () {
-      final input = <String>['Music', '  Music  ', 'music'];
-      final out = dedupeSmartRoots<String>(input, (s) => s);
-      expect(out, <String>['Music']);
-    });
-
-    test('preserves order and unrelated entries', () {
-      final input = <String>['Music', 'Podcasts', 'music', 'Audiobooks'];
-      final out = dedupeSmartRoots<String>(input, (s) => s);
-      expect(out, <String>['Music', 'Podcasts', 'Audiobooks']);
-    });
-  });
-
   group('fallbackDeviceLabel', () {
     test("fallbackDeviceLabel('/storage/emulated/0') -> 'Internal — all music'",
         () {

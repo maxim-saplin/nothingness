@@ -21,7 +21,7 @@ class PressFeedback extends HookWidget {
   final void Function(LongPressEndDetails)? onLongPressEnd;
   final HitTestBehavior behavior;
 
-  /// Optional key forwarded to the inner [AnimatedOpacity] so hosts (e.g. [MediaButton]) expose a stable dip handle for tests.
+  /// Optional key forwarded to the inner [AnimatedOpacity] so hosts expose a stable dip handle for tests.
   final Key? dimKey;
 
   /// Opacity applied while a touch is held; 0.4 is the smallest value that still reads as a deliberate dip, not a flicker.
