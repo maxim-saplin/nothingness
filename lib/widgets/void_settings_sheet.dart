@@ -16,7 +16,6 @@ import '../models/theme_variant.dart';
 import '../models/transport_position.dart';
 import '../services/playback_controller.dart';
 import '../screens/help_screen.dart';
-import '../screens/log_screen.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
 import '../theme/app_geometry.dart';
@@ -66,7 +65,6 @@ class VoidSettingsSheet extends HookWidget {
       settings.useFilenameForMetadataNotifier,
       settings.smartFoldersPresentationNotifier,
       settings.debugLayoutNotifier,
-      settings.audioDiagnosticsOverlayNotifier,
     ]));
 
     final versionLabel = useState('...');
@@ -460,13 +458,6 @@ class VoidSettingsSheet extends HookWidget {
         // ABOUT
         _Group('ABOUT'),
         _Cycle('void-settings-help', 'help', '>', () => HelpScreen.push(context)),
-        _Cycle('void-settings-logs', 'logs', '>',
-            () => Navigator.of(context)
-                .push(MaterialPageRoute<void>(builder: (_) => const LogScreen()))),
-        _Toggle('void-settings-audio-diagnostics', 'audio diagnostics',
-            settings.audioDiagnosticsOverlayNotifier.value,
-            () => settings.setAudioDiagnosticsOverlay(
-                !settings.audioDiagnosticsOverlayNotifier.value)),
         _Cycle('void-settings-version', 'version', versionLabel.value, () {},
             enabled: false),
       ];

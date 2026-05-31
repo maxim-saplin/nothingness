@@ -29,7 +29,6 @@ class SettingsService {
   /// B-042: debug-only desktop "phone frame", stored as "WxH".
   static const String _phoneFrameKey = 'phone_frame';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
-  static const String _audioDiagnosticsOverlayKey = 'audio_diagnostics_overlay';
   static const String _themeIdKey = 'theme_id';
   static const String _themeVariantKey = 'theme_variant';
   static const String _operatingModeKey = 'operating_mode';
@@ -52,7 +51,6 @@ class SettingsService {
   static const Size? defaultPhoneFrame = null; // null = off (full window)
   static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
-  static const bool defaultAudioDiagnosticsOverlay = false;
   static const ThemeId defaultThemeId = ThemeId.void_;
   static const ThemeVariant defaultThemeVariant = ThemeVariant.system;
   static const OperatingMode defaultOperatingMode = OperatingMode.own;
@@ -80,8 +78,6 @@ class SettingsService {
   final ValueNotifier<ScreenConfig> screenConfigNotifier =
       ValueNotifier(defaultScreenConfig);
   final ValueNotifier<bool> debugLayoutNotifier = ValueNotifier(false);
-  final ValueNotifier<bool> audioDiagnosticsOverlayNotifier =
-      ValueNotifier(defaultAudioDiagnosticsOverlay);
   final ValueNotifier<ThemeId> themeIdNotifier = ValueNotifier(defaultThemeId);
   final ValueNotifier<ThemeVariant> themeVariantNotifier =
       ValueNotifier(defaultThemeVariant);
@@ -189,8 +185,6 @@ class SettingsService {
 
     useFilenameForMetadataNotifier.value =
         prefs.getBool(_useFilenameForMetadataKey) ?? defaultUseFilenameForMetadata;
-    audioDiagnosticsOverlayNotifier.value =
-        prefs.getBool(_audioDiagnosticsOverlayKey) ?? defaultAudioDiagnosticsOverlay;
     smartFoldersPresentationNotifier.value =
         prefs.getBool(_smartFoldersPresentationKey) ?? defaultSmartFoldersPresentation;
     immersiveNotifier.value = prefs.getBool(_immersiveKey) ?? defaultImmersive;
@@ -275,10 +269,6 @@ class SettingsService {
   /// Persists the operating mode (own / background).
   Future<void> saveOperatingMode(OperatingMode mode) => _saveStorageKey(
       _operatingModeKey, mode, mode.storageKey, operatingModeNotifier);
-
-  /// Sets the audio diagnostics overlay flag.
-  Future<void> setAudioDiagnosticsOverlay(bool enable) => _saveBool(
-      _audioDiagnosticsOverlayKey, enable, audioDiagnosticsOverlayNotifier);
 
   /// Sets the smart-folders presentation toggle (friendly storage-root labels).
   Future<void> setSmartFoldersPresentation(bool enable) => _saveBool(

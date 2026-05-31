@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'models/theme_id.dart';
@@ -26,6 +27,10 @@ final Stopwatch _bootSw = Stopwatch()..start();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  Logger.root.level = Level.INFO;
+  Logger.root.onRecord.listen((r) {
+    if (kDebugMode) debugPrint('[${r.loggerName}] ${r.message}');
+  });
   WidgetsBinding.instance.addPostFrameCallback((_) {
     debugPrint('[boot] first-frame=${_bootSw.elapsedMilliseconds}ms');
   });

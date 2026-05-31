@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
@@ -12,13 +13,14 @@ import '../services/playback_controller.dart';
 import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
-import '../services/logging_service.dart';
 import '../services/settings_service.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
 import 'mid_ellipsis.dart';
 import 'press_feedback.dart';
+
+final _log = Logger('nothingness.browser');
 
 /// Bottom-anchored file-tree browser used by [VoidScreen]: full-width rows,
 /// thin dividers, no chrome. Tap a file to queue its folder, long-press a file
@@ -251,9 +253,7 @@ class VoidBrowser extends HookWidget {
         if (tracks.isEmpty) return;
         await player.setQueue(tracks, startIndex: 0, shuffle: true);
       } catch (e) {
-        LoggingService().log(
-            tag: 'VoidBrowser',
-            message: 'Recursive shuffle failed for $path: $e');
+        _log.info('Recursive shuffle failed for $path: $e');
       }
     }
 

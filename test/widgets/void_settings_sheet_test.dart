@@ -127,8 +127,6 @@ void main() {
       expect(byK('void-settings-ui-scale'), findsOneWidget);
       expect(byK('void-settings-full-screen'), findsOneWidget);
       expect(byK('void-settings-smart-folders'), findsOneWidget);
-      expect(byK('void-settings-logs'), findsOneWidget);
-      expect(byK('void-settings-audio-diagnostics'), findsOneWidget);
       expect(byK('void-settings-version'), findsOneWidget);
 
       // Background-only rows must NOT be reachable in own mode.

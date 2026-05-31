@@ -381,8 +381,6 @@ class AgentService {
         s.debugLayoutNotifier.value = value == 'true';
       case 'useFilenameForMetadata':
         await s.setUseFilenameForMetadata(value == 'true');
-      case 'audioDiagnosticsOverlay':
-        await s.setAudioDiagnosticsOverlay(value == 'true');
       case 'screen':
         const m = {
           'spectrum': ScreenType.spectrum,

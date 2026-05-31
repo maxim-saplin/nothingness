@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:external_path/external_path.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,15 +9,15 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/audio_track.dart';
-import '../models/log_entry.dart';
 import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
-import '../services/logging_service.dart';
 import '../services/media_store_freshness.dart';
 import '../models/supported_extensions.dart';
 import '../services/metadata_extractor.dart';
 import '../services/platform_channels.dart';
+
+final _log = Logger('nothingness.library');
 
 // Static function for isolate execution.
 Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
@@ -307,11 +308,7 @@ class LibraryController extends ChangeNotifier {
     try {
       final initial = _currentListingSignature(path);
       if (!await _androidFolderRescan(path)) {
-        LoggingService().log(
-          tag: 'Library',
-          message: 'Folder rescan request failed for $path',
-          level: LogLevel.error,
-        );
+        _log.severe('Folder rescan request failed for $path');
         error = 'Could not repair this folder listing. Try again in a moment.';
         return;
       }
@@ -328,11 +325,7 @@ class LibraryController extends ChangeNotifier {
         latest = refreshed;
       }
     } catch (e) {
-      LoggingService().log(
-        tag: 'Library',
-        message: 'Failed to repair folder listing for $path: $e',
-        level: LogLevel.error,
-      );
+      _log.severe('Failed to repair folder listing for $path: $e');
       error = 'Failed to repair this folder listing: $e';
     } finally {
       isScanning = false;
