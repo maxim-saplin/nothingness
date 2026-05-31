@@ -11,13 +11,13 @@ Counts **git-tracked** files only (via `git ls-files`), so build output,
 
 | Folder    |    Lines | Files |
 | --------- | -------: | ----: |
-| `lib`     |   10,287 |    60 |
+| `lib`     |   10,189 |    59 |
 | `macos`   |    1,758 |    30 |
 | `android` |    1,366 |    35 |
 | `linux`   |      469 |    10 |
-| **TOTAL** | **13,880** | **135** |
+| **TOTAL** | **13,782** | **134** |
 
-**−29.8% from the 19,772 baseline**, verified running on a real Android
+**−30.3% from the 19,772 baseline**, verified running on a real Android
 emulator (boot, library scan, playback, reactive track-change, live FFT
 spectrum, UI render). Beyond the earlier work, this includes: clean-room
 simplifying the **Android native Kotlin** (1,000→736); eliminating the
