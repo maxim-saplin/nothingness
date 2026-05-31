@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 3.5.2+57
+version: 3.5.3+58
 
 environment:
   sdk: ^3.10.1
@@ -29,6 +29,8 @@ dependencies:
   external_path: ^2.2.0
   on_audio_query: ^2.9.0
   package_info_plus: ^8.0.0
+  bloc: ^9.2.1
+  bloc_concurrency: ^0.3.0
 
 dev_dependencies:
   flutter_test:
@@ -41,6 +43,7 @@ dev_dependencies:
   mockito: ^5.6.1
   build_runner: ^2.10.4
   flutter_launcher_icons: ^0.14.4
+  bloc_test: ^10.0.0
 
 flutter:
   uses-material-design: true
