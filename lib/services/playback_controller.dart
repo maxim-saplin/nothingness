@@ -411,6 +411,10 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
 
+    // The current source is consumed by its natural end; if it is replayed
+    // (e.g. play after the queue finished at the tail), force a fresh reload.
+    if (path != null && path == _loadedPath) _loadedPath = null;
+
     if (_oneShot) {
       _handlingEnded = true;
       final future =
@@ -425,8 +429,10 @@ class PlaybackController extends ChangeNotifier {
       _handlingEnded = true;
       final f = next == null
           ? (() {
+              // Queue finished: stop AND reset intent to pause so the play
+              // button reacts (toggles back to play) instead of staying stuck.
               _endedAtQueueTailAt = DateTime.now();
-              return _stopPlayback();
+              return _stopPlayback(resetIntent: true);
             })()
           : _commandIndex(next, PlayIntent.play, dir: 1);
       unawaited(f.whenComplete(() => _handlingEnded = false));
@@ -692,8 +698,10 @@ class PlaybackController extends ChangeNotifier {
     if (_playlist.currentOrderIndexNotifier.value == null) {
       return _commandIndex(0, PlayIntent.play, dir: 1, userTap: true);
     }
-    // Flip intent only (same track) → reconciler does a cheap play/pause and
-    // always converges to the LATEST intent, so a stale load can't un-pause us.
+    // Toggle on intent (the reconciler converges to the latest, so a stale load
+    // can't un-pause us). Queue-end resets intent to pause (see
+    // _handleTrackEnded), so pressing play after the queue finishes correctly
+    // starts instead of toggling a stale play-intent back to pause.
     _userIntent =
         _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
     _targetIndex = _playlist.currentOrderIndexNotifier.value;
