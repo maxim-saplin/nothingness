@@ -7,12 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/browser_presentation.dart';
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
-import '../models/eq_settings.dart';
 import '../models/spectrum_settings.dart';
 import '../models/theme_id.dart';
 import '../models/theme_variant.dart';
 import '../models/transport_position.dart';
-import 'platform_channels.dart';
 
 class SettingsService {
   static final SettingsService _instance = SettingsService._internal();
@@ -31,7 +29,6 @@ class SettingsService {
   /// B-042: debug-only desktop "phone frame", stored as "WxH".
   static const String _phoneFrameKey = 'phone_frame';
   static const String _useFilenameForMetadataKey = 'use_filename_for_metadata';
-  static const String _eqSettingsKey = 'eq_settings';
   static const String _audioDiagnosticsOverlayKey = 'audio_diagnostics_overlay';
   static const String _themeIdKey = 'theme_id';
   static const String _themeVariantKey = 'theme_variant';
@@ -55,7 +52,6 @@ class SettingsService {
   static const Size? defaultPhoneFrame = null; // null = off (full window)
   static const bool defaultUseFilenameForMetadata = true;
   static const ScreenConfig defaultScreenConfig = SpectrumScreenConfig();
-  static const bool defaultEqEnabled = false;
   static const bool defaultAudioDiagnosticsOverlay = false;
   static const ThemeId defaultThemeId = ThemeId.void_;
   static const ThemeVariant defaultThemeVariant = ThemeVariant.system;
@@ -74,8 +70,6 @@ class SettingsService {
 
   final ValueNotifier<SpectrumSettings> settingsNotifier =
       ValueNotifier(const SpectrumSettings());
-  final ValueNotifier<EqSettings> eqSettingsNotifier =
-      ValueNotifier(const EqSettings());
   final ValueNotifier<double> uiScaleNotifier = ValueNotifier(defaultUiScale);
   final ValueNotifier<bool> fullScreenNotifier = ValueNotifier(defaultFullScreen);
   /// B-042: when non-null, debug desktop renders inside a letterboxed phone
@@ -153,9 +147,6 @@ class SettingsService {
     final settings = _loadOrDefault(prefs, _settingsKey,
         (s) => SpectrumSettings.fromJson(jsonDecode(s)), const SpectrumSettings());
     settingsNotifier.value = settings;
-
-    eqSettingsNotifier.value = _loadOrDefault(prefs, _eqSettingsKey,
-        (s) => EqSettings.fromJson(jsonDecode(s)), const EqSettings());
 
     // UI scale, with one-shot migration from the old JSON blob.
     if (prefs.containsKey(_uiScaleKey)) {
@@ -324,16 +315,6 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_settingsKey, jsonEncode(settings.toJson()));
     settingsNotifier.value = settings;
-  }
-
-  /// Saves the EQ settings to persistence.
-  Future<void> saveEqSettings(EqSettings settings) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_eqSettingsKey, jsonEncode(settings.toJson()));
-    eqSettingsNotifier.value = settings;
-    if (PlatformChannels.isAndroid) {
-      PlatformChannels().updateEqualizerSettings(settings);
-    }
   }
 
   /// Saves the UI scale to persistence.

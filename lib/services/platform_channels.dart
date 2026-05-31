@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../models/eq_settings.dart';
 import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 
@@ -129,22 +128,6 @@ class PlatformChannels {
         null,
         arguments: settings.toJson(),
       );
-
-  Future<void> setEqualizerSessionId(int? sessionId) => _invoke<void>(
-    _mediaChannel,
-    'setEqualizerSessionId',
-    'Error setting EQ session id',
-    null,
-    arguments: <String, Object?>{'sessionId': sessionId},
-  );
-
-  Future<void> updateEqualizerSettings(EqSettings settings) => _invoke<void>(
-    _mediaChannel,
-    'setEqualizerSettings',
-    'Error updating EQ settings',
-    null,
-    arguments: settings.toJson(),
-  );
 
   Stream<List<double>> spectrumStream({int? sessionId}) {
     return _spectrumChannel

@@ -67,7 +67,6 @@ class VoidSettingsSheet extends HookWidget {
       settings.smartFoldersPresentationNotifier,
       settings.debugLayoutNotifier,
       settings.audioDiagnosticsOverlayNotifier,
-      settings.eqSettingsNotifier,
     ]));
 
     final versionLabel = useState('...');
@@ -405,7 +404,7 @@ class VoidSettingsSheet extends HookWidget {
         if (isOwn) ...[
           _Group('SOUND'),
           // Visualizer-only rows (B-034): hidden when the active hero doesn't
-          // paint the spectrum (Dot, Void). The `eq` placeholder stays.
+          // paint the spectrum (Dot, Void).
           if (cfg.usesVisualizer) ...[
             _Cycle('void-settings-bar-count', 'bar count',
                 '${spectrum.barCount.count}',
@@ -423,7 +422,6 @@ class VoidSettingsSheet extends HookWidget {
                 () => settings.saveSettings(spectrum.copyWith(colorScheme:
                     _next(SpectrumColorScheme.values, spectrum.colorScheme)))),
           ],
-          _Cycle('void-settings-eq', 'eq', 'unavailable', () {}, enabled: false),
 
           _Group('LIBRARY'),
           _Toggle('void-settings-scan-on-startup', 'filename fallback',

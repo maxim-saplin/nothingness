@@ -169,8 +169,6 @@ class MediaControllerPage extends HookWidget {
         if (!active) return;
         attachSpectrumSource();
         platformChannels.updateSpectrumSettings(loaded);
-        platformChannels
-            .updateEqualizerSettings(settingsService.eqSettingsNotifier.value);
 
         // Cold-start in background mode: surface permission prompts up front.
         if (settingsService.operatingModeNotifier.value ==

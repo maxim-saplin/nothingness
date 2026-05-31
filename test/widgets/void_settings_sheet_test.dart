@@ -126,7 +126,6 @@ void main() {
       expect(byK('void-settings-screen'), findsOneWidget);
       expect(byK('void-settings-ui-scale'), findsOneWidget);
       expect(byK('void-settings-full-screen'), findsOneWidget);
-      expect(byK('void-settings-eq'), findsOneWidget);
       expect(byK('void-settings-smart-folders'), findsOneWidget);
       expect(byK('void-settings-logs'), findsOneWidget);
       expect(byK('void-settings-audio-diagnostics'), findsOneWidget);
@@ -149,7 +148,6 @@ void main() {
       // Own-only rows must NOT be reachable in background mode.
       expect(byK('void-settings-smart-folders'), findsNothing);
       expect(byK('void-settings-scan-on-startup'), findsNothing);
-      expect(byK('void-settings-eq'), findsNothing);
 
       // Background rows are reachable.
       expect(byK('void-settings-noise-gate'), findsOneWidget);
@@ -404,11 +402,6 @@ void main() {
             reason: '$k must be visible on spectrum',
           );
         }
-        // The eq placeholder always stays.
-        expect(
-          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
-          findsOneWidget,
-        );
       });
 
       testWidgets('polo: all four visualizer rows are present',
@@ -423,7 +416,7 @@ void main() {
         }
       });
 
-      testWidgets('dot: visualizer rows are hidden, eq stays',
+      testWidgets('dot: visualizer rows are hidden',
           (tester) async {
         await pumpWithScreen(tester, const DotScreenConfig());
         for (final k in visualizerRowKeys) {
@@ -433,13 +426,9 @@ void main() {
             reason: '$k must NOT be visible on dot',
           );
         }
-        expect(
-          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
-          findsOneWidget,
-        );
       });
 
-      testWidgets('void: visualizer rows are hidden, eq stays',
+      testWidgets('void: visualizer rows are hidden',
           (tester) async {
         await pumpWithScreen(tester, const VoidScreenConfig());
         for (final k in visualizerRowKeys) {
@@ -449,10 +438,6 @@ void main() {
             reason: '$k must NOT be visible on void',
           );
         }
-        expect(
-          find.byKey(const ValueKey('void-settings-eq'), skipOffstage: false),
-          findsOneWidget,
-        );
       });
     });
 

@@ -122,14 +122,6 @@ class MainActivity : AudioServiceActivity() {
                     }
                     result.success(null)
                 }
-                "setEqualizerSettings" -> {
-                    Log.d(TAG, "setEqualizerSettings is a no-op (SoLoud handles EQ in Dart)")
-                    result.success(null)
-                }
-                "setEqualizerSessionId" -> {
-                    Log.d(TAG, "setEqualizerSessionId is a no-op (SoLoud handles EQ in Dart)")
-                    result.success(null)
-                }
                 else -> result.notImplemented()
             }
         }
