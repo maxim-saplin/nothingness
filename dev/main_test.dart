@@ -6,6 +6,8 @@ import 'package:nothingness/models/spectrum_settings.dart';
 import 'package:nothingness/screens/void_screen.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/playlist_store.dart';
+import 'package:nothingness/models/theme_id.dart';
+import 'package:nothingness/theme/themes.dart';
 import 'test_harness.dart';
 import 'test_overlay.dart';
 
@@ -41,9 +43,7 @@ Future<void> main() async {
       value: controller,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: ThemeData.dark().copyWith(
-          scaffoldBackgroundColor: const Color(0xFF0A0A0F),
-        ),
+        theme: buildAppTheme(id: ThemeId.void_, brightness: Brightness.dark),
         home: Stack(
           children: const [
             VoidScreen(
