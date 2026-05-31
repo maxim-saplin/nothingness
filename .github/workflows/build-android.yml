@@ -129,7 +129,7 @@ jobs:
 
       - name: Create Release
         if: inputs.create-release == true
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release-tag }}
           files: ${{ steps.rename_apk.outputs.apk-path }}
