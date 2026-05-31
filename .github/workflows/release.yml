@@ -14,7 +14,7 @@ jobs:
       version: ${{ steps.extract_version.outputs.VERSION }}
       tag-name: ${{ steps.extract_version.outputs.TAG_NAME }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Extract version
         id: extract_version

@@ -46,7 +46,7 @@ jobs:
       version: ${{ steps.extract_version.outputs.VERSION }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Extract version
         id: extract_version
