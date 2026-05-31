@@ -7,6 +7,53 @@ the shared conventions.
 Each closed entry preserves its original H2 (`## B-0NN (severity): title`)
 and body, plus a `**Closed**: YYYY-MM-DD — summary` line at the bottom.
 
+## B-046 (minor): Artist/Song H1/H2 hierarchy — strip redundant artist prefix; apply to Void/Spectrum/Dot; align default text size
+
+- **Symptom** — For a file like `Nirvana - Rape me.mp3` the hero shows H1
+  `Nirvana` (correct) but H2 `Nirvana - Rape me` — the artist is repeated in the
+  song line. Only the Void hero renders the Artist (H1) / Song (H2) hierarchy at
+  all; Spectrum and Dot still show the song title + parent-folder crumb
+  (`HeroTitleBlock`), and Spectrum's title ignores `config.textScale` (always
+  rendered at full `heroSize`).
+- **Repro** — Play `Nirvana - Rape me.mp3` on a source where the artist tag is
+  set but the title tag is missing (MediaStore's filename fallback leaves
+  `"Nirvana - Rape me"` in the title). H2 reads `Nirvana - Rape me` instead of
+  `Rape Me`.
+- **Desired** —
+  1. H2 = just the song title (`Rape Me`), with any redundant `"<artist> - "`
+     prefix stripped — regardless of metadata source.
+  2. The same Artist (H1) / Song (H2) treatment on **Void, Spectrum and Dot**
+     (one shared block).
+  3. Default text dimensions on Spectrum/Dot aligned with Void (`textScale`
+     default `1.0`, and Spectrum actually wires `config.textScale` to the title).
+- **Notes** — `lib/widgets/heroes/hero_title_block.dart` (shared block + the new
+  `heroTitleLines` resolver), `void_hero.dart`, `spectrum_hero.dart`,
+  `dot_hero.dart`, `models/screen_config.dart` (Spectrum `textScale` default).
+  Builds on B-040 (Void hierarchy) and B-041 (per-screen text size).
+- **Area** — heroes
+
+**Closed**: 2026-05-31 — Fixed at the source rather than in the UI. The
+redundant prefix only ever appears on the MediaStore path: when a file has no
+ID3 title tag, MediaStore returns the filename as the title (`"Nirvana - Rape
+me"`) while the artist tag is set separately. `AndroidMetadataExtractor` now
+drops that embedded artist via `_dropEmbeddedArtist`, which **reuses the existing
+`_splitFilename` parser** (no second stripper) and only strips when the parsed
+prefix actually equals the artist — so `"Sgt. Pepper - Reprise"` by The Beatles
+is left intact. The filename default (`useFilenameForMetadata = true`) already
+produced clean metadata, so this hardens the MediaStore fallback. The display is
+dumb again: `HeroTitleBlock` is the single Artist(H1)/Song(H2) renderer shared
+by **Void, Spectrum and Dot** (Void collapsed to a thin `BaseHeroContainer` +
+`HeroTitleBlock` wrapper) and just reads `track.artist`/`track.title`.
+`songSizeFactor` → top-level `heroSongSizeFactor` (0.5). Spectrum now passes
+`config.textScale` to the title (was hard-wired to `heroSize`); its default
+`textScale` aligned to Void's `1.0` (const == `fromJson`, per the B-041
+invariant). Keys renamed `void-hero-*` → `hero-*`. Verified on the Linux desktop
+build (incl. phone-emulated size, no overflow): Void / Spectrum / Dot all render
+`Nirvana` over `Rape me` at matched sizes. Tests: two MediaStore-branch cases in
+`metadata_extractor_test.dart` (strip-when-matches, keep-when-not), Dot tests
+updated to the H1/H2 hierarchy, Spectrum-default assertion in
+`screen_config_test.dart` bumped to 1.0.
+
 ## B-033 (major): Swipe-up browser pops without animation; jump glyph + drag handle invisible on real hardware
 
 **Symptom**: Three concrete user-reported failures on real-device install

@@ -70,7 +70,7 @@ void main() {
         expect(config.mediaControlColorScheme, defaults.mediaControlColorScheme);
         expect(config.textColorScheme, defaults.textColorScheme);
         // Explicit values (these are the const defaults today).
-        expect(config.textScale, 0.6);
+        expect(config.textScale, 1.0); // B-046: aligned with Void.
         expect(config.spectrumHeightFactor, 0.5);
         expect(config.mediaControlScale, 0.6);
         expect(config.mediaControlColorScheme, SpectrumColorScheme.cyan);

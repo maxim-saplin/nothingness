@@ -1,26 +1,21 @@
-# Nothingness - GitHub Copilot Instructions
+# Nothingness
 
-This is a Flutter media controller application. Consult the relevant skills in `.claude/skills/` when working in their domains.
-
-## Skills Index
-
-| Skill | When to Consult |
-|-------|-----------------|
-| **flutter-best-practices** | Writing/modifying Dart code. Covers linting, modern APIs, deprecations. |
-| **testing-standards** | Adding features, models, services, widgets, screens. Covers test organization & mocking. |
-| **documentation** | Adding architecture components or complex logic. Covers doc structure. |
-| **flutter-commands** | Running Flutter CLI commands. Covers sandbox permissions. |
-| **github-actions-polling** | Working with CI/CD workflows. Covers polling strategies & failure handling. |
-| **skill-creation** | Creating/modifying skills in `.claude/skills/`. Covers format & best practices. |
-| **agent-emulator-debugging** | Driving the app on emulator via VM service extensions. Includes `scripts/drive.py` — the typed CLI wrapping all 27 `ext.nothingness.*` extensions. |
-| **wsl2-adb-setup** | Setting up ADB between WSL2 Linux and a Windows-hosted emulator. Covers mirrored networking and troubleshooting. |
-| **goal-sloc** | Cutting SLOC / simplifying the codebase / hitting a line-count target honestly. Covers preflight (baseline + feedback loops), an honest reduction order, anti-gaming self-audit, and a Flutter reference. |
+This is a Flutter media controller application
 
 ## Agent Behavior
 
 1. **Context efficiency**: Don't load all rules—consult only those relevant to the current task
 2. **Run validation**: Always run `flutter analyze` after Dart changes
 3. **Reference docs**: Point to existing documentation rather than re-explaining
+
+## Simplicity & No Bloat
+
+The default bias is *less code*. SLOC is a north-star metric (see `goal-sloc` skill) — a smaller, clearer solution beats a clever or defensive one.
+
+- **Fix at the right layer, once.** Push a fix to its source so the rest of the system stays dumb. Never re-implement logic that already exists — reuse it (e.g. parse a filename with the one parser, don't add a second stripper in the UI).
+- **Comments earn their place.** Code should be self-descriptive; names carry the *what*. Write a comment only for the *why* that the code can't show — a non-obvious constraint, a platform quirk, a tracked-issue rationale. Delete comments that restate the line below them.
+- **No speculative flexibility.** Don't add parameters, abstractions, or branches for cases no caller needs today.
+- **Prefer deleting.** When changing behaviour, remove the code it replaces rather than layering new code on top.
 
 ### WSL2 + Host Emulator
 

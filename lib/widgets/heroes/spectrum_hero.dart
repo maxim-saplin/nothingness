@@ -36,11 +36,17 @@ class SpectrumHero extends StatelessWidget {
       palette.fgPrimary,
     ];
 
-    // B-026: estimate the title block height from typography so the visualiser slot can be capped to fit. Mirrors HeroTitleBlock (maxLines:2 title at height 1.18; 8-px gap + hintSize*1.2 crumb only with a track). The safety buffer absorbs glyph rounding so the outer Column never overshoots (RenderFlex overflow at uiScale=2.5 where the slot is ~118 px).
+    // B-026: cap the visualiser to what's left after the title block so the
+    // outer Column can't overflow a squeezed hero slot. Reserve both heading
+    // lines at their worst case (2 lines each, 1.18 line height) plus a buffer
+    // for glyph rounding.
     const double textBlockSafetyBuffer = 8.0;
     const double textToVisualizerGap = 16.0;
-    final double reservedTextHeight = typography.heroSize * 1.18 * 2 +
-        (hasTrack ? 8 + typography.hintSize * 1.2 : 0) +
+    final double h1Size = typography.heroSize * config.textScale;
+    final double h2Size =
+        typography.heroSize * heroSongSizeFactor * config.textScale;
+    final double reservedTextHeight = h1Size * 1.18 * 2 +
+        (hasTrack ? 8 + h2Size * 1.18 * 2 : 0) +
         textBlockSafetyBuffer;
 
     return LayoutBuilder(
@@ -56,7 +62,7 @@ class SpectrumHero extends StatelessWidget {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const HeroTitleBlock(),
+            HeroTitleBlock(textScale: config.textScale),
             if (visualizerHeight >= 24.0) ...[
               const SizedBox(height: textToVisualizerGap),
               SizedBox(

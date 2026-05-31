@@ -4,6 +4,7 @@ import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/theme/app_typography.dart';
+import 'package:nothingness/widgets/heroes/hero_title_block.dart';
 import 'package:nothingness/widgets/heroes/void_hero.dart';
 
 import '_test_helpers.dart';
@@ -48,16 +49,16 @@ void main() {
     final typography = Theme.of(ctx).extension<AppTypography>()!;
 
     final artist = tester.widget<Text>(
-      find.byKey(const ValueKey('void-hero-artist')),
+      find.byKey(const ValueKey('hero-artist')),
     );
     final song = tester.widget<Text>(
-      find.byKey(const ValueKey('void-hero-song')),
+      find.byKey(const ValueKey('hero-song')),
     );
     // H1 (Artist) is the larger heading; H2 (Song) is songSizeFactor× smaller.
     expect(artist.style?.fontSize, closeTo(typography.heroSize, 0.01));
     expect(
       song.style?.fontSize,
-      closeTo(typography.heroSize * VoidHero.songSizeFactor, 0.01),
+      closeTo(typography.heroSize * heroSongSizeFactor, 0.01),
     );
     expect(artist.style!.fontSize!, greaterThan(song.style!.fontSize!));
   });
@@ -82,9 +83,9 @@ void main() {
     await tester.pump();
 
     // No empty artist headline; the song takes the primary slot at H1 size.
-    expect(find.byKey(const ValueKey('void-hero-artist')), findsNothing);
+    expect(find.byKey(const ValueKey('hero-artist')), findsNothing);
     final song = tester.widget<Text>(
-      find.byKey(const ValueKey('void-hero-song')),
+      find.byKey(const ValueKey('hero-song')),
     );
     final BuildContext ctx = tester.element(find.byType(VoidHero));
     final typography = Theme.of(ctx).extension<AppTypography>()!;
@@ -121,15 +122,15 @@ void main() {
     final typography = Theme.of(ctx).extension<AppTypography>()!;
 
     final artist = tester.widget<Text>(
-      find.byKey(const ValueKey('void-hero-artist')),
+      find.byKey(const ValueKey('hero-artist')),
     );
     final song = tester.widget<Text>(
-      find.byKey(const ValueKey('void-hero-song')),
+      find.byKey(const ValueKey('hero-song')),
     );
     expect(artist.style?.fontSize, closeTo(typography.heroSize * 0.8, 0.01));
     expect(
       song.style?.fontSize,
-      closeTo(typography.heroSize * VoidHero.songSizeFactor * 0.8, 0.01),
+      closeTo(typography.heroSize * heroSongSizeFactor * 0.8, 0.01),
     );
   });
 }

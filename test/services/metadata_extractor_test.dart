@@ -17,6 +17,24 @@ class MockOnAudioQueryEmpty extends OnAudioQuery {
   }
 }
 
+/// Returns a single MediaStore song with the given title/artist for [data].
+class MockOnAudioQuerySong extends OnAudioQuery {
+  MockOnAudioQuerySong({required this.data, required this.title, this.artist});
+  final String data;
+  final String title;
+  final String? artist;
+
+  @override
+  Future<List<SongModel>> querySongs({
+    SongSortType? sortType,
+    OrderType? orderType,
+    UriType? uriType,
+    bool? ignoreCase,
+    String? path,
+  }) async =>
+      [SongModel({'_data': data, 'title': title, 'artist': artist})];
+}
+
 void main() {
   group('DesktopMetadataExtractor', () {
     late DesktopMetadataExtractor extractor;
@@ -156,6 +174,35 @@ void main() {
       expect(track.title, 'Title');
       expect(track.artist, 'Artist');
       expect(track.path, '/path/Artist - Title.mp3');
+    });
+
+    // B-046: MediaStore returns the filename as the title for files with no ID3
+    // title tag, so the artist gets repeated in the title ("Nirvana - Rape me"
+    // with artist "Nirvana"). The title must drop the redundant prefix.
+    test('drops an artist prefix MediaStore left embedded in the title', () async {
+      final extractor = AndroidMetadataExtractor(
+        audioQuery: MockOnAudioQuerySong(
+          data: '/path/Nirvana - Rape me.mp3',
+          title: 'Nirvana - Rape me',
+          artist: 'Nirvana',
+        ),
+      );
+      final track = await extractor.extractMetadata('/path/Nirvana - Rape me.mp3');
+      expect(track.artist, 'Nirvana');
+      expect(track.title, 'Rape me');
+    });
+
+    test('keeps a dash-bearing title whose prefix is not the artist', () async {
+      final extractor = AndroidMetadataExtractor(
+        audioQuery: MockOnAudioQuerySong(
+          data: '/path/x.mp3',
+          title: 'Sgt. Pepper - Reprise',
+          artist: 'The Beatles',
+        ),
+      );
+      final track = await extractor.extractMetadata('/path/x.mp3');
+      expect(track.artist, 'The Beatles');
+      expect(track.title, 'Sgt. Pepper - Reprise');
     });
   });
 }

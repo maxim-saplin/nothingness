@@ -9,7 +9,7 @@ import '../../theme/app_palette.dart';
 import 'base_hero_container.dart';
 import 'hero_title_block.dart';
 
-/// Dot visualisation embedded in the Void hero slot: a single pulsing circle whose radius tracks the spectrum's bass energy (Void chrome owns transport). When [DotScreenConfig.showSongInfo] is true (B-020) the active track's title + parent folder overlay the top of the band in a [Stack] above the centered dot. The dot is clamped to a fraction of the smallest dimension so it never overflows.
+/// Dot visualisation embedded in the Void hero slot: a single pulsing circle whose radius tracks the spectrum's bass energy (Void chrome owns transport). When [DotScreenConfig.showSongInfo] is true (B-020) the active track's Artist (H1) / Song (H2) overlay the top of the band in a [Stack] above the centered dot, using the shared [HeroTitleBlock] (B-046). The dot is clamped to a fraction of the smallest dimension so it never overflows.
 class DotHero extends StatelessWidget {
   const DotHero({super.key, required this.config});
 

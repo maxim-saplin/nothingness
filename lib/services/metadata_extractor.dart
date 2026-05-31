@@ -38,14 +38,15 @@ class AndroidMetadataExtractor implements MetadataExtractor {
         (s) => s.data == filePath,
         orElse: () => throw StateError('No matching song found'),
       );
-      // Strip any audio extension MediaStore left in the title (files with no
-      // ID3 title tag fall back to the filename).
-      final title = song.title.isNotEmpty
-          ? SupportedExtensions.stripFromTitle(song.title)
-          : _parseFilenameMetadata(filePath).title;
       final artist = song.artist?.isNotEmpty == true
           ? song.artist!
           : _parseFilenameMetadata(filePath).artist;
+      // Files with no ID3 title tag fall back to the filename, which can carry
+      // the audio extension and an embedded "Artist - " prefix.
+      final title = song.title.isNotEmpty
+          ? _dropEmbeddedArtist(
+              SupportedExtensions.stripFromTitle(song.title), artist)
+          : _parseFilenameMetadata(filePath).title;
       return AudioTrack(path: filePath, title: title, artist: artist);
     } catch (e) {
       debugPrint('[AndroidMetadataExtractor] MediaStore query failed for $filePath: $e');
@@ -66,6 +67,19 @@ AudioTrack _parseFilenameMetadata(String filePath) {
   final base = p.basename(filePath);
   final (artist, title) = _splitFilename(base);
   return AudioTrack(path: filePath, title: title ?? base, artist: artist);
+}
+
+/// Drops a leading `"<artist> - "` the MediaStore title inherited from the
+/// filename, by re-splitting it with [_splitFilename] and keeping the song only
+/// when the parsed artist matches. Leaves titles that merely contain a dash
+/// (e.g. "Sgt. Pepper - Reprise") untouched.
+String _dropEmbeddedArtist(String title, String artist) {
+  if (artist.isEmpty) return title;
+  final (parsedArtist, parsedTitle) = _splitFilename(title);
+  return parsedTitle != null &&
+          parsedArtist.toLowerCase() == artist.toLowerCase()
+      ? parsedTitle
+      : title;
 }
 
 /// Strips trailing extensions repeatedly (preserves a name with no extension).

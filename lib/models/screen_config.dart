@@ -73,7 +73,7 @@ class SpectrumScreenConfig extends ScreenConfig {
 
   const SpectrumScreenConfig({
     this.showMediaControls = true,
-    this.textScale = 0.6,
+    this.textScale = 1.0, // B-046: aligned with Void's default.
     this.spectrumWidthFactor = 1.0,
     this.spectrumHeightFactor = 0.5,
     this.mediaControlScale = 0.6,
@@ -100,7 +100,7 @@ class SpectrumScreenConfig extends ScreenConfig {
   factory SpectrumScreenConfig.fromJson(Map<String, dynamic> json) =>
       SpectrumScreenConfig(
         showMediaControls: json['showMediaControls'] as bool? ?? true,
-        textScale: _d(json['textScale'], 0.6),
+        textScale: _d(json['textScale'], 1.0), // B-046: aligned with Void.
         spectrumWidthFactor: _d(json['spectrumWidthFactor'], 1.0),
         spectrumHeightFactor: _d(json['spectrumHeightFactor'], 0.5),
         mediaControlScale: _d(json['mediaControlScale'], 0.6),

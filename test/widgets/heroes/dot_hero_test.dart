@@ -87,7 +87,7 @@ void main() {
   });
 
   testWidgets(
-      'showSongInfo == true renders title + parent folder over the dot',
+      'showSongInfo == true renders Artist (H1) + Song (H2) over the dot (B-046)',
       (tester) async {
     final provider = FakeAudioPlayerProvider(
       songInfo: const SongInfo(
@@ -114,15 +114,17 @@ void main() {
       ),
     );
 
+    // B-046: Dot now uses the shared Artist/Song hierarchy, not title + folder.
+    expect(find.text('Arcade Fire'), findsOneWidget);
     expect(find.text('Wake Up'), findsOneWidget);
-    expect(find.text('Indie'), findsOneWidget);
+    expect(find.text('Indie'), findsNothing);
   });
 
   // ---------------------------------------------------------------------------
   // B-035 — textScale applied to title typography when showSongInfo is on
   // ---------------------------------------------------------------------------
   testWidgets(
-      'showSongInfo + textScale=1.5 scales title fontSize by 1.5x',
+      'showSongInfo + textScale=1.5 scales the Artist (H1) fontSize by 1.5x',
       (tester) async {
     final provider = FakeAudioPlayerProvider(
       songInfo: const SongInfo(
@@ -149,15 +151,16 @@ void main() {
       ),
     );
 
-    final titleFinder = find.text('Wake Up');
-    expect(titleFinder, findsOneWidget);
+    // The Artist line (H1) carries the full heroSize * textScale.
+    final artistFinder = find.text('Arcade Fire');
+    expect(artistFinder, findsOneWidget);
 
-    final titleWidget = tester.widget<Text>(titleFinder);
+    final artistWidget = tester.widget<Text>(artistFinder);
     final BuildContext ctx = tester.element(find.byType(DotHero));
     final typography = Theme.of(ctx).extension<AppTypography>()!;
 
     expect(
-      titleWidget.style?.fontSize,
+      artistWidget.style?.fontSize,
       closeTo(typography.heroSize * 1.5, 0.01),
     );
   });
