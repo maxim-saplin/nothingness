@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +10,7 @@ import '../models/song_info.dart';
 import '../models/spectrum_settings.dart';
 import 'audio_transport.dart';
 import 'metadata_extractor.dart';
+import 'playback_telemetry.dart';
 import 'playlist_store.dart';
 import 'soloud_transport.dart';
 
@@ -37,7 +37,15 @@ class PlaybackController extends ChangeNotifier {
   })  : _transport = transport,
         _playlist = playlist ?? PlaylistStore(),
         _fileExists = fileExists ?? _defaultFileExists,
-        _supportedExtensions = _getSupportedExtensions(transport);
+        _supportedExtensions = _getSupportedExtensions(transport) {
+    _telemetry = PlaybackTelemetry(
+      captureRecentLogs: captureRecentLogs,
+      recentLogCapacity: recentLogCapacity,
+      debugPlaybackLogs: debugPlaybackLogs,
+    );
+  }
+
+  late final PlaybackTelemetry _telemetry;
 
   final AudioTransport _transport;
   final PlaylistStore _playlist;
@@ -142,31 +150,7 @@ class PlaybackController extends ChangeNotifier {
   bool _pausedByInterruption = false;
   Timer? _positionTimer;
 
-  final List<String> _recentLogs = <String>[];
-  final List<String> _audioEvents = <String>[];
-  static const int _audioEventsCap = 300;
-
   static Future<bool> _defaultFileExists(String path) => File(path).exists();
-
-  static void _appendCapped(List<String> buffer, String entry, int cap) {
-    buffer.add(entry);
-    if (buffer.length > cap) buffer.removeRange(0, buffer.length - cap);
-  }
-
-  void _log(String message) {
-    if (captureRecentLogs || debugPlaybackLogs) {
-      _appendCapped(_recentLogs, message, max(1, recentLogCapacity));
-    }
-    if (debugPlaybackLogs) debugPrint('[PlaybackController] $message');
-  }
-
-  void _logAudioEvent(String tag, [Map<String, Object?>? data]) {
-    final ts = DateTime.now().toIso8601String();
-    final dataStr = (data == null || data.isEmpty)
-        ? ''
-        : ' ${data.entries.map((e) => '${e.key}=${e.value}').join(' ')}';
-    _appendCapped(_audioEvents, '$ts $tag$dataStr', _audioEventsCap);
-  }
 
   void _recordError(String path, String reason, String message) {
     _lastErrorPath = path;
@@ -176,10 +160,10 @@ class PlaybackController extends ChangeNotifier {
   }
 
   /// Recent controller logs (if enabled), for test/diagnostics.
-  List<String> recentLogs() => List<String>.unmodifiable(_recentLogs);
+  List<String> recentLogs() => _telemetry.recentLogs;
 
   /// Audio-event ring buffer (interruption / route / load / error).
-  List<String> audioEvents() => List<String>.unmodifiable(_audioEvents);
+  List<String> audioEvents() => _telemetry.audioEvents;
 
   Future<void> _loadTrack(AudioTrack track) =>
       _transport.load(track.path, title: track.title, artist: track.artist);
@@ -195,7 +179,7 @@ class PlaybackController extends ChangeNotifier {
     await _transport.init();
 
     _transportEventSub = _transport.eventStream.listen(_handleTransportEvent);
-    _log('Initialized: subscribed to transport events');
+    _telemetry.log('Initialized: subscribed to transport events');
 
     // Audio focus / interruption events; unavailable in some test/host envs.
     try {
@@ -204,9 +188,9 @@ class PlaybackController extends ChangeNotifier {
       _noisySub =
           session.becomingNoisyEventStream.listen((_) => _onBecomingNoisy());
       _devicesSub = session.devicesChangedEventStream.listen(_onDevicesChanged);
-      _log('Initialized: subscribed to audio session events');
+      _telemetry.log('Initialized: subscribed to audio session events');
     } catch (e) {
-      _log('AudioSession unavailable: $e');
+      _telemetry.log('AudioSession unavailable: $e');
     }
 
     _playlist.queueNotifier.addListener(_updateQueueWithNotFoundFlags);
@@ -311,7 +295,7 @@ class PlaybackController extends ChangeNotifier {
   // ---- Audio session events -------------------------------------------------
 
   void _onInterruption(AudioInterruptionEvent event) {
-    _logAudioEvent('interruption', {'begin': event.begin, 'type': event.type.name});
+    _telemetry.event('interruption', {'begin': event.begin, 'type': event.type.name});
 
     if (event.begin) {
       switch (event.type) {
@@ -342,7 +326,7 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void _onBecomingNoisy() {
-    _logAudioEvent('becomingNoisy');
+    _telemetry.event('becomingNoisy');
     // Headphones unplugged / BT disconnected: treat as explicit pause per
     // Android guidance — never auto-resume.
     _pausedByInterruption = false;
@@ -361,7 +345,7 @@ class PlaybackController extends ChangeNotifier {
     final added = outputs(event.devicesAdded);
     final removed = outputs(event.devicesRemoved);
     if (added.isEmpty && removed.isEmpty) return;
-    _logAudioEvent('devicesChanged', {'added': added, 'removed': removed});
+    _telemetry.event('devicesChanged', {'added': added, 'removed': removed});
   }
 
   /// Debug seam for tests / `ext.nothingness.simulateInterruption`.
@@ -376,13 +360,13 @@ class PlaybackController extends ChangeNotifier {
   void _handleTransportEvent(TransportEvent event) {
     switch (event) {
       case TransportErrorEvent(:final path):
-        _log('Event ERROR path=${path ?? 'null'}');
+        _telemetry.log('Event ERROR path=${path ?? 'null'}');
         _handleTrackError(path);
       case TransportEndedEvent(:final path):
-        _log('Event ENDED path=${path ?? 'null'}');
+        _telemetry.log('Event ENDED path=${path ?? 'null'}');
         _handleTrackEnded(path);
       case TransportLoadedEvent(:final path):
-        _log('Event LOADED path=${path ?? 'null'}');
+        _telemetry.log('Event LOADED path=${path ?? 'null'}');
         _onTrackLoaded(path);
       case TransportPositionEvent():
         break; // Handled by the timer.
@@ -391,24 +375,24 @@ class PlaybackController extends ChangeNotifier {
 
   void _handleTrackError(String? path) {
     if (path == null) return;
-    _logAudioEvent('transportError', {'path': path});
+    _telemetry.event('transportError', {'path': path});
     if (path != _pendingLoadPath) {
-      _log('Ignore error: not pending. path=$path');
+      _telemetry.log('Ignore error: not pending. path=$path');
       return;
     }
     // Mark failed now (UI turns red); the in-flight load()'s catch advances.
-    _log('PendingLoadError: path=$path (defer advance to load/catch)');
+    _telemetry.log('PendingLoadError: path=$path (defer advance to load/catch)');
     _recordError(path, 'transport_error_event', 'TransportErrorEvent');
     if (_failedTrackPaths.add(path)) _updateQueueWithNotFoundFlags();
   }
 
   void _handleTrackEnded(String? path) {
-    _logAudioEvent('transportEnded', {'path': path ?? ''});
+    _telemetry.event('transportEnded', {'path': path ?? ''});
 
     // B-036: ignore ended while an advance is in flight — a duplicate event
     // before the first advance commits would double-advance and skip a track.
     if (_handlingEnded) {
-      _log('Ignore ended: advance already in flight path=${path ?? 'null'}');
+      _telemetry.log('Ignore ended: advance already in flight path=${path ?? 'null'}');
       return;
     }
 
@@ -430,13 +414,13 @@ class PlaybackController extends ChangeNotifier {
 
   void _onTrackLoaded(String? path) {
     if (path == null) return;
-    _logAudioEvent('transportLoaded', {'path': path});
+    _telemetry.event('transportLoaded', {'path': path});
     if (_pendingLoadPath == path) {
-      _log('OnLoaded: clearing pending for path=$path');
+      _telemetry.log('OnLoaded: clearing pending for path=$path');
       _pendingLoadPath = null;
     }
     if (_failedTrackPaths.remove(path)) {
-      _log('OnLoaded: removed failed flag for path=$path');
+      _telemetry.log('OnLoaded: removed failed flag for path=$path');
       _updateQueueWithNotFoundFlags();
     }
     _emitSongInfo(force: true);
@@ -467,12 +451,12 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> _skipToNext() async {
     final nextIdx = _playlist.nextOrderIndex();
-    _log('SkipToNext: nextIdx=${nextIdx?.toString() ?? 'null'}');
+    _telemetry.log('SkipToNext: nextIdx=${nextIdx?.toString() ?? 'null'}');
     if (nextIdx != null) {
       await playFromQueueIndex(nextIdx, isAutoSkip: true, direction: 1);
     } else {
       _endedAtQueueTailAt = DateTime.now();
-      _log('SkipToNext: end of queue, paused');
+      _telemetry.log('SkipToNext: end of queue, paused');
       await _stopPlayback();
     }
   }
@@ -564,7 +548,7 @@ class PlaybackController extends ChangeNotifier {
           await _startTransportPlay();
         } catch (e) {
           // Some transports can't resume from an ended source; reload the tail.
-          _log('TailRestartPlayFailed: $e; reloading current index');
+          _telemetry.log('TailRestartPlayFailed: $e; reloading current index');
           await playFromQueueIndex(currentIdx, isAutoSkip: true, direction: 1);
         }
         return;
@@ -581,11 +565,11 @@ class PlaybackController extends ChangeNotifier {
     } catch (e) {
       if (isTail) {
         // Some backends throw querying position right after end; reload tail.
-        _log('Position unavailable at tail in previous(): $e; reloading tail');
+        _telemetry.log('Position unavailable at tail in previous(): $e; reloading tail');
         await playFromQueueIndex(currentIdx, isAutoSkip: true, direction: 1);
         return;
       }
-      _log('Error getting position in previous(): $e');
+      _telemetry.log('Error getting position in previous(): $e');
       await _stepToPreviousIndex();
     }
   }
@@ -617,7 +601,7 @@ class PlaybackController extends ChangeNotifier {
     int direction = 1,
   }) async {
     final op = ++_opGeneration;
-    _log('playFromQueueIndex: idx=$orderIndex autoSkip=$isAutoSkip '
+    _telemetry.log('playFromQueueIndex: idx=$orderIndex autoSkip=$isAutoSkip '
         'respectPause=$respectPauseIntent dir=$direction');
     if (orderIndex < 0 || orderIndex >= _playlist.length) return;
     if (_playlist.trackForOrderIndex(orderIndex) == null) return;
@@ -686,7 +670,7 @@ class PlaybackController extends ChangeNotifier {
       }
 
       if (_shouldPreflightExists(track.path) && !await _fileExists(track.path)) {
-        _log('PreflightMissing: path=${track.path}');
+        _telemetry.log('PreflightMissing: path=${track.path}');
         _recordError(track.path, 'preflight_missing', 'File does not exist');
         _failedTrackPaths.add(track.path);
         _updateQueueWithNotFoundFlags();
@@ -704,13 +688,13 @@ class PlaybackController extends ChangeNotifier {
 
       isPlayingNotifier.value = true; // Optimistic.
       _pendingLoadPath = track.path;
-      _log('StartLoad: path=${track.path}');
+      _telemetry.log('StartLoad: path=${track.path}');
 
       try {
         await _loadTrack(track);
         if (op != _opGeneration) return;
         _pendingLoadPath = null;
-        _log('LoadSuccess: path=${track.path}');
+        _telemetry.log('LoadSuccess: path=${track.path}');
         if (_failedTrackPaths.remove(track.path)) {
           _updateQueueWithNotFoundFlags();
         }
@@ -723,7 +707,7 @@ class PlaybackController extends ChangeNotifier {
         return;
       } catch (e) {
         if (op != _opGeneration) return;
-        _log('LoadError: path=${track.path} error=$e');
+        _telemetry.log('LoadError: path=${track.path} error=$e');
         final transient = _isTransientTransportError(e);
         _recordError(
           track.path,
@@ -792,12 +776,12 @@ class PlaybackController extends ChangeNotifier {
     _userIntent = PlayIntent.play;
     _endedAtQueueTailAt = null;
     _pendingLoadPath = track.path;
-    _log('OneShot start: ${track.path} resumeAt=$_oneShotResumeIndex');
+    _telemetry.log('OneShot start: ${track.path} resumeAt=$_oneShotResumeIndex');
     isPlayingNotifier.value = true;
     try {
       await _loadAndPlayOneShot(track, op);
     } catch (e) {
-      _log('OneShot load failed: $e');
+      _telemetry.log('OneShot load failed: $e');
       _pendingLoadPath = null;
       _clearOneShot();
       await _stopPlayback();
@@ -833,7 +817,7 @@ class PlaybackController extends ChangeNotifier {
     try {
       await _loadAndPlayOneShot(track, op);
     } catch (e) {
-      _log('OneShot restart failed: $e');
+      _telemetry.log('OneShot restart failed: $e');
       _pendingLoadPath = null;
       await _finishOneShot(manual: false);
     }
@@ -928,9 +912,9 @@ class PlaybackController extends ChangeNotifier {
       _savedQueue =
           List<AudioTrack>.unmodifiable(_playlist.queueNotifier.value);
       _savedIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
-      _log('SearchSession enter: index=$_savedIndex len=${_savedQueue!.length}');
+      _telemetry.log('SearchSession enter: index=$_savedIndex len=${_savedQueue!.length}');
     } else {
-      _log('SearchSession re-enter (no re-snapshot)');
+      _telemetry.log('SearchSession re-enter (no re-snapshot)');
     }
 
     // Reuse setQueue for load/intent/error handling; shuffle:false keeps order.
@@ -957,7 +941,7 @@ class PlaybackController extends ChangeNotifier {
       // Prior queue was emptied — restore as empty (no reload).
       await _playlist.setQueue(const <AudioTrack>[]);
       _updateQueueWithNotFoundFlags();
-      _log('SearchSession exit: restored empty queue');
+      _telemetry.log('SearchSession exit: restored empty queue');
       return;
     }
 
@@ -973,7 +957,7 @@ class PlaybackController extends ChangeNotifier {
     // Restore via the playlist directly so the transport is NOT reloaded.
     await _playlist.setQueue(savedQueue, startBaseIndex: restoreIndex);
     _updateQueueWithNotFoundFlags();
-    _log('SearchSession exit: len=${savedQueue.length} '
+    _telemetry.log('SearchSession exit: len=${savedQueue.length} '
         'index=$restoreIndex active=${activeTrack?.path ?? "null"}');
     await _emitSongInfo(force: true);
   }
@@ -1097,6 +1081,6 @@ class PlaybackController extends ChangeNotifier {
           'at': _lastErrorAt?.toIso8601String(),
         },
         'recentLogs': recentLogs(),
-        'audioEvents': List<String>.unmodifiable(_audioEvents),
+        'audioEvents': _telemetry.audioEvents,
       };
 }
