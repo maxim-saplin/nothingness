@@ -98,6 +98,40 @@ void main() {
       expect(controller.isPlayingNotifier.value, isTrue);
     });
 
+    test('preflight: tapping a missing file stops cleanly without throwing '
+        '(adversarial regression — was reaching SoLoud C++)', () async {
+      final missTransport = MockAudioTransport();
+      final missPlaylist = PlaylistStore(
+        hive: Hive,
+        hiveInitializer: () async {},
+        boxOpener: (hive) =>
+            hive.openBox<dynamic>('playlistBox_oneshot_pf_$testNumber'),
+        random: Random(7),
+      );
+      final missController = PlaybackController(
+        transport: missTransport,
+        playlist: missPlaylist,
+        preflightFileExists: true,
+        fileExists: (path) async => false, // the tapped file is gone
+      );
+      await missController.init();
+      missTransport.resetCalls();
+
+      // Must not throw: previously the one-shot path skipped the preflight and
+      // hit flutter_soloud's C++ layer with an unhandled SoLoudFileNotFound.
+      await missController.playOneShot(oneShotTrack());
+
+      expect(missController.isOneShotNotifier.value, isFalse);
+      expect(missController.isPlayingNotifier.value, isFalse);
+      // Preflight short-circuited before the transport was asked to load it.
+      expect(missTransport.loadedPath, isNot('/oneshot/glass.flac'));
+
+      await missController.shutdown();
+      if (Hive.isBoxOpen('playlistBox_oneshot_pf_$testNumber')) {
+        await Hive.box('playlistBox_oneshot_pf_$testNumber').close();
+      }
+    });
+
     test('natural end on tail position stops without advancing', () async {
       final tracks = createTracks(3);
       await controller.setQueue(tracks, startIndex: 2);

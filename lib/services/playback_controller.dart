@@ -766,6 +766,18 @@ class PlaybackController extends ChangeNotifier {
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
     final op = ++_opGeneration;
 
+    // Preflight like the queue path so a tapped-but-missing track is marked
+    // not-found and stops cleanly, instead of throwing into SoLoud's C++ layer.
+    if (_shouldPreflightExists(track.path) && !await _fileExists(track.path)) {
+      if (op != _opGeneration) return;
+      _telemetry.log('OneShotPreflightMissing: path=${track.path}');
+      _failedTrackPaths.add(track.path);
+      _updateQueueWithNotFoundFlags();
+      _clearOneShot();
+      await _stopPlayback();
+      return;
+    }
+
     _oneShotResumeIndex = _playlist.currentOrderIndexNotifier.value;
     _oneShotTrack = track;
     _oneShotRepeatOne = repeatOne;
