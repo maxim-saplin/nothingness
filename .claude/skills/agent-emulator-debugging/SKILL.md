@@ -144,10 +144,9 @@ $D reload                                     # hot reload (sends `r` to /tmp/fl
 $D restart                                    # hot restart
 $D reset                                      # Android only; refuses on desktop
 
-# Audio diagnostics
+# Audio focus simulation
 $D call simulateInterruption phase=begin kind=pause
 $D call simulateNoisy
-$D call setSetting name=audioDiagnosticsOverlay value=true
 $D logcat 500                                 # adb logcat (android); /tmp/flutter_run.log (desktop)
 $D replay smoke.txt                           # one drive.py invocation per line
 ```

@@ -44,7 +44,7 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
                  ▼
 ┌─────────────────────────────────────────────────┐
 │  App internals                                  │
-│  AudioPlayerProvider, SettingsService, etc.      │
+│  PlaybackController, SettingsService, etc.       │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -212,7 +212,7 @@ curl -s "${BASE}/ext.nothingness.setQueue?isolateId=${ISOLATE}&paths=/sdcard/a.m
 | `getSemantics` | — | `{semantics: "..."}` | Semantics tree (requires accessibility enabled). |
 | `tapByKey` | `key` (ValueKey string) | `{tapped: "key"}` | Find widget by `ValueKey<String>` and invoke its tap callback. |
 | `getSettings` | — | Full settings JSON | Read current app settings, including screen and spectrum configuration. |
-| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported: `fullScreen`, `debugLayout`, `useFilenameForMetadata`, `audioDiagnosticsOverlay`. |
+| `setSetting` | `name`, `value` | `{set, value}` | Change a setting. Supported names include `fullScreen`, `debugLayout`, `useFilenameForMetadata`, `screen`, `themeVariant`, `operatingMode`, `uiScale`, `immersive`, `transport`, `browserPresentation`. |
 
 ### Playback Shortcuts
 
@@ -251,7 +251,7 @@ These extensions were added during the `ui-revamp` arc to drive the unified Void
 | `requestLibraryPermission` | — | `{granted: bool}` | Programmatically trigger the storage / audio permission flow on Android. |
 | `getOverflowReports` | `clear=true` (optional) | `{reports: [...]}` | Returns the `FlutterError.onError` ring buffer, including layout overflow incidents. |
 
-Total: **26 extensions** registered in `dev/agent_service.dart:67-145`. Use `drive.py` (see top of this doc) for typed access from the command line.
+Total: **27 extensions** registered from the `_extensions` map in `dev/agent_service.dart`. Use `drive.py` (see top of this doc) for typed access from the command line.
 
 ### Response Format
 
@@ -321,15 +321,12 @@ The entry should show `pack: com.saplin.nothingness` with `client: ...audio_sess
 
 ## Example: Real-Device BT Route Diagnostics (Bug #2 / #3)
 
-For "spectrum dies / no car audio" reports, the user drives with the diagnostics overlay on; we read the audio-event log afterwards.
+For "spectrum dies / no car audio" reports, the user drives with the app running; the audio-event ring buffer captures route swaps in-process, and we read it afterwards over the VM service (there is no in-app log viewer).
 
 ```bash
-# 1. Enable the in-app overlay (also accessible via Settings → DIAGNOSTICS)
-curl -s "${BASE}/ext.nothingness.setSetting?isolateId=${ISOLATE}&name=audioDiagnosticsOverlay&value=true"
+# 1. User drives, plugs in / out of BT, hits the problem.
 
-# 2. User drives, plugs in / out of BT, hits the problem, opens Logs in app.
-
-# 3. Pull the full diagnostics blob for analysis
+# 2. Pull the full diagnostics blob for analysis
 curl -s "${BASE}/ext.nothingness.getDiagnostics?isolateId=${ISOLATE}" \
   | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['result']['snapshot']['audioEvents'], indent=2))"
 ```
