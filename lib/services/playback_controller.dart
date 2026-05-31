@@ -493,6 +493,18 @@ class PlaybackController extends ChangeNotifier {
     _endedAtQueueTailAt = null;
     ++_opGeneration; // invalidate any in-flight load continuation
     _playlist.setCurrentOrderIndex(target); // instant per-tap hero advance
+    // Push the new track's NAME synchronously (no transport position/duration
+    // IPC on the tap path) so titles flow at tap speed; the heavy load is
+    // debounced below. Position/duration get corrected once the load settles.
+    final track = _playlist.trackForOrderIndex(target);
+    if (track != null) {
+      songInfoNotifier.value = SongInfo(
+        track: track,
+        isPlaying: true,
+        position: 0,
+        duration: track.duration?.inMilliseconds ?? 0,
+      );
+    }
     _navDebounce?.cancel();
     final done = _navDone ??= Completer<void>();
     _navDebounce = Timer(_navLoadDelay, _runNavLoad);
