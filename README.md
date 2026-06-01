@@ -6,7 +6,7 @@ Nothingness is a **fully-fledged audio player** and **retro spectrum visualizer*
 
 Originally inspired by a need for digital minimalism in modern cars (specifically the Zeekr infotainment system), it features a **Global UI Scaling** engine that adapts the interface to any screen DPI, making it perfect for car dashboards, tablets, and desktops.
 
-<img width="1125" height="617" alt="image" src="https://github.com/user-attachments/assets/21ae7465-e6da-4a0e-99af-a41119da2644" />
+<img width="300" alt="image" src="https://github.com/user-attachments/assets/24d3f16d-4a7e-473a-8c77-4b4922c2d404" />
 
 ## Features
 
@@ -56,7 +56,7 @@ Originally inspired by a need for digital minimalism in modern cars (specificall
 <img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/af75f2ed-4e70-487b-9f53-1f313363bc6e" />
 
 ### Dot
-<img width="1277" height="745" alt="image" src="https://github.com/user-attachments/assets/acc57317-2d98-4503-bf69-6ed783f49f8b" />
+<img width="1125" height="617" alt="image" src="https://github.com/user-attachments/assets/21ae7465-e6da-4a0e-99af-a41119da2644" />
 
 ## Architecture Overview
 
@@ -69,10 +69,6 @@ Nothingness uses a unified provider architecture:
 -   **Native fallback**: On Android, an optional `AudioCaptureService` can use the microphone/system mix as a spectrum source if selected in settings.
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for a deep dive.
-
-### Bootstrap
-
-`main` runs synchronously to `runApp` — heavy init (settings load, audio handler, library scan) runs in a microtask while the engine paints a black `ColoredBox` splash. The real UI swaps in when init completes. First frame lands in ~300 ms on debug-build emulator, compared to ~4.5 s when init blocked the platform thread before `runApp`.
 
 ## Permissions
 
@@ -98,6 +94,6 @@ See [docs/architecture/overview.md](docs/architecture/overview.md) for a deep di
 
 Automated pipelines via GitHub Actions. See [docs/cicd.md](docs/cicd.md).
 
-## Built With
+## Initial Built With
 
 Cursor Agents (Plan Mode) + Gemini 3 Pro / GPT 5.1 / Opus 4.5 + Flutter.
