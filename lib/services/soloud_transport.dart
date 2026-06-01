@@ -11,6 +11,17 @@ import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
 import 'soloud_spectrum_provider.dart';
 
+/// Splits [bytes] into ≤[chunkSize] views (default 128 KB) for a yielding feed
+/// into SoLoud's buffer stream — so a multi-MB opus never copies in one
+/// synchronous call. Views share the backing buffer (no copy here).
+Iterable<Uint8List> audioStreamChunks(Uint8List bytes,
+    {int chunkSize = 128 * 1024}) sync* {
+  for (var off = 0; off < bytes.length; off += chunkSize) {
+    final end = off + chunkSize < bytes.length ? off + chunkSize : bytes.length;
+    yield Uint8List.sublistView(bytes, off, end);
+  }
+}
+
 /// Thin SoLoud-backed AudioTransport — no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
   /// On Android, supply [readAndroidAudioBytes] so shared-storage tracks load
@@ -340,7 +351,7 @@ class SoLoudTransport implements AudioTransport {
     // platform-channel marshal. Works wherever the raw path is openable (desktop
     // and most Android devices), which is the common case.
     try {
-      if (isOpus) return _openOpusFromBytes(await File(path).readAsBytes());
+      if (isOpus) return await _openOpusFromBytes(await File(path).readAsBytes());
       return await _soloud.loadFile(path);
     } catch (e) {
       // Raw-path access is blocked on Android scoped storage (API 30+).
@@ -360,21 +371,34 @@ class SoLoudTransport implements AudioTransport {
       if (readBytes == null) rethrow;
       final bytes = await readBytes!(path);
       if (bytes == null) rethrow;
-      return isOpus ? _openOpusFromBytes(bytes) : await _soloud.loadMem(path, bytes);
+      return isOpus
+          ? await _openOpusFromBytes(bytes)
+          : await _soloud.loadMem(path, bytes);
     }
   }
 
   /// SoLoud's `loadFile`/`loadMem` don't decode Opus; feed it through a
-  /// buffer-stream source instead (works for both file bytes and content-URI
-  /// bytes).
-  AudioSource _openOpusFromBytes(Uint8List bytes) {
+  /// buffer-stream source instead.
+  ///
+  /// The bytes are fed in 128 KB chunks with a microtask yield between each, so
+  /// a multi-MB opus file never blocks a frame on the UI isolate — mirroring
+  /// flutter_soloud's own `_loadMemWeb`. (The decode itself runs on SoLoud's
+  /// audio thread; only this byte-copy was synchronous, and it was the freeze.)
+  Future<AudioSource> _openOpusFromBytes(Uint8List bytes) async {
     final source = _soloud.setBufferStream(
+      // Headroom for the whole compressed file — the default cap is too small
+      // for multi-MB tracks (>~2.5MB threw SoLoudPcmBufferFull). It's a limit,
+      // not an allocation; matches flutter_soloud's own web loader (200 MB).
+      maxBufferSizeBytes: 200 * 1024 * 1024,
       bufferingType: BufferingType.preserved,
       format: BufferType.auto,
       channels: Channels.stereo,
       sampleRate: 44100,
     );
-    _soloud.addAudioDataStream(source, bytes);
+    for (final c in audioStreamChunks(bytes)) {
+      _soloud.addAudioDataStream(source, c);
+      await Future<void>.delayed(Duration.zero);
+    }
     _soloud.setDataIsEnded(source);
     return source;
   }

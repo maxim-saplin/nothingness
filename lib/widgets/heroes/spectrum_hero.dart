@@ -72,17 +72,14 @@ class SpectrumHero extends StatelessWidget {
                   widthFactor: config.spectrumWidthFactor,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    // Only the bars repaint per spectrum frame (isolated); the
-                    // hero itself rebuilds only on state changes, not at 60fps.
-                    child: RepaintBoundary(
-                      child: AnimatedBuilder(
-                        animation: player.spectrumListenable,
-                        builder: (context, _) => SpectrumVisualizer(
-                          data: player.spectrumData,
-                          settings: settings,
-                          colorsOverride: voidBarColors,
-                        ),
-                      ),
+                    // The visualizer builds ONCE; its painter repaints per
+                    // spectrum frame off spectrumListenable (paint phase only) —
+                    // no 60fps widget rebuild.
+                    child: SpectrumVisualizer(
+                      repaint: player.spectrumListenable,
+                      dataSource: () => player.spectrumData,
+                      settings: settings,
+                      colorsOverride: voidBarColors,
                     ),
                   ),
                 ),

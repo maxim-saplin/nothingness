@@ -6,7 +6,14 @@ import '../models/spectrum_settings.dart';
 import '../theme/app_palette.dart';
 
 class SpectrumVisualizer extends StatelessWidget {
-  final List<double> data;
+  /// Ticks once per spectrum frame; drives the painter's [CustomPainter.repaint]
+  /// so only the PAINT phase runs per frame — the widget tree (Column, labels,
+  /// CustomPaint) builds once. Feeding a snapshot + rebuilding per frame was the
+  /// spectrum-screen jank.
+  final Listenable repaint;
+
+  /// Reads the live spectrum data at paint time (no per-frame rebuild).
+  final List<double> Function() dataSource;
   final SpectrumSettings settings;
 
   /// Optional override that bypasses [SpectrumSettings.colorScheme]. Used by
@@ -16,7 +23,8 @@ class SpectrumVisualizer extends StatelessWidget {
 
   const SpectrumVisualizer({
     super.key,
-    required this.data,
+    required this.repaint,
+    required this.dataSource,
     required this.settings,
     this.colorsOverride,
   });
@@ -39,7 +47,6 @@ class SpectrumVisualizer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final count = settings.barCount.count;
-    final resampled = _resample(data, count);
     final theme = Theme.of(context);
     final palette = theme.extension<AppPalette>()!;
     final colors = colorsOverride ?? settings.colorScheme.colors;
@@ -55,15 +62,21 @@ class SpectrumVisualizer extends StatelessWidget {
               child: Center(
                 child: SizedBox(
                   width: width,
-                  child: CustomPaint(
-                    painter: _SpectrumPainter(
-                      data: resampled,
-                      style: settings.barStyle,
-                      isLight: theme.brightness == Brightness.light,
-                      fgPrimary: palette.fgPrimary,
-                      colors: colors,
+                  // RepaintBoundary so the per-frame painter repaint can't dirty
+                  // the labels / surrounding tree.
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _SpectrumPainter(
+                        repaint: repaint,
+                        dataSource: dataSource,
+                        count: count,
+                        style: settings.barStyle,
+                        isLight: theme.brightness == Brightness.light,
+                        fgPrimary: palette.fgPrimary,
+                        colors: colors,
+                      ),
+                      size: Size.infinite,
                     ),
-                    size: Size.infinite,
                   ),
                 ),
               ),
@@ -103,7 +116,7 @@ class SpectrumVisualizer extends StatelessWidget {
 
   // Resample [source] to [target] bars, taking the max in each range for a
   // more responsive reading.
-  List<double> _resample(List<double> source, int target) {
+  static List<double> _resample(List<double> source, int target) {
     if (source.isEmpty) return List.filled(target, 0.0);
     if (source.length == target) return source;
     final ratio = source.length / target;
@@ -120,19 +133,22 @@ class SpectrumVisualizer extends StatelessWidget {
 }
 
 class _SpectrumPainter extends CustomPainter {
-  final List<double> data;
+  final List<double> Function() dataSource;
+  final int count;
   final BarStyle style;
   final bool isLight;
   final Color fgPrimary;
   final List<Color> colors;
 
   _SpectrumPainter({
-    required this.data,
+    required Listenable repaint,
+    required this.dataSource,
+    required this.count,
     required this.style,
     required this.isLight,
     required this.fgPrimary,
     required this.colors,
-  });
+  }) : super(repaint: repaint);
 
   static const _segmentCount = 16; // 80s pixelated look.
 
@@ -143,6 +159,9 @@ class _SpectrumPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Resample the LIVE spectrum here (paint phase), not in build — so the
+    // per-frame work is paint-only.
+    final data = SpectrumVisualizer._resample(dataSource(), count);
     if (data.isEmpty) return;
     final n = data.length;
     final cell = size.width / n;
@@ -233,5 +252,12 @@ class _SpectrumPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SpectrumPainter old) => true;
+  bool shouldRepaint(covariant _SpectrumPainter old) =>
+      // Per-frame animation is driven by [repaint]; only repaint on a rebuild
+      // when the static config actually changed.
+      style != old.style ||
+      count != old.count ||
+      isLight != old.isLight ||
+      fgPrimary != old.fgPrimary ||
+      !identical(colors, old.colors);
 }
