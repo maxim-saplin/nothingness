@@ -9,6 +9,15 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  # The flutter_soloud fork is vendored as a git submodule at ./soloud.
+  # It is its own package (built via dependency_overrides) with its own
+  # analysis_options + example app; don't analyze it as part of this app —
+  # otherwise `flutter analyze` from the repo root reports issues in the
+  # submodule's example code and its missing very_good_analysis include.
+  exclude:
+    - soloud/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
