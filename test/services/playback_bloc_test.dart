@@ -50,11 +50,15 @@ void main() {
   late MockAudioTransport tx;
   late _Playlist pl;
 
-  PlaybackBloc build({int n = 3, int? current, Set<String>? fail}) {
+  PlaybackBloc build(
+      {int n = 3,
+      int? current,
+      Set<String>? fail,
+      Duration navSettle = Duration.zero}) {
     tx = MockAudioTransport();
     if (fail != null) tx.pathsToFailOnLoad.addAll(fail);
     pl = _Playlist(tracks(n), current: current);
-    return PlaybackBloc(transport: tx, playlist: pl);
+    return PlaybackBloc(transport: tx, playlist: pl, navSettleDelay: navSettle);
   }
 
   test('initial state is Stopped', () {
@@ -271,6 +275,31 @@ void main() {
     },
     wait: const Duration(milliseconds: 80),
     verify: (b) => expect(b.state, isA<PbActive>().having((s) => s.index, 'i', 2)),
+  );
+
+  blocTest<PlaybackBloc, PbState>(
+    'nav-settle: paced nexts within the window load ONLY the landed track '
+    '(current keeps playing — no per-tap reload)',
+    build: () => build(n: 5, navSettle: const Duration(milliseconds: 80)),
+    act: (b) async {
+      b.add(const GoToIndex(0)); // start on idx0 (immediate load)
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      // three nexts, each arriving within the 80ms settle window
+      b.add(const GoNext());
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      b.add(const GoNext());
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      b.add(const GoNext());
+    },
+    wait: const Duration(milliseconds: 300),
+    verify: (b) {
+      expect(b.state, isA<PbActive>().having((s) => s.index, 'i', 3));
+      // idx0 loaded at start; the 3 paced nexts coalesce to ONE load (idx3) —
+      // intermediate tracks (t1, t2) are never loaded, so audio never reloaded
+      // mid-cycle.
+      expect(tx.loadCalls, ['/p/t0.mp3', '/p/t3.mp3'],
+          reason: 'no per-tap reload — only the start + landed track load');
+    },
   );
 
   blocTest<PlaybackBloc, PbState>(

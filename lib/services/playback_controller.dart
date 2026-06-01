@@ -31,7 +31,9 @@ class PlaybackController extends ChangeNotifier {
     this.debugPlaybackLogs = false,
     this.captureRecentLogs = false,
     this.recentLogCapacity = 50,
-  })  : _transport = transport,
+    Duration navSettleDelay = const Duration(milliseconds: 250),
+  })  : _navSettleDelay = navSettleDelay,
+        _transport = transport,
         _playlist = playlist ?? PlaylistStore(),
         _supportedExtensions = _getSupportedExtensions(transport) {
     _telemetry = PlaybackTelemetry(
@@ -42,10 +44,12 @@ class PlaybackController extends ChangeNotifier {
     _bloc = PlaybackBloc(
       transport: _transport,
       playlist: _playlist,
+      navSettleDelay: _navSettleDelay,
       onLog: _telemetry.log,
     );
   }
 
+  final Duration _navSettleDelay;
   late final PlaybackTelemetry _telemetry;
   late final PlaybackBloc _bloc;
   StreamSubscription<PbState>? _blocSub;

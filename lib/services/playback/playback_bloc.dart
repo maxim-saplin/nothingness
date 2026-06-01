@@ -159,6 +159,7 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     required AudioTransport transport,
     required PlaylistStore playlist,
     this.transientRetryDelay = const Duration(milliseconds: 200),
+    this.navSettleDelay = Duration.zero,
     void Function(String)? onLog,
   })  : _transport = transport,
         _playlist = playlist,
@@ -180,6 +181,10 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   final AudioTransport _transport;
   final PlaylistStore _playlist;
   final Duration transientRetryDelay;
+  // How long Next/Previous waits (for further taps) before loading. The current
+  // track keeps playing during this window, so rapid nav cycles song NAMES at
+  // 60fps while audio only switches to the track you land on. 0 = load at once.
+  final Duration navSettleDelay;
   final void Function(String) _log;
 
   static void _noLog(String _) {}
@@ -313,11 +318,13 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       }
       emit(PbLoading(index: idx, track: track, intentPlay: intentPlay));
       if (defer && attempts == 0) {
-        // For rapid user nav (next/prev), defer the FIRST load a microtask so a
-        // synchronous burst supersedes this handler (restartable) before it
-        // loads — the burst then loads only the track you land on. Tap/auto-
-        // advance (defer:false) loads immediately so index⟺loaded stays tight.
-        await Future<void>.delayed(Duration.zero);
+        // For rapid user nav (next/prev), wait out a settle window BEFORE the
+        // heavy load. restartable() cancels this handler the moment another tap
+        // arrives, so the load (which stops the current track) never fires mid-
+        // burst — the current song keeps playing while names cycle at 60fps, and
+        // only the track you land on loads. Tap/auto-advance (defer:false) loads
+        // immediately so index⟺loaded stays tight.
+        await Future<void>.delayed(navSettleDelay);
         if (emit.isDone) return;
       }
       _log('StartLoad: path=${track.path}');
