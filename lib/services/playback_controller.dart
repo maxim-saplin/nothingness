@@ -128,6 +128,12 @@ class PlaybackController extends ChangeNotifier {
   // playback; one-shot is driven directly by the controller).
   String? _pendingLoadPath;
   int _opGeneration = 0;
+  // Bumped by every explicit user intent command (play/pause/next/previous).
+  // A long-running op (e.g. folder reshuffle) captures this before its awaits;
+  // if it changed by the time the op lands, the user acted meanwhile, so the op
+  // must not clobber the newer intent (B: pause-then-it-plays-anyway).
+  int _userActionGen = 0;
+  int get userActionGen => _userActionGen;
   // B-036: true while a one-shot end-transition is in flight.
   bool _handlingEnded = false;
   StreamSubscription<TransportEvent>? _transportEventSub;
@@ -208,7 +214,29 @@ class PlaybackController extends ChangeNotifier {
     if (s is PbStopped) _userIntent = PlayIntent.pause;
     isPlayingNotifier.value = s.isPlaying;
     _updateQueueWithNotFoundFlags();
+    // Flip the hero title/artist SYNCHRONOUSLY from the state's track (already
+    // carried by PbLoading/PbActive) so names cycle at 60fps on a tap burst —
+    // never gated on the transport. Position/duration are refined just below.
+    _emitSongInfoSync(s);
     unawaited(_emitSongInfo(force: true));
+  }
+
+  // Instant, transport-free hero update from the bloc state. For a new track,
+  // position resets to 0 and duration uses the cached tag (if any); for the same
+  // track (e.g. pause↔resume) the current position/duration are preserved so the
+  // progress bar doesn't flicker. One-shot info stays controller-managed.
+  void _emitSongInfoSync(PbState s) {
+    if (_oneShot) return;
+    final track = s.track;
+    if (track == null) return; // PbStopped: leave to _emitSongInfo
+    final current = songInfoNotifier.value;
+    final sameTrack = current != null && current.track.path == track.path;
+    songInfoNotifier.value = SongInfo(
+      track: track,
+      isPlaying: s.isPlaying,
+      position: sameTrack ? current.position : 0,
+      duration: sameTrack ? current.duration : (track.duration?.inMilliseconds ?? 0),
+    );
   }
 
   // Await the bloc converging to a stable (non-Loading) state after a command,
@@ -394,6 +422,7 @@ class PlaybackController extends ChangeNotifier {
   // ---- Public transport controls --------------------------------------------
 
   Future<void> playPause() async {
+    _userActionGen++;
     if (_playlist.length == 0) return;
     // One-shot drives the transport directly (bloc is dormant during one-shot).
     if (_oneShot) {
@@ -413,6 +442,7 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Future<void> next() async {
+    _userActionGen++;
     if (_oneShot) {
       await _finishOneShot(manual: true);
       return;
@@ -424,6 +454,7 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Future<void> previous() async {
+    _userActionGen++;
     if (_oneShot) {
       await _finishOneShot(manual: true, backward: true);
       return;
@@ -678,14 +709,22 @@ class PlaybackController extends ChangeNotifier {
 
   // ---- Queue mutation -------------------------------------------------------
 
+  /// Replaces the queue and (normally) starts playback. [guardActionGen] lets a
+  /// long-running caller (folder reshuffle) pass the [userActionGen] it captured
+  /// before its slow load; if the user has since issued an intent command (e.g.
+  /// tapped pause), the queue is still set but we DON'T force play — the newer
+  /// intent wins (fixes "pause, pocket the phone, it plays anyway").
   Future<void> setQueue(
     List<AudioTrack> tracks, {
     int startIndex = 0,
     bool shuffle = false,
+    int? guardActionGen,
   }) async {
     _bloc.clearFailed();
-    // Set intent BEFORE any await so a concurrent playPause can cancel it.
-    if (tracks.isNotEmpty) _userIntent = PlayIntent.play;
+    final superseded = guardActionGen != null && _userActionGen != guardActionGen;
+    // Set intent BEFORE any await so a concurrent playPause can cancel it —
+    // unless a user command already landed during the caller's load.
+    if (tracks.isNotEmpty && !superseded) _userIntent = PlayIntent.play;
 
     await _playlist.setQueue(tracks,
         startBaseIndex: startIndex, enableShuffle: shuffle);
@@ -693,8 +732,8 @@ class PlaybackController extends ChangeNotifier {
 
     if (tracks.isNotEmpty) {
       final initialIndex = _playlist.currentOrderIndexNotifier.value ?? 0;
-      // The reconciler converges to the latest intent, so a concurrent
-      // playPause during the load no longer needs a manual correction.
+      // respectPauseIntent: a standing pause (incl. one the user made during a
+      // superseded folder load) keeps the new queue loaded but paused.
       await playFromQueueIndex(initialIndex,
           respectPauseIntent: true, direction: 1);
     }

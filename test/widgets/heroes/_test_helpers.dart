@@ -65,7 +65,7 @@ class FakeAudioPlayerProvider extends PlaybackController {
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {}
   @override
   Future<void> setQueue(List<AudioTrack> tracks,
-      {int startIndex = 0, bool shuffle = false}) async {}
+      {int startIndex = 0, bool shuffle = false, int? guardActionGen}) async {}
   @override
   Future<void> playFromQueueIndex(int orderIndex,
       {bool isAutoSkip = false,

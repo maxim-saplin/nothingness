@@ -242,6 +242,9 @@ class VoidBrowser extends HookWidget {
     Future<void> playFolderRecursiveShuffled(String path) async {
       try {
         final player = context.read<PlaybackController>();
+        // Capture the user-action generation BEFORE the (possibly slow, cold-
+        // scan) load so a pause the user makes while waiting can't be clobbered.
+        final actionGen = player.userActionGen;
         // Android loads via tracksForCurrentPath after loadFolder; else scanFolder.
         final List<AudioTrack> tracks;
         if (ctrl.isAndroid) {
@@ -251,7 +254,8 @@ class VoidBrowser extends HookWidget {
           tracks = await player.scanFolder(path);
         }
         if (tracks.isEmpty) return;
-        await player.setQueue(tracks, startIndex: 0, shuffle: true);
+        await player.setQueue(tracks,
+            startIndex: 0, shuffle: true, guardActionGen: actionGen);
       } catch (e) {
         _log.info('Recursive shuffle failed for $path: $e');
       }

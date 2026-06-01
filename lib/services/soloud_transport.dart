@@ -330,12 +330,21 @@ class SoLoudTransport implements AudioTransport {
   /// path isn't openable. Otherwise it loads directly from the filesystem.
   Future<AudioSource> _openSource(String path) async {
     final isOpus = p.extension(path).toLowerCase() == '.opus';
-    final bytes = readBytes == null ? null : await readBytes!(path);
-    if (bytes != null) {
-      return isOpus ? _openOpusFromBytes(bytes) : _soloud.loadMem(path, bytes);
+    // Fast path first: load straight from the filesystem — no whole-file read or
+    // platform-channel marshal. Works wherever the raw path is openable (desktop
+    // and most Android devices), which is the common case.
+    try {
+      if (isOpus) return _openOpusFromBytes(await File(path).readAsBytes());
+      return await _soloud.loadFile(path);
+    } catch (e) {
+      // Raw-path access is blocked on Android scoped storage (API 30+). Fall back
+      // to a MediaStore content-URI byte read when a resolver is wired; otherwise
+      // surface the original failure.
+      if (readBytes == null) rethrow;
+      final bytes = await readBytes!(path);
+      if (bytes == null) rethrow;
+      return isOpus ? _openOpusFromBytes(bytes) : await _soloud.loadMem(path, bytes);
     }
-    if (isOpus) return _openOpusFromBytes(await File(path).readAsBytes());
-    return _soloud.loadFile(path);
   }
 
   /// SoLoud's `loadFile`/`loadMem` don't decode Opus; feed it through a

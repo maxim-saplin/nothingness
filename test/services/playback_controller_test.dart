@@ -84,6 +84,40 @@ void main() {
   // ===========================================================================
   // GROUP: setQueue Behavior
   // ===========================================================================
+  group('setQueue stale-clobber guard (folder reshuffle race)', () {
+    test('a superseded setQueue (user paused during load) does NOT force play',
+        () async {
+      await controller.setQueue(createTracks(3));
+      await pumpUntil(() => controller.isPlayingNotifier.value);
+
+      // Caller (folder reshuffle) captures the action gen before its slow load.
+      final gen = controller.userActionGen;
+      // User taps pause while the load is in flight.
+      await controller.playPause();
+      await pumpUntil(() => !controller.isPlayingNotifier.value);
+
+      // The late folder setQueue lands with the stale gen → must respect the
+      // newer pause (queue swaps, but it does NOT start playing).
+      await controller.setQueue(createTracks(4, startAt: 10),
+          shuffle: true, guardActionGen: gen);
+      await pumpUntil(() => controller.queueNotifier.value.length == 4);
+
+      expect(controller.isPlayingNotifier.value, false,
+          reason: 'pause made during the load must win over the stale setQueue');
+      expect(controller.queueNotifier.value, hasLength(4));
+    });
+
+    test('a current (non-superseded) setQueue plays as normal', () async {
+      await controller.setQueue(createTracks(3));
+      await pumpUntil(() => controller.isPlayingNotifier.value);
+
+      await controller.setQueue(createTracks(4, startAt: 10),
+          shuffle: true, guardActionGen: controller.userActionGen);
+      await pumpUntil(() => controller.isPlayingNotifier.value);
+      expect(controller.isPlayingNotifier.value, true);
+    });
+  });
+
   group('setQueue', () {
     test('populates queue and starts playback', () async {
       final tracks = createTracks(3);

@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:external_path/external_path.dart';
 import 'package:logging/logging.dart';
-import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -34,6 +33,7 @@ Future<List<LibrarySong>> _loadAndroidSongsInIsolate(
       .map((s) => LibrarySong(
             path: s.data,
             title: SupportedExtensions.stripFromTitle(s.title),
+            artist: s.artist ?? '',
           ))
       .toList();
 }
@@ -223,7 +223,7 @@ class LibraryController extends ChangeNotifier {
     try {
       final LibraryListing listing;
       if (isAndroid) {
-        await _ensureAndroidSongsLoaded();
+        await _ensureAndroidSongsFresh();
         // No filesystem fallback on Android — surface only MediaStore content
         // so it stays a music player; an empty path renders empty rather than
         // dumping into Alarms / Android / Notifications.
@@ -267,28 +267,25 @@ class LibraryController extends ChangeNotifier {
     // macOS relies on the file system; reuse the current listing.
     if (!isAndroid) return tracks;
 
-    await _ensureAndroidSongsLoaded();
+    await _ensureAndroidSongsFresh();
 
     // Reuse the current listing if it already has tracks.
     if (tracks.isNotEmpty) {
       return [...tracks]..sort((a, b) => a.title.compareTo(b.title));
     }
 
-    final extractor = createMetadataExtractor();
-    final filtered = <AudioTrack>[];
-    for (final song in _androidSongs.where((s) => s.path.startsWith(path))) {
-      try {
-        // B-047: use the extractor's parsed title AND artist (single parse
-        // path shared with buildVirtualListing); the raw-filename title kept
-        // the embedded artist/track-number prefix and ignored the setting.
-        filtered.add(await extractor.extractMetadata(song.path));
-      } catch (_) {
-        filtered.add(AudioTrack(
+    final useFilenameOverride = createMetadataExtractor().useFilenameOverride;
+    final filtered = <AudioTrack>[
+      // Build from the cached scan tags — NO per-song MediaStore query (was
+      // O(N×M)); single parse path shared with buildVirtualListing.
+      for (final song in _androidSongs.where((s) => s.path.startsWith(path)))
+        buildTrackFromTags(
           path: song.path,
-          title: p.basenameWithoutExtension(song.path),
-        ));
-      }
-    }
+          rawTitle: song.title,
+          rawArtist: song.artist,
+          useFilenameOverride: useFilenameOverride,
+        ),
+    ];
     return filtered..sort((a, b) => a.title.compareTo(b.title));
   }
 
@@ -356,6 +353,22 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
+  /// Like [_ensureAndroidSongsLoaded] but first reloads the cache if MediaStore
+  /// changed since the last scan — so folder navigation/reshuffle always reflect
+  /// newly added/removed songs. This replaces the freshness that the old
+  /// per-song `extractMetadata` re-query gave incidentally (now removed for
+  /// speed). `consumeIfChanged` is a cheap max-timestamp check.
+  Future<void> _ensureAndroidSongsFresh() async {
+    if (isAndroid && hasPermission) {
+      try {
+        if (await _mediaStoreFreshness.consumeIfChanged()) _androidSongs = [];
+      } catch (e) {
+        debugPrint('Error checking MediaStore freshness: $e');
+      }
+    }
+    await _ensureAndroidSongsLoaded();
+  }
+
   Future<void> _ensureAndroidSongsLoaded() async {
     if (_androidSongs.isNotEmpty) return;
     isScanning = true;
@@ -392,7 +405,11 @@ class LibraryController extends ChangeNotifier {
 
   Future<List<LibrarySong>> _defaultAndroidSongLoader() async =>
       (await _querySongs(ignoreCase: true))
-          .map((s) => LibrarySong(path: s.data, title: s.title))
+          .map((s) => LibrarySong(
+                path: s.data,
+                title: SupportedExtensions.stripFromTitle(s.title),
+                artist: s.artist ?? '',
+              ))
           .toList();
 
   Future<void> _loadAndroidRoot() async {

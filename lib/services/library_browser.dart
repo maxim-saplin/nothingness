@@ -7,10 +7,13 @@ import 'metadata_extractor.dart';
 
 /// Lightweight representation of a media item path and title.
 class LibrarySong {
-  const LibrarySong({required this.path, required this.title});
+  const LibrarySong({required this.path, required this.title, this.artist = ''});
 
   final String path;
   final String title;
+  // Raw MediaStore artist tag, cached from the one library scan so per-folder
+  // track building never needs to re-query (avoids O(N×M)).
+  final String artist;
 }
 
 /// Represents a folder entry in the library view.
@@ -62,22 +65,15 @@ class LibraryBrowser {
       final slash = relative.indexOf('/');
       if (slash < 0) {
         if (!_isSupported(song.path)) continue;
-        // B-047: take the extractor's full title AND artist so the
-        // `useFilenameForMetadata` setting actually decides the source —
-        // filename parsing (default) or ID3 tags. Previously the title was
-        // hardcoded to the raw filename, which kept the track-number/artist
-        // prefix and ignored the setting. Fall back to the bare filename only
-        // when extraction throws.
-        AudioTrack track;
-        try {
-          track = await extractor.extractMetadata(song.path);
-        } catch (_) {
-          track = AudioTrack(
-            path: song.path,
-            title: p.basenameWithoutExtension(song.path),
-          );
-        }
-        tracks.add(track);
+        // B-047: parse title AND artist so the `useFilenameForMetadata` setting
+        // decides the source (filename vs ID3). Build from the cached scan tags
+        // — NO per-song MediaStore query (was O(N×M); see buildTrackFromTags).
+        tracks.add(buildTrackFromTags(
+          path: song.path,
+          rawTitle: song.title,
+          rawArtist: song.artist,
+          useFilenameOverride: extractor.useFilenameOverride,
+        ));
       } else {
         final childName = relative.substring(0, slash);
         final childPath = p.join(base, childName);

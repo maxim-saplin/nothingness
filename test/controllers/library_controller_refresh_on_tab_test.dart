@@ -16,6 +16,8 @@ class FakeMediaStoreFreshness implements MediaStoreFreshness {
 
   int consumeCalls = 0;
 
+  void markDirty() => _dirty.value = true;
+
   @override
   Future<bool> consumeIfChanged() async {
     consumeCalls += 1;
@@ -43,6 +45,7 @@ class TestLibraryController extends LibraryController {
     required super.mediaStoreFreshness,
     required super.isAndroidOverride,
     required super.androidFolderRescan,
+    super.androidSongLoader,
     super.waitForFolderRescan,
     super.folderRescanReloadDelays,
   });
@@ -97,6 +100,43 @@ void main() {
       await controller.onFoldersTabVisible();
       expect(freshness.consumeCalls, 2);
       expect(controller.refreshCalls, 1);
+    });
+  });
+
+  group('navigation/reshuffle stays fresh (new songs appear)', () {
+    test('loadFolder reloads the cached library when MediaStore changed', () async {
+      var loads = 0;
+      final library = <List<LibrarySong>>[
+        const [LibrarySong(path: '/music/a.mp3', title: 'A', artist: 'AArt')],
+        const [
+          LibrarySong(path: '/music/a.mp3', title: 'A', artist: 'AArt'),
+          LibrarySong(path: '/music/b.mp3', title: 'B', artist: 'BArt'), // newly added
+        ],
+      ];
+      final freshness = FakeMediaStoreFreshness(dirty: false);
+      final controller = TestLibraryController(
+        libraryBrowser: FakeLibraryBrowser(),
+        libraryService: _libraryServiceForTest(),
+        mediaStoreFreshness: freshness,
+        isAndroidOverride: true,
+        androidFolderRescan: (_) async => true,
+        androidSongLoader: () async => library[(loads++).clamp(0, library.length - 1)],
+      );
+      controller.hasPermission = true;
+
+      // First navigation: cold load → sees only A.
+      await controller.loadFolder('/music');
+      expect(controller.androidSongs.map((s) => s.path), contains('/music/a.mp3'));
+      expect(controller.androidSongs.map((s) => s.path), isNot(contains('/music/b.mp3')));
+
+      // A new song is added to MediaStore.
+      freshness.markDirty();
+
+      // Re-navigating must reload the cache (not gated on empty) so B appears.
+      await controller.loadFolder('/music');
+      expect(controller.androidSongs.map((s) => s.path), contains('/music/b.mp3'),
+          reason: 'a library update must surface in navigation/reshuffle');
+      expect(loads, 2, reason: 'cache reloaded on the freshness change');
     });
   });
 

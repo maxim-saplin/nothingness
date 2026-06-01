@@ -12,11 +12,38 @@ import 'settings_service.dart';
 abstract class MetadataExtractor {
   /// Extracts metadata from a file path and returns an AudioTrack.
   Future<AudioTrack> extractMetadata(String filePath);
+
+  /// Whether the filename (not tags) is the metadata source. Lets callers that
+  /// already hold MediaStore tags parse via [buildTrackFromTags] without a query.
+  bool get useFilenameOverride;
+}
+
+/// Builds an [AudioTrack] from already-fetched MediaStore tags — NO query.
+///
+/// This is the query-free core of [AndroidMetadataExtractor.extractMetadata];
+/// callers that already hold a track's tags (the cached library scan) use it to
+/// avoid an O(N×M) per-song `querySongs`. [useFilenameOverride] forces filename
+/// parsing (the `useFilenameForMetadata` setting); otherwise tags win, with the
+/// same embedded-artist / track-number cleanup the filename path applies.
+AudioTrack buildTrackFromTags({
+  required String path,
+  required String rawTitle,
+  required String rawArtist,
+  bool useFilenameOverride = false,
+}) {
+  if (useFilenameOverride) return _parseFilenameMetadata(path);
+  final artist =
+      rawArtist.isNotEmpty ? rawArtist : _parseFilenameMetadata(path).artist;
+  final title = rawTitle.isNotEmpty
+      ? _dropEmbeddedArtist(SupportedExtensions.stripFromTitle(rawTitle), artist)
+      : _parseFilenameMetadata(path).title;
+  return AudioTrack(path: path, title: title, artist: artist);
 }
 
 /// Android implementation using on_audio_query to query MediaStore.
 class AndroidMetadataExtractor implements MetadataExtractor {
   final OnAudioQuery _audioQuery;
+  @override
   final bool useFilenameOverride;
 
   AndroidMetadataExtractor({OnAudioQuery? audioQuery, this.useFilenameOverride = false})
@@ -38,16 +65,12 @@ class AndroidMetadataExtractor implements MetadataExtractor {
         (s) => s.data == filePath,
         orElse: () => throw StateError('No matching song found'),
       );
-      final artist = song.artist?.isNotEmpty == true
-          ? song.artist!
-          : _parseFilenameMetadata(filePath).artist;
-      // Files with no ID3 title tag fall back to the filename, which can carry
-      // the audio extension and an embedded "Artist - " prefix.
-      final title = song.title.isNotEmpty
-          ? _dropEmbeddedArtist(
-              SupportedExtensions.stripFromTitle(song.title), artist)
-          : _parseFilenameMetadata(filePath).title;
-      return AudioTrack(path: filePath, title: title, artist: artist);
+      // Single parse path, shared with the cached/no-query callers.
+      return buildTrackFromTags(
+        path: filePath,
+        rawTitle: song.title,
+        rawArtist: song.artist ?? '',
+      );
     } catch (e) {
       debugPrint('[AndroidMetadataExtractor] MediaStore query failed for $filePath: $e');
       return _parseFilenameMetadata(filePath);
@@ -57,6 +80,9 @@ class AndroidMetadataExtractor implements MetadataExtractor {
 
 /// Desktop (macOS/Linux) implementation using filename parsing.
 class DesktopMetadataExtractor implements MetadataExtractor {
+  @override
+  bool get useFilenameOverride => true; // no tags on desktop — always filename
+
   @override
   Future<AudioTrack> extractMetadata(String filePath) async =>
       _parseFilenameMetadata(filePath);
