@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
@@ -10,17 +9,6 @@ import '../models/spectrum_settings.dart';
 import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
 import 'soloud_spectrum_provider.dart';
-
-/// Splits [bytes] into ≤[chunkSize] views (default 128 KB) for a yielding feed
-/// into SoLoud's buffer stream — so a multi-MB opus never copies in one
-/// synchronous call. Views share the backing buffer (no copy here).
-Iterable<Uint8List> audioStreamChunks(Uint8List bytes,
-    {int chunkSize = 128 * 1024}) sync* {
-  for (var off = 0; off < bytes.length; off += chunkSize) {
-    final end = off + chunkSize < bytes.length ? off + chunkSize : bytes.length;
-    yield Uint8List.sublistView(bytes, off, end);
-  }
-}
 
 /// Thin SoLoud-backed AudioTransport — no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
@@ -346,22 +334,36 @@ class SoLoudTransport implements AudioTransport {
   /// — this is how scoped-storage tracks reach the decoder, since their raw
   /// path isn't openable. Otherwise it loads directly from the filesystem.
   Future<AudioSource> _openSource(String path) async {
+    // Opus now decodes natively inside loadFile/loadMem (forked flutter_soloud,
+    // on the compute isolate) exactly like mp3 — no more UI-isolate buffer-stream
+    // feed. So every format takes the same path here.
     final isOpus = p.extension(path).toLowerCase() == '.opus';
+    final sw = isOpus ? (Stopwatch()..start()) : null;
+    void perf(String mode) {
+      if (sw != null) {
+        debugPrint('[OPUS-PERF] mode=$mode total_ms=${sw.elapsedMilliseconds} '
+            'file=${p.basename(path)}');
+      }
+    }
+
     // Fast path first: load straight from the filesystem — no whole-file read or
     // platform-channel marshal. Works wherever the raw path is openable (desktop
     // and most Android devices), which is the common case.
     try {
-      if (isOpus) return await _openOpusFromBytes(await File(path).readAsBytes());
-      return await _soloud.loadFile(path);
+      final source = await _soloud.loadFile(path);
+      perf('loadFile');
+      return source;
     } catch (e) {
       // Raw-path access is blocked on Android scoped storage (API 30+).
-      // B-049 spike: prefer the fd path (no UI-isolate byte marshal) for non-opus
-      // — loadFile reads+decodes /proc/self/fd/N in the compute isolate.
-      if (!isOpus && openFd != null) {
+      // B-049: prefer the fd path (no UI-isolate byte marshal) — loadFile
+      // reads+decodes /proc/self/fd/N in the compute isolate.
+      if (openFd != null) {
         final fdPath = await openFd!(path);
         if (fdPath != null) {
           try {
-            return await _soloud.loadFile(fdPath);
+            final source = await _soloud.loadFile(fdPath);
+            perf('fd');
+            return source;
           } finally {
             if (closeFd != null) unawaited(closeFd!(fdPath));
           }
@@ -371,36 +373,10 @@ class SoLoudTransport implements AudioTransport {
       if (readBytes == null) rethrow;
       final bytes = await readBytes!(path);
       if (bytes == null) rethrow;
-      return isOpus
-          ? await _openOpusFromBytes(bytes)
-          : await _soloud.loadMem(path, bytes);
+      final source = await _soloud.loadMem(path, bytes);
+      perf('loadMem');
+      return source;
     }
-  }
-
-  /// SoLoud's `loadFile`/`loadMem` don't decode Opus; feed it through a
-  /// buffer-stream source instead.
-  ///
-  /// The bytes are fed in 128 KB chunks with a microtask yield between each, so
-  /// a multi-MB opus file never blocks a frame on the UI isolate — mirroring
-  /// flutter_soloud's own `_loadMemWeb`. (The decode itself runs on SoLoud's
-  /// audio thread; only this byte-copy was synchronous, and it was the freeze.)
-  Future<AudioSource> _openOpusFromBytes(Uint8List bytes) async {
-    final source = _soloud.setBufferStream(
-      // Headroom for the whole compressed file — the default cap is too small
-      // for multi-MB tracks (>~2.5MB threw SoLoudPcmBufferFull). It's a limit,
-      // not an allocation; matches flutter_soloud's own web loader (200 MB).
-      maxBufferSizeBytes: 200 * 1024 * 1024,
-      bufferingType: BufferingType.preserved,
-      format: BufferType.auto,
-      channels: Channels.stereo,
-      sampleRate: 44100,
-    );
-    for (final c in audioStreamChunks(bytes)) {
-      _soloud.addAudioDataStream(source, c);
-      await Future<void>.delayed(Duration.zero);
-    }
-    _soloud.setDataIsEnded(source);
-    return source;
   }
 
   Future<void> _disposePreloaded() async {
