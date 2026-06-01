@@ -48,6 +48,9 @@ void main() {
     // don't leak across cases.
     final s = SettingsService();
     s.operatingModeNotifier.value = OperatingMode.own;
+    // Reset the active screen too — tests that switch to Dot/Void persist it on
+    // the singleton and would otherwise leak into order-dependent cases.
+    s.screenConfigNotifier.value = const SpectrumScreenConfig();
   });
 
   group('VoidSettingsSheet — group visibility predicates', () {
@@ -71,6 +74,49 @@ void main() {
       // Display + About always present.
       expect(find.text('DISPLAY', skipOffstage: false), findsOneWidget);
       expect(find.text('ABOUT', skipOffstage: false), findsOneWidget);
+    });
+
+    // -------------------------------------------------------------------------
+    // B-050 — app-wide groups first, screen-specific cluster (SOUND/DISPLAY)
+    // at the bottom; no interleave. SOUND header suppressed when the active
+    // hero has no visualizer.
+    // -------------------------------------------------------------------------
+    testWidgets('own mode (spectrum): groups ordered app-wide then screen',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      await SettingsService().saveScreenConfig(const SpectrumScreenConfig());
+
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+      double y(String header) =>
+          tester.getTopLeft(find.text(header, skipOffstage: false)).dy;
+
+      // App-wide first (MODE, LOOK, LIBRARY), then the screen-specific cluster
+      // (SOUND, DISPLAY), then the ABOUT footer — strictly increasing.
+      final order = [
+        y('MODE'),
+        y('LOOK'),
+        y('LIBRARY'),
+        y('SOUND'),
+        y('DISPLAY'),
+        y('ABOUT'),
+      ];
+      for (var i = 1; i < order.length; i++) {
+        expect(order[i] > order[i - 1], isTrue,
+            reason: 'group $i should sit below group ${i - 1}: $order');
+      }
+    });
+
+    testWidgets('own mode (dot): SOUND header is suppressed (no empty section)',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      await SettingsService().saveScreenConfig(const DotScreenConfig());
+
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+      expect(find.text('SOUND', skipOffstage: false), findsNothing);
+      expect(find.text('LIBRARY', skipOffstage: false), findsOneWidget);
+      expect(find.text('DISPLAY', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('background mode: External visible, Sound + Library hidden',

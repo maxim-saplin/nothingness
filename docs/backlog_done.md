@@ -7,6 +7,43 @@ the shared conventions.
 Each closed entry preserves its original H2 (`## B-0NN (severity): title`)
 and body, plus a `**Closed**: YYYY-MM-DD — summary` line at the bottom.
 
+## B-050 (minor): screen-specific settings sections interleave with app-wide ones
+
+- **Symptom** — In own mode the settings sheet rendered
+  `LOOK → SOUND → LIBRARY → DISPLAY → ABOUT`. SOUND and DISPLAY are
+  screen-specific (they reconfigure the active hero), but the generic, app-wide
+  LIBRARY section sat between them, so a user scanning the sheet hit screen
+  settings, then global settings, then screen settings again. On the spectrum
+  screen this read as a jarring back-and-forth. Secondary: on Dot/Void in own
+  mode the `SOUND` header still rendered with zero rows beneath it (header was
+  `isOwn`-gated, but all its rows were `cfg.usesVisualizer`-gated), leaving an
+  empty section mid-list.
+- **Repro** — Run own mode, open settings on the Spectrum screen: SOUND appeared
+  above LIBRARY, DISPLAY below it. Switch screen to Dot or Void: an empty SOUND
+  header remained between LOOK and LIBRARY.
+- **Desired** — Group all app-wide sections first, then cluster the
+  screen-specific sections together at the bottom (above ABOUT, which is a
+  footer). Own-mode order:
+  `MODE → LOOK → LIBRARY → [SOUND, DISPLAY] → ABOUT`. Also suppress the SOUND
+  header when it would have no rows (only emit it when `cfg.usesVisualizer`).
+  Background mode was already ordered correctly and must not regress.
+- **Notes** — `lib/widgets/void_settings_sheet.dart` `buildGroups()`: pure
+  reorder of the `rows` list (LIBRARY/EXTERNAL moved above the screen cluster)
+  plus folding the SOUND header inside the `usesVisualizer` guard — no model or
+  persistence changes. SOUND's visualizer rows (bar count/style/decay/color) are
+  stored globally in `settingsNotifier`, not per-`ScreenConfig`; they're
+  "screen-relevant" so they live in the screen-specific cluster (left as a
+  separate SOUND group rather than folded into DISPLAY). Covered by
+  `test/widgets/void_settings_sheet_test.dart` (new ordering assertion + Dot
+  empty-header assertion; `setUp` now resets the active screen so order-dependent
+  cases don't leak).
+- **Area** — settings
+
+**Closed**: 2026-06-01 — Implemented the reorder + header gating. Verified on the
+Linux desktop debug build: spectrum shows `MODE → LOOK → LIBRARY → SOUND →
+DISPLAY → ABOUT`, void shows the same minus SOUND (no empty header). 21/21
+widget tests pass.
+
 ## B-046 (minor): Artist/Song H1/H2 hierarchy — strip redundant artist prefix; apply to Void/Spectrum/Dot; align default text size
 
 - **Symptom** — For a file like `Nirvana - Rape me.mp3` the hero shows H1

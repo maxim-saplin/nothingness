@@ -25,11 +25,13 @@ import 'press_feedback.dart';
 
 /// Themed settings surface for the Void chrome.
 ///
-/// The single settings UI for the app. Groups (MODE / LOOK / SOUND / LIBRARY /
-/// EXTERNAL / DISPLAY / ABOUT) adapt to the active operating mode and active
-/// home-screen so per-visualisation knobs only appear when relevant. A pinned
-/// status strip (queue size + shuffle toggle) sits between the header and the
-/// MODE group when the queue is non-empty.
+/// The single settings UI for the app. App-wide groups come first
+/// (MODE / LOOK / LIBRARY / EXTERNAL), then the screen-specific cluster
+/// (SOUND / DISPLAY) so the two never interleave, with ABOUT as the footer.
+/// Groups adapt to the active operating mode and active home-screen so
+/// per-visualisation knobs only appear when relevant. A pinned status strip
+/// (queue size + shuffle toggle) sits between the header and the MODE group
+/// when the queue is non-empty.
 ///
 /// Rows are data-driven: each is a [_Cycle], [_Toggle] or [_Slider] spec that a
 /// single builder renders. The active [AppPalette] / [AppTypography] /
@@ -398,29 +400,8 @@ class VoidSettingsSheet extends HookWidget {
             settings.saveUiScale,
             trailing: autoChip(isAuto: settings.uiScaleNotifier.value < 0)),
 
-        // SOUND
+        // LIBRARY — app-wide (own mode).
         if (isOwn) ...[
-          _Group('SOUND'),
-          // Visualizer-only rows (B-034): hidden when the active hero doesn't
-          // paint the spectrum (Dot, Void).
-          if (cfg.usesVisualizer) ...[
-            _Cycle('void-settings-bar-count', 'bar count',
-                '${spectrum.barCount.count}',
-                () => settings.saveSettings(spectrum.copyWith(
-                    barCount: _next(BarCount.values, spectrum.barCount)))),
-            _Cycle('void-settings-bar-style', 'bar style', spectrum.barStyle.name,
-                () => settings.saveSettings(spectrum.copyWith(
-                    barStyle: _next(BarStyle.values, spectrum.barStyle)))),
-            _Cycle('void-settings-decay-speed', 'decay speed',
-                spectrum.decaySpeed.name,
-                () => settings.saveSettings(spectrum.copyWith(
-                    decaySpeed: _next(DecaySpeed.values, spectrum.decaySpeed)))),
-            _Cycle('void-settings-visualizer-color', 'visualizer color',
-                spectrum.colorScheme.label,
-                () => settings.saveSettings(spectrum.copyWith(colorScheme:
-                    _next(SpectrumColorScheme.values, spectrum.colorScheme)))),
-          ],
-
           _Group('LIBRARY'),
           _Toggle('void-settings-scan-on-startup', 'prefer filename over tags',
               settings.useFilenameForMetadataNotifier.value,
@@ -432,7 +413,7 @@ class VoidSettingsSheet extends HookWidget {
                   !settings.smartFoldersPresentationNotifier.value)),
         ],
 
-        // EXTERNAL
+        // EXTERNAL — app-wide (background mode).
         if (isBackground) ...[
           _Group('EXTERNAL'),
           if (Platform.isAndroid) ...[
@@ -448,7 +429,33 @@ class VoidSettingsSheet extends HookWidget {
               (v) => settings.saveSettings(spectrum.copyWith(noiseGateDb: v))),
         ],
 
-        // DISPLAY
+        // ---- Screen-specific cluster (B-050): SOUND + DISPLAY grouped at the
+        // bottom so per-screen knobs never interleave with the app-wide groups.
+
+        // SOUND — visualizer settings for the active hero (own mode). The whole
+        // group is gated on usesVisualizer so screens without a spectrum
+        // (Dot, Void) don't show an empty header (B-034 hid the rows, B-050 the
+        // header too).
+        if (isOwn && cfg.usesVisualizer) ...[
+          _Group('SOUND'),
+          _Cycle('void-settings-bar-count', 'bar count',
+              '${spectrum.barCount.count}',
+              () => settings.saveSettings(spectrum.copyWith(
+                  barCount: _next(BarCount.values, spectrum.barCount)))),
+          _Cycle('void-settings-bar-style', 'bar style', spectrum.barStyle.name,
+              () => settings.saveSettings(spectrum.copyWith(
+                  barStyle: _next(BarStyle.values, spectrum.barStyle)))),
+          _Cycle('void-settings-decay-speed', 'decay speed',
+              spectrum.decaySpeed.name,
+              () => settings.saveSettings(spectrum.copyWith(
+                  decaySpeed: _next(DecaySpeed.values, spectrum.decaySpeed)))),
+          _Cycle('void-settings-visualizer-color', 'visualizer color',
+              spectrum.colorScheme.label,
+              () => settings.saveSettings(spectrum.copyWith(colorScheme:
+                  _next(SpectrumColorScheme.values, spectrum.colorScheme)))),
+        ],
+
+        // DISPLAY — per-screen knobs.
         _Group('DISPLAY'),
         if (kDebugMode || (!kIsWeb && Platform.isMacOS))
           _Toggle('void-settings-debug-layout', 'debug layout',
