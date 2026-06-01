@@ -29,23 +29,34 @@ class DotHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final player = context.watch<PlaybackController>();
+    // read (not watch): the dot animates off [spectrumListenable] below, so this
+    // widget must NOT rebuild on every controller notify.
+    final player = context.read<PlaybackController>();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxAllowed = min(constraints.maxWidth, constraints.maxHeight) / 2;
-        final r = _radiusFor(player.spectrumData, maxAllowed);
         return BaseHeroContainer(
           child: Stack(
             children: [
-              // Pulsing dot — always centered.
+              // Pulsing dot — always centered. Only this subtree repaints per
+              // spectrum frame (RepaintBoundary-isolated).
               Center(
-                child: Container(
-                  width: r * 2,
-                  height: r * 2,
-                  decoration: BoxDecoration(
-                    color: palette.fgPrimary.withValues(alpha: config.dotOpacity),
-                    shape: BoxShape.circle,
+                child: RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: player.spectrumListenable,
+                    builder: (context, _) {
+                      final r = _radiusFor(player.spectrumData, maxAllowed);
+                      return Container(
+                        width: r * 2,
+                        height: r * 2,
+                        decoration: BoxDecoration(
+                          color: palette.fgPrimary
+                              .withValues(alpha: config.dotOpacity),
+                          shape: BoxShape.circle,
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),

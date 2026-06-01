@@ -27,6 +27,9 @@ class FakeAudioPlayerProvider extends PlaybackController {
   SongInfo? _songInfoOverride;
   List<double>? _spectrumOverride;
   bool _isPlayingOverride;
+  // Visualizers repaint off spectrumListenable (not the controller notify), so
+  // the fake drives a dedicated ticker that setSpectrum bumps.
+  final ValueNotifier<int> _spectrumTick = ValueNotifier<int>(0);
 
   @override
   SongInfo? get songInfo => _songInfoOverride;
@@ -34,6 +37,9 @@ class FakeAudioPlayerProvider extends PlaybackController {
   @override
   List<double> get spectrumData =>
       _spectrumOverride ?? const <double>[0, 0, 0, 0];
+
+  @override
+  Listenable get spectrumListenable => _spectrumTick;
 
   @override
   bool get isPlaying => _isPlayingOverride;
@@ -45,6 +51,7 @@ class FakeAudioPlayerProvider extends PlaybackController {
 
   void setSpectrum(List<double> data) {
     _spectrumOverride = data;
+    _spectrumTick.value++;
     notifyListeners();
   }
 

@@ -87,10 +87,15 @@ class PlaybackController extends ChangeNotifier {
 
   // ---- Spectrum facade — state/lifecycle live in [SpectrumSource] ----------
 
-  late final SpectrumSource _spectrum =
-      SpectrumSource(_transport)..addListener(notifyListeners);
+  // NOT fanned into notifyListeners: the spectrum ticks at ~60fps and doing so
+  // rebuilt every `context.watch<PlaybackController>()` widget every frame (the
+  // hero/transport rebuild storm). Visualizers listen to [spectrumListenable]
+  // directly (RepaintBoundary-isolated) so only they repaint per frame.
+  late final SpectrumSource _spectrum = SpectrumSource(_transport);
 
   List<double> get spectrumData => _spectrum.data;
+  /// Ticks per spectrum frame — for the visualizer's isolated repaint only.
+  Listenable get spectrumListenable => _spectrum;
   Stream<List<double>> get spectrumStream => _spectrum.stream;
   void setCaptureEnabled(bool enabled) => _spectrum.setCaptureEnabled(enabled);
   void updateSpectrumSettings(SpectrumSettings settings) =>
