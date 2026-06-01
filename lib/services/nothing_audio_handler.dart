@@ -16,9 +16,16 @@ class NothingAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   factory NothingAudioHandler({bool debugLogs = false}) {
     // Android: load shared-storage tracks via MediaStore content URIs (scoped
-    // storage blocks raw-path access on API 30+).
-    final transport = SoLoudTransport(readBytes: readAndroidAudioBytes)
-      ..setCaptureEnabled(false);
+    // storage blocks raw-path access on API 30+). B-049 spike: fd-first to keep
+    // the whole-file bytes off the UI isolate; readBytes is the fallback.
+    final transport = SoLoudTransport(
+      openFd: openAndroidAudioFd,
+      closeFd: closeAndroidAudioFd,
+      // Fallback for sources where an fd can't be opened (non-seekable / exotic
+      // providers): read bytes and loadMem. fd-first keeps the whole-file bytes
+      // off the UI isolate for the common (local media) case.
+      readBytes: readAndroidAudioBytes,
+    )..setCaptureEnabled(false);
     final controller = PlaybackController(
       transport: transport,
       playlist: PlaylistStore(),

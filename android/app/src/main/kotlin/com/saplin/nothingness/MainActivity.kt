@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.provider.Settings
@@ -117,6 +118,15 @@ class MainActivity : AudioServiceActivity() {
                     val path = call.argument<String>("path")
                     if (path.isNullOrEmpty()) result.error("INVALID", "path required", null)
                     else readAudioBytes(path, result)
+                }
+                "openAudioFd" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrEmpty()) result.error("INVALID", "path required", null)
+                    else openAudioFd(path, result)
+                }
+                "closeAudioFd" -> {
+                    call.argument<Int>("fd")?.let { closeAudioFd(it) }
+                    result.success(null)
                 }
                 "updateSpectrumSettings" -> {
                     @Suppress("UNCHECKED_CAST")
@@ -283,6 +293,33 @@ class MainActivity : AudioServiceActivity() {
             }
             mainHandler.post { result.success(bytes) }
         }.start()
+    }
+
+    // B-049 spike: open a content URI as a file descriptor and hand Dart a
+    // /proc/self/fd/N path (tiny string) so SoLoud reads+decodes IN the compute
+    // isolate — no whole-file Uint8List marshal onto the UI isolate. The PFD is
+    // kept alive until closeAudioFd(fd).
+    private val openFds = java.util.concurrent.ConcurrentHashMap<Int, ParcelFileDescriptor>()
+
+    private fun openAudioFd(path: String, result: MethodChannel.Result) {
+        Thread {
+            val fdPath: String? = try {
+                resolveAudioUri(path)?.let { uri ->
+                    contentResolver.openFileDescriptor(uri, "r")?.let { pfd ->
+                        openFds[pfd.fd] = pfd
+                        "/proc/self/fd/${pfd.fd}"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "openAudioFd failed for $path: ${e.message}")
+                null
+            }
+            mainHandler.post { result.success(fdPath) }
+        }.start()
+    }
+
+    private fun closeAudioFd(fd: Int) {
+        openFds.remove(fd)?.let { try { it.close() } catch (_: Exception) {} }
     }
 
     /// Maps a path (or pass-through content:// URI) to a playable content URI.

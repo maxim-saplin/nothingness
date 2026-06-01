@@ -18,6 +18,30 @@ Future<Uint8List?> readAndroidAudioBytes(String path) async {
   return readAudioBytesViaChannel(path);
 }
 
+/// B-049 spike: open [path] as a content-URI file descriptor and return a
+/// `/proc/self/fd/N` path. SoLoud's `loadFile` reads+decodes it in the compute
+/// isolate, so no whole-file bytes cross onto the UI isolate. Caller MUST
+/// [closeAndroidAudioFd] after the load to release the descriptor.
+Future<String?> openAndroidAudioFd(String path) async {
+  if (!Platform.isAndroid || path.isEmpty) return null;
+  try {
+    return await _mediaChannel
+        .invokeMethod<String>('openAudioFd', <String, dynamic>{'path': path});
+  } catch (e) {
+    debugPrint('[android_audio_source] openAudioFd failed for $path: $e');
+    return null;
+  }
+}
+
+/// Releases a descriptor opened by [openAndroidAudioFd] ([fdPath] = /proc/self/fd/N).
+Future<void> closeAndroidAudioFd(String fdPath) async {
+  final n = int.tryParse(fdPath.split('/').last);
+  if (n == null) return;
+  try {
+    await _mediaChannel.invokeMethod<void>('closeAudioFd', <String, dynamic>{'fd': n});
+  } catch (_) {}
+}
+
 /// The channel call without the platform guard, so it's exercisable in tests
 /// (the host platform isn't Android).
 @visibleForTesting

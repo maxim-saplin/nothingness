@@ -17,11 +17,17 @@ class SoLoudTransport implements AudioTransport {
   /// via a MediaStore content URI (scoped storage blocks raw-path access). When
   /// null, or when it returns null, [_openSource] falls back to a direct file
   /// load (desktop, or app-private paths).
-  SoLoudTransport({this.readBytes});
+  SoLoudTransport({this.readBytes, this.openFd, this.closeFd});
 
   /// Resolves a track path to playable bytes (e.g. via a content:// URI).
   /// Returns null to fall back to a direct file load.
   final Future<Uint8List?> Function(String path)? readBytes;
+
+  /// B-049 spike: resolves a path to a `/proc/self/fd/N` string (content-URI fd)
+  /// so `loadFile` reads+decodes it in the compute isolate — no UI-isolate byte
+  /// marshal. Returns null to fall back to [readBytes]. [closeFd] releases it.
+  final Future<String?> Function(String path)? openFd;
+  final Future<void> Function(String fdPath)? closeFd;
 
   static const Set<String> supportedExtensions =
       SupportedExtensions.supportedExtensions;
@@ -337,9 +343,20 @@ class SoLoudTransport implements AudioTransport {
       if (isOpus) return _openOpusFromBytes(await File(path).readAsBytes());
       return await _soloud.loadFile(path);
     } catch (e) {
-      // Raw-path access is blocked on Android scoped storage (API 30+). Fall back
-      // to a MediaStore content-URI byte read when a resolver is wired; otherwise
-      // surface the original failure.
+      // Raw-path access is blocked on Android scoped storage (API 30+).
+      // B-049 spike: prefer the fd path (no UI-isolate byte marshal) for non-opus
+      // — loadFile reads+decodes /proc/self/fd/N in the compute isolate.
+      if (!isOpus && openFd != null) {
+        final fdPath = await openFd!(path);
+        if (fdPath != null) {
+          try {
+            return await _soloud.loadFile(fdPath);
+          } finally {
+            if (closeFd != null) unawaited(closeFd!(fdPath));
+          }
+        }
+      }
+      // Fall back to a MediaStore content-URI byte read when wired; else surface.
       if (readBytes == null) rethrow;
       final bytes = await readBytes!(path);
       if (bytes == null) rethrow;
