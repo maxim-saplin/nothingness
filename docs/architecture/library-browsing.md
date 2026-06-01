@@ -13,14 +13,16 @@ This document describes the folder browsing pipeline after moving MediaStore log
 ## Data Flow (Android)
 
 1. User taps **Grant Library Access** → `LibraryController.requestPermission()` requests storage/audio permissions.
-2. Controller queries MediaStore (via `on_audio_query`) into `LibrarySong` list.
+2. Controller queries MediaStore (via `on_audio_query`) into `LibrarySong` list **once** per scan.
    - **Async Scanning**: Queries run in isolates using `compute()` to prevent UI blocking.
+   - **One query, not N×M**: `LibrarySong` caches `path` + `title` + `artist` from that single scan. Folder listings (`buildVirtualListing`) and play queues (`tracksForCurrentPath`) build their `AudioTrack`s via the query-free `buildTrackFromTags` (`metadata_extractor.dart`) — they do **not** call `extractMetadata`/`querySongs` per song (which used to re-scan the whole MediaStore for each track → O(N×M); fixed in 3.8.0).
    - **Lazy Initialization**: On Android, MediaStore is not queried at app launch. The library is initialized only when the user opens the Library panel and navigates to the Folders tab.
    - **Change Detection (Fast Path)**:
      - A native `ContentObserver` watches `MediaStore.Audio.Media.EXTERNAL_CONTENT_URI` and marks the app’s library cache as “dirty” when changes occur.
      - On Android 11+, the app also reads `MediaStore.getVersion(...)` as a low-cost way to detect significant MediaStore changes.
     - **Refresh Policy**:
        - Automatic: when the user navigates to the **Folders** tab, the controller refreshes only if MediaStore is detected as changed; otherwise it reuses cached results.
+       - Per-navigation freshness: `loadFolder` and `tracksForCurrentPath` also consult `consumeIfChanged()` before reading the cached song list, so newly added/removed songs surface in folder browsing **and** reshuffle even mid-session — not only on a Folders-tab switch (3.8.0). This replaces the freshness the removed per-song re-query used to provide incidentally.
        - Manual repair: when the user is already inside an Android folder, the UI shows **Repair list** beside **Up**. This button requests a native MediaStore rescan for the direct files in the current folder, then performs a short bounded reload loop so late MediaStore propagation can settle before the folder view is rebuilt.
        - Scope: the manual repair path is hidden in the Android smart-root view and root view. It is only available for an opened folder and is disabled while a scan or refresh is already running.
 3. Controller computes **Smart Roots** from the MediaStore song paths and discovered Android storage mount points.

@@ -22,7 +22,7 @@ This document details audio stack choices, data paths, and behaviors for playbac
 - **`SpectrumSource`**: Extracted from `PlaybackController`. Owns FFT/spectrum sourcing (SoLoud FFT by default, or the Android mic stream when selected) and exposes the spectrum data the UI renders.
 - **`NothingAudioHandler` (Android)**: `audio_service` handler that owns MediaSession/notification state. It wraps the **same** `PlaybackController` as a pure observer + command-forwarder — it observes the controller's notifiers to mirror queue/media-item/playback state for the OS and forwards OS media-button commands (play/pause/next/previous/seek) back to the controller. No `customAction` IPC bridge.
 - **`AudioTransport` (interface)**: Thin abstraction over platform-specific players. Provides minimal interface:
-  - Load audio files (`load(String path)`)
+  - Load audio files (`load(String path)`). On Android, `SoLoudTransport` tries native `loadFile(path)` first and falls back to decoding from a MediaStore `content://` URI (`readAndroidAudioBytes` → `loadMem`) only when raw-path access fails — Android 11+ scoped storage blocks raw `File`/native access to shared storage. See `lib/services/android_audio_source.dart` and `B-049`.
   - Play/pause/seek control
   - Position and duration queries
   - Event emission (`TransportEvent`: error, ended, loaded, position)
@@ -49,7 +49,8 @@ flowchart LR
 - On play: `PlaybackController` sets `userIntent = PlayIntent.play`, transport stops prior playback/source, loads, plays, and (re)starts spectrum capture (SoLoud FFT).
 - On pause: `PlaybackController` sets `userIntent = PlayIntent.pause`, transport pauses playback and stops spectrum capture to reduce CPU; resume restarts capture. Error recovery respects `userIntent` - if paused, errors don't trigger auto-skip.
 - On completion: Transport emits `TransportEndedEvent`; `PlaybackController` checks `userIntent` and advances to next track if `userIntent == play`, otherwise stops.
-- On error / missing file: missing/known-failed tracks are marked `isNotFound` and skipped consistently across tap/Next/Previous/natural advance. `TransportErrorEvent` is used to mark pending-load failures safely (no second skip chain); the `load()` catch path drives the skip. Optional preflight: `PlaybackController(preflightFileExists: true)` (default) checks `File(path).exists()` for filesystem paths and skips immediately if missing (skips `content://` URIs).
+- On error / missing file: the transport's `load()` is the **single source of truth** for a missing/unreadable track — when it fails, the track is marked `isNotFound` and skipped, consistently across tap/Next/Previous/natural advance (the `load()` catch path drives the skip; `TransportErrorEvent` marks the pending-load failure safely, no second skip chain). A transient load error retries; a definitive one marks not-found. There is **no** `File.exists()` preflight (removed in 3.7.0 — it false-negatived on Android scoped storage, where the playable source is a content URI, not the raw path).
+- Song info (title/artist) is emitted **synchronously** from the playback state's track the instant a command lands, so the hero name cycles at 60 fps under rapid Next taps; position/duration refine afterward (3.8.0).
 
 ## Audio Focus & Interruption
 
@@ -147,7 +148,7 @@ flowchart LR
     - Tap missing track: mark red (`isNotFound`) and continue to the next playable track.
     - Next/Previous/natural end: missing/known-failed tracks are skipped automatically.
     - Known-failed + user tap retries once (so “file restored” can clear red and play).
-  - Optional preflight: `preflightFileExists` (default true) checks filesystem paths before calling `load()`.
+  - No `File.exists()` preflight — the `load()` failure is authoritative (removed in 3.7.0; see the lifecycle note above and `B-049`).
 - **Error event handling (safe attribution)**:
   - `TransportErrorEvent` is only used to mark the pending-load track as failed; it does not start an additional skip chain.
   - The `load()` catch path is responsible for advancing, preventing double-advance races.
