@@ -23,6 +23,9 @@ class MockAudioTransport implements AudioTransport {
   
   // Configuration for test scenarios
   final Set<String> pathsToFailOnLoad = {};
+  // Paths whose load throws a *transient*-classified error (string matches
+  // isTransientLoadError) — i.e. should be retried, not flagged not-found.
+  final Set<String> pathsToFailTransiently = {};
   bool autoEmitLoadedEvent = true;
   Duration loadDelay = Duration.zero;
   
@@ -66,6 +69,13 @@ class MockAudioTransport implements AudioTransport {
       await Future.delayed(loadDelay);
     }
     
+    if (pathsToFailTransiently.contains(path)) {
+      _loadedPath = path;
+      final error = Exception('connection aborted: $path');
+      _eventController.add(TransportErrorEvent(path: path, error: error));
+      throw error;
+    }
+
     if (pathsToFailOnLoad.contains(path)) {
       _loadedPath = path;  // Still set path so error event has context
       final error = Exception('File not found: $path');

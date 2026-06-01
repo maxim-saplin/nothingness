@@ -1,12 +1,14 @@
 package com.saplin.nothingness
 
 import android.Manifest
-import android.database.ContentObserver
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.media.AudioManager
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -111,6 +113,11 @@ class MainActivity : AudioServiceActivity() {
                 "refreshSessions" -> { mediaSession?.refreshSessions(); result.success(null) }
                 "hasAudioPermission" -> result.success(audioCaptureService?.hasPermission() ?: false)
                 "requestAudioPermission" -> { requestAudioPermission(); result.success(null) }
+                "readAudioBytes" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrEmpty()) result.error("INVALID", "path required", null)
+                    else readAudioBytes(path, result)
+                }
                 "updateSpectrumSettings" -> {
                     @Suppress("UNCHECKED_CAST")
                     (call.arguments as? Map<String, Any>)?.let { s ->
@@ -256,6 +263,43 @@ class MainActivity : AudioServiceActivity() {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to rescan folder $folderPath", e)
             false
+        }
+    }
+
+    /// Reads an audio file's bytes for playback. Android 11+ scoped storage
+    /// blocks raw-path access to shared storage, so we resolve the `_data` path
+    /// to a MediaStore content:// URI and stream it via the ContentResolver
+    /// (which honours READ_MEDIA_AUDIO). Runs off the platform thread; replies
+    /// with null on any failure so Dart can fall back to a direct file load.
+    private fun readAudioBytes(path: String, result: MethodChannel.Result) {
+        Thread {
+            val bytes: ByteArray? = try {
+                resolveAudioUri(path)?.let { uri ->
+                    contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "readAudioBytes failed for $path: ${e.message}")
+                null
+            }
+            mainHandler.post { result.success(bytes) }
+        }.start()
+    }
+
+    /// Maps a path (or pass-through content:// URI) to a playable content URI.
+    private fun resolveAudioUri(path: String): Uri? {
+        if (path.startsWith("content://")) return Uri.parse(path)
+        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        return contentResolver.query(
+            collection,
+            arrayOf(MediaStore.Audio.Media._ID),
+            "${MediaStore.Audio.Media.DATA}=?",
+            arrayOf(path),
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
+                ContentUris.withAppendedId(collection, id)
+            } else null
         }
     }
 

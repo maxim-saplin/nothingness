@@ -50,17 +50,11 @@ void main() {
   late MockAudioTransport tx;
   late _Playlist pl;
 
-  PlaybackBloc build({int n = 3, int? current, Set<String>? fail,
-      bool Function(String)? exists, bool preflight = false}) {
+  PlaybackBloc build({int n = 3, int? current, Set<String>? fail}) {
     tx = MockAudioTransport();
     if (fail != null) tx.pathsToFailOnLoad.addAll(fail);
     pl = _Playlist(tracks(n), current: current);
-    return PlaybackBloc(
-      transport: tx,
-      playlist: pl,
-      preflightFileExists: preflight,
-      fileExists: (p) async => exists?.call(p) ?? true,
-    );
+    return PlaybackBloc(transport: tx, playlist: pl);
   }
 
   test('initial state is Stopped', () {
@@ -171,8 +165,8 @@ void main() {
   );
 
   blocTest<PlaybackBloc, PbState>(
-    'missing (preflight) track is skipped',
-    build: () => build(n: 3, preflight: true, exists: (p) => !p.endsWith('t0.mp3')),
+    'missing track (load failure) at the start index is skipped',
+    build: () => build(n: 3, fail: {'/p/t0.mp3'}),
     act: (b) => b.add(const GoToIndex(0)),
     wait: const Duration(milliseconds: 80),
     verify: (b) => expect(b.state, isA<PbActive>().having((s) => s.index, 'i', 1)),

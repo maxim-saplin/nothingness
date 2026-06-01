@@ -53,7 +53,6 @@ void main() {
     controller = PlaybackController(
       transport: transport,
       playlist: playlist,
-      preflightFileExists: false,
     );
     await controller.init();
   });
@@ -100,8 +99,8 @@ void main() {
       expect(controller.isPlayingNotifier.value, isTrue);
     });
 
-    test('preflight: tapping a missing file stops cleanly without throwing '
-        '(adversarial regression — was reaching SoLoud C++)', () async {
+    test('tapping a missing file stops cleanly without throwing and flags it '
+        'not-found (load failure is the source of truth)', () async {
       final missTransport = MockAudioTransport();
       final missPlaylist = PlaylistStore(
         hive: Hive,
@@ -110,27 +109,65 @@ void main() {
             hive.openBox<dynamic>('playlistBox_oneshot_pf_$testNumber'),
         random: Random(7),
       );
+      // The tapped file is gone → the transport load throws (as the real
+      // SoLoud transport does for a missing/unreadable file).
+      missTransport.pathsToFailOnLoad.add('/oneshot/glass.flac');
       final missController = PlaybackController(
         transport: missTransport,
         playlist: missPlaylist,
-        preflightFileExists: true,
-        fileExists: (path) async => false, // the tapped file is gone
       );
       await missController.init();
       missTransport.resetCalls();
 
-      // Must not throw: previously the one-shot path skipped the preflight and
-      // hit flutter_soloud's C++ layer with an unhandled SoLoudFileNotFound.
+      // Must not throw: the one-shot catch handles the load failure, flags the
+      // track not-found, and stops cleanly (no unhandled SoLoudFileNotFound).
       await missController.playOneShot(oneShotTrack());
 
       expect(missController.isOneShotNotifier.value, isFalse);
       expect(missController.isPlayingNotifier.value, isFalse);
-      // Preflight short-circuited before the transport was asked to load it.
-      expect(missTransport.loadedPath, isNot('/oneshot/glass.flac'));
+      // The transport WAS asked to load it (no preflight short-circuit); the
+      // failure is what stops it cleanly.
+      expect(missTransport.loadCalls, contains('/oneshot/glass.flac'));
 
       await missController.shutdown();
       if (Hive.isBoxOpen('playlistBox_oneshot_pf_$testNumber')) {
         await Hive.box('playlistBox_oneshot_pf_$testNumber').close();
+      }
+    });
+
+    test('a TRANSIENT one-shot load failure stops cleanly but does NOT '
+        'permanently flag the track not-found', () async {
+      final txTransport = MockAudioTransport();
+      final txPlaylist = PlaylistStore(
+        hive: Hive,
+        hiveInitializer: () async {},
+        boxOpener: (hive) =>
+            hive.openBox<dynamic>('playlistBox_oneshot_tx_$testNumber'),
+        random: Random(7),
+      );
+      txTransport.pathsToFailTransiently.add('/oneshot/glass.flac');
+      final txController = PlaybackController(
+        transport: txTransport,
+        playlist: txPlaylist,
+      );
+      // A real queue so we can observe the not-found flag isn't set.
+      await txController.setQueue(createTracks(3));
+      txTransport.resetCalls();
+
+      await txController.playOneShot(oneShotTrack());
+
+      expect(txController.isOneShotNotifier.value, isFalse);
+      expect(txController.isPlayingNotifier.value, isFalse);
+      expect(txTransport.loadCalls, contains('/oneshot/glass.flac'));
+      // A transient blip must NOT mark the track missing in the queue.
+      expect(
+        txController.diagnosticsSnapshot()['failedTrackPaths'],
+        isNot(contains('/oneshot/glass.flac')),
+      );
+
+      await txController.shutdown();
+      if (Hive.isBoxOpen('playlistBox_oneshot_tx_$testNumber')) {
+        await Hive.box('playlistBox_oneshot_tx_$testNumber').close();
       }
     });
 

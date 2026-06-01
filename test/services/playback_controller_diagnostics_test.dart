@@ -33,11 +33,12 @@ void main() {
           hive.openBox<dynamic>('playlistBox_diag_$testNumber'),
     );
 
+    // A missing/unreadable track surfaces as a transport load failure (the
+    // source of truth — there is no separate File.exists() preflight).
+    transport.pathsToFailOnLoad.add('/missing.mp3');
     controller = PlaybackController(
       transport: transport,
       playlist: playlist,
-      preflightFileExists: true,
-      fileExists: (path) async => path != '/missing.mp3',
       captureRecentLogs: true,
     );
     await controller.init();
@@ -56,12 +57,13 @@ void main() {
   });
 
   test(
-    'diagnosticsSnapshot includes lastError + recentLogs after preflight miss',
+    'diagnosticsSnapshot includes lastError + recentLogs after a load failure',
     () async {
       await controller.setQueue(const [
         AudioTrack(path: '/missing.mp3', title: 'missing'),
         AudioTrack(path: '/ok.mp3', title: 'ok'),
       ]);
+      await pumpUntil(() => controller.queueNotifier.value[0].isNotFound);
 
       final snap = controller.diagnosticsSnapshot();
 
@@ -70,36 +72,33 @@ void main() {
 
       final lastError = snap['lastError'] as Map;
       expect(lastError['path'], '/missing.mp3');
-      expect(lastError['reason'], 'preflight_missing');
+      expect(lastError['reason'], 'transport_load_error');
 
       final logs = (snap['recentLogs'] as List).cast<String>();
-      expect(logs.any((l) => l.contains('PreflightMissing')), true);
+      expect(logs.any((l) => l.contains('/missing.mp3')), true);
     },
   );
 
   test(
-    'tap on preflight-missing track skips without transient selection',
+    'tap on a load-failing track lands cleanly on the next playable track',
     () async {
-      final seenIndices = <int?>[];
-      controller.currentIndexNotifier.addListener(() {
-        seenIndices.add(controller.currentIndexNotifier.value);
-      });
-
       await controller.setQueue(const [
         AudioTrack(path: '/missing.mp3', title: 'missing'),
         AudioTrack(path: '/ok.mp3', title: 'ok'),
       ], startIndex: 1);
       await pumpUntil(() => controller.currentIndexNotifier.value == 1);
 
-      seenIndices.clear();
-
       await controller.playFromQueueIndex(0);
-      // Tapping the missing track 0 marks it not-found and skips back to 1.
+      // Tapping the missing track 0 marks it not-found and skips to 1.
+      // (The index commits optimistically before the load — so the hero can
+      // advance at 60fps — then the load failure skips past it; the contract
+      // is the *settled* state, not the absence of a transient flip.)
       await pumpUntil(() => controller.queueNotifier.value[0].isNotFound);
 
       expect(controller.currentIndexNotifier.value, 1);
       expect(controller.queueNotifier.value[0].isNotFound, true);
-      expect(seenIndices.whereType<int>(), isNot(contains(0)));
+      expect(controller.isPlayingNotifier.value, true,
+          reason: 'lands playing on the next track, not stuck/dead on 0');
     },
   );
 

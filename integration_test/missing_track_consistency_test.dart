@@ -3,6 +3,7 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:nothingness/models/audio_track.dart';
 
+import '../dev/fake_audio_transport.dart';
 import '../dev/main_test.dart' as app;
 import '../dev/test_harness.dart';
 import '../dev/test_overlay.dart';
@@ -38,10 +39,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{
-        '/t0.mp3': false,
-        '/t1.mp3': true,
-        '/t2.mp3': true,
+      h.setOutcomes(<String, FakeLoadOutcome>{
+        '/t0.mp3': const FakeLoadOutcome.notFound(),
       });
 
       await h.setQueue([
@@ -85,10 +84,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{
-        '/a.mp3': true,
-        '/missing.mp3': false,
-        '/b.mp3': true,
+      h.setOutcomes(<String, FakeLoadOutcome>{
+        '/missing.mp3': const FakeLoadOutcome.notFound(),
       });
 
       await h.setQueue([
@@ -116,12 +113,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{
-        '/a.mp3': true,
-        '/pre.mp3': true,
-        '/missing.mp3': false,
-        '/b.mp3': true,
-        '/tail.mp3': true,
+      h.setOutcomes(<String, FakeLoadOutcome>{
+        '/missing.mp3': const FakeLoadOutcome.notFound(),
       });
 
       await h.setQueue([
@@ -144,10 +137,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{
-        '/a.mp3': true,
-        '/missing.mp3': false,
-        '/b.mp3': true,
+      h.setOutcomes(<String, FakeLoadOutcome>{
+        '/missing.mp3': const FakeLoadOutcome.notFound(),
       });
 
       await h.setQueue([
@@ -170,7 +161,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{'/m0.mp3': false, '/m1.mp3': false});
+      h.setOutcomes(<String, FakeLoadOutcome>{
+        '/m0.mp3': const FakeLoadOutcome.notFound(),
+        '/m1.mp3': const FakeLoadOutcome.notFound(),
+      });
 
       await h.setQueue([
         const AudioTrack(path: '/m0.mp3', title: 'm0'),

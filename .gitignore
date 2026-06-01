@@ -41,3 +41,4 @@ __pycache__/
 
 # IDE folders
 .idea/
+.claude/scheduled_tasks.lock

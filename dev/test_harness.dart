@@ -12,26 +12,14 @@ class TestHarness {
 
   final FakeAudioTransport transport = FakeAudioTransport();
 
-  final Map<String, bool> _existsByPath = <String, bool>{};
-
   PlaybackController? controller;
 
-  Future<bool> fileExists(String path) async => _existsByPath[path] ?? true;
-
-  void setExists(String path, bool exists) {
-    _existsByPath[path] = exists;
-  }
-
+  /// Simulate a missing/unreadable track via a transport load failure (the
+  /// source of truth — there is no separate File.exists() preflight).
   void setOutcomes(Map<String, FakeLoadOutcome> outcomes) {
     transport.outcomesByPath
       ..clear()
       ..addAll(outcomes);
-  }
-
-  void setExistsMap(Map<String, bool> existsByPath) {
-    _existsByPath
-      ..clear()
-      ..addAll(existsByPath);
   }
 
   Future<void> setQueue(
@@ -70,6 +58,5 @@ class TestHarness {
 
   void reset() {
     transport.reset();
-    _existsByPath.clear();
   }
 }

@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/audio_track.dart';
+import 'android_audio_source.dart';
 import 'audio_transport.dart';
 import 'soloud_transport.dart';
 import 'playback_controller.dart';
@@ -14,7 +15,10 @@ import 'playlist_store.dart';
 class NothingAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   factory NothingAudioHandler({bool debugLogs = false}) {
-    final transport = SoLoudTransport()..setCaptureEnabled(false);
+    // Android: load shared-storage tracks via MediaStore content URIs (scoped
+    // storage blocks raw-path access on API 30+).
+    final transport = SoLoudTransport(readBytes: readAndroidAudioBytes)
+      ..setCaptureEnabled(false);
     final controller = PlaybackController(
       transport: transport,
       playlist: PlaylistStore(),

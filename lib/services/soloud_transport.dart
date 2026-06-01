@@ -13,6 +13,16 @@ import 'soloud_spectrum_provider.dart';
 
 /// Thin SoLoud-backed AudioTransport — no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
+  /// On Android, supply [readAndroidAudioBytes] so shared-storage tracks load
+  /// via a MediaStore content URI (scoped storage blocks raw-path access). When
+  /// null, or when it returns null, [_openSource] falls back to a direct file
+  /// load (desktop, or app-private paths).
+  SoLoudTransport({this.readBytes});
+
+  /// Resolves a track path to playable bytes (e.g. via a content:// URI).
+  /// Returns null to fall back to a direct file load.
+  final Future<Uint8List?> Function(String path)? readBytes;
+
   static const Set<String> supportedExtensions =
       SupportedExtensions.supportedExtensions;
   static const Duration _endTolerance = Duration(milliseconds: 120);
@@ -313,20 +323,34 @@ class SoLoudTransport implements AudioTransport {
   }
 
   /// Decode [path] into a SoLoud [AudioSource] without playing it.
+  ///
+  /// When a [readBytes] resolver is supplied (Android) and yields bytes, the
+  /// source is decoded from memory (off the UI isolate via SoLoud's `compute`)
+  /// — this is how scoped-storage tracks reach the decoder, since their raw
+  /// path isn't openable. Otherwise it loads directly from the filesystem.
   Future<AudioSource> _openSource(String path) async {
-    if (p.extension(path).toLowerCase() == '.opus') {
-      final bytes = await File(path).readAsBytes();
-      final source = _soloud.setBufferStream(
-        bufferingType: BufferingType.preserved,
-        format: BufferType.auto,
-        channels: Channels.stereo,
-        sampleRate: 44100,
-      );
-      _soloud.addAudioDataStream(source, bytes);
-      _soloud.setDataIsEnded(source);
-      return source;
+    final isOpus = p.extension(path).toLowerCase() == '.opus';
+    final bytes = readBytes == null ? null : await readBytes!(path);
+    if (bytes != null) {
+      return isOpus ? _openOpusFromBytes(bytes) : _soloud.loadMem(path, bytes);
     }
+    if (isOpus) return _openOpusFromBytes(await File(path).readAsBytes());
     return _soloud.loadFile(path);
+  }
+
+  /// SoLoud's `loadFile`/`loadMem` don't decode Opus; feed it through a
+  /// buffer-stream source instead (works for both file bytes and content-URI
+  /// bytes).
+  AudioSource _openOpusFromBytes(Uint8List bytes) {
+    final source = _soloud.setBufferStream(
+      bufferingType: BufferingType.preserved,
+      format: BufferType.auto,
+      channels: Channels.stereo,
+      sampleRate: 44100,
+    );
+    _soloud.addAudioDataStream(source, bytes);
+    _soloud.setDataIsEnded(source);
+    return source;
   }
 
   Future<void> _disposePreloaded() async {

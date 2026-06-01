@@ -9,6 +9,14 @@ import '../../models/audio_track.dart';
 import '../audio_transport.dart';
 import '../playlist_store.dart';
 
+/// A load failure that may resolve on retry (vs. a definitively missing/
+/// unreadable track). Shared by the bloc's queue recovery and the controller's
+/// one-shot path so both classify failures identically.
+bool isTransientLoadError(Object error) {
+  final s = error.toString().toLowerCase();
+  return s.contains('connection aborted') || s.contains('10000000');
+}
+
 // ---------------------------------------------------------------------------
 // State — an explicit, sealed machine. Exhaustive `switch`es make every
 // state×event combination compiler-checked; the in-flight track lives IN the
@@ -150,13 +158,10 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   PlaybackBloc({
     required AudioTransport transport,
     required PlaylistStore playlist,
-    Future<bool> Function(String path)? fileExists,
-    this.preflightFileExists = true,
     this.transientRetryDelay = const Duration(milliseconds: 200),
     void Function(String)? onLog,
   })  : _transport = transport,
         _playlist = playlist,
-        _fileExists = fileExists ?? _defaultFileExists,
         _log = onLog ?? _noLog,
         super(const PbStopped()) {
     // One restartable handler for ALL commands → a newer command cancels the
@@ -174,8 +179,6 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
 
   final AudioTransport _transport;
   final PlaylistStore _playlist;
-  final Future<bool> Function(String path) _fileExists;
-  final bool preflightFileExists;
   final Duration transientRetryDelay;
   final void Function(String) _log;
 
@@ -196,8 +199,6 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     _failedPaths.clear();
     lastError = null;
   }
-
-  static Future<bool> _defaultFileExists(String _) async => true;
 
   // ---- command handler (restartable) ---------------------------------------
 
@@ -300,17 +301,12 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
         idx += step;
         continue;
       }
-      if (_shouldPreflight(track.path) && !await _fileExists(track.path)) {
-        if (emit.isDone) return;
-        _log('PreflightMissing: path=${track.path}');
-        lastError = (path: track.path, reason: 'preflight_missing', message: 'File does not exist');
-        _failedPaths.add(track.path);
-        idx += step;
-        continue;
-      }
 
-      // Commit the index now (after preflight, before the heavy load) so the
-      // hero advances and a duplicate ended sees PbLoading (B-036).
+      // Commit the index now (before the heavy load) so the hero advances and a
+      // duplicate ended sees PbLoading (B-036). A genuinely missing/unreadable
+      // track is detected by the transport load failing — no separate
+      // File.exists() preflight (it false-negatives on Android scoped storage,
+      // where the playable source is a content URI, not the raw path).
       if (_playlist.currentOrderIndexNotifier.value != idx) {
         await _playlist.setCurrentOrderIndex(idx);
         if (emit.isDone) return;
@@ -356,10 +352,10 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   Future<int?> _recoverFromLoadError(AudioTrack track, Object e) async {
     lastError = (
       path: track.path,
-      reason: _isTransient(e) ? 'transport_load_transient' : 'transport_load_error',
+      reason: isTransientLoadError(e) ? 'transport_load_transient' : 'transport_load_error',
       message: e.toString(),
     );
-    if (_isTransient(e)) {
+    if (isTransientLoadError(e)) {
       final now = DateTime.now();
       if (_transientWindowStart == null ||
           now.difference(_transientWindowStart!).inSeconds > 5) {
@@ -480,17 +476,6 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   }
 
   // ---- helpers -------------------------------------------------------------
-
-  bool _shouldPreflight(String path) {
-    if (!preflightFileExists || path.isEmpty) return false;
-    final uri = Uri.tryParse(path);
-    return !(uri != null && uri.hasScheme);
-  }
-
-  bool _isTransient(Object error) {
-    final s = error.toString().toLowerCase();
-    return s.contains('connection aborted') || s.contains('10000000');
-  }
 
   void _preloadNext() {
     final n = _playlist.nextOrderIndex();

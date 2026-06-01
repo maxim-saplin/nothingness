@@ -37,10 +37,6 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{
-        '/a.mp3': true,
-        '/b.mp3': true,
-      });
 
       await h.setQueue([
         const AudioTrack(path: '/a.mp3', title: 'a'),
@@ -74,7 +70,6 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{'/a.mp3': true});
 
       await h.setQueue([
         const AudioTrack(path: '/a.mp3', title: 'a'),
@@ -102,10 +97,6 @@ void main() {
       await tester.pumpAndSettle();
 
       final h = TestHarness.instance;
-      h.setExistsMap(<String, bool>{
-        '/a.mp3': true,
-        '/b.mp3': true,
-      });
 
       await h.setQueue([
         const AudioTrack(path: '/a.mp3', title: 'a'),

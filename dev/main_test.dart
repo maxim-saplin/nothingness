@@ -14,7 +14,7 @@ import 'test_overlay.dart';
 /// Test-only entrypoint for emulator integration tests.
 ///
 /// - No AudioService / platform playback.
-/// - Deterministic fake transport + controllable fileExists provider.
+/// - Deterministic fake transport (controllable per-path load outcomes).
 /// - Always-on test overlay for stable UI selectors + diagnostics.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,8 +32,6 @@ Future<void> main() async {
     playlist: playlist,
     debugPlaybackLogs: false,
     captureRecentLogs: true,
-    preflightFileExists: true,
-    fileExists: harness.fileExists,
   );
   await controller.init();
   harness.controller = controller;

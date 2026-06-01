@@ -119,10 +119,11 @@ The five runtime-inspection lenses (`probe`/`frames`/`timeline`/`profile`/`break
 1. **"could not find Dart VM service URI"** — the app isn't in debug mode (release build / `flutter run` exited), or `.vm_ws.txt` points at a dead session. Run `$D preflight` to see what's actually reachable; delete the cache and relaunch.
 2. **Install fails `INSTALL_FAILED_UPDATE_INCOMPATIBLE`** (Android) — uninstall the package, then re-run `flutter run`.
 3. **Queue empty after reinstall** — `queueLen=0`; queue real files via `$D play <path>` or the Appendix `adb push` snippet.
-4. **`SoLoudFileNotFoundException` for `/sdcard/...`** (Android emulator) — push a host file into the sandbox: `adb -s <device> push <host> /data/user/0/com.saplin.nothingness/files/<name>`, then `$D play /data/user/0/com.saplin.nothingness/files/<name>`.
+4. **Shared-storage track won't load / `isNotFound`** (Android API 30+) — scoped storage blocks raw-path access to `/storage/emulated/0/...`; the app plays such tracks by resolving the `_data` path to a MediaStore `content://` URI (see `lib/services/android_audio_source.dart`), so the file **must be MediaStore-indexed**. `adb push` into `/storage/emulated/0/Music/` auto-triggers indexing on recent images — verify with `adb shell content query --uri content://media/external/audio/media --where "_data='<path>'"` (a `Row:` with an `_id` means it's playable). For a quick one-off that sidesteps MediaStore entirely, push into the app-private dir (`adb push <host> /data/user/0/com.saplin.nothingness/files/<name>`) — it loads via the direct-file fallback.
 5. **`Permissions Required` overlay** (Android) — run the Appendix `pm grant` loop, or `$D permit`.
 6. **Can't tap a control via `tapByKey`** — the production widget has no `ValueKey<String>`. Drive via `drive.py` (settings/nav/pref) or `adb shell uiautomator dump` + tap by bounds.
 7. **`reload` reports "no changes detected"** — hot reload skips `initState` / static / top-level changes; use `$D restart` or a full rebuild.
+8. **`reload` reports "Reloaded 0 libraries" after a real edit** (WSL) — the resident compiler's file watcher (inotify) doesn't always fire on WSL2, even after `touch`. So a code change won't take via `$D reload`/`restart`. **Kill and relaunch `flutter run`** to pick it up — there's no in-process workaround. (Hot reload remains reliable on native Linux/macOS.)
 
 ## Minimal drive loop
 
@@ -172,6 +173,15 @@ done
 adb -s emulator-5554 push .tmp/test_tone.wav \
     /data/user/0/com.saplin.nothingness/files/test_tone.wav
 $D play /data/user/0/com.saplin.nothingness/files/test_tone.wav
+```
+
+To exercise the **real shared-storage path** (content-URI resolution, the actual user scenario — see blocker #4), push into `/storage/emulated/0/Music/` and confirm MediaStore indexed it before playing:
+
+```bash
+adb -s emulator-5554 push .tmp/test_tone.wav /storage/emulated/0/Music/test_tone.wav
+adb -s emulator-5554 shell content query --uri content://media/external/audio/media \
+    --where "_data='/storage/emulated/0/Music/test_tone.wav'"   # expect a Row: with _id
+$D play /storage/emulated/0/Music/test_tone.wav
 ```
 
 **Android alongside a live Linux session** (parallel regression): drive.py resolves the VM URI from the run log, defaulting to `/tmp/flutter_run.log`. If a Linux session owns that path, point Android at its own log so it doesn't read the stale Linux URI:

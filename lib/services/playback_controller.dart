@@ -29,13 +29,10 @@ class PlaybackController extends ChangeNotifier {
     required AudioTransport transport,
     PlaylistStore? playlist,
     this.debugPlaybackLogs = false,
-    this.preflightFileExists = true,
-    Future<bool> Function(String path)? fileExists,
     this.captureRecentLogs = false,
     this.recentLogCapacity = 50,
   })  : _transport = transport,
         _playlist = playlist ?? PlaylistStore(),
-        _fileExists = fileExists ?? _defaultFileExists,
         _supportedExtensions = _getSupportedExtensions(transport) {
     _telemetry = PlaybackTelemetry(
       captureRecentLogs: captureRecentLogs,
@@ -45,8 +42,6 @@ class PlaybackController extends ChangeNotifier {
     _bloc = PlaybackBloc(
       transport: _transport,
       playlist: _playlist,
-      fileExists: _fileExists,
-      preflightFileExists: preflightFileExists,
       onLog: _telemetry.log,
     );
   }
@@ -58,8 +53,6 @@ class PlaybackController extends ChangeNotifier {
   final AudioTransport _transport;
   final PlaylistStore _playlist;
   final bool debugPlaybackLogs;
-  final bool preflightFileExists;
-  final Future<bool> Function(String path) _fileExists;
   final bool captureRecentLogs;
   final int recentLogCapacity;
   final Set<String> _supportedExtensions;
@@ -127,7 +120,7 @@ class PlaybackController extends ChangeNotifier {
   int _savedIndex = 0;
   bool get isInSearchSession => _savedQueue != null;
 
-  // Failed paths the controller marks itself (one-shot preflight miss); the
+  // Failed paths the controller marks itself (one-shot load failure); the
   // queue's not-found flags merge these with the bloc's failed set.
   final Set<String> _failedTrackPaths = <String>{};
 
@@ -142,8 +135,6 @@ class PlaybackController extends ChangeNotifier {
   StreamSubscription<void>? _noisySub;
   StreamSubscription<AudioDevicesChangedEvent>? _devicesSub;
   Timer? _positionTimer;
-
-  static Future<bool> _defaultFileExists(String path) => File(path).exists();
 
   /// Recent controller logs (if enabled), for test/diagnostics.
   List<String> recentLogs() => _telemetry.recentLogs;
@@ -471,14 +462,6 @@ class PlaybackController extends ChangeNotifier {
     await _settle();
   }
 
-  bool _shouldPreflightExists(String path) {
-    if (!preflightFileExists || path.isEmpty) return false;
-    // URI schemes (content://, http(s)://) can't be preflighted via File.
-    final uri = Uri.tryParse(path);
-    return !(uri != null && uri.hasScheme);
-  }
-
-
   // ---- One-shot -------------------------------------------------------------
 
   /// Plays [track] standalone without mutating the queue. On natural end the
@@ -486,18 +469,6 @@ class PlaybackController extends ChangeNotifier {
   /// the tail). Explicit prev/next exits; [repeatOne] loops in place.
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
     final op = ++_opGeneration;
-
-    // Preflight like the queue path so a tapped-but-missing track is marked
-    // not-found and stops cleanly, instead of throwing into SoLoud's C++ layer.
-    if (_shouldPreflightExists(track.path) && !await _fileExists(track.path)) {
-      if (op != _opGeneration) return;
-      _telemetry.log('OneShotPreflightMissing: path=${track.path}');
-      _failedTrackPaths.add(track.path);
-      _updateQueueWithNotFoundFlags();
-      _clearOneShot();
-      await _stopPlayback();
-      return;
-    }
 
     _oneShotResumeIndex = _playlist.currentOrderIndexNotifier.value;
     _oneShotTrack = track;
@@ -511,8 +482,17 @@ class PlaybackController extends ChangeNotifier {
     try {
       await _loadAndPlayOneShot(track, op);
     } catch (e) {
+      if (op != _opGeneration) return; // superseded by a newer op mid-load
+      // The transport is the source of truth for "missing": a definitive load
+      // failure (genuinely absent/unreadable file) flags the track not-found
+      // and stops cleanly — no separate File.exists() preflight. A transient
+      // blip stops without the permanent not-found mark.
       _telemetry.log('OneShot load failed: $e');
       _pendingLoadPath = null;
+      if (!isTransientLoadError(e)) {
+        _failedTrackPaths.add(track.path);
+        _updateQueueWithNotFoundFlags();
+      }
       _clearOneShot();
       await _stopPlayback();
     }
@@ -547,6 +527,7 @@ class PlaybackController extends ChangeNotifier {
     try {
       await _loadAndPlayOneShot(track, op);
     } catch (e) {
+      if (op != _opGeneration) return; // superseded by a newer op mid-load
       _telemetry.log('OneShot restart failed: $e');
       _pendingLoadPath = null;
       await _finishOneShot(manual: false);

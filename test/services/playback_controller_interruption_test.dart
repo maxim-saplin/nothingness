@@ -50,7 +50,6 @@ void main() {
     controller = PlaybackController(
       transport: transport,
       playlist: playlist,
-      preflightFileExists: false,
       captureRecentLogs: true,
     );
     await controller.init();
