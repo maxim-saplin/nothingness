@@ -26,7 +26,22 @@ list_files() {
   esac
 }
 
+# SLOC = lines of *source code*. Skip binary assets (running `wc -l` over a PNG
+# is meaningless) and machine-generated / tool-managed files (Xcode project
+# metadata, plugin registrants, lockfiles) — the way cloc/scc/tokei do. All
+# platforms and files remain in the repo; this only fixes what counts as a
+# "line of code".
+is_source() {
+  case "$1" in
+    *.png|*.webp|*.jpg|*.jpeg|*.gif|*.ico|*.icns|*.bmp|*.svg|*.ttf|*.otf|*.woff|*.woff2|*.wav|*.mp3|*.flac|*.ogg|*.opus|*.m4a|*.bin) return 1 ;;
+    *.lock|*.pbxproj|*.xcscheme|*.xcworkspacedata|*.xib|*.storyboard) return 1 ;;
+    *[Gg]eneratedPluginRegistrant.*|*generated_plugin_registrant.*|*/Generated.xcconfig|*/flutter_export_environment.sh|*.g.dart|*.freezed.dart) return 1 ;;
+  esac
+  return 0
+}
+
 list_files | while IFS= read -r -d '' f; do
+  is_source "$f" || continue
   top="${f%%/*}"
   [ "$top" = "$f" ] && top="(root files)"
   lines=$(wc -l < "$f" 2>/dev/null || echo 0)

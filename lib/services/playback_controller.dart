@@ -114,14 +114,10 @@ class PlaybackController extends ChangeNotifier {
   bool _uiWired = false;
   void _notify() => notifyListeners();
 
-  // One-shot: a track played outside the queue. On natural end the queue is
-  // restored at `_oneShotResumeIndex + 1`; explicit prev/next clears it.
-  bool _oneShot = false;
-  int? _oneShotResumeIndex;
-  AudioTrack? _oneShotTrack;
-  bool _oneShotRepeatOne = false;
-  bool get isOneShot => _oneShot;
-  AudioTrack? get oneShotTrack => _oneShotTrack;
+  // One-shot (a track played outside the queue) now lives in the bloc — one
+  // engine, no parallel controller path.
+  bool get isOneShot => _bloc.isOneShot;
+  AudioTrack? get oneShotTrack => _bloc.oneShotTrack;
 
   // Search-session state (B-014): original queue/index preserved for restore.
   // Snapshot taken on first enter only; null when no session is active.
@@ -129,22 +125,12 @@ class PlaybackController extends ChangeNotifier {
   int _savedIndex = 0;
   bool get isInSearchSession => _savedQueue != null;
 
-  // Failed paths the controller marks itself (one-shot load failure); the
-  // queue's not-found flags merge these with the bloc's failed set.
-  final Set<String> _failedTrackPaths = <String>{};
-
-  // One-shot's in-flight load path + stale-async guard (the bloc owns queue
-  // playback; one-shot is driven directly by the controller).
-  String? _pendingLoadPath;
-  int _opGeneration = 0;
   // Bumped by every explicit user intent command (play/pause/next/previous).
   // A long-running op (e.g. folder reshuffle) captures this before its awaits;
   // if it changed by the time the op lands, the user acted meanwhile, so the op
   // must not clobber the newer intent (B: pause-then-it-plays-anyway).
   int _userActionGen = 0;
   int get userActionGen => _userActionGen;
-  // B-036: true while a one-shot end-transition is in flight.
-  bool _handlingEnded = false;
   StreamSubscription<TransportEvent>? _transportEventSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _noisySub;
@@ -222,10 +208,12 @@ class PlaybackController extends ChangeNotifier {
     // controller's command methods own _userIntent.
     if (s is PbStopped) _userIntent = PlayIntent.pause;
     isPlayingNotifier.value = s.isPlaying;
+    isOneShotNotifier.value = _bloc.isOneShot;
     _updateQueueWithNotFoundFlags();
     // Flip the hero title/artist SYNCHRONOUSLY from the state's track (already
-    // carried by PbLoading/PbActive) so names cycle at 60fps on a tap burst —
-    // never gated on the transport. Position/duration are refined just below.
+    // carried by PbLoading/PbActive — queue OR one-shot) so names cycle at 60fps
+    // on a tap burst, never gated on the transport. Position/duration refine
+    // just below.
     _emitSongInfoSync(s);
     unawaited(_emitSongInfo(force: true));
   }
@@ -233,9 +221,8 @@ class PlaybackController extends ChangeNotifier {
   // Instant, transport-free hero update from the bloc state. For a new track,
   // position resets to 0 and duration uses the cached tag (if any); for the same
   // track (e.g. pause↔resume) the current position/duration are preserved so the
-  // progress bar doesn't flicker. One-shot info stays controller-managed.
+  // progress bar doesn't flicker.
   void _emitSongInfoSync(PbState s) {
-    if (_oneShot) return;
     final track = s.track;
     if (track == null) return; // PbStopped: leave to _emitSongInfo
     final current = songInfoNotifier.value;
@@ -323,7 +310,7 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void _updateQueueWithNotFoundFlags() {
-    final failed = {..._bloc.failedPaths, ..._failedTrackPaths};
+    final failed = _bloc.failedPaths;
     queueNotifier.value = [
       for (final t in _playlist.queueNotifier.value)
         failed.contains(t.path) ? t.copyWith(isNotFound: true) : t,
@@ -334,7 +321,6 @@ class PlaybackController extends ChangeNotifier {
 
   void _onInterruption(AudioInterruptionEvent event) {
     _telemetry.event('interruption', {'begin': event.begin, 'type': event.type.name});
-    if (_oneShot) return; // one-shot is controller-driven; leave it alone
     _bloc.add(event.begin
         ? InterruptionBegan(event.type)
         : InterruptionEnded(event.type));
@@ -342,7 +328,6 @@ class PlaybackController extends ChangeNotifier {
 
   void _onBecomingNoisy() {
     _telemetry.event('becomingNoisy');
-    if (_oneShot) return;
     _userIntent = PlayIntent.pause; // headphones yanked = explicit pause
     _bloc.add(const BecameNoisy());
   }
@@ -385,28 +370,14 @@ class PlaybackController extends ChangeNotifier {
 
   void _handleTrackError(String? path) {
     if (path == null) return;
+    // The bloc's load() catch owns failed-marking + skip; _onBlocState then
+    // refreshes the not-found flags. Nothing to do here but record it.
     _telemetry.event('transportError', {'path': path});
-    if (path != _pendingLoadPath) {
-      _telemetry.log('Ignore error: not pending. path=$path');
-      return;
-    }
-    // Mark failed now (UI turns red); the in-flight load()'s catch advances.
-    _telemetry.log('PendingLoadError: path=$path (defer advance to load/catch)');
-    if (_failedTrackPaths.add(path)) _updateQueueWithNotFoundFlags();
   }
 
   void _handleTrackEnded(String? path) {
     _telemetry.event('transportEnded', {'path': path ?? ''});
-    if (_oneShot) {
-      // B-036: ignore a duplicate ended while a one-shot transition is running.
-      if (_handlingEnded) return;
-      _handlingEnded = true;
-      final future =
-          _oneShotRepeatOne ? _restartOneShot() : _finishOneShot(manual: false);
-      unawaited(future.whenComplete(() => _handlingEnded = false));
-      return;
-    }
-    // Queue auto-advance + B-036 dedup now live in the bloc.
+    // Queue auto-advance, one-shot resume, and B-036 dedup all live in the bloc.
     _bloc.add(TrackEnded(path));
   }
 
@@ -417,33 +388,14 @@ class PlaybackController extends ChangeNotifier {
     _emitSongInfo(force: true);
   }
 
-  // ---- Playback primitives --------------------------------------------------
-
-  // Pause the transport and re-emit; [resetIntent] also flips intent to pause.
-  Future<void> _stopPlayback({bool resetIntent = false}) async {
-    isPlayingNotifier.value = false;
-    if (resetIntent) _userIntent = PlayIntent.pause;
-    await _transport.pause();
-    _emitSongInfo(force: true);
-  }
-
-
   // ---- Public transport controls --------------------------------------------
 
   Future<void> playPause() async {
     _userActionGen++;
-    if (_playlist.length == 0) return;
-    // One-shot drives the transport directly (bloc is dormant during one-shot).
-    if (_oneShot) {
-      final play = !isPlayingNotifier.value;
-      _userIntent = play ? PlayIntent.play : PlayIntent.pause;
-      isPlayingNotifier.value = play;
-      await (play ? _transport.play() : _transport.pause());
-      await _emitSongInfo();
-      return;
-    }
+    if (_playlist.length == 0 && !isOneShot) return;
     // Toggle our authoritative intent and tell the bloc explicitly (so a
-    // setQueue/load race can't lose the user's pause).
+    // setQueue/load race can't lose the user's pause). The bloc toggles whatever
+    // is current — queue track or one-shot — in place.
     _userIntent =
         _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
     _bloc.add(SetIntent(_userIntent == PlayIntent.play));
@@ -452,11 +404,9 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> next() async {
     _userActionGen++;
-    if (_oneShot) {
-      await _finishOneShot(manual: true);
-      return;
-    }
-    if (_playlist.nextOrderIndex() == null) return; // tail: no wrap
+    // Queue tail doesn't wrap; but during one-shot, next always exits to the
+    // queue (the bloc handles it).
+    if (!isOneShot && _playlist.nextOrderIndex() == null) return;
     _userIntent = PlayIntent.play;
     _bloc.add(const GoNext());
     await _settle();
@@ -464,11 +414,8 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> previous() async {
     _userActionGen++;
-    if (_oneShot) {
-      await _finishOneShot(manual: true, backward: true);
-      return;
-    }
-    if (_playlist.currentOrderIndexNotifier.value == null &&
+    if (!isOneShot &&
+        _playlist.currentOrderIndexNotifier.value == null &&
         _playlist.previousOrderIndex() == null) {
       return;
     }
@@ -504,102 +451,14 @@ class PlaybackController extends ChangeNotifier {
 
   // ---- One-shot -------------------------------------------------------------
 
-  /// Plays [track] standalone without mutating the queue. On natural end the
-  /// queue is restored at the slot *after* the start position (or stops past
-  /// the tail). Explicit prev/next exits; [repeatOne] loops in place.
+  /// Plays [track] standalone (not in the queue) via the bloc. On natural end
+  /// the queue resumes at the captured slot + 1 (or stops past the tail);
+  /// explicit next/previous exits; [repeatOne] loops in place.
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
-    final op = ++_opGeneration;
-
-    _oneShotResumeIndex = _playlist.currentOrderIndexNotifier.value;
-    _oneShotTrack = track;
-    _oneShotRepeatOne = repeatOne;
-    _oneShot = true;
-    isOneShotNotifier.value = true;
+    _userActionGen++;
     _userIntent = PlayIntent.play;
-    _pendingLoadPath = track.path;
-    _telemetry.log('OneShot start: ${track.path} resumeAt=$_oneShotResumeIndex');
-    isPlayingNotifier.value = true;
-    try {
-      await _loadAndPlayOneShot(track, op);
-    } catch (e) {
-      if (op != _opGeneration) return; // superseded by a newer op mid-load
-      // The transport is the source of truth for "missing": a definitive load
-      // failure (genuinely absent/unreadable file) flags the track not-found
-      // and stops cleanly — no separate File.exists() preflight. A transient
-      // blip stops without the permanent not-found mark.
-      _telemetry.log('OneShot load failed: $e');
-      _pendingLoadPath = null;
-      if (!isTransientLoadError(e)) {
-        _failedTrackPaths.add(track.path);
-        _updateQueueWithNotFoundFlags();
-      }
-      _clearOneShot();
-      await _stopPlayback();
-    }
-  }
-
-  // Load [track], play it, and emit one-shot song info; throws on load failure.
-  Future<void> _loadAndPlayOneShot(AudioTrack track, int op) async {
-    await _loadTrack(track);
-    if (op != _opGeneration) return;
-    _pendingLoadPath = null;
-    await _transport.play();
-    if (op != _opGeneration) return;
-    await _emitOneShotSongInfo();
-  }
-
-  void _clearOneShot() {
-    _oneShot = false;
-    _oneShotTrack = null;
-    _oneShotRepeatOne = false;
-    _oneShotResumeIndex = null;
-    isOneShotNotifier.value = false;
-  }
-
-  Future<void> _restartOneShot() async {
-    final track = _oneShotTrack;
-    if (track == null) {
-      _clearOneShot();
-      return;
-    }
-    final op = ++_opGeneration;
-    _pendingLoadPath = track.path;
-    try {
-      await _loadAndPlayOneShot(track, op);
-    } catch (e) {
-      if (op != _opGeneration) return; // superseded by a newer op mid-load
-      _telemetry.log('OneShot restart failed: $e');
-      _pendingLoadPath = null;
-      await _finishOneShot(manual: false);
-    }
-  }
-
-  Future<void> _finishOneShot({required bool manual, bool backward = false}) async {
-    final resumeAt = _oneShotResumeIndex;
-    _clearOneShot();
-
-    if (_playlist.length == 0 || resumeAt == null) {
-      await _stopPlayback(resetIntent: true);
-      return;
-    }
-
-    if (manual) {
-      // Explicit prev/next: step from the captured position like normal nav.
-      final target = (resumeAt + (backward ? -1 : 1))
-          .clamp(0, _playlist.length - 1)
-          .toInt();
-      await playFromQueueIndex(target,
-          isAutoSkip: true, direction: backward ? -1 : 1);
-      return;
-    }
-
-    // Natural end: advance to resumeAt + 1, or stop if past the tail.
-    final next = resumeAt + 1;
-    if (next >= _playlist.length) {
-      await _stopPlayback(resetIntent: true);
-      return;
-    }
-    await playFromQueueIndex(next, isAutoSkip: true, direction: 1);
+    _bloc.add(PlayOneShot(track, repeatOne: repeatOne));
+    await _settle();
   }
 
   // ---- Song info ------------------------------------------------------------
@@ -615,18 +474,10 @@ class PlaybackController extends ChangeNotifier {
     );
   }
 
-  Future<void> _emitOneShotSongInfo() async {
-    final track = _oneShotTrack;
-    if (track == null) return;
-    songInfoNotifier.value = await _buildSongInfo(track);
-  }
-
   Future<void> _emitSongInfo({bool force = false}) async {
-    if (_oneShot) {
-      await _emitOneShotSongInfo();
-      return;
-    }
-    final track = _currentTrack;
+    // The bloc state's track is authoritative (queue OR one-shot); fall back to
+    // the playlist's current track only when idle/stopped.
+    final track = _bloc.state.track ?? _currentTrack;
     if (track == null) {
       if (force || songInfoNotifier.value != null) songInfoNotifier.value = null;
       return;

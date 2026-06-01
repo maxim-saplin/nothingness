@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -82,8 +81,6 @@ class SpectrumSettings {
     'decaySpeed': decaySpeed.value,
   };
 
-  String toJsonString() => jsonEncode(toJson());
-
   factory SpectrumSettings.fromJson(Map<String, dynamic> json) {
     return SpectrumSettings(
       noiseGateDb:
@@ -108,11 +105,4 @@ class SpectrumSettings {
     );
   }
 
-  factory SpectrumSettings.fromJsonString(String jsonString) {
-    try {
-      return SpectrumSettings.fromJson(jsonDecode(jsonString));
-    } catch (_) {
-      return const SpectrumSettings();
-    }
-  }
 }

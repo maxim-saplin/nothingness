@@ -120,6 +120,15 @@ final class SeekTo extends PbCommand {
   final Duration position;
 }
 
+/// Play [track] standalone (NOT in the queue). The queue index at the time is
+/// captured; on natural end it resumes at captured+1 (or stops past the tail).
+/// Explicit next/previous exits to the queue; [repeatOne] loops in place.
+final class PlayOneShot extends PbCommand {
+  const PlayOneShot(this.track, {this.repeatOne = false});
+  final AudioTrack track;
+  final bool repeatOne;
+}
+
 /// Adopt the already-playing track at [index] as the active state WITHOUT
 /// reloading the transport — used to restore a queue (e.g. search-session exit)
 /// while audio keeps playing.
@@ -191,6 +200,14 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
 
   final Set<String> _failedPaths = <String>{};
   bool _pausedByInterruption = false;
+
+  // One-shot: a track played outside the queue. [_oneShotResume] is the queue
+  // slot to return to when it ends. One engine, no parallel controller path.
+  AudioTrack? _oneShotTrack;
+  int? _oneShotResume;
+  bool _oneShotRepeat = false;
+  bool get isOneShot => _oneShotTrack != null;
+  AudioTrack? get oneShotTrack => _oneShotTrack;
   int _transientCount = 0;
   DateTime? _transientWindowStart;
 
@@ -252,7 +269,16 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
               break;
           }
         }
+      case PlayOneShot():
+        _oneShotResume = _playlist.currentOrderIndexNotifier.value;
+        _oneShotTrack = event.track;
+        _oneShotRepeat = event.repeatOne;
+        await _driveOneShot(emit, event.track, intentPlay: true);
       case GoNext():
+        if (isOneShot) {
+          await _exitOneShotStep(emit, 1); // explicit next exits to the queue
+          break;
+        }
         final n = _playlist.nextOrderIndex();
         if (n != null) {
           // Commit the index now so a rapid chain of nexts advances per tap
@@ -261,8 +287,14 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
           await _drive(emit, n, intentPlay: true, direction: 1, userTap: false, defer: true);
         }
       case GoPrevious():
+        if (isOneShot) {
+          await _exitOneShotStep(emit, -1);
+          break;
+        }
         await _onPrevious(emit);
       case GoToIndex():
+        _oneShotTrack = null; // a direct queue selection exits one-shot
+        _oneShotResume = null;
         if (event.respectPauseIntent && !event.intentPlay) {
           // setQueue honoring a standing pause: show the index, don't play.
           await _playlist.setCurrentOrderIndex(event.index);
@@ -379,6 +411,43 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     return 1; // skip past
   }
 
+  // Load+play [track] as a one-shot (outside the queue). The state index mirrors
+  // the resume slot so the queue stays put visually; isOneShot stays true so the
+  // ended/nav branches know to resume. On definitive failure: clear + stop.
+  Future<void> _driveOneShot(Emitter<PbState> emit, AudioTrack track,
+      {required bool intentPlay}) async {
+    final idx = _oneShotResume ?? 0;
+    emit(PbLoading(index: idx, track: track, intentPlay: intentPlay));
+    try {
+      await _transport.load(track.path, title: track.title, artist: track.artist);
+    } catch (e) {
+      if (emit.isDone) return;
+      if (!isTransientLoadError(e)) _failedPaths.add(track.path);
+      _oneShotTrack = null;
+      _oneShotResume = null;
+      emit(PbStopped(index: idx));
+      return;
+    }
+    if (emit.isDone) return;
+    final play = intentPlay && !_pausedByInterruption;
+    await (play ? _transport.play() : _transport.pause());
+    if (emit.isDone) return;
+    emit(PbActive(index: idx, track: track, playing: play));
+  }
+
+  // Leave one-shot and step into the queue from the captured resume slot.
+  Future<void> _exitOneShotStep(Emitter<PbState> emit, int dir) async {
+    final r = _oneShotResume;
+    _oneShotTrack = null;
+    _oneShotResume = null;
+    if (_playlist.length == 0 || r == null) {
+      if (!emit.isDone) emit(const PbStopped());
+      return;
+    }
+    final target = (r + dir).clamp(0, _playlist.length - 1).toInt();
+    await _drive(emit, target, intentPlay: true, direction: dir, userTap: false);
+  }
+
   Future<void> _onPrevious(Emitter<PbState> emit) async {
     final cur = _playlist.currentOrderIndexNotifier.value;
     if (cur == null) {
@@ -437,6 +506,21 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     // Only auto-advance if we were actually playing — a stale ended while
     // paused must not advance the queue.
     if (state is PbActive && !(state as PbActive).playing) return;
+    if (isOneShot) {
+      if (_oneShotRepeat) {
+        await _driveOneShot(emit, _oneShotTrack!, intentPlay: true);
+        return;
+      }
+      final r = _oneShotResume;
+      _oneShotTrack = null;
+      _oneShotResume = null;
+      if (r == null || r + 1 >= _playlist.length) {
+        emit(PbStopped(index: r));
+        return;
+      }
+      add(GoToIndex(r + 1, direction: 1)); // resume the queue after the one-shot
+      return;
+    }
     final n = _playlist.nextOrderIndex();
     if (n == null) {
       emit(PbStopped(index: _playlist.currentOrderIndexNotifier.value));
