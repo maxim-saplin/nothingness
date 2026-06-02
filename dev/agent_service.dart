@@ -417,11 +417,12 @@ class AgentService {
           'dot': ScreenType.dot,
           'void': ScreenType.void_,
           'void_': ScreenType.void_,
+          'cassette': ScreenType.cassette,
         };
         final t = m[value];
         if (t == null) {
           return _error(
-            'unknown screen value "$value" (expected spectrum|polo|dot|void)',
+            'unknown screen value "$value" (expected spectrum|polo|dot|void|cassette)',
           );
         }
         // B-023: resolve via main.dart's load path so persisted per-skin
@@ -458,6 +459,35 @@ class AgentService {
           return _error('uiScale value "$value" is not a double');
         }
         await s.saveUiScale(parsed);
+      case 'cassetteVariant':
+        // Accept v1..v7 or 1..7.
+        final raw = value.startsWith('v') ? value.substring(1) : value;
+        final idx = int.tryParse(raw);
+        if (idx == null || idx < 1 || idx > CassetteVariant.values.length) {
+          return _error(
+            'cassetteVariant expects v1..v7 or 1..7, got "$value"',
+          );
+        }
+        final variant = CassetteVariant.values[idx - 1];
+        final current = s.screenConfigNotifier.value;
+        final base = current is CassetteScreenConfig
+            ? current
+            : (await s.loadScreenConfig(
+                  SettingsService.screenIdForType(ScreenType.cassette),
+                ) as CassetteScreenConfig?) ??
+                const CassetteScreenConfig();
+        await s.saveScreenConfig(base.copyWith(variant: variant));
+      case 'cassetteHaptics':
+        {
+          final current = s.screenConfigNotifier.value;
+          final base = current is CassetteScreenConfig
+              ? current
+              : (await s.loadScreenConfig(
+                    SettingsService.screenIdForType(ScreenType.cassette),
+                  ) as CassetteScreenConfig?) ??
+                  const CassetteScreenConfig();
+          await s.saveScreenConfig(base.copyWith(hapticsEnabled: value == 'true'));
+        }
       case 'immersive':
         await s.setImmersive(value == 'true');
       case 'transport':
@@ -491,6 +521,14 @@ class AgentService {
           );
         }
         await s.setBrowserPresentation(v);
+      case 'browserExpanded':
+      case 'browser_expanded':
+        // Drive the swipe-up browser open/closed (QA of the cassette overlay).
+        final expander = DebugHooks.browserExpander;
+        if (expander == null) {
+          return _error('browserExpander not registered (no VoidScreen mounted)');
+        }
+        expander(value == 'true' || value == '1');
       default:
         return _error('unknown setting: $name');
     }
@@ -511,16 +549,13 @@ class AgentService {
     if (persisted != null) return persisted;
 
     // No persisted config of this type — return the const default.
-    switch (type) {
-      case ScreenType.spectrum:
-        return const SpectrumScreenConfig();
-      case ScreenType.polo:
-        return const PoloScreenConfig();
-      case ScreenType.dot:
-        return const DotScreenConfig();
-      case ScreenType.void_:
-        return const VoidScreenConfig();
-    }
+    return switch (type) {
+      ScreenType.spectrum => const SpectrumScreenConfig(),
+      ScreenType.polo => const PoloScreenConfig(),
+      ScreenType.dot => const DotScreenConfig(),
+      ScreenType.void_ => const VoidScreenConfig(),
+      ScreenType.cassette => const CassetteScreenConfig(),
+    };
   }
 
   static _R _getPlaybackState(

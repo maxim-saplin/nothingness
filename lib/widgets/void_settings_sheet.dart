@@ -113,6 +113,7 @@ class VoidSettingsSheet extends HookWidget {
         ScreenType.polo,
         ScreenType.dot,
         ScreenType.void_,
+        ScreenType.cassette,
       ];
       settings.saveScreenConfig(
           switch (_next(order, settings.screenConfigNotifier.value.type)) {
@@ -120,6 +121,7 @@ class VoidSettingsSheet extends HookWidget {
         ScreenType.polo => const PoloScreenConfig(),
         ScreenType.dot => const DotScreenConfig(),
         ScreenType.void_ => const VoidScreenConfig(),
+        ScreenType.cassette => const CassetteScreenConfig(),
       });
     }
 
@@ -139,6 +141,7 @@ class VoidSettingsSheet extends HookWidget {
           ScreenType.polo => 'polo',
           ScreenType.dot => 'dot',
           ScreenType.void_ => 'void',
+          ScreenType.cassette => 'cassette',
         };
 
     Future<void> openNotificationSettings() async {
@@ -350,6 +353,27 @@ class VoidSettingsSheet extends HookWidget {
               textSize('void-settings-polo-text-size', cfg.textScale,
                   (v) => cfg.copyWith(textScale: v)),
             ],
+          CassetteScreenConfig() => [
+              _Cycle(
+                'void-settings-cassette-variant',
+                'variant',
+                cassetteVariantMeta[cfg.variant]!.label,
+                () {
+                  final next = CassetteVariant.values[
+                      (cfg.variant.index + 1) % CassetteVariant.values.length];
+                  settings.saveScreenConfig(cfg.copyWith(variant: next));
+                },
+              ),
+              textSize('void-settings-cassette-text-size', cfg.textScale,
+                  (v) => cfg.copyWith(textScale: v)),
+              _Toggle(
+                'void-settings-cassette-haptics',
+                'haptics',
+                cfg.hapticsEnabled,
+                () => settings
+                    .saveScreenConfig(cfg.copyWith(hapticsEnabled: !cfg.hapticsEnabled)),
+              ),
+            ],
         };
 
     List<Widget> buildGroups(OperatingMode mode) {
@@ -436,7 +460,10 @@ class VoidSettingsSheet extends HookWidget {
         // group is gated on usesVisualizer so screens without a spectrum
         // (Dot, Void) don't show an empty header (B-034 hid the rows, B-050 the
         // header too).
-        if (isOwn && cfg.usesVisualizer) ...[
+        // Cassette's VU variant consumes raw spectrum data but is not governed
+        // by these bar-rendering knobs, so it opts out of the SOUND group (else
+        // the group buries the cassette variant selector below it).
+        if (isOwn && cfg.usesVisualizer && cfg is! CassetteScreenConfig) ...[
           _Group('SOUND'),
           _Cycle('void-settings-bar-count', 'bar count',
               '${spectrum.barCount.count}',

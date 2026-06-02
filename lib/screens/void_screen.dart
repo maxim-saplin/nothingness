@@ -19,6 +19,7 @@ import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
 import '../widgets/hero_feedback_surface.dart';
+import '../widgets/heroes/cassette/cassette_hero.dart';
 import '../widgets/heroes/dot_hero.dart';
 import '../widgets/heroes/polo_hero.dart';
 import '../widgets/heroes/spectrum_hero.dart';
@@ -94,25 +95,31 @@ class VoidScreen extends HookWidget {
 
     // B-003: immersive ramp drives hero growth + browser/crumb collapse so they
     // sum to the available height every frame (no overflow).
-    final immersiveCtrl =
-        useAnimationController(duration: const Duration(milliseconds: 240));
+    final immersiveCtrl = useAnimationController(
+      duration: const Duration(milliseconds: 240),
+    );
     final immersiveT = useMemoized(
-        () => CurvedAnimation(parent: immersiveCtrl, curve: Curves.easeOutCubic),
-        [immersiveCtrl]);
+      () => CurvedAnimation(parent: immersiveCtrl, curve: Curves.easeOutCubic),
+      [immersiveCtrl],
+    );
     // B-033: 280 ms easeOutCubic — snappier than MaterialPageRoute.
     // swipe-up browser slide (0=parked, 1=resting; 1 for non-swipe-up).
-    final browserSlideCtrl =
-        useAnimationController(duration: const Duration(milliseconds: 280));
+    final browserSlideCtrl = useAnimationController(
+      duration: const Duration(milliseconds: 280),
+    );
     final browserSlideT = useMemoized(
-        () =>
-            CurvedAnimation(parent: browserSlideCtrl, curve: Curves.easeOutCubic),
-        [browserSlideCtrl]);
+      () =>
+          CurvedAnimation(parent: browserSlideCtrl, curve: Curves.easeOutCubic),
+      [browserSlideCtrl],
+    );
 
     final immersive = useState(settingsService.immersiveNotifier.value);
-    final transportPosition =
-        useState(settingsService.transportPositionNotifier.value);
-    final browserPresentation =
-        useState(settingsService.browserPresentationNotifier.value);
+    final transportPosition = useState(
+      settingsService.transportPositionNotifier.value,
+    );
+    final browserPresentation = useState(
+      settingsService.browserPresentationNotifier.value,
+    );
     final browserExpanded = useState(false);
     final searchMode = useState(false);
     // B-043: true when entering search auto-expanded a collapsed swipe-up browser.
@@ -326,18 +333,22 @@ class VoidScreen extends HookWidget {
     useEffect(() {
       searchFocusNode.addListener(onSearchFocusChanged);
       settingsService.immersiveNotifier.addListener(onImmersiveChanged);
-      settingsService.transportPositionNotifier
-          .addListener(onTransportPositionChanged);
-      settingsService.browserPresentationNotifier
-          .addListener(onBrowserPresentationChanged);
+      settingsService.transportPositionNotifier.addListener(
+        onTransportPositionChanged,
+      );
+      settingsService.browserPresentationNotifier.addListener(
+        onBrowserPresentationChanged,
+      );
       libCtrl.addListener(onLibraryChanged);
       return () {
         searchFocusNode.removeListener(onSearchFocusChanged);
         settingsService.immersiveNotifier.removeListener(onImmersiveChanged);
-        settingsService.transportPositionNotifier
-            .removeListener(onTransportPositionChanged);
-        settingsService.browserPresentationNotifier
-            .removeListener(onBrowserPresentationChanged);
+        settingsService.transportPositionNotifier.removeListener(
+          onTransportPositionChanged,
+        );
+        settingsService.browserPresentationNotifier.removeListener(
+          onBrowserPresentationChanged,
+        );
         libCtrl.removeListener(onLibraryChanged);
       };
     }, [libCtrl, searchFocusNode]);
@@ -351,9 +362,11 @@ class VoidScreen extends HookWidget {
     useEffect(() {
       DebugHooks.libraryController = libCtrl;
       DebugHooks.immersiveLookup = () => immersive.value;
+      DebugHooks.browserExpander = setBrowserExpanded;
       return () {
         DebugHooks.immersiveLookup = null;
         DebugHooks.libraryController = null;
+        DebugHooks.browserExpander = null;
       };
     }, [libCtrl]);
 
@@ -393,7 +406,11 @@ class VoidScreen extends HookWidget {
     }, const []);
 
     // Cancel the jump-glyph debounce timer on unmount.
-    useEffect(() => () => jumpGlyphHideTimer.value?.cancel(), const []);
+    useEffect(
+      () =>
+          () => jumpGlyphHideTimer.value?.cancel(),
+      const [],
+    );
 
     // --- theming helpers -----------------------------------------------------
 
@@ -408,14 +425,13 @@ class VoidScreen extends HookWidget {
       double size, {
       double? letterSpacing,
       double? height,
-    }) =>
-        TextStyle(
-          color: color,
-          fontFamily: typography.monoFamily,
-          fontSize: size,
-          letterSpacing: letterSpacing,
-          height: height,
-        );
+    }) => TextStyle(
+      color: color,
+      fontFamily: typography.monoFamily,
+      fontSize: size,
+      letterSpacing: letterSpacing,
+      height: height,
+    );
 
     // Tap target wrapping a mono [glyph] in [Semantics] + [PressFeedback]; sized
     // [box]×[box] (Material min). Used by crumb-jump, search-close, settings.
@@ -426,20 +442,19 @@ class VoidScreen extends HookWidget {
       required double box,
       required String glyph,
       required TextStyle style,
-    }) =>
-        Semantics(
-          label: semanticsLabel,
-          button: true,
-          child: PressFeedback(
-            key: buttonKey,
-            onTap: onTap,
-            child: SizedBox(
-              width: box,
-              height: box,
-              child: Center(child: Text(glyph, style: style)),
-            ),
-          ),
-        );
+    }) => Semantics(
+      label: semanticsLabel,
+      button: true,
+      child: PressFeedback(
+        key: buttonKey,
+        onTap: onTap,
+        child: SizedBox(
+          width: box,
+          height: box,
+          child: Center(child: Text(glyph, style: style)),
+        ),
+      ),
+    );
 
     // Active config: constructor value, else screenConfigNotifier.
     ScreenConfig resolvedScreenConfig() =>
@@ -462,6 +477,8 @@ class VoidScreen extends HookWidget {
           );
         case ScreenType.dot:
           return DotHero(config: cfg as DotScreenConfig);
+        case ScreenType.cassette:
+          return CassetteHero(config: cfg as CassetteScreenConfig);
       }
     }
 
@@ -474,7 +491,7 @@ class VoidScreen extends HookWidget {
       final player = context.read<PlaybackController>();
       final acceptVertical =
           browserPresentation.value == BrowserPresentation.swipeUp &&
-              !browserExpanded.value;
+          !browserExpanded.value;
       return HeroFeedbackSurface(
         flashController: heroFlashController,
         onPlayPause: () => player.playPause(),
@@ -492,13 +509,13 @@ class VoidScreen extends HookWidget {
     // B-015: "jump to what's playing" tap target — `⊙` in fgPrimary at rowSize
     // (B-033 contrast bump), 44×44 hit target (B-013).
     Widget buildJumpGlyph(String playingPath) => glyphButton(
-          semanticsLabel: 'jump to now-playing folder',
-          buttonKey: const ValueKey('void-crumb-jump-to-playing'),
-          onTap: () => jumpToNowPlaying(playingPath),
-          box: 44,
-          glyph: '⊙', // ⊙ — CIRCLED DOT OPERATOR
-          style: mono(palette.fgPrimary, typography.rowSize, height: 1),
-        );
+      semanticsLabel: 'jump to now-playing folder',
+      buttonKey: const ValueKey('void-crumb-jump-to-playing'),
+      onTap: () => jumpToNowPlaying(playingPath),
+      box: 44,
+      glyph: '⊙', // ⊙ — CIRCLED DOT OPERATOR
+      style: mono(palette.fgPrimary, typography.rowSize, height: 1),
+    );
 
     Widget buildSearchCrumb() {
       // B-013: input at row-size; × keeps tertiary tone at crumbSize with a 44 px
@@ -551,7 +568,9 @@ class VoidScreen extends HookWidget {
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-                color: palette.divider, width: geometry.dividerThickness),
+              color: palette.divider,
+              width: geometry.dividerThickness,
+            ),
           ),
         ),
         child: GestureDetector(
@@ -561,21 +580,26 @@ class VoidScreen extends HookWidget {
             builder: (context) {
               if (searchMode.value) {
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   child: buildSearchCrumb(),
                 );
               }
               LibraryController? controller;
               try {
                 controller = Provider.of<LibraryController>(context);
-              } catch (_) {/* not provided */}
+              } catch (_) {
+                /* not provided */
+              }
               final path = controller?.currentPath;
               // B-015: show the jump glyph when the playing track lives outside
               // the browsed folder; B-031 debounces the hide.
               final player = context.watch<PlaybackController>();
               final playingPath = player.songInfo?.track.path;
-              final divergent = playingPath != null &&
+              final divergent =
+                  playingPath != null &&
                   playingPath.isNotEmpty &&
                   p.dirname(playingPath) != (path ?? '');
               final showJumpGlyph = resolveJumpGlyphVisible(divergent);
@@ -589,8 +613,7 @@ class VoidScreen extends HookWidget {
                       padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
                       child: MidEllipsis(
                         text: path == null || path.isEmpty ? '~' : path,
-                        style: mono(
-                            palette.fgSecondary, typography.crumbSize),
+                        style: mono(palette.fgSecondary, typography.crumbSize),
                       ),
                     ),
                   ),
@@ -610,8 +633,9 @@ class VoidScreen extends HookWidget {
       final si = context.watch<PlaybackController>().songInfo;
       final position = si?.position ?? 0;
       final duration = si?.duration ?? 0;
-      final fraction =
-          duration <= 0 ? 0.0 : (position / duration).clamp(0.0, 1.0);
+      final fraction = duration <= 0
+          ? 0.0
+          : (position / duration).clamp(0.0, 1.0);
       return SizedBox(
         height: 1,
         child: Align(
@@ -636,8 +660,11 @@ class VoidScreen extends HookWidget {
           onTap: () => VoidSettingsSheet.push(context),
           box: 48,
           glyph: '⋮', // U+22EE VERTICAL ELLIPSIS — readable in mono
-          style: mono(palette.fgPrimary.withAlpha(180), typography.rowSize + 4,
-              height: 1),
+          style: mono(
+            palette.fgPrimary.withAlpha(180),
+            typography.rowSize + 4,
+            height: 1,
+          ),
         ),
       );
     }
@@ -653,8 +680,11 @@ class VoidScreen extends HookWidget {
             alignment: Alignment.center,
             child: Text(
               '↑ swipe to browse',
-              style: mono(palette.fgTertiary, typography.hintSize,
-                  letterSpacing: 0.2),
+              style: mono(
+                palette.fgTertiary,
+                typography.hintSize,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ),
@@ -672,8 +702,11 @@ class VoidScreen extends HookWidget {
             duration: const Duration(milliseconds: 800),
             child: Text(
               'tap · long-press · swipe',
-              style: mono(palette.fgQuaternary, typography.hintSize,
-                  letterSpacing: 0.18),
+              style: mono(
+                palette.fgQuaternary,
+                typography.hintSize,
+                letterSpacing: 0.18,
+              ),
             ),
           ),
         ),
@@ -696,19 +729,31 @@ class VoidScreen extends HookWidget {
           hostsTransport && transportPosition.value == TransportPosition.top;
       final isTransportBottom =
           hostsTransport && transportPosition.value == TransportPosition.bottom;
-      final browserBottom = reservedBottom +
+      final browserBottom =
+          reservedBottom +
           _crumbHeight +
           (isTransportBottom ? _transportHeight : 0.0);
-      final heroHCollapsed = availableH -
+      final heroHCollapsed =
+          availableH -
           browserBottom -
           _swipeHintZoneHeight -
           (isTransportTop ? _transportHeight : 0.0);
-      final baseHeroH = heroHCollapsed + (heroHeight - heroHCollapsed) * s;
+      // Cassette stays full-size and the browser slides up to OVERLAP it,
+      // instead of shrinking the hero as the browser opens (user request).
+      // Other screens keep the redistribute-space model.
+      final overlayBrowser =
+          swipeUp && resolvedScreenConfig() is CassetteScreenConfig;
+      final baseHeroH = overlayBrowser
+          ? heroHCollapsed
+          : heroHCollapsed + (heroHeight - heroHCollapsed) * s;
       final heroH = baseHeroH + (availableH - baseHeroH) * t;
       final restingBrowserTop =
           heroHeight + (isTransportTop ? _transportHeight : 0.0);
-      final restingBrowserHeight = (availableH - restingBrowserTop - browserBottom)
-          .clamp(0.0, availableH);
+      final restingBrowserHeight =
+          (availableH - restingBrowserTop - browserBottom).clamp(
+            0.0,
+            availableH,
+          );
       return _Layout(
         s: s,
         reservedBottom: reservedBottom,
@@ -752,14 +797,20 @@ class VoidScreen extends HookWidget {
                 ignoring: m.s < 0.01,
                 child: ClipRect(
                   clipBehavior: Clip.hardEdge,
-                  child: VoidBrowser(
-                    browserController: browserController,
-                    controller: libCtrl,
-                    searchController: searchController,
-                    // B-032: drag-down close only in swipe-up; fixed stays
-                    // anchored (no handle/gesture).
-                    isDismissable: m.swipeUp && browserExpanded.value,
-                    onDragDownClose: collapseSwipeUpBrowser,
+                  // Swipe-up browser slides up as a sheet (it can overlap the
+                  // hero, e.g. the full-size cassette), so it needs an opaque
+                  // backdrop; fixed mode keeps its transparent anchoring.
+                  child: ColoredBox(
+                    color: m.swipeUp ? palette.background : Colors.transparent,
+                    child: VoidBrowser(
+                      browserController: browserController,
+                      controller: libCtrl,
+                      searchController: searchController,
+                      // B-032: drag-down close only in swipe-up; fixed stays
+                      // anchored (no handle/gesture).
+                      isDismissable: m.swipeUp && browserExpanded.value,
+                      onDragDownClose: collapseSwipeUpBrowser,
+                    ),
                   ),
                 ),
               ),
@@ -824,7 +875,8 @@ class VoidScreen extends HookWidget {
     final bottomInset = mq.viewPadding.bottom;
 
     return PopScope(
-      canPop: libCtrl.currentPath == null &&
+      canPop:
+          libCtrl.currentPath == null &&
           !searchMode.value &&
           !(browserExpanded.value &&
               browserPresentation.value == BrowserPresentation.swipeUp),
@@ -841,9 +893,8 @@ class VoidScreen extends HookWidget {
                 // B-033: one AnimatedBuilder on both ramps so shared metrics never drift.
                 return AnimatedBuilder(
                   animation: Listenable.merge([immersiveT, browserSlideT]),
-                  builder: (context, _) => buildStack(
-                    layout(availableH, heroHeight, bottomInset),
-                  ),
+                  builder: (context, _) =>
+                      buildStack(layout(availableH, heroHeight, bottomInset)),
                 );
               },
             ),

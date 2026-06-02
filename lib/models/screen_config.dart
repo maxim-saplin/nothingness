@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'spectrum_settings.dart';
 
-enum ScreenType { spectrum, polo, dot, void_ }
+enum ScreenType { spectrum, polo, dot, void_, cassette }
 
 double _d(Object? v, double fallback) => (v as num?)?.toDouble() ?? fallback;
 
@@ -36,6 +36,7 @@ sealed class ScreenConfig {
       ScreenType.polo => PoloScreenConfig.fromJson(json),
       ScreenType.dot => DotScreenConfig.fromJson(json),
       ScreenType.void_ => VoidScreenConfig.fromJson(json),
+      ScreenType.cassette => CassetteScreenConfig.fromJson(json),
     };
   }
 }
@@ -270,5 +271,74 @@ class PoloScreenConfig extends ScreenConfig {
         prevRect: prevRect ?? this.prevRect,
         nextRect: nextRect ?? this.nextRect,
         textColor: textColor ?? this.textColor,
+      );
+}
+
+// ---------------------------------------------------------------------------
+// Cassette screen
+// ---------------------------------------------------------------------------
+
+enum CassetteVariant { v1, v2, v3, v4 }
+
+/// Pure-data metadata for each variant.
+const cassetteVariantMeta = <CassetteVariant,
+    ({String label, bool hostsOwnTransport, bool usesVisualizer})>{
+  CassetteVariant.v1: (label: 'Tape · Mono', hostsOwnTransport: false, usesVisualizer: false),
+  CassetteVariant.v2: (label: 'Tape · Amber', hostsOwnTransport: false, usesVisualizer: false),
+  CassetteVariant.v3: (label: 'Tape · Colour', hostsOwnTransport: false, usesVisualizer: false),
+  CassetteVariant.v4: (label: 'Minimal', hostsOwnTransport: false, usesVisualizer: false),
+};
+
+class CassetteScreenConfig extends ScreenConfig {
+  final CassetteVariant variant;
+
+  /// Typography multiplier for track info. Range 0.5..1.5.
+  final double textScale;
+
+  /// Whether to fire haptic feedback on button taps (mobile only).
+  final bool hapticsEnabled;
+
+  const CassetteScreenConfig({
+    this.variant = CassetteVariant.v1,
+    this.textScale = 1.0,
+    this.hapticsEnabled = true,
+  }) : super(type: ScreenType.cassette, name: 'Cassette');
+
+  @override
+  bool get hostsChromeTransport =>
+      !(cassetteVariantMeta[variant]!.hostsOwnTransport);
+
+  @override
+  bool get usesVisualizer => cassetteVariantMeta[variant]!.usesVisualizer;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': type.name,
+        'name': name,
+        'variant': variant.name,
+        'textScale': textScale,
+        'hapticsEnabled': hapticsEnabled,
+      };
+
+  // B-041: fromJson defaults MUST match the const constructor defaults.
+  factory CassetteScreenConfig.fromJson(Map<String, dynamic> json) =>
+      CassetteScreenConfig(
+        variant: CassetteVariant.values.firstWhere(
+          (v) => v.name == (json['variant'] as String?),
+          orElse: () => CassetteVariant.v1,
+        ),
+        textScale: _d(json['textScale'], 1.0),
+        hapticsEnabled: json['hapticsEnabled'] as bool? ?? true,
+      );
+
+  CassetteScreenConfig copyWith({
+    CassetteVariant? variant,
+    double? textScale,
+    bool? hapticsEnabled,
+  }) =>
+      CassetteScreenConfig(
+        variant: variant ?? this.variant,
+        textScale: textScale ?? this.textScale,
+        hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
       );
 }

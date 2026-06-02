@@ -57,6 +57,7 @@ class MediaControllerPage extends HookWidget {
       ScreenType.polo => 'polo',
       ScreenType.dot => 'dot',
       ScreenType.void_ => 'void',
+      ScreenType.cassette => 'cassette',
     };
 
     /// Toggle the player's spectrum capture: own mode re-enables capture and

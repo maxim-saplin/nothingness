@@ -13,6 +13,9 @@ class DebugHooks {
   static bool Function()? immersiveLookup;
   static String? Function()? screenLookup;
   static Future<void> Function()? settingsOpener;
+  /// Opens/closes the swipe-up library browser (drives the slide for QA of the
+  /// overlay behavior). Set by VoidScreen in debug builds.
+  static void Function(bool expanded)? browserExpander;
   /// Set by the harness; invoked by the app once init completes so the harness
   /// can register VM-service extensions. No-op if unset (production).
   static void Function(Object provider)? onAppReady;

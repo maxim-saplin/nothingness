@@ -58,6 +58,16 @@ The script is managed by `uv`: it carries a PEP 723 inline metadata block and a 
 
 For extensions drive.py doesn't yet wrap, `drive.py call ext.nothingness.<name> k=v k=v …` makes an arbitrary call (fully-qualified name required) — no need to drop down to the raw `curl` recipe below. The exact registered set is whatever `drive.py contract` reports against the running build.
 
+### Cassette screen
+
+```bash
+drive.py screen cassette            # activate cassette hero
+drive.py cassettevariant N          # select variant 1..7 (also accepts v1..v7)
+drive.py call ext.nothingness.setSetting name=cassetteHaptics value=true
+```
+
+See `docs/cassette-variant-contract.md` for the full variant API.
+
 ## Quick Start
 
 **Launch + per-target setup (Linux desktop, Android x86_64, WSL adb bridge) and the device-prep `pm grant` / sandbox-push snippets live in the skill** (`.claude/skills/agent-emulator-debugging/SKILL.md` → Step 0 and Appendix). Run `drive.py preflight` and follow its recommendation. The essentials: always launch `-t dev/main_debug.dart` (it wires the harness; plain `flutter run` exposes no extensions, and `dev/main_test.dart` is for `integration_test/` only); extensions are debug-mode only.
