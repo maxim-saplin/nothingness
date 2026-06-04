@@ -28,36 +28,6 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
 The next id to assign is **B-053** — check `backlog_done.md` before reusing any
 number.
 
-## B-052 (major): playback can go silent while app still shows playing
-
-**Symptom** - User-reported over Bluetooth in a car:
-- During playback, sound drops out while track position keeps advancing.
-- Android notification still shows an active media session / playback controls.
-
-**Repro** - Two reported field scenarios:
-- Scenario A (soft failure):
-  - play audio over BT in car,
-  - while app is backgrounded, sound stops,
-  - track time keeps progressing and notification still looks active,
-  - bringing app to foreground restores audio.
-- Scenario B (hard failure):
-  - same setup (BT car playback, app backgrounded),
-  - sound drops out again,
-  - car hardware buttons (`play/pause/next/prev`) and phone notification buttons
-    change playback state/track but audio remains silent,
-  - bringing app foreground and in-app taps do not recover audio,
-  - only full app restart restores sound.
-
-**Desired** - BT playback must remain audible and consistent with visible
-playback state. Foreground/background transitions and external media controls
-must not produce a silent-playing state, and recovery must not require app
-restart.
-
-**Notes** - Hypotheses, investigation logs, and evidence are tracked separately
-in `docs/android-policy-mute-investigation.md`.
-
-**Area** - transport / android-policy
-
 ## B-049 (minor): native-first audio load is unverified on the API 37 emulator
 
 **Symptom** — no user-facing bug; a test-coverage / design-decision gap to revisit.

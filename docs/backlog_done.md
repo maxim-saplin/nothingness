@@ -1470,3 +1470,36 @@ reachable by the default workflow.
 - **Area** — transport
 
 **Closed**: 2026-06-01 — verified on the API 37 emulator: opus loads `mode=loadFile`; UI jank during an opus load matches an mp3 load (`janky33` 43 vs 52; vs the old sustained UI-isolate stall), confirming the decode moved off the UI isolate; duration correct, playback + track-advance work, mp3/wav unaffected; 376 unit/widget tests green. Not separately re-tested: `<32 KB` opus flush path (no encoder on host; handled by the decoder's deferred-end-of-stream flag) and seek via driver (no `seek` ext, but same PRESERVED `BufferStream` source type as before — preserved by construction). Shipped alongside a dependency upgrade (`file_picker` 11, `package_info_plus` 9, `permission_handler` 12.0.3; `flutter clean` needed to clear a stale plugin classpath). **Pending**: upstream PR to alnitak/flutter_soloud, then drop the override.
+
+## B-052 (major): playback can go silent while app still shows playing
+
+**Symptom** - User-reported over Bluetooth in a car:
+- During playback, sound drops out while track position keeps advancing.
+- Android notification still shows an active media session / playback controls.
+
+**Repro** - Two reported field scenarios:
+- Scenario A (soft failure):
+  - play audio over BT in car,
+  - while app is backgrounded, sound stops,
+  - track time keeps progressing and notification still looks active,
+  - bringing app to foreground restores audio.
+- Scenario B (hard failure):
+  - same setup (BT car playback, app backgrounded),
+  - sound drops out again,
+  - car hardware buttons (`play/pause/next/prev`) and phone notification buttons
+    change playback state/track but audio remains silent,
+  - bringing app foreground and in-app taps do not recover audio,
+  - only full app restart restores sound.
+
+**Desired** - BT playback must remain audible and consistent with visible
+playback state. Foreground/background transitions and external media controls
+must not produce a silent-playing state, and recovery must not require app
+restart.
+
+**Notes** - Hypotheses, investigation logs, and evidence are tracked separately
+in `docs/android-policy-mute-investigation.md`.
+
+**Area** - transport / android-policy
+
+**Closed**: 2026-06-04 — Set `androidStopForegroundOnPause: false` to prevent Android 14+ AudioHardening muting the service when resuming from background.
+**Side Effect Warning**: Notification might remain sticky (undismissable via swipe) while playback is paused.
