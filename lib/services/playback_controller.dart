@@ -210,6 +210,13 @@ class PlaybackController extends ChangeNotifier {
     isPlayingNotifier.value = s.isPlaying;
     isOneShotNotifier.value = _bloc.isOneShot;
     _updateQueueWithNotFoundFlags();
+
+    if (s.isPlaying) {
+      resumeTimers();
+    } else {
+      suspendTimers();
+    }
+
     // Flip the hero title/artist SYNCHRONOUSLY from the state's track (already
     // carried by PbLoading/PbActive — queue OR one-shot) so names cycle at 60fps
     // on a tap burst, never gated on the transport. Position/duration refine
