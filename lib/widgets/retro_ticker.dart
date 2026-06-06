@@ -39,6 +39,14 @@ class RetroTicker extends HookWidget {
           t.cancel();
           return;
         }
+
+        // B-052: Do not rebuild when the app is in the background. Kept simple
+        // without hook overhead since it's just a skip frame.
+        final state = WidgetsBinding.instance.lifecycleState;
+        if (state != null && state != AppLifecycleState.resumed) {
+          return;
+        }
+
         var next = offset.value + 1;
         if (next >= fullText.length) {
           next = 0;
