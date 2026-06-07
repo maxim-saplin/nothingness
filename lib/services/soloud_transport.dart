@@ -65,6 +65,7 @@ class SoLoudTransport implements AudioTransport {
   // (Android audio-focus IPC, ~100 ms on emulator) when already active.
   AudioSession? _cachedSession;
   bool _audioSessionActive = false;
+  Future<void>? _playerInit;
 
   SpectrumProvider? _spectrumProvider;
   StreamSubscription<List<double>>? _spectrumSub;
@@ -105,9 +106,7 @@ class SoLoudTransport implements AudioTransport {
   Future<void> init() async {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
-    await session.setActive(true);
     _cachedSession = session;
-    _audioSessionActive = true;
 
     // Invalidate the active flag on focus loss so the next play() re-requests
     // focus; PlaybackController owns resume-on-gain.
@@ -121,21 +120,44 @@ class SoLoudTransport implements AudioTransport {
           break;
       }
     });
+  }
 
+  Future<void> _ensurePlayerReady() async {
+    if (_soloud.isInitialized) {
+      _ensureSpectrumProvider();
+      return;
+    }
+    final inFlight = _playerInit;
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
+    final init = _initPlayer();
+    _playerInit = init;
+    try {
+      await init;
+    } finally {
+      if (identical(_playerInit, init)) _playerInit = null;
+    }
+  }
+
+  Future<void> _initPlayer() async {
     await _soloud.init();
     _soloud.setVisualizationEnabled(true);
+    _soloud.setFftSmoothing(_settings.decaySpeed.value.clamp(0.0, 1.0));
+    _ensureSpectrumProvider();
+    if (_captureEnabled) await _startSpectrum();
+  }
 
-    _spectrumProvider = SoLoudSpectrumProvider(
+  void _ensureSpectrumProvider() {
+    _spectrumProvider ??= SoLoudSpectrumProvider(
       soloud: _soloud,
       handleProvider: () async => _currentHandle,
       initialSettings: _settings,
     );
-    _spectrumSub = _spectrumProvider!.spectrumStream.listen(
+    _spectrumSub ??= _spectrumProvider!.spectrumStream.listen(
       _spectrumController.add,
     );
-
-    _startPositionTimer();
-    if (_captureEnabled) _startSpectrum();
   }
 
   void _startPositionTimer() {
@@ -149,7 +171,9 @@ class SoLoudTransport implements AudioTransport {
   void updateSpectrumSettings(SpectrumSettings settings) {
     _settings = settings;
     _spectrumProvider?.updateSettings(settings);
-    _soloud.setFftSmoothing(settings.decaySpeed.value.clamp(0.0, 1.0));
+    if (_soloud.isInitialized) {
+      _soloud.setFftSmoothing(settings.decaySpeed.value.clamp(0.0, 1.0));
+    }
   }
 
   @override
@@ -168,7 +192,7 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   void resumeTimers() {
-    if (_positionTimer != null) return;
+    if (_positionTimer != null || _currentHandle == null) return;
     _startPositionTimer();
     // Re-activate the audio session for playback readiness.
     _setSessionActive(true);
@@ -198,13 +222,16 @@ class SoLoudTransport implements AudioTransport {
     await _safeStop(_currentHandle);
     await _safeDispose(_currentSource);
     await _disposePreloaded();
+    if (_soloud.isInitialized) {
+      _soloud.deinit();
+    }
     await _eventController.close();
     await _spectrumController.close();
   }
 
   /// Cleanup-only stop; swallows/logs errors and never throws.
   Future<void> _safeStop(SoundHandle? handle) async {
-    if (handle == null) return;
+    if (handle == null || !_soloud.isInitialized) return;
     try {
       await _soloud.stop(handle);
     } catch (e) {
@@ -214,7 +241,7 @@ class SoLoudTransport implements AudioTransport {
 
   /// Cleanup-only dispose; swallows/logs errors and never throws.
   Future<void> _safeDispose(AudioSource? source, {String label = 'source'}) async {
-    if (source == null) return;
+    if (source == null || !_soloud.isInitialized) return;
     try {
       await _soloud.disposeSource(source);
     } catch (e) {
@@ -270,6 +297,7 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   Future<void> load(String path, {String? title, String? artist}) async {
+    await _ensurePlayerReady();
     _suppressEndedEvent = true;
     _endedEmittedForPath = null;
     await _safeStop(_currentHandle);
@@ -303,6 +331,7 @@ class SoLoudTransport implements AudioTransport {
 
   @override
   Future<void> preload(String path) async {
+    await _ensurePlayerReady();
     if (path == _currentPath) return;
     if (path == _preloadedPath && _preloadedSource != null) return;
 
@@ -392,6 +421,8 @@ class SoLoudTransport implements AudioTransport {
     if (source == null) {
       throw StateError('No source loaded. Call load() first.');
     }
+
+    await _ensurePlayerReady();
 
     // B-011: skip the redundant audio-focus IPC when already active.
     if (!_audioSessionActive) {

@@ -32,10 +32,14 @@ For fast regression signal, use the automated runner:
 tool/power/emulator_power_regression.sh --window-sec 120 --sample-sec 5
 ```
 
+The automated scenario now seeds a paused restored track in app-private storage,
+launches the app, backgrounds it, and samples that real battery-drain path.
+
 Artifacts are written under `.tmp/power/<timestamp>-auto-regression/` and include:
 
 - sampled package CPU for S0 control and S1 background-idle
-- `dumpsys` snapshots (`cpuinfo`, `power`, `activity services`, `jobscheduler`, `alarm`)
+- `dumpsys` snapshots (`cpuinfo`, `power`, `activity services`, `media_session`, `jobscheduler`, `alarm`)
+- `batterystats` snapshots (`--checkin`, `--history`)
 - `logcat` slice + parsed `summary.json`
 
 The parser (`tool/power/evaluate_power_capture.py`) marks regressions using quick-win thresholds:
@@ -43,6 +47,7 @@ The parser (`tool/power/evaluate_power_capture.py`) marks regressions using quic
 - idle median CPU delta (S1 - S0) too high
 - idle p95 CPU too high or sustained high CPU streak
 - playback-state churn signature too high in logcat
+- app-attributed `AudioMix` wakelock present in batterystats checkin
 
 Use `--ci` to enforce strict exit behavior:
 

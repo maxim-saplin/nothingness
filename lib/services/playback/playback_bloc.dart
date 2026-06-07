@@ -233,8 +233,7 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
             await _transport.pause(); // pause in place
             if (!emit.isDone) emit(PbActive(index: s.index, track: s.track, playing: false));
           case PbActive(playing: false):
-            await _transport.play(); // resume WITHOUT reload (keep position)
-            if (!emit.isDone) emit(PbActive(index: s.index, track: s.track, playing: true));
+            await _resumePausedOrReload(emit, s);
           case PbLoading():
             // Toggling mid-load: re-drive the same index with flipped intent.
             await _drive(emit, s.index, intentPlay: !s.intentPlay, direction: 1, userTap: false);
@@ -249,8 +248,7 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
             case PbActive(playing: true):
               break;
             case PbActive(playing: false):
-              await _transport.play();
-              if (!emit.isDone) emit(PbActive(index: s.index, track: s.track, playing: true));
+              await _resumePausedOrReload(emit, s);
             case PbLoading():
               await _drive(emit, s.index, intentPlay: true, direction: 1, userTap: false);
             case PbStopped():
@@ -495,6 +493,18 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     await _transport.play();
     if (emit.isDone) return;
     emit(PbActive(index: idx, track: t, playing: true));
+  }
+
+  Future<void> _resumePausedOrReload(Emitter<PbState> emit, PbActive state) async {
+    try {
+      await _transport.play(); // resume WITHOUT reload when the source is still live
+      if (!emit.isDone) {
+        emit(PbActive(index: state.index, track: state.track, playing: true));
+      }
+    } catch (_) {
+      if (emit.isDone) return;
+      await _drive(emit, state.index, intentPlay: true, direction: 1, userTap: false);
+    }
   }
 
   // ---- transport / system events (sequential) ------------------------------

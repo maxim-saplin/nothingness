@@ -143,8 +143,6 @@ class PlaybackController extends ChangeNotifier {
   /// Audio-event ring buffer (interruption / route / load / error).
   List<String> audioEvents() => _telemetry.audioEvents;
 
-  Future<void> _loadTrack(AudioTrack track) =>
-      _transport.load(track.path, title: track.title, artist: track.artist);
 
   // The track at the current order index, or null if none is selected.
   AudioTrack? get _currentTrack {
@@ -175,8 +173,6 @@ class PlaybackController extends ChangeNotifier {
     _playlist.queueNotifier.addListener(_updateQueueWithNotFoundFlags);
     _playlist.currentOrderIndexNotifier.addListener(_onIndexChanged);
     _playlist.shuffleNotifier.addListener(_updateQueueWithNotFoundFlags);
-
-    _positionTimer = _newPositionTimer();
     _updateQueueWithNotFoundFlags();
 
     // Fan sub-notifier changes into ChangeNotifier listeners + mirror spectrum.
@@ -191,12 +187,6 @@ class PlaybackController extends ChangeNotifier {
     final track = _currentTrack;
     final idx = _playlist.currentOrderIndexNotifier.value;
     if (track != null && idx != null) {
-      try {
-        await _loadTrack(track); // load for display (paused) on restore
-      } catch (e) {
-        // Ignore startup load errors; handled when the user tries to play.
-        debugPrint('Failed to load initial track: $e');
-      }
       _bloc.add(AdoptCurrent(idx, playing: false));
     }
     await _emitSongInfo(force: true);

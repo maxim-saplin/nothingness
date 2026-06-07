@@ -28,6 +28,7 @@ class MockAudioTransport implements AudioTransport {
   final Set<String> pathsToFailTransiently = {};
   bool autoEmitLoadedEvent = true;
   Duration loadDelay = Duration.zero;
+  bool failPlayWhenUnloaded = false;
   
   // Call tracking for verification
   final List<String> loadCalls = [];
@@ -105,6 +106,9 @@ class MockAudioTransport implements AudioTransport {
 
   @override
   Future<void> play() async {
+    if (failPlayWhenUnloaded && _loadedPath == null) {
+      throw StateError('No source loaded. Call load() first.');
+    }
     playCalls.add(_loadedPath ?? 'no-path');
     _isPlaying = true;
   }

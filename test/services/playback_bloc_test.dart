@@ -130,6 +130,30 @@ void main() {
   );
 
   blocTest<PlaybackBloc, PbState>(
+    'resume from paused without a loaded source reloads the current track once',
+    build: () {
+      final bloc = build();
+      tx.failPlayWhenUnloaded = true;
+      return bloc;
+    },
+    act: (b) async {
+      b.add(const AdoptCurrent(0, playing: false));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      b.add(const SetIntent(true));
+    },
+    wait: const Duration(milliseconds: 80),
+    expect: () => [
+      isA<PbActive>().having((s) => s.index, 'i', 0).having((s) => s.playing, 'p', false),
+      isA<PbLoading>().having((s) => s.index, 'i', 0),
+      isA<PbActive>().having((s) => s.index, 'i', 0).having((s) => s.playing, 'p', true),
+    ],
+    verify: (_) {
+      expect(tx.loadCalls, ['/p/t0.mp3']);
+      expect(tx.playCalls, ['/p/t0.mp3']);
+    },
+  );
+
+  blocTest<PlaybackBloc, PbState>(
     'latest-wins: GoToIndex superseded by GoToIndex during load',
     build: () => build(n: 4),
     act: (b) async {

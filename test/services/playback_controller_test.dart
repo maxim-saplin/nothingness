@@ -206,6 +206,47 @@ void main() {
       expect(transport.loadCalls, isEmpty);
       expect(transport.playCalls, isEmpty);
     });
+
+    test('paused restore does not eagerly load, then reloads on first play',
+        () async {
+      await controller.shutdown();
+      if (Hive.isBoxOpen('playlistBox_$testNumber')) {
+        await Hive.box('playlistBox_$testNumber').close();
+      }
+
+      final tracks = createTracks(3);
+      playlist = PlaylistStore(
+        hive: Hive,
+        hiveInitializer: () async {},
+        boxOpener: (hive) => hive.openBox<dynamic>('playlistBox_$testNumber'),
+      );
+      await playlist.init();
+      await playlist.setQueue(tracks, startBaseIndex: 1);
+      await playlist.dispose();
+
+      transport = MockAudioTransport()..failPlayWhenUnloaded = true;
+      playlist = PlaylistStore(
+        hive: Hive,
+        hiveInitializer: () async {},
+        boxOpener: (hive) => hive.openBox<dynamic>('playlistBox_$testNumber'),
+      );
+      controller = PlaybackController(
+        transport: transport,
+        playlist: playlist,
+      );
+      await controller.init();
+
+      expect(controller.currentIndexNotifier.value, 1);
+      expect(controller.isPlayingNotifier.value, false);
+      expect(transport.loadCalls, isEmpty,
+          reason: 'paused restore should not keep audio resources warm');
+
+      await controller.playPause();
+      await pumpUntil(() => controller.isPlayingNotifier.value);
+
+      expect(transport.loadCalls, ['/path/track_1.mp3']);
+      expect(transport.playCalls, ['/path/track_1.mp3']);
+    });
   });
 
   // ===========================================================================

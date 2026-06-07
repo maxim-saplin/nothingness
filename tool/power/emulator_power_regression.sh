@@ -7,6 +7,9 @@ ACTIVITY="${ACTIVITY:-$PKG/.MainActivity}"
 WINDOW_SEC="${WINDOW_SEC:-120}"
 SAMPLE_SEC="${SAMPLE_SEC:-5}"
 CI_MODE=false
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SEED_AUDIO="${SEED_AUDIO:-$ROOT_DIR/soloud/example/assets/audio/tic-1.wav}"
+APP_TRACK_PATH="/data/user/0/$PKG/files/tic-1.wav"
 
 usage() {
   cat <<'EOF'
@@ -18,6 +21,7 @@ Options:
   --activity <name>    Launch activity (default: <pkg>/.MainActivity)
   --window-sec <n>     Sampling window in seconds (default: 120)
   --sample-sec <n>     Sampling interval in seconds (default: 5)
+  --seed-audio <path>  Local audio file copied into app-private storage for the paused-restore scenario
   --ci                 Enable CI-friendly strict exit behavior
   -h, --help           Show help
 
@@ -49,6 +53,10 @@ while [[ $# -gt 0 ]]; do
       SAMPLE_SEC="$2"
       shift 2
       ;;
+    --seed-audio)
+      SEED_AUDIO="$2"
+      shift 2
+      ;;
     --ci)
       CI_MODE=true
       shift
@@ -72,6 +80,11 @@ fi
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 is required" >&2
+  exit 2
+fi
+
+if ! command -v dart >/dev/null 2>&1; then
+  echo "dart is required" >&2
   exit 2
 fi
 
@@ -110,6 +123,32 @@ EOF
 
 echo "[power] output: $OUT_DIR"
 
+if [[ ! -f "$SEED_AUDIO" ]]; then
+  echo "Seed audio '$SEED_AUDIO' does not exist" >&2
+  exit 2
+fi
+
+seed_paused_restore_state() {
+  local seed_dir="$OUT_DIR/seed_state"
+  local remote_hive="/data/local/tmp/${PKG##*.}-power-seed-playlistbox.hive"
+  local remote_audio="/data/local/tmp/${PKG##*.}-power-seed-track.wav"
+
+  rm -rf "$seed_dir"
+  mkdir -p "$seed_dir"
+  dart run "$ROOT_DIR/tool/power/seed_playlist.dart" "$seed_dir" "$APP_TRACK_PATH"
+
+  adb -s "$DEVICE" push "$seed_dir/playlistbox.hive" "$remote_hive" >/dev/null
+  adb -s "$DEVICE" push "$SEED_AUDIO" "$remote_audio" >/dev/null
+  adb -s "$DEVICE" shell "run-as $PKG sh -c 'mkdir -p files app_flutter && cp $remote_audio files/tic-1.wav && cp $remote_hive app_flutter/playlistbox.hive && : > app_flutter/playlistbox.lock'"
+}
+
+grant_runtime_permissions() {
+  adb -s "$DEVICE" shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS >/dev/null 2>&1 || true
+  adb -s "$DEVICE" shell pm grant "$PKG" android.permission.READ_MEDIA_AUDIO >/dev/null 2>&1 || true
+  adb -s "$DEVICE" shell pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE >/dev/null 2>&1 || true
+  adb -s "$DEVICE" shell pm grant "$PKG" android.permission.RECORD_AUDIO >/dev/null 2>&1 || true
+}
+
 action_pkg_cpu_sample() {
   local phase="$1"
   local out_file="$2"
@@ -143,9 +182,11 @@ adb -s "$DEVICE" shell input keyevent KEYCODE_HOME || true
 sleep 5
 action_pkg_cpu_sample "s0_control" "$OUT_DIR/cpu_s0.csv"
 
-echo "[power] S1 launch -> home -> idle"
+echo "[power] S1 seeded paused restore -> home -> idle"
 adb -s "$DEVICE" logcat -c
 adb -s "$DEVICE" shell am force-stop "$PKG" || true
+grant_runtime_permissions
+seed_paused_restore_state
 START_OUT="$(adb -s "$DEVICE" shell am start -n "$ACTIVITY" 2>&1 || true)"
 echo "$START_OUT" >"$OUT_DIR/am_start.txt"
 if echo "$START_OUT" | grep -qiE 'Error type|does not exist|Exception'; then
@@ -159,8 +200,11 @@ sleep 8
 action_pkg_cpu_sample "s1_idle_bg" "$OUT_DIR/cpu_s1.csv"
 
 adb -s "$DEVICE" shell pidof "$PKG" >"$OUT_DIR/pid.txt" || true
+adb -s "$DEVICE" shell dumpsys batterystats --checkin >"$OUT_DIR/batterystats_checkin.txt"
+adb -s "$DEVICE" shell dumpsys batterystats --history >"$OUT_DIR/batterystats_history.txt"
 adb -s "$DEVICE" shell dumpsys cpuinfo >"$OUT_DIR/dumpsys_cpuinfo.txt"
 adb -s "$DEVICE" shell dumpsys activity services "$PKG" >"$OUT_DIR/dumpsys_activity_services_pkg.txt"
+adb -s "$DEVICE" shell dumpsys media_session >"$OUT_DIR/dumpsys_media_session.txt"
 adb -s "$DEVICE" shell dumpsys power >"$OUT_DIR/dumpsys_power.txt"
 adb -s "$DEVICE" shell dumpsys jobscheduler >"$OUT_DIR/dumpsys_jobscheduler.txt"
 adb -s "$DEVICE" shell dumpsys alarm >"$OUT_DIR/dumpsys_alarm.txt"
