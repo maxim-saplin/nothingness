@@ -38,6 +38,8 @@ class MockAudioTransport implements AudioTransport {
   final List<Duration> seekCalls = [];
   int suspendTimerCalls = 0;
   int resumeTimerCalls = 0;
+  int positionReadCount = 0;
+  int durationReadCount = 0;
   
   @override
   Stream<TransportEvent> get eventStream => _eventController.stream;
@@ -46,10 +48,16 @@ class MockAudioTransport implements AudioTransport {
   Stream<List<double>> get spectrumStream => _spectrumController.stream;
 
   @override
-  Future<Duration> get position async => _position;
+  Future<Duration> get position async {
+    positionReadCount += 1;
+    return _position;
+  }
 
   @override
-  Future<Duration> get duration async => _duration;
+  Future<Duration> get duration async {
+    durationReadCount += 1;
+    return _duration;
+  }
 
   @override
   Future<void> init() async {
@@ -184,5 +192,7 @@ class MockAudioTransport implements AudioTransport {
     seekCalls.clear();
     suspendTimerCalls = 0;
     resumeTimerCalls = 0;
+    positionReadCount = 0;
+    durationReadCount = 0;
   }
 }

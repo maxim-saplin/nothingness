@@ -136,6 +136,7 @@ class PlaybackController extends ChangeNotifier {
   StreamSubscription<void>? _noisySub;
   StreamSubscription<AudioDevicesChangedEvent>? _devicesSub;
   Timer? _positionTimer;
+  String? _transportTrackPath;
 
   /// Recent controller logs (if enabled), for test/diagnostics.
   List<String> recentLogs() => _telemetry.recentLogs;
@@ -207,29 +208,36 @@ class PlaybackController extends ChangeNotifier {
       suspendTimers();
     }
 
-    // Flip the hero title/artist SYNCHRONOUSLY from the state's track (already
-    // carried by PbLoading/PbActive — queue OR one-shot) so names cycle at 60fps
-    // on a tap burst, never gated on the transport. Position/duration refine
-    // just below.
-    _emitSongInfoSync(s);
-    unawaited(_emitSongInfo(force: true));
+    // Flip the hero title/artist SYNCHRONOUSLY from the selected track so names
+    // cycle at burst speed without hammering transport position/duration reads.
+    _emitSongInfoSnapshot(track: s.track ?? _currentTrack, isPlaying: s.isPlaying);
   }
 
-  // Instant, transport-free hero update from the bloc state. For a new track,
-  // position resets to 0 and duration uses the cached tag (if any); for the same
-  // track (e.g. pause↔resume) the current position/duration are preserved so the
-  // progress bar doesn't flicker.
-  void _emitSongInfoSync(PbState s) {
-    final track = s.track;
-    if (track == null) return; // PbStopped: leave to _emitSongInfo
+  // Instant, transport-free hero update from the selected track. For a new
+  // track, position resets to 0 and duration uses the cached tag (if any); for
+  // the same track (e.g. pause↔resume) the current position/duration are
+  // preserved so the progress bar doesn't flicker.
+  void _emitSongInfoSnapshot({required AudioTrack? track, required bool isPlaying}) {
+    if (track == null) {
+      if (songInfoNotifier.value != null) songInfoNotifier.value = null;
+      return;
+    }
     final current = songInfoNotifier.value;
     final sameTrack = current != null && current.track.path == track.path;
-    songInfoNotifier.value = SongInfo(
+    final next = SongInfo(
       track: track,
-      isPlaying: s.isPlaying,
+      isPlaying: isPlaying,
       position: sameTrack ? current.position : 0,
       duration: sameTrack ? current.duration : (track.duration?.inMilliseconds ?? 0),
     );
+    if (current != null &&
+        current.track.path == next.track.path &&
+        current.isPlaying == next.isPlaying &&
+        current.position == next.position &&
+        current.duration == next.duration) {
+      return;
+    }
+    songInfoNotifier.value = next;
   }
 
   // Await the bloc converging to a stable (non-Loading) state after a command,
@@ -303,7 +311,7 @@ class PlaybackController extends ChangeNotifier {
 
   void _onIndexChanged() {
     _updateQueueWithNotFoundFlags();
-    _emitSongInfo();
+    _emitSongInfoSnapshot(track: _currentTrack, isPlaying: _bloc.state.isPlaying);
   }
 
   void _updateQueueWithNotFoundFlags() {
@@ -367,6 +375,7 @@ class PlaybackController extends ChangeNotifier {
 
   void _handleTrackError(String? path) {
     if (path == null) return;
+    if (_transportTrackPath == path) _transportTrackPath = null;
     // The bloc's load() catch owns failed-marking + skip; _onBlocState then
     // refreshes the not-found flags. Nothing to do here but record it.
     _telemetry.event('transportError', {'path': path});
@@ -380,9 +389,10 @@ class PlaybackController extends ChangeNotifier {
 
   void _onTrackLoaded(String? path) {
     if (path == null) return;
+    _transportTrackPath = path;
     _telemetry.event('transportLoaded', {'path': path});
     _updateQueueWithNotFoundFlags();
-    _emitSongInfo(force: true);
+    unawaited(_emitSongInfo(force: true));
   }
 
   // ---- Public transport controls --------------------------------------------
@@ -480,8 +490,22 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
 
+    // During a rapid deferred skip burst the selected queue index changes before
+    // the transport lands on that track. In that window, transport-backed
+    // position/duration reads describe the old source, so keep the synchronous
+    // snapshot until the landed track reports TransportLoadedEvent.
+    if (_transportTrackPath != track.path) {
+      if (force) {
+        _emitSongInfoSnapshot(track: track, isPlaying: _bloc.state.isPlaying);
+      }
+      return;
+    }
+
     // End-of-track advance is handled via TransportEndedEvent, not here (races).
     final next = await _buildSongInfo(track);
+    final latestTrack = _bloc.state.track ?? _currentTrack;
+    if (latestTrack == null || latestTrack.path != next.track.path) return;
+    if (_transportTrackPath != next.track.path) return;
     final current = songInfoNotifier.value;
     if (!force &&
         current != null &&

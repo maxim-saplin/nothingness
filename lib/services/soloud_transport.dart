@@ -32,6 +32,10 @@ class SoLoudTransport implements AudioTransport {
       SupportedExtensions.supportedExtensions;
   static const Duration _endTolerance = Duration(milliseconds: 120);
 
+    @visibleForTesting
+    static bool shouldPreloadPath(String path) =>
+      p.extension(path).toLowerCase() != '.opus';
+
   static Future<bool> probeAvailable() async {
     try {
       final soloud = SoLoud.instance;
@@ -341,6 +345,11 @@ class SoLoudTransport implements AudioTransport {
   @override
   Future<void> preload(String path) async {
     await _ensurePlayerReady();
+    if (!shouldPreloadPath(path)) {
+      await _disposePreloaded();
+      debugPrint('[SoLoudTransport] skip preload for $path');
+      return;
+    }
     if (path == _currentPath) return;
     if (path == _preloadedPath && _preloadedSource != null) return;
 

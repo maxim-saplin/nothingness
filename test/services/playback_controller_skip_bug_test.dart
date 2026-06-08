@@ -78,7 +78,7 @@ void main() {
     return List.generate(
       count,
       (i) => AudioTrack(
-        path: '/path/track_$i.mp3',
+        path: '/path/track_$i.opus',
         title: 'Track $i',
       ),
     );
@@ -114,7 +114,7 @@ void main() {
   test('reproduction: skips valid track after failing track', () async {
     // Setup: Track 0 (OK), Track 1 (Fail), Track 2 (OK)
     final tracks = createTracks(3);
-    transport.pathsToFailOnLoad.add('/path/track_1.mp3');
+    transport.pathsToFailOnLoad.add('/path/track_1.opus');
     // Add a small delay to load to ensure race condition triggers
     transport.loadDelay = const Duration(milliseconds: 10);
     
@@ -196,15 +196,15 @@ void main() {
     final tracks = createTracks(3);
     await controller.setQueue(tracks);
     // After starting track 0, the next track (track 1) should be preloaded.
-    await pumpUntil(() => transport.preloadCalls.contains('/path/track_1.mp3'));
-    expect(transport.preloadCalls, contains('/path/track_1.mp3'),
+    await pumpUntil(() => transport.preloadCalls.contains('/path/track_1.opus'));
+    expect(transport.preloadCalls, contains('/path/track_1.opus'),
         reason: 'Should look ahead and preload the next track');
 
     // Advance; now track 2 should become the preload target.
     transport.emitTrackEnded();
-    await pumpUntil(() => transport.preloadCalls.contains('/path/track_2.mp3'));
+    await pumpUntil(() => transport.preloadCalls.contains('/path/track_2.opus'));
     expect(controller.currentIndexNotifier.value, 1);
-    expect(transport.preloadCalls, contains('/path/track_2.mp3'));
+    expect(transport.preloadCalls, contains('/path/track_2.opus'));
   });
 
   test('B-048: a burst of next() taps advances per-tap but loads once',
@@ -214,7 +214,7 @@ void main() {
     await controller.setQueue(tracks);
     await pumpUntil(() => controller.currentIndexNotifier.value == 0);
 
-    transport.loadCalls.clear();
+    transport.resetCalls();
 
     // Five rapid taps, as a fast finger would (the first four un-awaited). Each
     // tap advances the index immediately; the heavy load is debounced so the
@@ -231,8 +231,12 @@ void main() {
     expect(controller.currentIndexNotifier.value, 5,
         reason: 'each tap advances the index immediately');
     // Debounced: the burst loads only the landed track, not every intermediate.
-    expect(transport.loadCalls, ['/path/track_5.mp3'],
+    expect(transport.loadCalls, ['/path/track_5.opus'],
         reason: 'one load for the whole burst (the track we land on)');
+    expect(transport.positionReadCount, lessThanOrEqualTo(1),
+      reason: 'rapid deferred skips must not poll transport position per tap');
+    expect(transport.durationReadCount, lessThanOrEqualTo(1),
+      reason: 'rapid deferred skips must not poll transport duration per tap');
     expect(controller.isPlayingNotifier.value, true);
   });
 
