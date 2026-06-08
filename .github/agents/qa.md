@@ -1,6 +1,6 @@
 ---
 name: qa
-model: gpt-5.3-codex-high
+model: Gemini 3.1 Pro (Preview) (copilot)
 description: Use for QA
 ---
 

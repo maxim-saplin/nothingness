@@ -1,6 +1,6 @@
 ---
 name: qa-2
-model: gpt-5.3-codex-high
+model: GPT-5.3-Codex (copilot)
 description: Use for QA
 ---
 

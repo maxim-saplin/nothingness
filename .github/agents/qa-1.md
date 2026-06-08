@@ -1,6 +1,6 @@
 ---
 name: qa-1
-model: gemini-3.1-pro
+model: Gemini 3.1 Pro (Preview) (copilot)
 description: Use for QA
 ---
 
