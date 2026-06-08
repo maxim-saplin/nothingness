@@ -35,7 +35,7 @@ Usage (a few examples):
   drive.py up                            # navigateVoidUp
   drive.py settings open|close
   drive.py play /absolute/path/foo.mp3
-  drive.py pause | resume | next | prev
+    drive.py pause | resume | next | prev | seek 1:23
   drive.py pref void_hint_shown=false:bool
   drive.py clearpref void_hint_shown
   drive.py permit                        # request library permissions
@@ -146,6 +146,20 @@ VM_PATTERNS = [
 ]
 
 
+def _normalize_ws_uri(uri: str) -> str:
+    """Accept cached/log-derived HTTP or WS VM URIs and normalize to WS."""
+    raw = uri.strip()
+    if not raw:
+        raise RuntimeError("empty VM service URI")
+    if raw.startswith("http://"):
+        raw = "ws://" + raw[len("http://"):]
+    elif raw.startswith("https://"):
+        raw = "wss://" + raw[len("https://"):]
+    if raw.startswith(("ws://", "wss://")):
+        return raw if raw.rstrip("/").endswith("/ws") else raw.rstrip("/") + "/ws"
+    raise RuntimeError(f"unsupported VM service URI: {uri!r}")
+
+
 def _scan_logcat_for_vm_uri(serial: str, max_lines: int = 5000) -> str | None:
     """Return the most recent VM service URI seen in logcat, or None."""
     proc = adb("logcat", "-d", "-v", "brief", "-t", str(max_lines), serial=serial)
@@ -205,9 +219,9 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
         cached = WS_CACHE.read_text().strip()
         if cached:
             try:
-                m = re.match(r"ws://127\.0\.0\.1:(\d+)/", cached)
-                if m:
-                    return cached
+                ws = _normalize_ws_uri(cached)
+                WS_CACHE.write_text(ws)
+                return ws
             except Exception:
                 pass
 
@@ -217,7 +231,7 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
     # default path, so Android doesn't read a stale Linux URI.
     uri = _scan_flutter_run_log_for_vm_uri()
     if uri:
-        ws = uri.replace("http://", "ws://").rstrip("/") + "/ws"
+        ws = _normalize_ws_uri(uri)
         WS_CACHE.write_text(ws)
         return ws
 
@@ -233,7 +247,7 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
             "logcat. Is a debug build of the app running on the emulator?")
     remote_port, token = _parse_vm_uri(uri)
     local_port = _forward_port(remote_port, serial=serial)
-    ws = _ws_uri(local_port, token)
+    ws = _normalize_ws_uri(_ws_uri(local_port, token))
     WS_CACHE.write_text(ws)
     return ws
 
@@ -249,6 +263,7 @@ async def _call_async(ws_uri: str, method: str, params: dict[str, Any]) -> Any:
     global _REQ_ID
     _REQ_ID += 1
     req_id = _REQ_ID
+    ws_uri = _normalize_ws_uri(ws_uri)
     payload = {
         "jsonrpc": "2.0",
         "id": req_id,
@@ -316,6 +331,7 @@ async def _raw_call_async(ws_uri: str, method: str, params: dict[str, Any]) -> A
     global _REQ_ID
     _REQ_ID += 1
     req_id = _REQ_ID
+    ws_uri = _normalize_ws_uri(ws_uri)
     payload = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
     async with websockets.connect(ws_uri, max_size=_RAW_MAX_SIZE) as ws:
         await ws.send(json.dumps(payload))
@@ -481,6 +497,32 @@ def cmd_next(args) -> int:
 
 def cmd_prev(args) -> int:
     res = _ext_resilient("ext.nothingness.prev")
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+def _parse_seek_position(spec: str) -> int:
+    """Accept milliseconds or mm:ss / hh:mm:ss style positions."""
+    raw = spec.strip()
+    if re.fullmatch(r"\d+", raw):
+        return int(raw)
+    parts = raw.split(":")
+    if len(parts) not in (2, 3) or not all(part.isdigit() for part in parts):
+        raise ValueError("seek expects milliseconds or mm:ss or hh:mm:ss")
+    total_seconds = 0
+    for part in parts:
+        total_seconds = total_seconds * 60 + int(part)
+    return total_seconds * 1000
+
+
+def cmd_seek(args) -> int:
+    try:
+        position_ms = _parse_seek_position(args.position)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    res = _ext_resilient(
+        "ext.nothingness.seek", {"positionMs": str(position_ms)})
     print(json.dumps(res, indent=2))
     return 0
 
@@ -1246,8 +1288,25 @@ def _detect_live_run() -> dict[str, Any]:
         except Exception:
             pass
     except Exception as e:
-        out["error"] = (out["error"] + "; " if out["error"] else "") + \
-            f"vm: {e}"
+        retry_error = e
+        if out.get("vm_uri") and out.get("log_fresh"):
+            try:
+                ws = _resolve_ws(force=True)
+                out["ws"] = ws
+                vm = call(ws, "getVM", {})
+                isolates = vm.get("isolates", [])
+                out["isolate_count"] = len(isolates)
+                out["vm_responds"] = len(isolates) > 0
+                retry_error = None
+                try:
+                    out["extension_count"] = len(_registered_extensions(ws))
+                except Exception:
+                    pass
+            except Exception as retried:
+                retry_error = retried
+        if retry_error is not None:
+            out["error"] = (out["error"] + "; " if out["error"] else "") + \
+                f"vm: {retry_error}"
     return out
 
 
@@ -1411,6 +1470,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("resume").set_defaults(func=cmd_resume)
     sub.add_parser("next").set_defaults(func=cmd_next)
     sub.add_parser("prev").set_defaults(func=cmd_prev)
+
+    sp = sub.add_parser("seek")
+    sp.add_argument(
+        "position",
+        help="target position as milliseconds, mm:ss, or hh:mm:ss")
+    sp.set_defaults(func=cmd_seek)
 
     sp = sub.add_parser("pref")
     sp.add_argument("spec", help="key=value[:type] where type is bool/int/double/string/stringlist")

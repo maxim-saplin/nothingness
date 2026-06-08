@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nothingness/models/audio_track.dart';
+import 'package:nothingness/models/song_info.dart';
 import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/transport_row.dart';
 
 import 'heroes/_test_helpers.dart';
 
+class _RecordingAudioPlayerProvider extends FakeAudioPlayerProvider {
+  _RecordingAudioPlayerProvider({required SongInfo songInfo})
+      : super(songInfo: songInfo);
+
+  final List<Duration> seeks = <Duration>[];
+
+  @override
+  Future<void> seek(Duration position) async {
+    seeks.add(position);
+  }
+}
+
 void main() {
+  SongInfo song({int position = 10000, int duration = 60000}) => SongInfo(
+        track: const AudioTrack(path: '/x.wav', title: 'x'),
+        isPlaying: true,
+        position: position,
+        duration: duration,
+      );
+
   testWidgets('renders prev / play / next buttons by stable keys', (
     tester,
   ) async {
@@ -107,5 +128,63 @@ void main() {
         reason: 'Calibration constant must remain 0.4 per B-030.');
     await gesture.up();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('seek strip tap commits one seek immediately on release', (
+    tester,
+  ) async {
+    final provider = _RecordingAudioPlayerProvider(songInfo: song());
+    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+
+    final seekFinder = find.byKey(TransportRow.seekKey);
+    expect(seekFinder, findsOneWidget);
+
+    await tester.tapAt(tester.getCenter(seekFinder));
+    await tester.pump();
+
+    expect(provider.seeks.length, 1);
+    expect(provider.seeks.single.inSeconds, closeTo(30, 1));
+  });
+
+  testWidgets('seek strip drag previews but commits one seek on release', (
+    tester,
+  ) async {
+    final provider = _RecordingAudioPlayerProvider(songInfo: song());
+    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+
+    final seekFinder = find.byKey(TransportRow.seekKey);
+    expect(seekFinder, findsOneWidget);
+
+    final start = tester.getCenter(seekFinder);
+    final gesture = await tester.startGesture(start);
+    await gesture.moveBy(const Offset(120, 0));
+    await tester.pump();
+
+    expect(provider.seeks, isEmpty,
+        reason: 'dragging should preview locally without flooding seeks');
+
+    await gesture.up();
+    await tester.pump();
+
+    expect(provider.seeks.length, 1,
+        reason: 'drag should commit exactly once on release');
+    expect(provider.seeks.single.inSeconds, greaterThan(20));
+  });
+
+  testWidgets('seek strip ignores gestures when duration is unavailable', (
+    tester,
+  ) async {
+    final provider = _RecordingAudioPlayerProvider(songInfo: song(duration: 0));
+    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+
+    final seekFinder = find.byKey(TransportRow.seekKey);
+    expect(seekFinder, findsOneWidget);
+
+    final gesture = await tester.startGesture(tester.getCenter(seekFinder));
+    await gesture.moveBy(const Offset(120, 0));
+    await gesture.up();
+    await tester.pump();
+
+    expect(provider.seeks, isEmpty);
   });
 }

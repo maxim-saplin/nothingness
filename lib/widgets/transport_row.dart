@@ -42,8 +42,62 @@ class TransportRow extends StatelessWidget {
 }
 
 // Draggable / tap-to-seek strip drawn above the transport icons.
-class _SeekStrip extends StatelessWidget {
+class _SeekStrip extends StatefulWidget {
   const _SeekStrip();
+
+  @override
+  State<_SeekStrip> createState() => _SeekStripState();
+}
+
+class _SeekStripState extends State<_SeekStrip> {
+  int? _activePointer;
+  double? _dragFraction;
+  double? _pointerDownFraction;
+  bool _dragMoved = false;
+
+  void _startGesture(int pointer, double fraction) {
+    _activePointer = pointer;
+    _pointerDownFraction = fraction;
+    _dragFraction = fraction;
+    _dragMoved = false;
+  }
+
+  void _updateGesture(int pointer, double fraction) {
+    if (_activePointer != pointer) return;
+    _dragMoved = true;
+    if (_dragFraction == fraction) return;
+    setState(() {
+      _dragFraction = fraction;
+    });
+  }
+
+  void _endGesture(int pointer, void Function(double fraction) commit) {
+    if (_activePointer != pointer) return;
+    final targetFraction = _dragMoved
+        ? (_dragFraction ?? _pointerDownFraction)
+        : _pointerDownFraction;
+    _activePointer = null;
+    _pointerDownFraction = null;
+    _dragMoved = false;
+    if (mounted) {
+      setState(() {
+        _dragFraction = null;
+      });
+    }
+    if (targetFraction != null) commit(targetFraction);
+  }
+
+  void _cancelGesture(int pointer) {
+    if (_activePointer != pointer) return;
+    _activePointer = null;
+    _pointerDownFraction = null;
+    _dragMoved = false;
+    if (_dragFraction != null && mounted) {
+      setState(() {
+        _dragFraction = null;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,20 +112,33 @@ class _SeekStrip extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final width = c.maxWidth;
-        void seekTo(double localX) {
-          if (!hasDuration || width <= 0) return;
-          final f = (localX / width).clamp(0.0, 1.0);
-          player.seek(Duration(milliseconds: (f * durationMs).round()));
+        double? fractionFor(double localX) {
+          if (!hasDuration || width <= 0) return null;
+          return (localX / width).clamp(0.0, 1.0);
+        }
+
+        void commitSeek(double seekFraction) {
+          player.seek(Duration(milliseconds: (seekFraction * durationMs).round()));
         }
 
         return Listener(
           key: TransportRow.seekKey,
           behavior: HitTestBehavior.opaque,
-          onPointerDown: (e) => seekTo(e.localPosition.dx),
-          onPointerMove: (e) => seekTo(e.localPosition.dx),
+          onPointerDown: (e) {
+            final seekFraction = fractionFor(e.localPosition.dx);
+            if (seekFraction == null) return;
+            _startGesture(e.pointer, seekFraction);
+          },
+          onPointerMove: (e) {
+            final seekFraction = fractionFor(e.localPosition.dx);
+            if (seekFraction == null) return;
+            _updateGesture(e.pointer, seekFraction);
+          },
+          onPointerUp: (e) => _endGesture(e.pointer, commitSeek),
+          onPointerCancel: (e) => _cancelGesture(e.pointer),
           child: CustomPaint(
             painter: _SeekPainter(
-              fraction: fraction,
+              fraction: _dragFraction ?? fraction,
               trackColor: palette.divider,
               fillColor: palette.fgPrimary.withValues(alpha: 0.85),
             ),

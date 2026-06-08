@@ -31,7 +31,7 @@ class PlaybackController extends ChangeNotifier {
     this.debugPlaybackLogs = false,
     this.captureRecentLogs = false,
     this.recentLogCapacity = 50,
-    Duration navSettleDelay = const Duration(milliseconds: 250),
+    Duration navSettleDelay = const Duration(milliseconds: 120),
   })  : _navSettleDelay = navSettleDelay,
         _transport = transport,
         _playlist = playlist ?? PlaylistStore(),

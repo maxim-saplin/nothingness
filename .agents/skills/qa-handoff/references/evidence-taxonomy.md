@@ -19,6 +19,13 @@ For tasks with a required readiness or control-surface preflight, also state:
 
 If negative or corner coverage is genuinely not applicable, explicitly state `N/A` with a one-line justification.
 
+## Runtime Independence
+When the repository exposes a runtime harness, driver, seeded scenario script, or equivalent control surface, reviewer evidence must include at least one reviewer-collected runtime observation.
+- Implementer-provided command lines, screenshots, and pasted logs may guide the reviewer.
+- They do not substitute for reviewer-collected proof.
+- Prefer direct semantic controls from the harness over brittle gesture synthesis when both can exercise the same behavior.
+- If runtime evidence is genuinely impossible, state why the harness was insufficient and what the next-best independent evidence was.
+
 ## Plan Traceability
 When a plan, spec, or checklist drives the task, every numbered requirement needs a corresponding evidence row. No proof row means FAIL. "Screen rendered" never satisfies "data loaded."
 

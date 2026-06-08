@@ -25,7 +25,7 @@ Assemble one handoff package with these sections:
 Before assembling or reviewing evidence, read `references/evidence-taxonomy.md`.
 
 ### 2. Review The Submission
-Send the package to one QA reviewer. The reviewer applies the shared invariants from `SKILL.md`, the verdict rules below, and `references/evidence-taxonomy.md`.
+Send the package to one QA reviewer. The reviewer applies the shared invariants from `SKILL.md`, the verdict rules below, and `references/evidence-taxonomy.md`. When a runtime harness or comparable control surface exists, the reviewer must collect at least one independent runtime check themselves; implementer-provided commands and logs are inputs, not proof by themselves.
 
 ### 3. Apply The Verdict
 Return `PASS` when all required evidence is present and no FAIL conditions apply.
@@ -39,6 +39,7 @@ Return `FAIL` when any of the following is true:
 - Evidence is happy-path-only for behavior that has plausible negative or corner states.
 - Stateful UI logic is validated only by "no exceptions" checks.
 - Claimed verification lacks pasted runtime output.
+- A runnable harness existed but the reviewer relied only on implementer-provided status, logs, or summaries instead of collecting independent evidence.
 - Negative or corner coverage is omitted without explicit `N/A` justification.
 - A plan requirement has no matching evidence row.
 - A failed dependency is counted as "negative-path success" for a scenario that needed it happy-path.

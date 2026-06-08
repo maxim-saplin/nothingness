@@ -61,7 +61,7 @@ $D permit                                     # programmatic library permission 
 
 # Playback
 $D play /home/user/Music/foo.mp3              # any absolute readable path
-$D pause | $D resume | $D next | $D prev
+$D pause | $D resume | $D next | $D prev | $D seek 1:23
 
 # Preferences (broader than legacy setSetting)
 $D pref void_hint_shown=false:bool            # types: bool|int|string
@@ -91,6 +91,8 @@ $D profile --seconds 2                        # raw getCpuSamples over a window;
 $D breakpoint --line 692 --watch _track.path --trigger prev   # TRUE breakpoint + var watch; run ALONE (see Hazards)
 ```
 
+Prefer a direct drive.py subcommand or extension over gesture synthesis when the harness can target the behavior semantically (for example seek/next/prev/settings/nav). Use adb swipes or taps only when there is no direct control surface.
+
 For any extension not yet wrapped, `$D call ext.nothingness.<method> k=v k=v …` calls it with arbitrary params (the **fully-qualified** name is required). The exact registered set + count is whatever `$D contract` reports against the running build — don't quote a fixed number. Per-extension params/returns live in `docs/agent-driven-debugging.md`.
 
 The five runtime-inspection lenses (`probe`/`frames`/`timeline`/`profile`/`breakpoint`) are detailed — with their caveats — in `docs/agent-driven-debugging.md`. `probe`/`frames` wrap `ext.nothingness.*`; `timeline`/`profile`/`breakpoint` are raw VM-service RPCs.
@@ -116,7 +118,7 @@ The five runtime-inspection lenses (`probe`/`frames`/`timeline`/`profile`/`break
 
 ## Common blockers (fast recovery)
 
-1. **"could not find Dart VM service URI"** — the app isn't in debug mode (release build / `flutter run` exited), or `.vm_ws.txt` points at a dead session. Run `$D preflight` to see what's actually reachable; delete the cache and relaunch.
+1. **"could not find Dart VM service URI"** — the app isn't in debug mode (release build / `flutter run` exited), or `.vm_ws.txt` points at a dead session. Run `$D preflight` to see what's actually reachable; delete the cache and relaunch. `drive.py` normalizes cached/log-derived HTTP and WS VM URIs automatically, so a plain protocol-shape mismatch should self-heal.
 2. **Install fails `INSTALL_FAILED_UPDATE_INCOMPATIBLE`** (Android) — uninstall the package, then re-run `flutter run`.
 3. **Queue empty after reinstall** — `queueLen=0`; queue real files via `$D play <path>` or the Appendix `adb push` snippet.
 4. **Shared-storage track won't load / `isNotFound`** (Android API 30+) — scoped storage blocks raw-path access to `/storage/emulated/0/...`. The app tries a native `loadFile(path)` first and, when that fails (strict scoped storage, e.g. the API 37 emulator), falls back to resolving the `_data` path to a MediaStore `content://` URI (see `lib/services/android_audio_source.dart`), so the file **must be MediaStore-indexed**. `adb push` into `/storage/emulated/0/Music/` auto-triggers indexing on recent images — verify with `adb shell content query --uri content://media/external/audio/media --where "_data='<path>'"` (a `Row:` with an `_id` means it's playable). For a quick one-off that sidesteps MediaStore entirely, push into the app-private dir (`adb push <host> /data/user/0/com.saplin.nothingness/files/<name>`) — it loads via the direct-file fallback.

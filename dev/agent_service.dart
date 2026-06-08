@@ -71,6 +71,7 @@ class AgentService {
     'pause': _withProvider(_pause),
     'next': _withProvider(_next),
     'prev': _withProvider(_prev),
+    'seek': _withProvider(_seek),
     'setQueue': _withProvider(_setQueue),
     // Audio diagnostics.
     'getDiagnostics': _withProvider(_getDiagnostics),
@@ -623,6 +624,15 @@ class AgentService {
     return _ok({'ok': true});
   }
 
+  static _R _seek(PlaybackController p, Map<String, String> params) async {
+    final positionMs = int.tryParse(params['positionMs'] ?? '');
+    if (positionMs == null || positionMs < 0) {
+      return _error('positionMs parameter required (non-negative integer)');
+    }
+    await p.seek(Duration(milliseconds: positionMs));
+    return _ok({'ok': true, 'positionMs': positionMs});
+  }
+
   static _R _setQueue(PlaybackController p, Map<String, String> params) async {
     final pathsCsv = params['paths'];
     if (pathsCsv == null || pathsCsv.isEmpty) {
@@ -981,6 +991,15 @@ class AgentService {
   static Future<developer.ServiceExtensionResponse> debugTapByKey(
     Map<String, String> params,
   ) => _tapByKey('debugTapByKey', params);
+
+  /// Test-only handle on [_seek] (direct playback-position control).
+  @visibleForTesting
+  static Future<developer.ServiceExtensionResponse> debugSeek(
+    Map<String, String> params,
+  ) {
+    final p = DebugHooks.provider as PlaybackController?;
+    return p == null ? Future.value(_error('provider not registered')) : _seek(p, params);
+  }
 
   /// Test-only handle on [_resolveScreenConfig] (B-023 per-skin resolution).
   @visibleForTesting

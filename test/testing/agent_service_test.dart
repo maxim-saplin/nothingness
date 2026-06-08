@@ -15,11 +15,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/debug_hooks.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/transport_position.dart';
+import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/settings_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../dev/agent_service.dart';
+import '../services/mock_audio_transport.dart';
+
+class _RecordingPlaybackController extends PlaybackController {
+  _RecordingPlaybackController() : super(transport: MockAudioTransport());
+
+  Duration? lastSeek;
+
+  @override
+  Future<void> seek(Duration position) async {
+    lastSeek = position;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -315,6 +328,35 @@ void main() {
         const <String, String>{'key': 'no-such-key'},
       );
       expect(resp.isError(), isTrue);
+    });
+  });
+
+  group('direct seek extension', () {
+    test('non-negative positionMs seeks provider directly', () async {
+      final provider = _RecordingPlaybackController();
+      DebugHooks.provider = provider;
+
+      final resp = await AgentService.debugSeek(
+        const <String, String>{'positionMs': '12345'},
+      );
+
+      expect(resp.isError(), isFalse);
+      expect(provider.lastSeek, const Duration(milliseconds: 12345));
+    });
+
+    test('missing or invalid positionMs returns an error', () async {
+      final provider = _RecordingPlaybackController();
+      DebugHooks.provider = provider;
+
+      var resp = await AgentService.debugSeek(const <String, String>{});
+      expect(resp.isError(), isTrue);
+      expect(provider.lastSeek, isNull);
+
+      resp = await AgentService.debugSeek(
+        const <String, String>{'positionMs': '-1'},
+      );
+      expect(resp.isError(), isTrue);
+      expect(provider.lastSeek, isNull);
     });
   });
 }
