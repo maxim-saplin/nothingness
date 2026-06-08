@@ -96,4 +96,36 @@ void main() {
     expect(store.queueNotifier.value.first.title, firstTitle);
     expect(store.currentOrderIndexNotifier.value, 0);
   });
+
+  test('rapid current index changes restore the latest landed index', () async {
+    final tracks = List<AudioTrack>.generate(
+      6,
+      (i) => AudioTrack(path: 'path_$i', title: 'Track $i'),
+    );
+
+    await store.setQueue(tracks, startBaseIndex: 0);
+
+    await store.setCurrentOrderIndex(1);
+    await store.setCurrentOrderIndex(2);
+    await store.setCurrentOrderIndex(3);
+    await store.setCurrentOrderIndex(4);
+    await store.setCurrentOrderIndex(5);
+
+    expect(store.currentOrderIndexNotifier.value, 5);
+
+    await store.dispose();
+
+    store = PlaylistStore(
+      hive: Hive,
+      hiveInitializer: () async {
+        Hive.init(tempDir.path);
+      },
+      boxOpener: (hive) => hive.openBox<dynamic>('playlistBox'),
+    );
+    await store.init();
+
+    expect(store.queueNotifier.value.length, tracks.length);
+    expect(store.currentOrderIndexNotifier.value, 5);
+    expect(store.queueNotifier.value[5].title, 'Track 5');
+  });
 }

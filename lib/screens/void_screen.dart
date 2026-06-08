@@ -594,34 +594,37 @@ class VoidScreen extends HookWidget {
                 /* not provided */
               }
               final path = controller?.currentPath;
-              // B-015: show the jump glyph when the playing track lives outside
-              // the browsed folder; B-031 debounces the hide.
-              final player = context.watch<PlaybackController>();
-              final playingPath = player.songInfo?.track.path;
-              final divergent =
-                  playingPath != null &&
-                  playingPath.isNotEmpty &&
-                  p.dirname(playingPath) != (path ?? '');
-              final showJumpGlyph = resolveJumpGlyphVisible(divergent);
-              // 12-px vertical padding preserves the crumb baseline; the 44×44
-              // glyph hit target sits outside it (Material min, B-013).
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
-                      child: MidEllipsis(
-                        text: path == null || path.isEmpty ? '~' : path,
-                        style: mono(palette.fgSecondary, typography.crumbSize),
+              return Selector<PlaybackController, String?>(
+                selector: (_, player) => player.songInfo?.track.path,
+                builder: (context, playingPath, _) {
+                  // B-015: show the jump glyph when the playing track lives outside
+                  // the browsed folder; B-031 debounces the hide.
+                  final divergent =
+                      playingPath != null &&
+                      playingPath.isNotEmpty &&
+                      p.dirname(playingPath) != (path ?? '');
+                  final showJumpGlyph = resolveJumpGlyphVisible(divergent);
+                  // 12-px vertical padding preserves the crumb baseline; the 44×44
+                  // glyph hit target sits outside it (Material min, B-013).
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
+                          child: MidEllipsis(
+                            text: path == null || path.isEmpty ? '~' : path,
+                            style: mono(palette.fgSecondary, typography.crumbSize),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  if (showJumpGlyph && playingPath != null)
-                    buildJumpGlyph(playingPath)
-                  else
-                    const SizedBox(width: 20),
-                ],
+                      if (showJumpGlyph && playingPath != null)
+                        buildJumpGlyph(playingPath)
+                      else
+                        const SizedBox(width: 20),
+                    ],
+                  );
+                },
               );
             },
           ),
@@ -630,22 +633,29 @@ class VoidScreen extends HookWidget {
     }
 
     Widget buildProgressHairline() {
-      final si = context.watch<PlaybackController>().songInfo;
-      final position = si?.position ?? 0;
-      final duration = si?.duration ?? 0;
-      final fraction = duration <= 0
-          ? 0.0
-          : (position / duration).clamp(0.0, 1.0);
-      return SizedBox(
-        height: 1,
-        child: Align(
-          alignment: Alignment.bottomLeft,
-          child: FractionallySizedBox(
-            widthFactor: fraction,
-            heightFactor: 1,
-            child: Container(color: palette.progress),
-          ),
+      return Selector<PlaybackController, ({int position, int duration})>(
+        selector: (_, player) => (
+          position: player.songInfo?.position ?? 0,
+          duration: player.songInfo?.duration ?? 0,
         ),
+        builder: (context, progress, _) {
+          final position = progress.position;
+          final duration = progress.duration;
+          final fraction = duration <= 0
+              ? 0.0
+              : (position / duration).clamp(0.0, 1.0);
+          return SizedBox(
+            height: 1,
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: FractionallySizedBox(
+                widthFactor: fraction,
+                heightFactor: 1,
+                child: Container(color: palette.progress),
+              ),
+            ),
+          );
+        },
       );
     }
 

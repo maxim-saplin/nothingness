@@ -326,21 +326,21 @@ class VoidBrowser extends HookWidget {
 
     Widget fileRow(
         AudioTrack track, LibraryController controller, _BrowserTheme t) {
-      final isPlaying =
-          context.watch<PlaybackController>().songInfo?.track.path ==
-              track.path;
       // B-015: per-track GlobalKey via KeyedSubtree gives Scrollable.ensureVisible
       // a stable target; the inner row's ValueKey still drives QA taps + identity.
       return KeyedSubtree(
         key: rowKeys.putIfAbsent(track.path, GlobalKey.new),
-        child: row(t,
-            key: ValueKey('void-file:${track.path}'),
-            label: track.title,
-            glyph: '.',
-            isPlaying: isPlaying,
-            onTap: () => playFileFromFolder(track, controller),
-            onLongPress: () => playOneShot(track),
-            previewGlyph: '↩'), // ↩ — one-shot return marker
+        child: Selector<PlaybackController, bool>(
+          selector: (_, player) => player.songInfo?.track.path == track.path,
+          builder: (context, isPlaying, _) => row(t,
+              key: ValueKey('void-file:${track.path}'),
+              label: track.title,
+              glyph: '.',
+              isPlaying: isPlaying,
+              onTap: () => playFileFromFolder(track, controller),
+              onLongPress: () => playOneShot(track),
+              previewGlyph: '↩'),
+        ), // ↩ — one-shot return marker
       );
     }
 

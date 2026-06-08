@@ -40,8 +40,17 @@ class HeroTitleBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
-    final player = context.watch<PlaybackController>();
-    final track = player.songInfo?.track;
+    final track = context.select<PlaybackController, ({String? title, String? artist})?>(
+      (player) {
+        final currentTrack = player.songInfo?.track;
+        if (currentTrack == null) return null;
+        return (title: currentTrack.title, artist: currentTrack.artist);
+      },
+    );
+    final isOneShot =
+        context.select<PlaybackController, bool>((player) => player.isOneShot);
+    final shuffle =
+        context.select<PlaybackController, bool>((player) => player.shuffle);
 
     final h1Size = typography.heroSize * textScale;
     final h2Size = typography.heroSize * heroSongSizeFactor * textScale;
@@ -83,13 +92,13 @@ class HeroTitleBlock extends StatelessWidget {
         ],
       ];
     } else {
-      final artist = track.artist.trim();
-      final glyph = player.isOneShot
+        final artist = track.artist?.trim() ?? '';
+        final glyph = isOneShot
           ? '↩ '
-          : player.shuffle
+          : shuffle
               ? '≈ '
               : '';
-      final song = heading('$glyph${track.title}',
+        final song = heading('$glyph${track.title ?? ''}',
           key: const ValueKey('hero-song'),
           color: artist.isEmpty ? palette.fgPrimary : palette.fgSecondary,
           fontSize: artist.isEmpty ? h1Size : h2Size);

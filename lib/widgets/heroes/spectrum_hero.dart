@@ -26,8 +26,10 @@ class SpectrumHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final typography = Theme.of(context).extension<AppTypography>()!;
-    final player = context.watch<PlaybackController>();
-    final hasTrack = player.songInfo?.track != null;
+    final player = context.read<PlaybackController>();
+    final hasTrack = context.select<PlaybackController, bool>(
+      (playback) => playback.songInfo?.track != null,
+    );
 
     // Three identical fgPrimary stops collapse to a uniform monochrome bar; the visualiser still lerps between them.
     final voidBarColors = <Color>[

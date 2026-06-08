@@ -102,10 +102,15 @@ class _SeekStripState extends State<_SeekStrip> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final player = context.watch<PlaybackController>();
-    final si = player.songInfo;
-    final positionMs = si?.position ?? 0;
-    final durationMs = si?.duration ?? 0;
+    final player = context.read<PlaybackController>();
+    final playbackPosition = context.select<PlaybackController, ({int positionMs, int durationMs})>(
+      (playback) => (
+        positionMs: playback.songInfo?.position ?? 0,
+        durationMs: playback.songInfo?.duration ?? 0,
+      ),
+    );
+    final positionMs = playbackPosition.positionMs;
+    final durationMs = playbackPosition.durationMs;
     final hasDuration = durationMs > 0;
     final fraction = hasDuration ? (positionMs / durationMs).clamp(0.0, 1.0) : 0.0;
 
@@ -195,9 +200,10 @@ class _IconRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
-    final player = context.watch<PlaybackController>();
+    final player = context.read<PlaybackController>();
     final glyphColor = palette.fgPrimary.withValues(alpha: 0.7);
-    final isPlaying = player.isPlaying;
+    final isPlaying =
+        context.select<PlaybackController, bool>((playback) => playback.isPlaying);
 
     Widget button(Key key, IconData icon, VoidCallback onTap, String label) {
       return Expanded(

@@ -17,16 +17,25 @@ class CassetteHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final player = context.watch<PlaybackController>();
-    final info = player.songInfo;
+    final player = context.read<PlaybackController>();
+    final info = context.select<PlaybackController, ({String? title, String? artist, int positionMs, int durationMs})>(
+      (playback) => (
+        title: playback.songInfo?.title,
+        artist: playback.songInfo?.artist,
+        positionMs: playback.songInfo?.position ?? 0,
+        durationMs: playback.songInfo?.duration ?? 0,
+      ),
+    );
+    final isPlaying =
+        context.select<PlaybackController, bool>((playback) => playback.isPlaying);
 
     final ctx = CassetteVariantContext(
       config: config,
-      title: info?.title,
-      artist: info?.artist,
-      isPlaying: player.isPlaying,
-      positionMs: info?.position ?? 0,
-      durationMs: info?.duration ?? 0,
+      title: info.title,
+      artist: info.artist,
+      isPlaying: isPlaying,
+      positionMs: info.positionMs,
+      durationMs: info.durationMs,
       onPlayPause: player.playPause,
       onPrevious: player.previous,
       onNext: player.next,

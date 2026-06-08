@@ -24,6 +24,7 @@ class PlaylistStore {
   static const String _orderKey = 'order';
   static const String _indexKey = 'currentIndex';
   static const String _shuffleKey = 'shuffle';
+  static const Duration _resumeIndexPersistDelay = Duration(milliseconds: 250);
 
   final HiveInterface _hive;
   final Future<void> Function() _initHive;
@@ -33,6 +34,7 @@ class PlaylistStore {
   // B-037: in-flight background persist so [dispose] awaits it before closing
   // the box (resume-index write is off the hot path but must survive shutdown).
   Future<void>? _pendingPersist;
+  Timer? _resumeIndexPersistTimer;
 
   final ValueNotifier<List<AudioTrack>> queueNotifier = ValueNotifier(const []);
   final ValueNotifier<int?> currentOrderIndexNotifier = ValueNotifier(null);
@@ -57,10 +59,13 @@ class PlaylistStore {
   }
 
   Future<void> dispose() async {
+    _resumeIndexPersistTimer?.cancel();
+    _resumeIndexPersistTimer = null;
     // Let any background resume-index write land before closing the box.
     try {
       await _pendingPersist;
     } catch (_) {}
+    await _persistCurrentIndex();
     await _box?.flush();
     await _box?.close();
   }
@@ -117,12 +122,10 @@ class PlaylistStore {
     if (_playOrder.isEmpty) return;
     currentOrderIndexNotifier.value =
         orderIndex.clamp(0, _playOrder.length - 1).toInt();
-    // B-037: persist resume index off the hot path — notifier updates now, the
-    // Hive write trails.
-    _pendingPersist = _persistState();
-    unawaited(_pendingPersist!.catchError((Object e) {
-      debugPrint('[PlaylistStore] background persist failed: $e');
-    }));
+    // Persist only the latest landed index after a tap burst settles. Writing
+    // the whole queue/order here serializes the playlist on the UI isolate and
+    // stutters rapid next/previous bursts.
+    _scheduleResumeIndexPersist();
   }
 
   Future<void> setCurrentBaseIndex(int baseIndex) =>
@@ -231,6 +234,8 @@ class PlaylistStore {
   }
 
   Future<void> _persistState() async {
+    _resumeIndexPersistTimer?.cancel();
+    _resumeIndexPersistTimer = null;
     final box = _box;
     if (box == null) return;
     await box.put(_queueKey,
@@ -238,6 +243,23 @@ class PlaylistStore {
     await box.put(_orderKey, List<int>.from(_playOrder));
     await box.put(_indexKey, currentOrderIndexNotifier.value);
     await box.put(_shuffleKey, shuffleNotifier.value);
+  }
+
+  void _scheduleResumeIndexPersist() {
+    _resumeIndexPersistTimer?.cancel();
+    _resumeIndexPersistTimer = Timer(_resumeIndexPersistDelay, () {
+      _resumeIndexPersistTimer = null;
+      _pendingPersist = _persistCurrentIndex();
+      unawaited(_pendingPersist!.catchError((Object e) {
+        debugPrint('[PlaylistStore] background index persist failed: $e');
+      }));
+    });
+  }
+
+  Future<void> _persistCurrentIndex() async {
+    final box = _box;
+    if (box == null) return;
+    await box.put(_indexKey, currentOrderIndexNotifier.value);
   }
 
   Map<String, dynamic> _serializeTrack(AudioTrack track) => {
