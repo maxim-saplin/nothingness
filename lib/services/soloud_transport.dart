@@ -56,6 +56,7 @@ class SoLoudTransport implements AudioTransport {
   String? _currentPath;
   String? _endedEmittedForPath;
   bool _suppressEndedEvent = false;
+  Duration _pausedPosition = Duration.zero;
 
   // B-037: at most one preloaded look-ahead source for a gapless in-memory swap.
   AudioSource? _preloadedSource;
@@ -205,6 +206,13 @@ class SoLoudTransport implements AudioTransport {
     });
   }
 
+  Future<void> _setSessionActiveAwaited(bool active) async {
+    final session = _cachedSession ?? await AudioSession.instance;
+    _cachedSession ??= session;
+    await session.setActive(active);
+    _audioSessionActive = active;
+  }
+
   Future<void> _startSpectrum() async {
     if (!_captureEnabled) return;
     await _spectrumProvider?.start();
@@ -300,6 +308,7 @@ class SoLoudTransport implements AudioTransport {
     await _ensurePlayerReady();
     _suppressEndedEvent = true;
     _endedEmittedForPath = null;
+    _pausedPosition = Duration.zero;
     await _safeStop(_currentHandle);
     _currentHandle = null;
     await _safeDispose(_currentSource);
@@ -415,14 +424,36 @@ class SoLoudTransport implements AudioTransport {
     await _safeDispose(source, label: 'preloaded source');
   }
 
-  @override
-  Future<void> play() async {
-    final source = _currentSource;
-    if (source == null) {
+  Future<void> _reloadCurrentSourceIfNeeded() async {
+    if (_currentSource != null) return;
+    final path = _currentPath;
+    if (path == null) {
       throw StateError('No source loaded. Call load() first.');
     }
+    final source = await _openSource(path);
+    _currentSource = source;
+    _attachSoundEvents(source);
+  }
 
+  Future<void> _hibernatePausedPlayback() async {
+    _currentHandle = null;
+    await _safeDispose(_currentSource);
+    _currentSource = null;
+    await _disposePreloaded();
+    await _stopSpectrum();
+    await _soundEventsSub?.cancel();
+    _soundEventsSub = null;
+    if (_soloud.isInitialized) {
+      _soloud.deinit();
+    }
+    await _setSessionActiveAwaited(false);
+  }
+
+  @override
+  Future<void> play() async {
     await _ensurePlayerReady();
+    await _reloadCurrentSourceIfNeeded();
+    final source = _currentSource!;
 
     // B-011: skip the redundant audio-focus IPC when already active.
     if (!_audioSessionActive) {
@@ -434,6 +465,9 @@ class SoLoudTransport implements AudioTransport {
 
     if (_currentHandle == null) {
       _currentHandle = _soloud.play(source, paused: false);
+      if (_pausedPosition > Duration.zero) {
+        _soloud.seek(_currentHandle!, _pausedPosition);
+      }
     } else {
       _soloud.setPause(_currentHandle!, false);
     }
@@ -444,13 +478,32 @@ class SoLoudTransport implements AudioTransport {
   Future<void> pause() async {
     final handle = _currentHandle;
     if (handle == null) return;
-    _soloud.setPause(handle, true);
+    try {
+      _pausedPosition = _soloud.getPosition(handle);
+    } catch (_) {
+      _pausedPosition = Duration.zero;
+    }
+
+    _suppressEndedEvent = true;
+    try {
+      await _soloud.stop(handle);
+      _currentHandle = null;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await _hibernatePausedPlayback();
+      }
+    } finally {
+      _suppressEndedEvent = false;
+    }
   }
 
   @override
   Future<void> seek(Duration position) async {
     final handle = _currentHandle;
-    if (handle == null) return;
+    if (handle == null) {
+      _pausedPosition = position;
+      return;
+    }
     _soloud.seek(handle, position);
+    _pausedPosition = position;
   }
 }

@@ -71,19 +71,41 @@ def _contains_active_wakelock(path: str, pkg: str) -> bool:
         r"PARTIAL_WAKE_LOCK[^\n]*?(?:" + re.escape(pkg) + r"|com\.ryanheise\.audioservice\.AudioService)",
         re.IGNORECASE,
     )
-    return bool(active_pattern.search(data))
+    if active_pattern.search(data):
+        return True
+
+    for uid in _pkg_uids_from_power_dump(path, pkg):
+        audiomix_pattern = re.compile(
+            r"PARTIAL_WAKE_LOCK[^\n]*?AudioMix[^\n]*?WorkChain\{\(" + re.escape(uid) + r"\),\s*\(1041\)\}",
+            re.IGNORECASE,
+        )
+        if audiomix_pattern.search(data):
+            return True
+
+    return False
 
 
-def _has_pkg_audiomix_checkin(path: str, pkg: str) -> bool:
+def _pkg_uids_from_power_dump(path: str, pkg: str) -> set[str]:
+    checkin_path = os.path.join(os.path.dirname(path), "batterystats_checkin.txt")
+    return _pkg_uids_from_checkin(checkin_path, pkg)
+
+
+def _pkg_uids_from_checkin(path: str, pkg: str) -> set[str]:
     if not os.path.exists(path):
-        return False
+        return set()
 
-    pkg_uids = set()
+    pkg_uids: set[str] = set()
     with open(path, encoding="utf-8", errors="ignore") as handle:
         for line in handle:
             parts = [part.strip() for part in line.split(",")]
             if len(parts) >= 6 and parts[2] == "i" and parts[3] == "uid" and parts[5] == pkg:
                 pkg_uids.add(parts[4])
+
+    return pkg_uids
+
+
+def _has_pkg_wakelock_checkin(path: str, pkg: str, wakelock_name: str) -> bool:
+    pkg_uids = _pkg_uids_from_checkin(path, pkg)
 
     if not pkg_uids:
         return False
@@ -91,7 +113,7 @@ def _has_pkg_audiomix_checkin(path: str, pkg: str) -> bool:
     with open(path, encoding="utf-8", errors="ignore") as handle:
         for line in handle:
             parts = [part.strip() for part in line.split(",")]
-            if len(parts) >= 5 and parts[1] in pkg_uids and parts[2] == "l" and parts[3] == "wl" and parts[4] == "AudioMix":
+            if len(parts) >= 5 and parts[1] in pkg_uids and parts[2] == "l" and parts[3] == "wl" and parts[4] == wakelock_name:
                 return True
     return False
 
@@ -123,7 +145,12 @@ def main() -> int:
     s1_max_consecutive_high = _max_consecutive(cpu_s1, threshold=4.0)
     churn_count = _count_log_churn(logcat_path, args.pkg)
     has_active_wakelock = _contains_active_wakelock(power_path, args.pkg)
-    has_pkg_audiomix = _has_pkg_audiomix_checkin(checkin_path, args.pkg)
+    has_pkg_audiomix = _has_pkg_wakelock_checkin(checkin_path, args.pkg, "AudioMix")
+    has_pkg_audio_service_wakelock = _has_pkg_wakelock_checkin(
+        checkin_path,
+        args.pkg,
+        "com.ryanheise.audioservice.AudioService",
+    )
 
     delta = s1_median - s0_median
 
@@ -148,10 +175,14 @@ def main() -> int:
     if has_pkg_audiomix:
         violations.append("App-attributed AudioMix wakelock present in batterystats checkin")
 
-    # Keep wakelock as warning-level signal; foreground service config may intentionally hold one.
+    if has_pkg_audio_service_wakelock:
+        violations.append(
+            "App-attributed audio_service wakelock present in batterystats checkin"
+        )
+
     warnings = []
     if has_active_wakelock:
-        warnings.append("Active partial wakelock detected for app/audio service")
+        violations.append("Active partial wakelock detected for app/audio service")
 
     summary = {
         "capture_dir": capture_dir,
@@ -166,6 +197,7 @@ def main() -> int:
         "log_churn_count": churn_count,
         "active_wakelock": has_active_wakelock,
         "checkin_audiomix": has_pkg_audiomix,
+        "checkin_audio_service_wakelock": has_pkg_audio_service_wakelock,
         "warnings": warnings,
         "violations": violations,
         "status": "fail" if violations else "pass",

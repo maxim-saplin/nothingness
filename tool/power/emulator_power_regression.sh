@@ -8,8 +8,8 @@ WINDOW_SEC="${WINDOW_SEC:-120}"
 SAMPLE_SEC="${SAMPLE_SEC:-5}"
 CI_MODE=false
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SEED_AUDIO="${SEED_AUDIO:-$ROOT_DIR/soloud/example/assets/audio/tic-1.wav}"
-APP_TRACK_PATH="/data/user/0/$PKG/files/tic-1.wav"
+SEED_AUDIO="${SEED_AUDIO:-$ROOT_DIR/soloud/example/assets/audio/8_bit_mentality.mp3}"
+APP_TRACK_PATH="/data/user/0/$PKG/files/8_bit_mentality.mp3"
 
 usage() {
   cat <<'EOF'
@@ -131,7 +131,11 @@ fi
 seed_paused_restore_state() {
   local seed_dir="$OUT_DIR/seed_state"
   local remote_hive="/data/local/tmp/${PKG##*.}-power-seed-playlistbox.hive"
-  local remote_audio="/data/local/tmp/${PKG##*.}-power-seed-track.wav"
+  local app_track_name
+  local remote_audio
+
+  app_track_name="$(basename "$APP_TRACK_PATH")"
+  remote_audio="/data/local/tmp/${PKG##*.}-power-seed-${app_track_name}"
 
   rm -rf "$seed_dir"
   mkdir -p "$seed_dir"
@@ -139,7 +143,7 @@ seed_paused_restore_state() {
 
   adb -s "$DEVICE" push "$seed_dir/playlistbox.hive" "$remote_hive" >/dev/null
   adb -s "$DEVICE" push "$SEED_AUDIO" "$remote_audio" >/dev/null
-  adb -s "$DEVICE" shell "run-as $PKG sh -c 'mkdir -p files app_flutter && cp $remote_audio files/tic-1.wav && cp $remote_hive app_flutter/playlistbox.hive && : > app_flutter/playlistbox.lock'"
+  adb -s "$DEVICE" shell "run-as $PKG sh -c 'mkdir -p files app_flutter && cp $remote_audio files/$app_track_name && cp $remote_hive app_flutter/playlistbox.hive && : > app_flutter/playlistbox.lock'"
 }
 
 grant_runtime_permissions() {
@@ -152,28 +156,75 @@ grant_runtime_permissions() {
 action_pkg_cpu_sample() {
   local phase="$1"
   local out_file="$2"
+  local prev_total prev_proc prev_pids
 
   echo "timestamp,phase,pkg_cpu_percent,raw" >"$out_file"
 
-  for ((i=1; i<=SAMPLES; i++)); do
-    local ts line pct raw
-    ts="$(date +%H:%M:%S)"
-    line="$(adb -s "$DEVICE" shell dumpsys cpuinfo | grep -i "$PKG" | head -n 1 || true)"
+  prev_total="$(adb -s "$DEVICE" shell cat /proc/stat | awk '/^cpu / {sum=0; for (i=2; i<=NF; i++) sum += $i; print sum; exit}' | tr -d '\r')"
+  IFS='|' read -r prev_proc prev_pids < <(_pkg_cpu_snapshot)
 
-    if [[ -z "$line" ]]; then
+  for ((i=1; i<=SAMPLES; i++)); do
+    local ts curr_total curr_proc curr_pids pct raw total_delta proc_delta
+
+    sleep "$SAMPLE_SEC"
+    ts="$(date +%H:%M:%S)"
+    curr_total="$(adb -s "$DEVICE" shell cat /proc/stat | awk '/^cpu / {sum=0; for (i=2; i<=NF; i++) sum += $i; print sum; exit}' | tr -d '\r')"
+    IFS='|' read -r curr_proc curr_pids < <(_pkg_cpu_snapshot)
+
+    total_delta=$(( curr_total - prev_total ))
+    proc_delta=$(( curr_proc - prev_proc ))
+
+    if (( total_delta <= 0 )); then
       pct="0"
-      raw="none"
-    else
-      pct="$(echo "$line" | sed -E 's/^[[:space:]]*\+?([0-9]+(\.[0-9]+)?)%.*/\1/' )"
-      if [[ "$pct" == "$line" ]]; then
-        pct="0"
+      total_delta=0
+      if (( proc_delta < 0 )); then
+        proc_delta=0
       fi
-      raw="$(echo "$line" | tr ',' ';')"
+    else
+      if (( proc_delta < 0 )); then
+        proc_delta=0
+      fi
+      pct="$(python3 - "$proc_delta" "$total_delta" <<'PY'
+import sys
+proc_delta = int(sys.argv[1])
+total_delta = int(sys.argv[2])
+if total_delta <= 0 or proc_delta <= 0:
+    print("0")
+else:
+    value = (proc_delta * 100.0) / total_delta
+    print(f"{value:.2f}".rstrip("0").rstrip("."))
+PY
+)"
     fi
 
+    raw="pids=${curr_pids:-none};proc_jiffies_delta=${proc_delta};total_jiffies_delta=${total_delta}"
     echo "$ts,$phase,$pct,$raw" >>"$out_file"
-    sleep "$SAMPLE_SEC"
+
+    prev_total="$curr_total"
+    prev_proc="$curr_proc"
+    prev_pids="$curr_pids"
   done
+}
+
+_pkg_cpu_snapshot() {
+  local pids proc_total stat pid
+
+  pids="$(adb -s "$DEVICE" shell pidof "$PKG" 2>/dev/null | tr -d '\r' || true)"
+  if [[ -z "$pids" ]]; then
+    echo "0|none"
+    return
+  fi
+
+  proc_total=0
+  for pid in $pids; do
+    stat="$(adb -s "$DEVICE" shell cat "/proc/$pid/stat" 2>/dev/null | tr -d '\r' || true)"
+    if [[ -z "$stat" ]]; then
+      continue
+    fi
+    proc_total=$(( proc_total + $(awk '{print $14 + $15}' <<<"$stat") ))
+  done
+
+  echo "$proc_total|$pids"
 }
 
 echo "[power] S0 control (force-stopped app)"
@@ -183,7 +234,6 @@ sleep 5
 action_pkg_cpu_sample "s0_control" "$OUT_DIR/cpu_s0.csv"
 
 echo "[power] S1 seeded paused restore -> home -> idle"
-adb -s "$DEVICE" logcat -c
 adb -s "$DEVICE" shell am force-stop "$PKG" || true
 grant_runtime_permissions
 seed_paused_restore_state
@@ -195,8 +245,21 @@ if echo "$START_OUT" | grep -qiE 'Error type|does not exist|Exception'; then
   exit 2
 fi
 sleep 8
+adb -s "$DEVICE" shell am start -n "$ACTIVITY" -a "$PKG.action.PLAY" >/dev/null
+sleep 4
+adb -s "$DEVICE" shell am start -n "$ACTIVITY" -a "$PKG.action.PAUSE" >/dev/null
+sleep 4
 adb -s "$DEVICE" shell input keyevent KEYCODE_HOME
 sleep 8
+
+# Measure only the post-pause idle window. Resetting here removes historical
+# batterystats entries from earlier runs and excludes the expected play/pause
+# transition churn from the idle regression verdict.
+adb -s "$DEVICE" shell dumpsys batterystats --reset >/dev/null
+adb -s "$DEVICE" shell dumpsys batterystats enable full-history >/dev/null || true
+adb -s "$DEVICE" shell dumpsys batterystats enable pretend-screen-off >/dev/null || true
+adb -s "$DEVICE" logcat -c
+
 action_pkg_cpu_sample "s1_idle_bg" "$OUT_DIR/cpu_s1.csv"
 
 adb -s "$DEVICE" shell pidof "$PKG" >"$OUT_DIR/pid.txt" || true

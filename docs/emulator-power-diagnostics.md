@@ -33,7 +33,8 @@ tool/power/emulator_power_regression.sh --window-sec 120 --sample-sec 5
 ```
 
 The automated scenario now seeds a paused restored track in app-private storage,
-launches the app, backgrounds it, and samples that real battery-drain path.
+launches the app, performs a real play-then-pause transition, backgrounds it,
+and samples that actual overnight-drain path.
 
 Artifacts are written under `.tmp/power/<timestamp>-auto-regression/` and include:
 
@@ -48,6 +49,8 @@ The parser (`tool/power/evaluate_power_capture.py`) marks regressions using quic
 - idle p95 CPU too high or sustained high CPU streak
 - playback-state churn signature too high in logcat
 - app-attributed `AudioMix` wakelock present in batterystats checkin
+- app-attributed `com.ryanheise.audioservice.AudioService` wakelock present in batterystats checkin
+- any still-active partial wakelock for the app/audio service in `dumpsys power`
 
 Use `--ci` to enforce strict exit behavior:
 
