@@ -25,7 +25,7 @@ Single-file issue tracker for in-flight UX/bug work on `main`. Continues the
 
 ---
 
-The next id to assign is **B-052** — check `backlog_done.md` before reusing any
+The next id to assign is **B-053** — check `backlog_done.md` before reusing any
 number.
 
 ## B-049 (minor): native-first audio load is unverified on the API 37 emulator
