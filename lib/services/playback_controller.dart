@@ -400,22 +400,16 @@ class PlaybackController extends ChangeNotifier {
   Future<void> playPause() async {
     _userActionGen++;
     if (_playlist.length == 0 && !isOneShot) return;
-    // Toggle our authoritative intent and tell the bloc explicitly (so a
-    // setQueue/load race can't lose the user's pause). The bloc toggles whatever
-    // is current — queue track or one-shot — in place.
-    _userIntent =
-        _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
-    _bloc.add(SetIntent(_userIntent == PlayIntent.play));
+    _userIntent = _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
+    _bloc.add(SetIntent(_userIntent == PlayIntent.play, generation: _userActionGen));
     await _settle();
   }
 
   Future<void> next() async {
     _userActionGen++;
-    // Queue tail doesn't wrap; but during one-shot, next always exits to the
-    // queue (the bloc handles it).
     if (!isOneShot && _playlist.nextOrderIndex() == null) return;
     _userIntent = PlayIntent.play;
-    _bloc.add(const GoNext());
+    _bloc.add(GoNext(generation: _userActionGen));
     await _settle();
   }
 
@@ -427,12 +421,13 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
     _userIntent = PlayIntent.play;
-    _bloc.add(const GoPrevious());
+    _bloc.add(GoPrevious(generation: _userActionGen));
     await _settle();
   }
 
   Future<void> seek(Duration position) async {
-    await _transport.seek(position);
+    _userActionGen++;
+    _bloc.add(SeekTo(position, generation: _userActionGen));
     _emitSongInfo();
   }
 
@@ -452,6 +447,7 @@ class PlaybackController extends ChangeNotifier {
       direction: direction,
       userTap: !isAutoSkip && !respectPauseIntent,
       respectPauseIntent: respectPauseIntent,
+      generation: _userActionGen,
     ));
     await _settle();
   }
@@ -464,7 +460,7 @@ class PlaybackController extends ChangeNotifier {
   Future<void> playOneShot(AudioTrack track, {bool repeatOne = false}) async {
     _userActionGen++;
     _userIntent = PlayIntent.play;
-    _bloc.add(PlayOneShot(track, repeatOne: repeatOne));
+    _bloc.add(PlayOneShot(track, repeatOne: repeatOne, generation: _userActionGen));
     await _settle();
   }
 

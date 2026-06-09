@@ -116,9 +116,9 @@ void main() {
     act: (b) async {
       b.add(const GoToIndex(0));
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      b.add(const TogglePlayPause()); // pause
+      b.add(const SetIntent(false)); // pause
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      b.add(const TogglePlayPause()); // resume
+      b.add(const SetIntent(true)); // resume
     },
     skip: 2,
     wait: const Duration(milliseconds: 80),
@@ -177,7 +177,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       b.add(const TrackEnded("ended")); // tail end
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      b.add(const TogglePlayPause()); // press play after exhaustion
+      b.add(const SetIntent(true)); // press play after exhaustion
     },
     wait: const Duration(milliseconds: 80),
     verify: (b) => expect(b.state, isA<PbActive>().having((s) => s.playing, 'p', true),
@@ -252,7 +252,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       b.add(const InterruptionBegan(AudioInterruptionType.pause));
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      b.add(const TogglePlayPause()); // user keeps it paused (resume from paused? no — it's paused)
+      b.add(const SetIntent(false)); // user keeps it paused (resume from paused? no — it's paused)
       await Future<void>.delayed(const Duration(milliseconds: 20));
       b.add(const InterruptionEnded(AudioInterruptionType.pause));
     },

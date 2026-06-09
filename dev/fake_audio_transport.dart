@@ -59,6 +59,41 @@ class FakeAudioTransport implements AudioTransport {
   }
 
   @override
+  Future<void> seekWithinCurrentTrack(Duration position, {int? generation}) async {
+    _position = position;
+  }
+
+  @override
+  Future<void> cancelGeneration(int generation) async {}
+
+  @override
+  Future<void> setPlaybackTarget(String path, {String? title, String? artist, int? generation}) async {
+    _currentPath = path;
+    _position = Duration.zero;
+
+    final outcome = outcomesByPath[path] ?? const FakeLoadOutcome.success();
+    switch (outcome.type) {
+      case FakeLoadOutcomeType.success:
+        _events.add(TransportLoadedEvent(path: path));
+        return;
+      case FakeLoadOutcomeType.notFound:
+        final err = StateError('not_found: $path');
+        _events.add(TransportErrorEvent(path: path, error: err));
+        throw err;
+      case FakeLoadOutcomeType.error:
+        final err = StateError('error');
+        _events.add(TransportErrorEvent(path: path, error: err));
+        throw err;
+    }
+  }
+
+  @override
+  Future<void> setAudibleState(bool audible, {int? generation}) async {
+    _playing = audible;
+  }
+
+  @override
+  @Deprecated('Use setPlaybackTarget and setAudibleState(true) instead')
   Future<void> load(String path, {String? title, String? artist}) async {
     _currentPath = path;
     _position = Duration.zero;

@@ -71,6 +71,49 @@ class MockAudioTransport implements AudioTransport {
   }
 
   @override
+  Future<void> seekWithinCurrentTrack(Duration position, {int? generation}) async {
+    seekCalls.add(position);
+    _position = position;
+  }
+
+  @override
+  Future<void> cancelGeneration(int generation) async {}
+
+  @override
+  Future<void> setPlaybackTarget(String path, {String? title, String? artist, int? generation}) async {
+    loadCalls.add(path);
+    if (loadDelay > Duration.zero) {
+      await Future.delayed(loadDelay);
+    }
+    
+    if (pathsToFailOnLoad.contains(path)) {
+      throw StateError('File not found: $path');
+    }
+    if (pathsToFailTransiently.contains(path)) {
+      throw StateError('Connection aborted 10000000');
+    }
+
+    _loadedPath = path;
+    if (autoEmitLoadedEvent) {
+      _eventController.add(TransportLoadedEvent(path: path));
+    }
+  }
+
+  @override
+  Future<void> setAudibleState(bool audible, {int? generation}) async {
+    if (audible) {
+      if (failPlayWhenUnloaded && _loadedPath == null) {
+        throw StateError('Cannot play without loaded source');
+      }
+      playCalls.add(_loadedPath ?? 'unknown');
+    } else {
+      pauseCalls.add(_loadedPath ?? 'unknown');
+    }
+    _isPlaying = audible;
+  }
+
+  @override
+  @Deprecated('Use setPlaybackTarget and setAudibleState(true) instead')
   Future<void> load(String path, {String? title, String? artist}) async {
     loadCalls.add(path);
     

@@ -51,7 +51,15 @@ abstract class AudioTransport {
 
   Future<void> dispose();
 
-  /// Emits TransportLoadedEvent on success, TransportErrorEvent on failure.
+  Future<void> setPlaybackTarget(String path, {String? title, String? artist, int? generation});
+
+  Future<void> setAudibleState(bool audible, {int? generation});
+
+  Future<void> seekWithinCurrentTrack(Duration position, {int? generation});
+
+  Future<void> cancelGeneration(int generation);
+
+  @Deprecated('Use setPlaybackTarget and setAudibleState(true) instead')
   Future<void> load(String path, {String? title, String? artist});
 
   /// Best-effort gapless look-ahead (B-037): makes the next [load] of the same
@@ -59,10 +67,13 @@ abstract class AudioTransport {
   /// surface an error — the eventual [load] is the authoritative attempt.
   Future<void> preload(String path) async {}
 
+  @Deprecated('Use setAudibleState(true) instead')
   Future<void> play();
 
+  @Deprecated('Use setAudibleState(false) instead')
   Future<void> pause();
 
+  @Deprecated('Use seekWithinCurrentTrack instead')
   Future<void> seek(Duration position);
 
   /// Spectrum data (optional — may be empty if not supported).

@@ -18,6 +18,11 @@ class SoLoudTransport implements AudioTransport {
   /// load (desktop, or app-private paths).
   SoLoudTransport({this.readBytes, this.openFd, this.closeFd});
 
+  int _lastValidatedGeneration = 0;
+  bool _isValidGeneration(int? gen) => gen == null || gen >= _lastValidatedGeneration;
+
+  Future<void>? _activeLoadCompleterFuture;
+
   /// Resolves a track path to playable bytes (e.g. via a content:// URI).
   /// Returns null to fall back to a direct file load.
   final Future<Uint8List?> Function(String path)? readBytes;
@@ -60,6 +65,7 @@ class SoLoudTransport implements AudioTransport {
   String? _currentPath;
   String? _endedEmittedForPath;
   bool _suppressEndedEvent = false;
+  bool _isPreparing = false;
   Duration _pausedPosition = Duration.zero;
 
   // B-037: at most one preloaded look-ahead source for a gapless in-memory swap.
@@ -262,6 +268,7 @@ class SoLoudTransport implements AudioTransport {
   }
 
   void _checkTrackEnded() {
+    if (_isPreparing) return;
     final handle = _currentHandle;
     final source = _currentSource;
     if (handle == null || source == null) return;
@@ -308,38 +315,129 @@ class SoLoudTransport implements AudioTransport {
   }
 
   @override
-  Future<void> load(String path, {String? title, String? artist}) async {
-    await _ensurePlayerReady();
-    _suppressEndedEvent = true;
-    _endedEmittedForPath = null;
-    _pausedPosition = Duration.zero;
-    await _safeStop(_currentHandle);
-    _currentHandle = null;
-    await _safeDispose(_currentSource);
-    _currentSource = null;
-    _currentPath = path;
+  Future<void> cancelGeneration(int generation) async {
+    if (generation > _lastValidatedGeneration) {
+      _lastValidatedGeneration = generation;
+    }
+  }
 
+  @override
+  Future<void> setPlaybackTarget(String path, {String? title, String? artist, int? generation}) async {
+    if (!_isValidGeneration(generation)) return;
+    await _ensurePlayerReady();
+    if (!_isValidGeneration(generation)) return;
+
+    while (_activeLoadCompleterFuture != null) {
+      await _activeLoadCompleterFuture;
+      if (!_isValidGeneration(generation)) return;
+    }
+
+    final completer = Completer<void>();
+    _activeLoadCompleterFuture = completer.future;
+
+    AudioSource? newSource;
     try {
       if (_preloadedSource != null && _preloadedPath == path) {
-        // B-037 gapless promotion: adopt the already-decoded preload directly.
-        _currentSource = _preloadedSource;
+        newSource = _preloadedSource;
         _preloadedSource = null;
         _preloadedPath = null;
       } else {
-        // Path differs from the preload; drop the stale cache so it can't leak.
-        await _disposePreloaded();
-        _currentSource = await _openSource(path);
+        newSource = await _openSource(path);
       }
+
+      if (!_isValidGeneration(generation)) {
+        await _safeDispose(newSource);
+        return;
+      }
+
+      _suppressEndedEvent = true;
+      _endedEmittedForPath = null;
+      _pausedPosition = Duration.zero;
+      
+      await _safeStop(_currentHandle);
+      _currentHandle = null;
+      await _safeDispose(_currentSource);
+      
+      _currentSource = newSource;
+      _currentPath = path;
 
       if (_currentSource != null) _attachSoundEvents(_currentSource!);
       _suppressEndedEvent = false;
       _eventController.add(TransportLoadedEvent(path: path));
     } catch (e) {
-      debugPrint('[SoLoudTransport] Error loading $path: $e');
+      debugPrint('[SoLoudTransport] Error loading target $path: $e');
       _eventController.add(TransportErrorEvent(path: path, error: e));
-      _suppressEndedEvent = false;
       rethrow;
+    } finally {
+      completer.complete();
+      if (_activeLoadCompleterFuture == completer.future) {
+        _activeLoadCompleterFuture = null;
+      }
     }
+  }
+
+  @override
+  Future<void> setAudibleState(bool audible, {int? generation}) async {
+    if (!_isValidGeneration(generation)) return;
+    
+    if (audible) {
+      await _ensurePlayerReady();
+      if (!_isValidGeneration(generation)) return;
+      await _reloadCurrentSourceIfNeeded();
+      if (!_isValidGeneration(generation)) return;
+      
+      final source = _currentSource!;
+      if (!_audioSessionActive) {
+        final session = _cachedSession ?? await AudioSession.instance;
+        _cachedSession ??= session;
+        await session.setActive(true);
+        _audioSessionActive = true;
+      }
+
+      if (_currentHandle == null) {
+        _currentHandle = _soloud.play(source, paused: false);
+        if (_pausedPosition > Duration.zero) {
+          _soloud.seek(_currentHandle!, _pausedPosition);
+        }
+      } else {
+        _soloud.setPause(_currentHandle!, false);
+      }
+      _endedEmittedForPath = null;
+    } else {
+      final handle = _currentHandle;
+      if (handle == null) return;
+      try {
+        _pausedPosition = _soloud.getPosition(handle);
+      } catch (_) {
+        _pausedPosition = Duration.zero;
+      }
+      _suppressEndedEvent = true;
+      try {
+        _soloud.setPause(handle, true);
+        // We keep the handle alive instead of stopping it so play() later is resumed
+        // Wait, handle hibernation? If we don't hibernate, we stay hot.
+      } finally {
+        _suppressEndedEvent = false;
+      }
+    }
+  }
+
+  @override
+  Future<void> seekWithinCurrentTrack(Duration position, {int? generation}) async {
+    if (!_isValidGeneration(generation)) return;
+    final handle = _currentHandle;
+    if (handle == null) {
+      _pausedPosition = position;
+      return;
+    }
+    _soloud.seek(handle, position);
+    _pausedPosition = position;
+  }
+
+  @override
+  @Deprecated('Use setPlaybackTarget and setAudibleState(true)')
+  Future<void> load(String path, {String? title, String? artist}) async {
+    await setPlaybackTarget(path, title: title, artist: artist);
   }
 
   @override
@@ -393,36 +491,41 @@ class SoLoudTransport implements AudioTransport {
       }
     }
 
-    // Fast path first: load straight from the filesystem — no whole-file read or
-    // platform-channel marshal. Works wherever the raw path is openable (desktop
-    // and most Android devices), which is the common case.
+    _isPreparing = true;
     try {
-      final source = await _soloud.loadFile(path);
-      perf('loadFile');
-      return source;
-    } catch (e) {
-      // Raw-path access is blocked on Android scoped storage (API 30+).
-      // B-049: prefer the fd path (no UI-isolate byte marshal) — loadFile
-      // reads+decodes /proc/self/fd/N in the compute isolate.
-      if (openFd != null) {
-        final fdPath = await openFd!(path);
-        if (fdPath != null) {
-          try {
-            final source = await _soloud.loadFile(fdPath);
-            perf('fd');
-            return source;
-          } finally {
-            if (closeFd != null) unawaited(closeFd!(fdPath));
+      // Fast path first: load straight from the filesystem — no whole-file read or
+      // platform-channel marshal. Works wherever the raw path is openable (desktop
+      // and most Android devices), which is the common case.
+      try {
+        final source = await _soloud.loadFile(path);
+        perf('loadFile');
+        return source;
+      } catch (e) {
+        // Raw-path access is blocked on Android scoped storage (API 30+).
+        // B-049: prefer the fd path (no UI-isolate byte marshal) — loadFile
+        // reads+decodes /proc/self/fd/N in the compute isolate.
+        if (openFd != null) {
+          final fdPath = await openFd!(path);
+          if (fdPath != null) {
+            try {
+              final source = await _soloud.loadFile(fdPath);
+              perf('fd');
+              return source;
+            } finally {
+              if (closeFd != null) unawaited(closeFd!(fdPath));
+            }
           }
         }
+        // Fall back to a MediaStore content-URI byte read when wired; else surface.
+        if (readBytes == null) rethrow;
+        final bytes = await readBytes!(path);
+        if (bytes == null) rethrow;
+        final source = await _soloud.loadMem(path, bytes);
+        perf('loadMem');
+        return source;
       }
-      // Fall back to a MediaStore content-URI byte read when wired; else surface.
-      if (readBytes == null) rethrow;
-      final bytes = await readBytes!(path);
-      if (bytes == null) rethrow;
-      final source = await _soloud.loadMem(path, bytes);
-      perf('loadMem');
-      return source;
+    } finally {
+      _isPreparing = false;
     }
   }
 
@@ -459,31 +562,13 @@ class SoLoudTransport implements AudioTransport {
   }
 
   @override
+  @Deprecated('Use setAudibleState(true) instead')
   Future<void> play() async {
-    await _ensurePlayerReady();
-    await _reloadCurrentSourceIfNeeded();
-    final source = _currentSource!;
-
-    // B-011: skip the redundant audio-focus IPC when already active.
-    if (!_audioSessionActive) {
-      final session = _cachedSession ?? await AudioSession.instance;
-      _cachedSession ??= session;
-      await session.setActive(true);
-      _audioSessionActive = true;
-    }
-
-    if (_currentHandle == null) {
-      _currentHandle = _soloud.play(source, paused: false);
-      if (_pausedPosition > Duration.zero) {
-        _soloud.seek(_currentHandle!, _pausedPosition);
-      }
-    } else {
-      _soloud.setPause(_currentHandle!, false);
-    }
-    _endedEmittedForPath = null;
+    return setAudibleState(true);
   }
 
   @override
+  @Deprecated('Use setAudibleState(false) instead')
   Future<void> pause() async {
     final handle = _currentHandle;
     if (handle == null) return;
@@ -506,13 +591,8 @@ class SoLoudTransport implements AudioTransport {
   }
 
   @override
+  @Deprecated('Use seekWithinCurrentTrack instead')
   Future<void> seek(Duration position) async {
-    final handle = _currentHandle;
-    if (handle == null) {
-      _pausedPosition = position;
-      return;
-    }
-    _soloud.seek(handle, position);
-    _pausedPosition = position;
+    return seekWithinCurrentTrack(position);
   }
 }
