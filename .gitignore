@@ -23,6 +23,10 @@ doc/api/
 *.js.deps
 *.js.map
 
+# Vendored flutter_soloud assets referenced by soloud/pubspec.yaml.
+!soloud/web/worker.dart.js
+!soloud/web/init_module.dart.js
+
 .flutter-plugins
 .flutter-plugins-dependencies
 .DS_Store
