@@ -24,10 +24,18 @@ It probes, with no hardcoded verdicts, and prints JSON (stdout) plus a one-line 
 - **live_run** — is `/tmp/flutter_run.log` (or `$DRIVE_RUN_LOG`) present/fresh, does it carry a VM URI, and does the VM actually answer (isolate + extension count)?
 - **recommendation** — the `DRIVE_TARGET` that would be used and the exact next command.
 
+For desktop sessions, `preflight` also reports the concrete sidecar paths it will use in `drive_paths`:
+
+- `run_log` — the `flutter run` stdout log the harness will scan.
+- `fifo` — the stdin fifo used for `reload` / `restart`.
+- `ws_cache` — the VM-service websocket cache file (under `/tmp` by default; override with `$DRIVE_WS_CACHE` if needed).
+- `desktop_home` — the isolated HOME path the recommended Linux/macOS launch command uses to avoid Hive lock collisions with another desktop instance.
+
 Follow its `recommendation.next`. The three shapes:
 
 - **`ready`** → a live VM answers. Set the reported `DRIVE_TARGET` and go (`$D inspect`).
 - **`needs-launch`** → a target exists but nothing is running yet. It prints the launch line (Linux fifo+`flutter run`, or the x86_64 Android line). See **Appendix: target variants** for the full launch recipes.
+- **`needs-relaunch`** → a VM answers, but the session is not automatable yet (for example `dev/main_debug.dart` was not used, or bootstrap failed before `AgentService` registered). Follow the printed relaunch line; on desktop it uses isolated HOME/log/fifo paths so you don't collide with another Nothingness instance.
 - **`no-target`** → nothing reachable; it tells you how to start one.
 
 The agent-driving entrypoint is always `dev/main_debug.dart` (`flutter run -t dev/main_debug.dart`): it installs the harness onto the `lib/debug_hooks.dart` seam, then runs the real `lib/main.dart`, so the extensions register. Plain `flutter run` (lib/main.dart) exposes **no** extensions; never use `dev/main_test.dart` (that's for `integration_test/` with fake transport).
@@ -110,22 +118,23 @@ The five runtime-inspection lenses (`probe`/`frames`/`timeline`/`profile`/`break
 
 ## Hazards
 
-- **Cadence ≤5/s with jitter** for mutating RPCs (`setSetting`/`setPreference` cost ~140 ms each on emulator). Above ~7/s the response queue backs up and *looks* like a wedged isolate (it just hasn't drained). Hammering the same path (20+ ops <100 ms) belongs in a widget test (`test/p6_adversarial_test.dart`), not the VM service. Recovery if a session hangs: `rm .claude/skills/agent-emulator-debugging/scripts/.vm_ws.txt && $D restart`.
+- **Cadence ≤5/s with jitter** for mutating RPCs (`setSetting`/`setPreference` cost ~140 ms each on emulator). Above ~7/s the response queue backs up and *looks* like a wedged isolate (it just hasn't drained). Hammering the same path (20+ ops <100 ms) belongs in a widget test (`test/p6_adversarial_test.dart`), not the VM service. Recovery if a session hangs: `rm -f "${DRIVE_WS_CACHE:-/tmp/drive_vm_ws.txt}" && $D restart`.
 - **Never kill the live `flutter run`.** No `adb shell am force-stop`, `pm clear`, or `pm revoke` against `com.saplin.nothingness` — they trigger `Lost connection to device` + a 60-90 s rebuild. `$D reset` wraps the same hazard, so it refuses (exit 1) when a live run is detected; pass `--force` only if you accept the rebuild. To reset isolate state without wiping app data, use `$D restart` (hot restart). For audio-focus/transport exercises use the cheap side-channel: `$D call ext.nothingness.simulateInterruption …`, `$D pause`/`$D resume`.
 - **Velocity-gated gestures need widget tests.** `adb shell input swipe` injects fixed-cadence synthetic events whose computed velocity is far below a real flick, so hero swipes / `PageView` flings / dismissibles silently no-op. Don't chase them via adb/VM service — regress with `tester.fling(finder, Offset(dx, 0), velocity)` (see `test/screens/void_screen_test.dart`, B-027). ADB swipes are fine for coarse distance-only pan/scroll.
-- **`breakpoint` pauses the UI isolate → run it ALONE.** While paused, *every* `ext.nothingness.*` extension (and any other driver) is frozen — never run it concurrently with another `drive.py` call. It always `removeBreakpoint`+`resume`s in a `finally`; if orphaned, recover with `rm .vm_ws.txt && $D restart`. `--trigger next` no-ops at the last queue index — use `--trigger prev` from the end.
+- **`breakpoint` pauses the UI isolate → run it ALONE.** While paused, *every* `ext.nothingness.*` extension (and any other driver) is frozen — never run it concurrently with another `drive.py` call. It always `removeBreakpoint`+`resume`s in a `finally`; if orphaned, recover with `rm -f "${DRIVE_WS_CACHE:-/tmp/drive_vm_ws.txt}" && $D restart`. `--trigger next` no-ops at the last queue index — use `--trigger prev` from the end.
 - **`frames` is empty on the headless Linux build.** `addTimingsCallback` fires only for on-screen compositor frames; background-only activity (a skip storm with no visible change) leaves `count=0`. It populates on real UI churn (navigation, hero rebuilds) and is the primary jank lens on Android. On Linux, prove UI-isolate blocking with `timeline`+`breakpoint`.
 
 ## Common blockers (fast recovery)
 
-1. **"could not find Dart VM service URI"** — the app isn't in debug mode (release build / `flutter run` exited), or `.vm_ws.txt` points at a dead session. Run `$D preflight` to see what's actually reachable; delete the cache and relaunch. `drive.py` normalizes cached/log-derived HTTP and WS VM URIs automatically, so a plain protocol-shape mismatch should self-heal.
-2. **Install fails `INSTALL_FAILED_UPDATE_INCOMPATIBLE`** (Android) — uninstall the package, then re-run `flutter run`.
-3. **Queue empty after reinstall** — `queueLen=0`; queue real files via `$D play <path>` or the Appendix `adb push` snippet.
-4. **Shared-storage track won't load / `isNotFound`** (Android API 30+) — scoped storage blocks raw-path access to `/storage/emulated/0/...`. The app tries a native `loadFile(path)` first and, when that fails (strict scoped storage, e.g. the API 37 emulator), falls back to resolving the `_data` path to a MediaStore `content://` URI (see `lib/services/android_audio_source.dart`), so the file **must be MediaStore-indexed**. `adb push` into `/storage/emulated/0/Music/` auto-triggers indexing on recent images — verify with `adb shell content query --uri content://media/external/audio/media --where "_data='<path>'"` (a `Row:` with an `_id` means it's playable). For a quick one-off that sidesteps MediaStore entirely, push into the app-private dir (`adb push <host> /data/user/0/com.saplin.nothingness/files/<name>`) — it loads via the direct-file fallback.
-5. **`Permissions Required` overlay** (Android) — run the Appendix `pm grant` loop, or `$D permit`.
-6. **Can't tap a control via `tapByKey`** — the production widget has no `ValueKey<String>`. Drive via `drive.py` (settings/nav/pref) or `adb shell uiautomator dump` + tap by bounds.
-7. **`reload` reports "no changes detected"** — hot reload skips `initState` / static / top-level changes; use `$D restart` or a full rebuild.
-8. **`reload` reports "Reloaded 0 libraries" after a real edit** (WSL) — the resident compiler's file watcher (inotify) doesn't always fire on WSL2, even after `touch`. So a code change won't take via `$D reload`/`restart`. **Kill and relaunch `flutter run`** to pick it up — there's no in-process workaround. (Hot reload remains reliable on native Linux/macOS.)
+1. **"could not find Dart VM service URI"** — the app isn't in debug mode (release build / `flutter run` exited), or the configured run log / websocket cache points at a dead session. Run `$D preflight` to see what's actually reachable; it prints the active `drive_paths` and will refresh a stale cache automatically when the run log has a newer VM URI.
+2. **VM responds but `extension_count=0` / `needs-relaunch`** — the process reached a Dart VM, but `AgentService` never registered. Check the `live_run.bootstrap_error` / `lock_conflict` fields in `preflight`; on desktop this commonly means another Nothingness instance already holds the Hive box lock. Relaunch with the printed isolated HOME/log/fifo command.
+3. **Install fails `INSTALL_FAILED_UPDATE_INCOMPATIBLE`** (Android) — uninstall the package, then re-run `flutter run`.
+4. **Queue empty after reinstall** — `queueLen=0`; queue real files via `$D play <path>` or the Appendix `adb push` snippet.
+5. **Shared-storage track won't load / `isNotFound`** (Android API 30+) — scoped storage blocks raw-path access to `/storage/emulated/0/...`. The app tries a native `loadFile(path)` first and, when that fails (strict scoped storage, e.g. the API 37 emulator), falls back to resolving the `_data` path to a MediaStore `content://` URI (see `lib/services/android_audio_source.dart`), so the file **must be MediaStore-indexed**. `adb push` into `/storage/emulated/0/Music/` auto-triggers indexing on recent images — verify with `adb shell content query --uri content://media/external/audio/media --where "_data='<path>'"` (a `Row:` with an `_id` means it's playable). For a quick one-off that sidesteps MediaStore entirely, push into the app-private dir (`adb push <host> /data/user/0/com.saplin.nothingness/files/<name>`) — it loads via the direct-file fallback.
+6. **`Permissions Required` overlay** (Android) — run the Appendix `pm grant` loop, or `$D permit`.
+7. **Can't tap a control via `tapByKey`** — the production widget has no `ValueKey<String>`. Drive via `drive.py` (settings/nav/pref) or `adb shell uiautomator dump` + tap by bounds.
+8. **`reload` reports "no changes detected"** — hot reload skips `initState` / static / top-level changes; use `$D restart` or a full rebuild.
+9. **`reload` reports "Reloaded 0 libraries" after a real edit** (WSL) — the resident compiler's file watcher (inotify) doesn't always fire on WSL2, even after `touch`. So a code change won't take via `$D reload`/`restart`. **Kill and relaunch `flutter run`** to pick it up — there's no in-process workaround. (Hot reload remains reliable on native Linux/macOS.)
 
 ## Minimal drive loop
 
@@ -146,15 +155,25 @@ Moved out of the happy path — `drive.py preflight` tells you which of these ap
 ### Linux / macOS desktop (no ADB)
 
 ```bash
-# One-time per host: a fifo + a writer that holds it open (so reload/restart work)
-[ -p /tmp/flutter_input ] || mkfifo /tmp/flutter_input
-nohup sleep infinity > /tmp/flutter_input &
-# Launch (Linux shown; -d macos is identical)
-nohup flutter run -d linux --debug -t dev/main_debug.dart \
-    < /tmp/flutter_input > /tmp/flutter_run.log 2>&1 &
+# Recommended: isolate the automation session so it doesn't collide with
+# another desktop Nothingness instance holding Hive locks.
+export DRIVE_SESSION_TAG=nothingness_linux_debug
 export DRIVE_TARGET=linux
+export DRIVE_RUN_LOG=/tmp/flutter_run_${DRIVE_SESSION_TAG}.log
+export DRIVE_FLUTTER_FIFO=/tmp/flutter_input_${DRIVE_SESSION_TAG}
+export DRIVE_DESKTOP_HOME=/tmp/nothingness_${DRIVE_SESSION_TAG}
+mkdir -p "$DRIVE_DESKTOP_HOME/.config" "$DRIVE_DESKTOP_HOME/.local/share"
+[ -p "$DRIVE_FLUTTER_FIFO" ] || { rm -f "$DRIVE_FLUTTER_FIFO"; mkfifo "$DRIVE_FLUTTER_FIFO"; }
+nohup sleep infinity > "$DRIVE_FLUTTER_FIFO" 2>/dev/null &
+HOME="$DRIVE_DESKTOP_HOME" \
+XDG_CONFIG_HOME="$DRIVE_DESKTOP_HOME/.config" \
+XDG_DATA_HOME="$DRIVE_DESKTOP_HOME/.local/share" \
+nohup flutter run -d linux --debug -t dev/main_debug.dart \
+    < "$DRIVE_FLUTTER_FIFO" > "$DRIVE_RUN_LOG" 2>&1 &
 $D inspect
 ```
+
+If you intentionally want the historical shared paths, leave the env vars unset and use `/tmp/flutter_run.log` + `/tmp/flutter_input` as before.
 
 Library permissions are a no-op on desktop; stage audio by passing any readable absolute host path to `$D play`. The only feature gap vs Android is MediaStore-backed library scans (Android-only); desktop is folder-based.
 

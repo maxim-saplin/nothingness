@@ -33,6 +33,7 @@ android/key.properties
 
 # drive.py VM service WebSocket cache (per-run, never check in)
 .agents/skills/agent-emulator-debugging/scripts/.vm_ws.txt
+.agents/skills/agent-emulator-debugging/scripts/.vm_ws*.txt
 
 # Python tooling (uv-managed)
 .venv/

@@ -219,11 +219,12 @@ Orchestration mechanics (the parts that bit us):
   return summaries + the on-disk findings files (never the agent transcripts).
 - **Append findings to disk incrementally**, after each shard — a crash then
   costs only the current step, not the whole session.
-- **Device leasing is mandatory.** drive.py hard-codes `.vm_ws.txt`,
-  `/tmp/flutter_run.log`, `/tmp/flutter_input` as singletons; two drivers sharing
-  them silently talk to the wrong app. Each device worker gets its own git
-  worktree (→ its own `.vm_ws.txt`), its own flutter-run log, and exactly one
-  app instance. Only one driver per instance, ever.
+- **Device leasing is mandatory.** drive.py isolates its websocket cache, run
+  log, and reload fifo per session (`/tmp/drive_vm_ws*.txt`, custom
+  `DRIVE_RUN_LOG`, custom `DRIVE_FLUTTER_FIFO`), but two drivers that point at
+  the same trio still silently talk to the wrong app. Each device worker gets
+  its own git worktree, its own run-log/fifo/cache paths, and exactly one app
+  instance. Only one driver per instance, ever.
 - **`flutter run` launch on Linux:** newlines collapse in the harness `eval`
   (use single-line commands) and the `/tmp/flutter_input` fifo needs a
   `run_in_background` writer (a plain `&` writer dies).

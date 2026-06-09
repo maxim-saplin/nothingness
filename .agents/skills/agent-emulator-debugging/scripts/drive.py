@@ -53,6 +53,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import re
@@ -75,13 +76,51 @@ APP_ID = "com.saplin.nothingness"
 LAUNCH_ACTIVITY = "com.saplin.nothingness.MainActivity"
 LOCAL_FORWARD_PORT = int(os.environ.get("DRIVE_LOCAL_PORT", "8181"))
 
-# Where we cache the discovered VM service WebSocket URI between runs.
-WS_CACHE = Path(__file__).with_name(".vm_ws.txt")
+DEFAULT_FLUTTER_RUN_LOG = Path("/tmp/flutter_run.log")
+
+
+def _path_tag(path: Path) -> str:
+    """Stable, shell-safe tag for derived cache/fifo/home paths."""
+    digest = hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8]
+    stem = re.sub(r"[^A-Za-z0-9]+", "_", path.stem).strip("_").lower() or "run"
+    return f"{stem}_{digest}"
+
+
+def _default_ws_cache(run_log: Path) -> Path:
+    if run_log == DEFAULT_FLUTTER_RUN_LOG:
+        return Path("/tmp/drive_vm_ws.txt")
+    return Path(f"/tmp/drive_vm_ws_{_path_tag(run_log)}.txt")
+
+
+def _default_flutter_fifo(run_log: Path) -> Path:
+    if run_log == DEFAULT_FLUTTER_RUN_LOG:
+        return Path("/tmp/flutter_input")
+    return Path(f"/tmp/flutter_input_{_path_tag(run_log)}")
+
+
+def _default_desktop_home(run_log: Path) -> Path:
+    return Path(f"/tmp/nothingness_{_path_tag(run_log)}")
+
 
 # The `flutter run` stdout log to scan for the host-local VM/DDS URI. Override
 # with DRIVE_RUN_LOG when running a second session (e.g. an Android run logging
 # to /tmp/flutter_run_android.log while a Linux session owns the default path).
-FLUTTER_RUN_LOG = Path(os.environ.get("DRIVE_RUN_LOG", "/tmp/flutter_run.log"))
+FLUTTER_RUN_LOG = Path(os.environ.get("DRIVE_RUN_LOG", str(DEFAULT_FLUTTER_RUN_LOG)))
+
+# Where we cache the discovered VM service WebSocket URI between runs. Scope it
+# to the active run log so parallel sessions do not clobber each other.
+WS_CACHE = Path(os.environ.get("DRIVE_WS_CACHE", str(_default_ws_cache(FLUTTER_RUN_LOG))))
+
+# Flutter's stdin fifo used for hot reload/restart. Like the WS cache, default
+# it off the active run-log path so parallel desktop sessions can coexist.
+FLUTTER_INPUT_FIFO = Path(
+    os.environ.get("DRIVE_FLUTTER_FIFO", str(_default_flutter_fifo(FLUTTER_RUN_LOG))))
+
+# Optional isolated HOME for desktop automation sessions. drive.py does not set
+# HOME itself, but preflight recommends this location to avoid colliding with a
+# separately-running Nothingness desktop/profile instance holding Hive locks.
+DESKTOP_HOME = Path(
+    os.environ.get("DRIVE_DESKTOP_HOME", str(_default_desktop_home(FLUTTER_RUN_LOG))))
 
 # Valid `flutter run -d <id>` targets we know how to drive. "android" covers
 # any adb-attached device; "linux" / "macos" cover Flutter desktop builds.
@@ -215,6 +254,18 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
     On desktop (linux/macos), `flutter run` always logs a local 127.0.0.1
     URI directly, so the adb path is skipped entirely.
     """
+    # `flutter run`'s stdout log has a host-local URI on both platforms (Android:
+    # the DDS endpoint, already forwarded by flutter; desktop: native). Prefer
+    # it over the cache: the log is authoritative for the CURRENT session,
+    # whereas a cached ws URI may still point at a stale parallel run.
+    # Point DRIVE_RUN_LOG at the right log when a Linux session owns the default
+    # path, so Android doesn't read a stale Linux URI.
+    uri = _scan_flutter_run_log_for_vm_uri()
+    if uri:
+        ws = _normalize_ws_uri(uri)
+        WS_CACHE.write_text(ws)
+        return ws
+
     if not force and WS_CACHE.exists():
         cached = WS_CACHE.read_text().strip()
         if cached:
@@ -224,16 +275,6 @@ def _resolve_ws(serial: str = DEFAULT_SERIAL, force: bool = False) -> str:
                 return ws
             except Exception:
                 pass
-
-    # `flutter run`'s stdout log has a host-local URI on both platforms (Android:
-    # the DDS endpoint, already forwarded by flutter; desktop: native). Prefer
-    # it. Point DRIVE_RUN_LOG at the right log when a Linux session owns the
-    # default path, so Android doesn't read a stale Linux URI.
-    uri = _scan_flutter_run_log_for_vm_uri()
-    if uri:
-        ws = _normalize_ws_uri(uri)
-        WS_CACHE.write_text(ws)
-        return ws
 
     if IS_DESKTOP:
         raise RuntimeError(
@@ -646,13 +687,12 @@ def _flutter_fifo_write(command: str) -> bool:
     """Send a key command (e.g. 'r' / 'R') to flutter run's stdin via fifo.
 
     Returns True if the fifo exists and the write succeeded."""
-    fifo = Path("/tmp/flutter_input")
-    if not fifo.exists():
+    if not FLUTTER_INPUT_FIFO.exists():
         return False
     try:
         # The fifo must already have a long-lived reader (flutter run) and a
         # long-lived writer holding it open (the sleep-infinity helper).
-        with open(fifo, "w") as f:
+        with open(FLUTTER_INPUT_FIFO, "w") as f:
             f.write(command + "\n")
             f.flush()
         return True
@@ -668,7 +708,7 @@ def cmd_reload(args) -> int:
     if not ok:
         print(json.dumps({
             "reloaded": False,
-            "error": "no /tmp/flutter_input fifo; is `flutter run` running?",
+            "error": f"no {FLUTTER_INPUT_FIFO} fifo; is `flutter run` running?",
         }, indent=2))
         return 2
     # Reload doesn't change the VM URI but does invalidate kernel — give the
@@ -684,7 +724,7 @@ def cmd_restart(args) -> int:
     if not ok:
         print(json.dumps({
             "restarted": False,
-            "error": "no /tmp/flutter_input fifo; is `flutter run` running?",
+            "error": f"no {FLUTTER_INPUT_FIFO} fifo; is `flutter run` running?",
         }, indent=2))
         return 2
     time.sleep(args.delay or 3.0)
@@ -699,7 +739,7 @@ def _flutter_run_alive(max_age_s: float = 300.0) -> bool:
     """Best-effort detection of a live `flutter run` session.
 
     Returns True when:
-      1. `/tmp/flutter_run.log` exists and was modified within the last
+    1. The configured flutter run log exists and was modified within the last
          ``max_age_s`` seconds (default 5 min — flutter run keeps tickling
          the log via heartbeat / progress lines), AND
       2. The cached VM service URI (``.vm_ws.txt``) still answers a quick
@@ -747,7 +787,7 @@ def cmd_reset(args) -> int:
             "reset": False,
             "reason": (
                 "live `flutter run` session detected "
-                "(/tmp/flutter_run.log fresh + VM service responsive). "
+                f"({FLUTTER_RUN_LOG} fresh + VM service responsive). "
                 "`drive.py reset` would force-stop the app and crash the "
                 "session, forcing a 60-90 s rebuild. Use `drive.py restart` "
                 "for a hot restart, or pass `--force` to override."
@@ -842,6 +882,67 @@ def _registered_extensions(ws: str) -> list[str]:
                 break
     return sorted(r for r in rpcs if isinstance(r, str)
                   and r.startswith("ext.nothingness."))
+
+
+def _scan_run_log_markers() -> dict[str, Any]:
+    """Best-effort bootstrap markers from the configured flutter run log."""
+    out: dict[str, Any] = {
+        "launch_entrypoint": None,
+        "agent_registered": False,
+        "bootstrap_error": None,
+        "lock_conflict": False,
+    }
+    if not FLUTTER_RUN_LOG.exists():
+        return out
+    try:
+        text = FLUTTER_RUN_LOG.read_text(errors="ignore")
+    except Exception:
+        return out
+
+    launch = re.search(r"Launching\s+(\S+)\s+on\s+", text)
+    if launch:
+        out["launch_entrypoint"] = launch.group(1)
+    out["agent_registered"] = "[AgentService] registered" in text
+    out["lock_conflict"] = (
+        "librarybox.lock" in text and "lock failed" in text)
+
+    errors = re.findall(
+        r"Unhandled Exception:\s*(.+)",
+        text,
+        flags=re.MULTILINE,
+    )
+    if errors:
+        out["bootstrap_error"] = errors[-1].strip()
+    elif out["lock_conflict"]:
+        out["bootstrap_error"] = "FileSystemException: lock failed"
+    return out
+
+
+def _desktop_launch_command(target: str) -> str:
+    """Copy-pasteable desktop launch line with isolated paths by default."""
+    tag_default = f"nothingness_{target}_debug"
+    return (
+        f'export DRIVE_SESSION_TAG="${{DRIVE_SESSION_TAG:-{tag_default}}}"; '
+        f'export DRIVE_TARGET={target}; '
+        'export DRIVE_RUN_LOG="${DRIVE_RUN_LOG:-/tmp/flutter_run_${DRIVE_SESSION_TAG}.log}"; '
+        'export DRIVE_FLUTTER_FIFO="${DRIVE_FLUTTER_FIFO:-/tmp/flutter_input_${DRIVE_SESSION_TAG}}"; '
+        'export DRIVE_DESKTOP_HOME="${DRIVE_DESKTOP_HOME:-/tmp/nothingness_${DRIVE_SESSION_TAG}}"; '
+        'mkdir -p "$DRIVE_DESKTOP_HOME/.config" "$DRIVE_DESKTOP_HOME/.local/share"; '
+        'if [ ! -p "$DRIVE_FLUTTER_FIFO" ]; then rm -f "$DRIVE_FLUTTER_FIFO"; mkfifo "$DRIVE_FLUTTER_FIFO"; fi; '
+        'nohup sleep infinity > "$DRIVE_FLUTTER_FIFO" 2>/dev/null & '
+        'HOME="$DRIVE_DESKTOP_HOME" XDG_CONFIG_HOME="$DRIVE_DESKTOP_HOME/.config" '
+        'XDG_DATA_HOME="$DRIVE_DESKTOP_HOME/.local/share" '
+        f'nohup flutter run -d {target} --debug -t dev/main_debug.dart '
+        '< "$DRIVE_FLUTTER_FIFO" > "$DRIVE_RUN_LOG" 2>&1 &'
+    )
+
+
+def _android_launch_command(serial: str) -> str:
+    return (
+        f"CI_EMULATOR_ABI=x86_64 flutter run -d {serial} --debug "
+        "-t dev/main_debug.dart < /dev/null > /tmp/flutter_run.log 2>&1 &"
+        "; export DRIVE_TARGET=android"
+    )
 
 
 def cmd_contract(args) -> int:
@@ -1258,9 +1359,13 @@ def _detect_live_run() -> dict[str, Any]:
     raises."""
     out: dict[str, Any] = {
         "run_log": str(FLUTTER_RUN_LOG),
+        "fifo": str(FLUTTER_INPUT_FIFO),
+        "ws_cache": str(WS_CACHE),
         "log_present": False, "log_age_s": None, "log_fresh": False,
         "vm_uri": None, "ws": None, "vm_responds": False,
         "isolate_count": None, "extension_count": None, "error": None,
+        "launch_entrypoint": None, "agent_registered": False,
+        "bootstrap_error": None, "lock_conflict": False,
     }
     try:
         if FLUTTER_RUN_LOG.exists():
@@ -1274,6 +1379,10 @@ def _detect_live_run() -> dict[str, Any]:
     # path does. Reuse the existing scanner + resolver.
     try:
         out["vm_uri"] = _scan_flutter_run_log_for_vm_uri()
+    except Exception:
+        pass
+    try:
+        out.update(_scan_run_log_markers())
     except Exception:
         pass
     try:
@@ -1315,6 +1424,36 @@ def _recommend(host, fdevs, adb_info, live, ftargets) -> dict[str, Any]:
     verdict is hardcoded — it follows what's actually reachable."""
     drive_target = TARGET  # what drive.py would resolve to right now
     if live.get("vm_responds"):
+        ext_count = live.get("extension_count") or 0
+        entry = live.get("launch_entrypoint")
+        if ext_count <= 0:
+            if entry and entry != "dev/main_debug.dart":
+                return {
+                    "status": "needs-relaunch",
+                    "drive_target": TARGET,
+                    "next": (_desktop_launch_command(TARGET) if IS_DESKTOP
+                             else _android_launch_command(DEFAULT_SERIAL)),
+                    "why": (f"live VM responds but {entry} does not expose "
+                            "ext.nothingness.*; launch dev/main_debug.dart"),
+                }
+            if live.get("lock_conflict"):
+                return {
+                    "status": "needs-relaunch",
+                    "drive_target": TARGET,
+                    "next": (_desktop_launch_command(TARGET) if IS_DESKTOP
+                             else _android_launch_command(DEFAULT_SERIAL)),
+                    "why": ("live VM responds but bootstrap hit a Hive lock "
+                            "before AgentService registered; relaunch with an "
+                            "isolated desktop HOME / log / fifo"),
+                }
+            return {
+                "status": "warming-up",
+                "drive_target": TARGET,
+                "next": f"tail -n 80 {FLUTTER_RUN_LOG}",
+                "why": ("live VM responds but ext.nothingness.* are not "
+                        "registered yet; app may still be booting or may have "
+                        "failed before app-ready"),
+            }
         # A live VM is reachable — drive it directly with the resolved target.
         if IS_DESKTOP:
             return {
@@ -1336,13 +1475,19 @@ def _recommend(host, fdevs, adb_info, live, ftargets) -> dict[str, Any]:
         return {
             "status": "needs-launch",
             "drive_target": "linux",
-            "next": (
-                "[ -p /tmp/flutter_input ] || mkfifo /tmp/flutter_input; "
-                "nohup sleep infinity > /tmp/flutter_input & "
-                "nohup flutter run -d linux --debug -t dev/main_debug.dart "
-                "< /tmp/flutter_input > /tmp/flutter_run.log 2>&1 & "
-                "export DRIVE_TARGET=linux"),
-            "why": "linux desktop target present; no live run detected",
+            "next": _desktop_launch_command("linux"),
+            "why": ("linux desktop target present; no live run detected. "
+                    "Recommendation uses isolated HOME/log/fifo paths to avoid "
+                    "colliding with another desktop instance."),
+        }
+    if ftargets.get("macos"):
+        return {
+            "status": "needs-launch",
+            "drive_target": "macos",
+            "next": _desktop_launch_command("macos"),
+            "why": ("macOS desktop target present; no live run detected. "
+                    "Recommendation uses isolated HOME/log/fifo paths to avoid "
+                    "colliding with another desktop instance."),
         }
     emu = [d for d in adb_info.get("devices", [])
            if d.get("state") == "device"]
@@ -1351,10 +1496,7 @@ def _recommend(host, fdevs, adb_info, live, ftargets) -> dict[str, Any]:
         return {
             "status": "needs-launch",
             "drive_target": "android",
-            "next": (
-                f"CI_EMULATOR_ABI=x86_64 flutter run -d {serial} --debug "
-                "-t dev/main_debug.dart < /dev/null > /tmp/flutter_run.log 2>&1 &"
-                "; export DRIVE_TARGET=android"),
+            "next": _android_launch_command(serial),
             "why": (f"adb sees {serial}; x86_64 build required on an x86 "
                     "emulator (see B-045)"),
         }
@@ -1387,6 +1529,12 @@ def cmd_preflight(args) -> int:
     ftargets = _flutter_targets(report["flutter_devices"].get("devices", []))
     report["flutter_targets"] = ftargets
     report["resolved_target"] = TARGET
+    report["drive_paths"] = {
+        "run_log": str(FLUTTER_RUN_LOG),
+        "fifo": str(FLUTTER_INPUT_FIFO),
+        "ws_cache": str(WS_CACHE),
+        "desktop_home": str(DESKTOP_HOME),
+    }
     try:
         report["recommendation"] = _recommend(
             report["host"], report["flutter_devices"], report["adb"],

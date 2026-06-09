@@ -50,7 +50,7 @@ Extensions are **only active in debug mode** (`kDebugMode` guard) and are comple
 
 ## Primary CLI: `drive.py`
 
-For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto-discovers the VM service WebSocket (scanning logcat + `/tmp/flutter_run.log`), caches it next to the script (`.vm_ws.txt`), resolves the main isolate, wraps every `ext.nothingness.*` extension as a typed subcommand, and offers screenshot, hot-reload, hot-restart, and clear-data conveniences.
+For most workflows, drive the app via `drive.py` rather than raw `curl`. It auto-discovers the VM service WebSocket (scanning logcat + `/tmp/flutter_run.log`), caches it in a tmp-sidecar file (`/tmp/drive_vm_ws*.txt` by default, overrideable via `DRIVE_WS_CACHE`), resolves the main isolate, wraps every `ext.nothingness.*` extension as a typed subcommand, and offers screenshot, hot-reload, hot-restart, and clear-data conveniences.
 
 **The operational entry point — `drive.py preflight`/`contract`, the full command surface, the "which lens when" guide, hazards, and per-target launch recipes — lives in `.claude/skills/agent-emulator-debugging/SKILL.md`.** Run `drive.py preflight` first; it detects the host (WSL?), flutter devices, adb, and any live `flutter run`, and recommends the next command. This doc holds the **per-extension reference** (params/returns) and the architecture; the skill holds the command-line workflow. Don't restate the command list here.
 
@@ -189,7 +189,7 @@ Five `drive.py` subcommands look *inside* a running build — at painted text, f
 - **`breakpoint --line N [--uri <pkg-uri>] [--watch e1,e2] [--trigger next|prev|none] [--timeout S]`** → a **true** breakpoint + variable watch. Default uri `package:nothingness/services/playback_controller.dart`, default line 692 (the `await _loadTrack` UI-isolate await). It sets the breakpoint, fires the trigger fire-and-forget on a separate connection, waits for `PauseBreakpoint`, runs `getStack` + `evaluateInFrame` per `--watch` expr, then **always** `removeBreakpoint`+`resume` in a `finally`. Reach for it for "stop here and inspect variables", not tight loops.
 
   **Caveats:**
-  - **`breakpoint` pauses the UI isolate, which freezes ALL `ext.nothingness.*` extensions.** It must run **ALONE** — never concurrently with any other `drive.py` call or another driver. It always resumes in a `finally`; if a session is ever orphaned, recover with the standard `rm .vm_ws.txt && drive.py restart`.
+  - **`breakpoint` pauses the UI isolate, which freezes ALL `ext.nothingness.*` extensions.** It must run **ALONE** — never concurrently with any other `drive.py` call or another driver. It always resumes in a `finally`; if a session is ever orphaned, recover with `rm -f "${DRIVE_WS_CACHE:-/tmp/drive_vm_ws.txt}" && drive.py restart`.
   - **`--trigger next` no-ops at the last queue index** (`nextOrderIndex()` returns null → no load runs). Use `--trigger prev` from the end, or position the queue so a load actually fires.
 
 (`drive.py call` takes the fully-qualified name — `call ext.nothingness.<method>` — but these five are wrapped subcommands, so you won't need `call` for them.)
