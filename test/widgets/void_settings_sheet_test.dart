@@ -180,6 +180,30 @@ void main() {
       expect(byK('void-settings-mic-permission'), findsNothing);
     });
 
+    testWidgets('cassette variant row sits right under the screen row',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      await SettingsService().saveScreenConfig(const CassetteScreenConfig());
+
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+      final screenRow = find.byKey(
+        const ValueKey('void-settings-screen'),
+        skipOffstage: false,
+      );
+      final variantRow = find.byKey(
+        const ValueKey('void-settings-cassette-variant'),
+        skipOffstage: false,
+      );
+
+      expect(screenRow, findsOneWidget);
+      expect(variantRow, findsOneWidget);
+      expect(
+        tester.getTopLeft(variantRow).dy,
+        greaterThan(tester.getTopLeft(screenRow).dy),
+      );
+    });
+
     testWidgets('background mode hides library + sound rows',
         (tester) async {
       SettingsService().operatingModeNotifier.value = OperatingMode.background;

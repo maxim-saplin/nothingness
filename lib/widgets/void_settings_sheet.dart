@@ -354,16 +354,6 @@ class VoidSettingsSheet extends HookWidget {
                   (v) => cfg.copyWith(textScale: v)),
             ],
           CassetteScreenConfig() => [
-              _Cycle(
-                'void-settings-cassette-variant',
-                'variant',
-                cassetteVariantMeta[cfg.variant]!.label,
-                () {
-                  final next = CassetteVariant.values[
-                      (cfg.variant.index + 1) % CassetteVariant.values.length];
-                  settings.saveScreenConfig(cfg.copyWith(variant: next));
-                },
-              ),
               textSize('void-settings-cassette-text-size', cfg.textScale,
                   (v) => cfg.copyWith(textScale: v)),
               _Toggle(
@@ -400,6 +390,17 @@ class VoidSettingsSheet extends HookWidget {
                 const [ThemeVariant.dark, ThemeVariant.light, ThemeVariant.system],
                 settings.themeVariantNotifier.value))),
         _Cycle('void-settings-screen', 'screen', labelFor(cfg.type), cycleScreen),
+        if (cfg is CassetteScreenConfig)
+          _Cycle(
+            'void-settings-cassette-variant',
+            'variant',
+            cassetteVariantMeta[cfg.variant]!.label,
+            () {
+              final next = CassetteVariant.values[
+                  (cfg.variant.index + 1) % CassetteVariant.values.length];
+              settings.saveScreenConfig(cfg.copyWith(variant: next));
+            },
+          ),
         _Toggle('void-settings-immersive', 'immersive',
             settings.immersiveNotifier.value,
             () => settings.setImmersive(!settings.immersiveNotifier.value)),
@@ -461,8 +462,7 @@ class VoidSettingsSheet extends HookWidget {
         // (Dot, Void) don't show an empty header (B-034 hid the rows, B-050 the
         // header too).
         // Cassette's VU variant consumes raw spectrum data but is not governed
-        // by these bar-rendering knobs, so it opts out of the SOUND group (else
-        // the group buries the cassette variant selector below it).
+        // by these bar-rendering knobs, so it opts out of the SOUND group.
         if (isOwn && cfg.usesVisualizer && cfg is! CassetteScreenConfig) ...[
           _Group('SOUND'),
           _Cycle('void-settings-bar-count', 'bar count',

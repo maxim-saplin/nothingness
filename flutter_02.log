@@ -1,0 +1,91 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter test --machine -d macos /Users/admin/src/nothingness/test
+
+## exception
+
+PathExistsException: PathExistsException: Cannot create link, path = '/Users/admin/src/nothingness/macos/Flutter/ephemeral/Packages/.packages/shared_preferences_foundation-2.5.6' (OS Error: File exists, errno = 17)
+
+```
+#0      _Link.throwIfError (dart:io/link.dart:358:7)
+#1      _Link.createSync (dart:io/link.dart:276:5)
+#2      ForwardingLink.createSync (package:file/src/forwarding/forwarding_link.dart:20:16)
+#3      ForwardingLink.createSync (package:file/src/forwarding/forwarding_link.dart:20:16)
+#4      SwiftPackageManager._dependenciesForPlugins (package:flutter_tools/src/macos/swift_package_manager.dart:177:21)
+#5      SwiftPackageManager.generatePluginsSwiftPackage (package:flutter_tools/src/macos/swift_package_manager.dart:72:9)
+#6      DarwinDependencyManagement.setUp (package:flutter_tools/src/macos/darwin_dependency_management.dart:77:34)
+#7      injectPlugins (package:flutter_tools/src/flutter_plugins.dart:1381:42)
+<asynchronous suspension>
+#8      FlutterProject.ensureReadyForPlatformSpecificTooling (package:flutter_tools/src/project.dart:420:5)
+<asynchronous suspension>
+#9      FlutterCommand.regeneratePlatformSpecificToolingIfApplicable (package:flutter_tools/src/runner/flutter_command.dart:2010:5)
+<asynchronous suspension>
+#10     FlutterCommand.verifyThenRunCommand (package:flutter_tools/src/runner/flutter_command.dart:1966:7)
+<asynchronous suspension>
+#11     FlutterCommand.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command.dart:1630:27)
+<asynchronous suspension>
+#12     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#13     CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#14     FlutterCommandRunner.runCommand.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:496:9)
+<asynchronous suspension>
+#15     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#16     FlutterCommandRunner.runCommand (package:flutter_tools/src/runner/flutter_command_runner.dart:431:5)
+<asynchronous suspension>
+#17     FlutterCommandRunner.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:307:33)
+<asynchronous suspension>
+#18     run.<anonymous closure>.<anonymous closure> (package:flutter_tools/runner.dart:104:11)
+<asynchronous suspension>
+#19     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#20     main (package:flutter_tools/executable.dart:103:3)
+<asynchronous suspension>
+```
+
+## flutter doctor
+
+```
+[✓] Flutter (Channel stable, 3.44.1, on macOS 26.5.1 25F80 darwin-arm64, locale en-BY) [185ms]
+    • Flutter version 3.44.1 on channel stable at /Users/admin/flutter
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision 924134a44c (11 days ago), 2026-05-29 12:13:22 -0400
+    • Engine revision c416acfeb8
+    • Dart version 3.12.1
+    • DevTools version 2.57.0
+    • Feature flags: enable-web, no-enable-linux-desktop, enable-macos-desktop, no-enable-windows-desktop, enable-android, no-enable-ios, cli-animations, enable-native-assets, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration
+
+[✓] Android toolchain - develop for Android devices (Android SDK version 36.0.0) [1,550ms]
+    • Android SDK at /Users/admin/android-sdk/
+    • Emulator version 36.3.10.0 (build_id 14472402) (CL:N/A)
+    • Platform android-36, build-tools 36.0.0
+    • ANDROID_HOME = /Users/admin/Library/Android/sdk
+    • ANDROID_SDK_ROOT = /Users/admin/android-sdk
+    • Java binary at: /Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java
+      This is the JDK bundled with the latest Android Studio installation on this machine.
+      To manually set the JDK path, use: `flutter config --jdk-dir="path/to/jdk"`.
+    • Java version OpenJDK Runtime Environment (build 21.0.8+-14196175-b1038.72)
+    • All Android licenses accepted.
+
+[!] Xcode - develop for iOS and macOS (Xcode 26.5) [738ms]
+    • Xcode at /Applications/Xcode.app/Contents/Developer
+    • Build 17F42
+    ✗ Unable to get list of installed Simulator runtimes.
+    • CocoaPods version 1.16.2
+
+[✓] Chrome - develop for the web [4ms]
+    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+[✓] Connected device (2 available) [5.8s]
+    • macOS (desktop) • macos  • darwin-arm64   • macOS 26.5.1 25F80 darwin-arm64
+    • Chrome (web)    • chrome • web-javascript • Google Chrome 149.0.7827.55
+
+[✓] Network resources [301ms]
+    • All expected network resources are available.
+
+! Doctor found issues in 1 category.
+```
