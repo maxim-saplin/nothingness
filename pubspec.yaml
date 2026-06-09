@@ -31,9 +31,9 @@ dependencies:
   bloc: ^9.2.1
   bloc_concurrency: ^0.3.0
 
-# Local fork of flutter_soloud carrying native Opus support in loadFile/loadMem
-# (decodes Opus on the background/compute isolate instead of the UI isolate).
-# Tracked as a git submodule at ./soloud; remove once the change is upstream.
+# Local vendored fork of flutter_soloud carrying native Opus support in
+# loadFile/loadMem (decodes Opus on the background/compute isolate instead of
+# the UI isolate). Remove once the change is upstream.
 dependency_overrides:
   flutter_soloud:
     path: ./soloud

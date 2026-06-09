@@ -1,4 +1,0 @@
-[submodule "soloud"]
-	path = soloud
-	url = https://github.com/maxim-saplin/flutter_soloud.git
-	branch = opus-loadfile
