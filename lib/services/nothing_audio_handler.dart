@@ -21,6 +21,10 @@ class NothingAudioHandler extends BaseAudioHandler
     final transport = SoLoudTransport(
       openFd: openAndroidAudioFd,
       closeFd: closeAndroidAudioFd,
+      // Fallback for sources where an fd can't be opened (non-seekable / exotic
+      // providers): read bytes and loadMem. fd-first keeps the whole-file bytes
+      // off the UI isolate for the common (local media) case.
+      readBytes: readAndroidAudioBytes,
     )..setCaptureEnabled(false);
     final controller = PlaybackController(
       transport: transport,

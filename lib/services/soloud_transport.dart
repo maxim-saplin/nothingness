@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/spectrum_settings.dart';
 import '../models/supported_extensions.dart';
@@ -11,20 +12,29 @@ import 'soloud_spectrum_provider.dart';
 
 /// Thin SoLoud-backed AudioTransport — no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
-  /// On Android, supply [openFd] and [closeFd] so shared-storage tracks load
-  /// natively using content-URI descriptors without touching the UI isolate.
-  /// Returns null to fall back to a direct file load (desktop, or app-private paths).
-  SoLoudTransport({this.openFd, this.closeFd});
+  /// On Android, supply [readAndroidAudioBytes] so shared-storage tracks load
+  /// via a MediaStore content URI (scoped storage blocks raw-path access). When
+  /// null, or when it returns null, [_openSource] falls back to a direct file
+  /// load (desktop, or app-private paths).
+  SoLoudTransport({this.readBytes, this.openFd, this.closeFd});
+
+  /// Resolves a track path to playable bytes (e.g. via a content:// URI).
+  /// Returns null to fall back to a direct file load.
+  final Future<Uint8List?> Function(String path)? readBytes;
 
   /// B-049 spike: resolves a path to a `/proc/self/fd/N` string (content-URI fd)
   /// so `loadFile` reads+decodes it in the compute isolate — no UI-isolate byte
-  /// marshal. Returns null to fall back to direct file load. [closeFd] releases it.
+  /// marshal. Returns null to fall back to [readBytes]. [closeFd] releases it.
   final Future<String?> Function(String path)? openFd;
   final Future<void> Function(String fdPath)? closeFd;
 
   static const Set<String> supportedExtensions =
       SupportedExtensions.supportedExtensions;
   static const Duration _endTolerance = Duration(milliseconds: 120);
+
+    @visibleForTesting
+    static bool shouldPreloadPath(String path) =>
+      p.extension(path).toLowerCase() != '.opus';
 
   static Future<bool> probeAvailable() async {
     try {
@@ -335,6 +345,11 @@ class SoLoudTransport implements AudioTransport {
   @override
   Future<void> preload(String path) async {
     await _ensurePlayerReady();
+    if (!shouldPreloadPath(path)) {
+      await _disposePreloaded();
+      debugPrint('[SoLoudTransport] skip preload for $path');
+      return;
+    }
     if (path == _currentPath) return;
     if (path == _preloadedPath && _preloadedSource != null) return;
 
@@ -361,15 +376,29 @@ class SoLoudTransport implements AudioTransport {
 
   /// Decode [path] into a SoLoud [AudioSource] without playing it.
   ///
-  /// When a path is not openable directly, we resolve it to a `/proc/self/fd/N` string
-  /// (content-URI fd) so `loadFile` reads+decodes it in the compute isolate.
-  /// Otherwise it loads directly from the filesystem.
+  /// When a [readBytes] resolver is supplied (Android) and yields bytes, the
+  /// source is decoded from memory (off the UI isolate via SoLoud's `compute`)
+  /// — this is how scoped-storage tracks reach the decoder, since their raw
+  /// path isn't openable. Otherwise it loads directly from the filesystem.
   Future<AudioSource> _openSource(String path) async {
+    // Opus now decodes natively inside loadFile/loadMem (forked flutter_soloud,
+    // on the compute isolate) exactly like mp3 — no more UI-isolate buffer-stream
+    // feed. So every format takes the same path here.
+    final isOpus = p.extension(path).toLowerCase() == '.opus';
+    final sw = isOpus ? (Stopwatch()..start()) : null;
+    void perf(String mode) {
+      if (sw != null) {
+        debugPrint('[OPUS-PERF] mode=$mode total_ms=${sw.elapsedMilliseconds} '
+            'file=${p.basename(path)}');
+      }
+    }
+
     // Fast path first: load straight from the filesystem — no whole-file read or
     // platform-channel marshal. Works wherever the raw path is openable (desktop
     // and most Android devices), which is the common case.
     try {
       final source = await _soloud.loadFile(path);
+      perf('loadFile');
       return source;
     } catch (e) {
       // Raw-path access is blocked on Android scoped storage (API 30+).
@@ -380,13 +409,20 @@ class SoLoudTransport implements AudioTransport {
         if (fdPath != null) {
           try {
             final source = await _soloud.loadFile(fdPath);
+            perf('fd');
             return source;
           } finally {
             if (closeFd != null) unawaited(closeFd!(fdPath));
           }
         }
       }
-      rethrow;
+      // Fall back to a MediaStore content-URI byte read when wired; else surface.
+      if (readBytes == null) rethrow;
+      final bytes = await readBytes!(path);
+      if (bytes == null) rethrow;
+      final source = await _soloud.loadMem(path, bytes);
+      perf('loadMem');
+      return source;
     }
   }
 
