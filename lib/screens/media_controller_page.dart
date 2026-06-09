@@ -191,7 +191,7 @@ class MediaControllerPage extends HookWidget {
         platformChannels.refreshSessions();
         attachSpectrumSource();
         checkPermissions();
-      } else if (state == AppLifecycleState.paused) {
+      } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
         isAppInBackground.value = true;
         // Background-mode visualisation only: drop transport spectrum capture.
         // Timers stay live so the Android handler keeps the MediaSession +
