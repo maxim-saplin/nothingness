@@ -63,6 +63,7 @@ class AgentService {
     'getWidgetTree': _getWidgetTree,
     'getSemantics': _getSemantics,
     'tapByKey': _tapByKey,
+    'dragByKey': _dragByKey,
     'getSettings': _getSettings,
     'setSetting': _setSetting,
     // Playback shortcuts.
@@ -233,6 +234,81 @@ class AgentService {
     return false;
   });
 
+  /// Invoke horizontal/vertical drag callbacks on the first matching
+  /// [GestureDetector] in [root]'s subtree.
+  static bool _invokeDragInSubtree(
+    Element root, {
+    required Offset startGlobal,
+    required double dx,
+    required double dy,
+    required int steps,
+  }) {
+    final isHorizontal = dx.abs() >= dy.abs();
+    final delta = Offset(dx / steps, dy / steps);
+    return _walkSubtree(root, (el) {
+      final widget = el.widget;
+      if (widget is! GestureDetector) return false;
+      final ro = el.findRenderObject();
+      if (ro is! RenderBox || !ro.attached || !ro.hasSize || ro.size.isEmpty) {
+        return false;
+      }
+
+      if (isHorizontal) {
+        final onStart = widget.onHorizontalDragStart;
+        final onUpdate = widget.onHorizontalDragUpdate;
+        final onEnd = widget.onHorizontalDragEnd;
+        if (onStart == null || onUpdate == null || onEnd == null) {
+          return false;
+        }
+        onStart(
+          DragStartDetails(
+            globalPosition: startGlobal,
+            localPosition: ro.globalToLocal(startGlobal),
+          ),
+        );
+        var p = startGlobal;
+        for (var i = 0; i < steps; i++) {
+          p += delta;
+          onUpdate(
+            DragUpdateDetails(
+              globalPosition: p,
+              localPosition: ro.globalToLocal(p),
+              delta: delta,
+              primaryDelta: delta.dx,
+            ),
+          );
+        }
+        onEnd(DragEndDetails(primaryVelocity: 0));
+        return true;
+      }
+
+      final onStart = widget.onVerticalDragStart;
+      final onUpdate = widget.onVerticalDragUpdate;
+      final onEnd = widget.onVerticalDragEnd;
+      if (onStart == null || onUpdate == null || onEnd == null) return false;
+      onStart(
+        DragStartDetails(
+          globalPosition: startGlobal,
+          localPosition: ro.globalToLocal(startGlobal),
+        ),
+      );
+      var p = startGlobal;
+      for (var i = 0; i < steps; i++) {
+        p += delta;
+        onUpdate(
+          DragUpdateDetails(
+            globalPosition: p,
+            localPosition: ro.globalToLocal(p),
+            delta: delta,
+            primaryDelta: delta.dy,
+          ),
+        );
+      }
+      onEnd(DragEndDetails(primaryVelocity: 0));
+      return true;
+    });
+  }
+
   /// Invoke the first `onTap` on [element], its ancestors, then its subtree.
   static bool _invokeOnTapAncestor(Element element) {
     final self = _onTapOf(element);
@@ -356,6 +432,127 @@ class AgentService {
       'widget with key "$keyValue" found but has no descendant callback, '
       'no RenderBox, and no tappable ancestor',
     );
+  }
+
+  static _R _dragByKey(String method, Map<String, String> params) async {
+    final keyValue = params['key'];
+    if (keyValue == null || keyValue.isEmpty) {
+      return _error('key parameter required');
+    }
+    final dx = double.tryParse(params['dx'] ?? '');
+    final dy = double.tryParse(params['dy'] ?? '');
+    if (dx == null || dy == null) {
+      return _error('dx and dy parameters required (double)');
+    }
+    final steps = (int.tryParse(params['steps'] ?? '8') ?? 8).clamp(1, 120);
+    final kindParam = (params['kind'] ?? '').toLowerCase();
+    final pointerKind = switch (kindParam) {
+      'touch' => PointerDeviceKind.touch,
+      'mouse' => PointerDeviceKind.mouse,
+      _ => (defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux ||
+              defaultTargetPlatform == TargetPlatform.windows)
+          ? PointerDeviceKind.mouse
+          : PointerDeviceKind.touch,
+    };
+
+    final element = _findElementByKey(keyValue);
+    if (element == null) {
+      return _error('no widget found with key "$keyValue"');
+    }
+
+    final ro = element.findRenderObject();
+    if (ro is! RenderBox || !ro.attached || !ro.hasSize || ro.size.isEmpty) {
+      return _error('widget with key "$keyValue" has no usable RenderBox');
+    }
+
+    final binding = GestureBinding.instance;
+    final start = ro.localToGlobal(ro.size.center(Offset.zero));
+
+    // Prefer direct gesture callbacks for deterministic behavior on desktop
+    // bindings where synthetic drags can miss GestureDetector recognizers.
+    if (_invokeDragInSubtree(
+      element,
+      startGlobal: start,
+      dx: dx,
+      dy: dy,
+      steps: steps,
+    )) {
+      final end = Offset(start.dx + dx, start.dy + dy);
+      return _ok({
+        'dragged': keyValue,
+        'from': {'x': start.dx, 'y': start.dy},
+        'to': {'x': end.dx, 'y': end.dy},
+        'steps': steps,
+        'mode': 'descendant-callback',
+      });
+    }
+
+    _syntheticPointerSeq++;
+    final pointer = 0x70000 | (_syntheticPointerSeq & 0xFFFF);
+    final t0 = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+
+    binding.handlePointerEvent(
+      PointerAddedEvent(
+        pointer: pointer,
+        position: start,
+        kind: pointerKind,
+        timeStamp: t0,
+      ),
+    );
+    binding.handlePointerEvent(
+      PointerDownEvent(
+        pointer: pointer,
+        position: start,
+        kind: pointerKind,
+        buttons: kPrimaryButton,
+        timeStamp: t0,
+      ),
+    );
+
+    for (var i = 1; i <= steps; i++) {
+      final p = Offset(
+        start.dx + (dx * i / steps),
+        start.dy + (dy * i / steps),
+      );
+      final ts = t0 + Duration(milliseconds: 8 * i);
+      binding.handlePointerEvent(
+        PointerMoveEvent(
+          pointer: pointer,
+          position: p,
+          kind: pointerKind,
+          buttons: kPrimaryButton,
+          timeStamp: ts,
+        ),
+      );
+    }
+
+    final end = Offset(start.dx + dx, start.dy + dy);
+    final tEnd = t0 + Duration(milliseconds: 8 * (steps + 1));
+    binding.handlePointerEvent(
+      PointerUpEvent(
+        pointer: pointer,
+        position: end,
+        kind: pointerKind,
+        timeStamp: tEnd,
+      ),
+    );
+    binding.handlePointerEvent(
+      PointerRemovedEvent(
+        pointer: pointer,
+        position: end,
+        kind: pointerKind,
+        timeStamp: tEnd,
+      ),
+    );
+
+    return _ok({
+      'dragged': keyValue,
+      'from': {'x': start.dx, 'y': start.dy},
+      'to': {'x': end.dx, 'y': end.dy},
+      'steps': steps,
+      'kind': pointerKind.name,
+    });
   }
 
   static _R _getSettings(String method, Map<String, String> params) async {
