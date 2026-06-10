@@ -493,6 +493,28 @@ void main() {
       expect(provider.nextCalls, 0);
       expect(provider.previousCalls, 0);
     });
+
+    testWidgets('hero drag replaces crumb path with seek preview strip',
+        (tester) async {
+      final provider = _RecordingTransportProvider()..setSongInfo(song());
+      await _pump(tester, const SpectrumScreenConfig(), provider: provider);
+
+      expect(find.text('~'), findsOneWidget);
+
+      final gesture = await tester.startGesture(const Offset(400, 80));
+      await gesture.moveBy(const Offset(140, 0));
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('void-crumb-seek-preview')), findsOneWidget);
+      expect(find.text('~'), findsNothing);
+      expect(find.textContaining(' / 1:00'), findsOneWidget);
+
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 1300));
+
+      expect(find.byKey(const ValueKey('void-crumb-seek-preview')), findsNothing);
+      expect(find.text('~'), findsOneWidget);
+    });
   });
 
   _b031Tests();

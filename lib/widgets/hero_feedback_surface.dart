@@ -3,7 +3,6 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
-import 'retro_lcd_display.dart';
 
 /// Drives the directional edge flash from outside the widget (replaces the old
 /// `GlobalKey<HeroFeedbackSurfaceState>.flashSwipe`). Each [flash] bumps a
@@ -41,6 +40,7 @@ class HeroFeedbackSurface extends HookWidget {
     required this.onSeek,
     required this.positionMs,
     required this.durationMs,
+    this.onSeekPreviewChanged,
     this.flashController,
     this.onVerticalDragUpdate,
     this.onVerticalDragEnd,
@@ -70,13 +70,19 @@ class HeroFeedbackSurface extends HookWidget {
   /// Current track duration in ms — read at drag start.
   final int Function() durationMs;
 
+  /// Emits seek preview lifecycle updates while horizontal drag is active.
+  final void Function({
+    required bool active,
+    required int targetMs,
+    required int durationMs,
+  })? onSeekPreviewChanged;
+
   final void Function(DragUpdateDetails)? onVerticalDragUpdate;
   final void Function(DragEndDetails)? onVerticalDragEnd;
 
   /// Stable keys for widget tests.
   static const Key tapRingKey = ValueKey<String>('hero-tap-ring');
   static const Key swipeFlashKey = ValueKey<String>('hero-swipe-flash');
-  static const Key seekHudKey = ValueKey<String>('hero-seek-hud');
 
   /// Duration of each feedback animation.
   static const Duration ringDuration = Duration(milliseconds: 180);
@@ -164,6 +170,11 @@ class HeroFeedbackSurface extends HookWidget {
       seekAccumDx.value = 0;
       seekTargetMs.value = seekStartMs.value;
       seeking.value = true;
+      onSeekPreviewChanged?.call(
+        active: true,
+        targetMs: seekTargetMs.value,
+        durationMs: seekDurationMs.value,
+      );
     }
 
     void onSeekUpdate(DragUpdateDetails d) {
@@ -173,12 +184,22 @@ class HeroFeedbackSurface extends HookWidget {
           (seekAccumDx.value / width.value) * seekDurationMs.value;
       seekTargetMs.value =
           raw.clamp(0, seekDurationMs.value.toDouble()).round();
+      onSeekPreviewChanged?.call(
+        active: true,
+        targetMs: seekTargetMs.value,
+        durationMs: seekDurationMs.value,
+      );
     }
 
     void onSeekEnd(DragEndDetails _) {
       final hadDuration = seekDurationMs.value > 0;
       final target = seekTargetMs.value;
       seeking.value = false;
+      onSeekPreviewChanged?.call(
+        active: false,
+        targetMs: target,
+        durationMs: seekDurationMs.value,
+      );
       if (hadDuration) {
         onSeek(Duration(milliseconds: target));
       }
@@ -264,74 +285,9 @@ class HeroFeedbackSurface extends HookWidget {
                 ),
               ),
             ),
-            // Seek HUD — time readout + preview line, only while scrubbing.
-            if (seeking.value)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: _SeekHud(
-                    fraction: seekDurationMs.value <= 0
-                        ? 0
-                        : (seekTargetMs.value / seekDurationMs.value)
-                            .clamp(0.0, 1.0),
-                    label: seekDurationMs.value <= 0
-                        ? '--:-- / --:--'
-                        : '${formatClock(seekTargetMs.value)} / ${formatClock(seekDurationMs.value)}',
-                    palette: palette,
-                    typography: typography,
-                  ),
-                ),
-              ),
           ],
         );
       },
-    );
-  }
-}
-
-/// Centered time readout + a thin full-width preview line at [fraction].
-class _SeekHud extends StatelessWidget {
-  const _SeekHud({
-    required this.fraction,
-    required this.label,
-    required this.palette,
-    required this.typography,
-  });
-
-  final double fraction;
-  final String label;
-  final AppPalette palette;
-  final AppTypography typography;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      key: HeroFeedbackSurface.seekHudKey,
-      fit: StackFit.expand,
-      children: [
-        Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: palette.fgPrimary,
-              fontFamily: typography.monoFamily,
-              fontSize: typography.heroSize * 0.5,
-              height: 1,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-        ),
-        // Preview line: full-height marker at the target x (fraction → -1..1).
-        Align(
-          alignment: Alignment(fraction * 2 - 1, 0),
-          child: FractionallySizedBox(
-            heightFactor: 1,
-            child: SizedBox(
-              width: 2,
-              child: ColoredBox(color: palette.progress),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

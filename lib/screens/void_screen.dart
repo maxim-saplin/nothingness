@@ -26,6 +26,7 @@ import '../widgets/heroes/spectrum_hero.dart';
 import '../widgets/heroes/void_hero.dart';
 import '../widgets/mid_ellipsis.dart';
 import '../widgets/press_feedback.dart';
+import '../widgets/retro_lcd_display.dart';
 import '../widgets/transport_row.dart';
 import '../widgets/void_browser.dart';
 import '../widgets/void_settings_sheet.dart';
@@ -41,6 +42,8 @@ const Duration _jumpGlyphHideDebounce = Duration(milliseconds: 200);
 // Settle window after opening the browser so its first frame lays out before
 // we navigate + scroll; ~250 ms reads as one gesture.
 const Duration _browserOpenSettle = Duration(milliseconds: 250);
+// Keep seek preview visible briefly after drag-end so the target is readable.
+const Duration _seekPreviewHold = Duration(milliseconds: 1200);
 
 /// Home shell for all four visualisations: hero, embedded [VoidBrowser],
 /// transport row, crumb (path / search), progress hairline. Hero tap-zones
@@ -131,6 +134,9 @@ class VoidScreen extends HookWidget {
     final lastPersistedPath = useRef<String?>(null);
     final hintFadeTimer = useRef<Timer?>(null);
     final jumpGlyphHideTimer = useRef<Timer?>(null);
+    final seekPreviewClearTimer = useRef<Timer?>(null);
+    final seekPreviewTargetMs = useState<int?>(null);
+    final seekPreviewDurationMs = useState(0);
     // B-031: the latch is a ref (mutated during build, mirroring the old plain
     // field) so flipping it true never notifies mid-build; the hide-timer bumps
     // [rebuildTick] to force the one rebuild that drops the glyph.
@@ -412,6 +418,9 @@ class VoidScreen extends HookWidget {
       const [],
     );
 
+    // Cancel seek-preview timer on unmount.
+    useEffect(() => () => seekPreviewClearTimer.value?.cancel(), const []);
+
     // --- theming helpers -----------------------------------------------------
 
     final theme = Theme.of(context);
@@ -493,6 +502,7 @@ class VoidScreen extends HookWidget {
           browserPresentation.value == BrowserPresentation.swipeUp &&
           !browserExpanded.value;
       return HeroFeedbackSurface(
+        key: const ValueKey('void-hero-gesture-surface'),
         flashController: heroFlashController,
         onPlayPause: () => player.playPause(),
         onPrevious: () => player.previous(),
@@ -500,6 +510,21 @@ class VoidScreen extends HookWidget {
         onSeek: (d) => player.seek(d),
         positionMs: () => player.songInfo?.position ?? 0,
         durationMs: () => player.songInfo?.duration ?? 0,
+        onSeekPreviewChanged: ({
+          required bool active,
+          required int targetMs,
+          required int durationMs,
+        }) {
+          seekPreviewClearTimer.value?.cancel();
+          seekPreviewTargetMs.value = targetMs;
+          seekPreviewDurationMs.value = durationMs;
+          if (!active) {
+            seekPreviewClearTimer.value = Timer(_seekPreviewHold, () {
+              seekPreviewTargetMs.value = null;
+              seekPreviewDurationMs.value = 0;
+            });
+          }
+        },
         onVerticalDragUpdate: acceptVertical ? onHeroVerticalDrag : null,
         onVerticalDragEnd: acceptVertical ? onHeroVerticalDragEnd : null,
         child: child,
@@ -585,6 +610,53 @@ class VoidScreen extends HookWidget {
                     vertical: 12,
                   ),
                   child: buildSearchCrumb(),
+                );
+              }
+              final seekTargetMs = seekPreviewTargetMs.value;
+              if (seekTargetMs != null) {
+                final durationMs = seekPreviewDurationMs.value;
+                final fraction = durationMs <= 0
+                    ? 0.0
+                    : (seekTargetMs / durationMs).clamp(0.0, 1.0);
+                final label = durationMs <= 0
+                    ? '--:-- / --:--'
+                    : '${formatClock(seekTargetMs)} / ${formatClock(durationMs)}';
+                final textStyle = mono(
+                  palette.fgPrimary,
+                  typography.crumbSize,
+                ).copyWith(
+                  color: null,
+                  foreground: Paint()
+                    ..blendMode = BlendMode.difference
+                    ..color = Colors.white,
+                );
+                return Stack(
+                  key: const ValueKey('void-crumb-seek-preview'),
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(color: palette.background),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: fraction,
+                        heightFactor: 1,
+                        child: ColoredBox(color: palette.fgPrimary),
+                      ),
+                    ),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.fade,
+                          softWrap: false,
+                          style: textStyle,
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               }
               LibraryController? controller;

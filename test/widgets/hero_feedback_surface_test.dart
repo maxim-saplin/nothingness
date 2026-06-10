@@ -20,6 +20,7 @@ void main() {
     Widget widget,
     List<String> events,
     List<Duration> seeks,
+    List<({bool active, int targetMs, int durationMs})> previews,
   }) build({
     HeroFlashController? flashController,
     int positionMs = 10000,
@@ -27,6 +28,7 @@ void main() {
   }) {
     final events = <String>[];
     final seeks = <Duration>[];
+    final previews = <({bool active, int targetMs, int durationMs})>[];
     final w = SizedBox(
       width: 400,
       height: 400,
@@ -38,10 +40,19 @@ void main() {
         onSeek: (d) => seeks.add(d),
         positionMs: () => positionMs,
         durationMs: () => durationMs,
+        onSeekPreviewChanged: ({
+          required bool active,
+          required int targetMs,
+          required int durationMs,
+        }) {
+          previews.add(
+            (active: active, targetMs: targetMs, durationMs: durationMs),
+          );
+        },
         child: const ColoredBox(color: Colors.black),
       ),
     );
-    return (widget: w, events: events, seeks: seeks);
+    return (widget: w, events: events, seeks: seeks, previews: previews);
   }
 
   group('tap ring', () {
@@ -148,7 +159,7 @@ void main() {
       expect(b.seeks.single.inSeconds, lessThan(40));
     });
 
-    testWidgets('the seek HUD shows the time readout while dragging',
+    testWidgets('emits seek preview updates while dragging',
         (tester) async {
       final b = build(positionMs: 10000, durationMs: 60000);
       await tester.pumpWidget(host(b.widget));
@@ -158,14 +169,19 @@ void main() {
       await gesture.moveBy(const Offset(120, 0));
       await tester.pump();
 
-      expect(find.byKey(HeroFeedbackSurface.seekHudKey), findsOneWidget);
-      // Readout is "m:ss / m:ss".
-      expect(find.textContaining(' / 1:00'), findsOneWidget);
+      expect(b.previews, isNotEmpty);
+      expect(
+        b.previews.where((p) => p.active).isNotEmpty,
+        isTrue,
+      );
+      expect(
+        b.previews.last.durationMs,
+        60000,
+      );
 
       await gesture.up();
       await tester.pump();
-      // HUD is gone once the drag ends.
-      expect(find.byKey(HeroFeedbackSurface.seekHudKey), findsNothing);
+      expect(b.previews.last.active, isFalse);
     });
 
     testWidgets('with no duration the drag does not seek', (tester) async {
