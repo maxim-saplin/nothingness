@@ -4,6 +4,6 @@
   // (for example: `flutter test integration_test/...`).
   "dart.allowTestsOutsideTestFolder": false,
 
-  // Extra guard: exclude integration tests explicitly from discovery.
-  "dart.testExclude": ["integration_test/**"]
+  // // Extra guard: exclude integration tests explicitly from discovery.
+  // "dart.testExclude": ["integration_test/**"]
 }

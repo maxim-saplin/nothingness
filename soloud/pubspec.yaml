@@ -63,16 +63,6 @@ flutter:
         default_package: true
 
   assets:
-    # These assets are only needed for the web platform.
-    # https://github.com/flutter/flutter/pull/176393
-    - path: web/worker.dart.js
-      platforms: [web]
-    - path: web/libflutter_soloud_plugin.js
-      platforms: [web]
-    - path: web/libflutter_soloud_plugin.wasm
-      platforms: [web]
-    - path: web/init_module.dart.js
-      platforms: [web]
 
 funding:
   - https://github.com/sponsors/alnitak
