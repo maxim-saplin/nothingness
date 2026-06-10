@@ -47,7 +47,7 @@ Score 0–3 (FAIL / BAD / AVG / GOOD) · `(s)` skill-prompted · `2→3(s)` plai
 
 ## Token economics (pi session counters)
 
-Legend: **↑** input · **↓** output · **R** reasoning · **CH** cache-hit · **Peak** high-water context fill (window: 262k local/Google, 400k GPT) · `·s` skill-prompted. All sessions ran with auto-compaction on.
+Legend: **↑** input · **↓** output · **R** reasoning · **CH** cache-hit · **Peak** high-water context fill (window: 262k local/Google, 400k GPT) · `·s` skill-prompted. ↑ is cumulative across every turn in the session; no compaction was ever used.
 
 | Task | Model · run (score) | ↑ in | ↓ out | R | CH | Peak |
 |---|---|--:|--:|--:|--:|--:|
@@ -79,7 +79,7 @@ Patterns:
 - **Cache-hit is the hidden cost lever — and erratic on hosted Gemma.** GPT held 85.9–99.5%; gemma-31b swung 66.7–98.2%; gemma-26b sat at 0.0% twice (no caching → every turn fully reprocessed, compounding the reasoning blow-up).
 - **Local counters omit R and CH entirely.** LM Studio sessions report neither, so Qwen's "thinking" is invisible here and cross-stack reasoning numbers aren't apples-to-apples.
 - **Local burns 10–30× the raw input of GPT for equal-or-worse outcomes** — but at $0. GPT got GOOD on T1 with ↑86k; Qwen got AVG with ↑913k (≈11×). The local penalty is latency/wall-clock, not money.
-- **Peak context stayed moderate (14–59%) even as cumulative ↑ hit millions** — auto-compaction kept any single window small, so the millions are many replay-heavy turns, not one giant prompt.
+- **Peak context stayed moderate (14–59%) even as cumulative ↑ hit millions** — no compaction was ever triggered; each turn just resends the full running transcript, so the millions are plain back-and-forth turnover across many turns, not one giant prompt.
 
 ## Takeaways
 
