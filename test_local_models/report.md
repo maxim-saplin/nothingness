@@ -1,7 +1,7 @@
 # Local & Small Models as Coding Agents — Field Test
 
 
-Most "local LLM" tests are greenfield toy apps in Python/JS, scored on whether the "whater sim" or "flappy birds" looks right. This one inverts all of that:
+Most "local LLM" tests are greenfield toy apps in Python/JS, scored on whether the "water simulation" or "flappy birds" looks right. This one inverts all of that:
 
 - **Real, mutable codebase, not greenfield.** A live ~15k-LOC app the models had to *maintain* — read existing structure, fit conventions, and not break it (several did edit the wrong files).
 - **Hard-for-AI language.** Dart/Flutter, far less represented in training data than Python/JS — capability has nowhere to hide.
