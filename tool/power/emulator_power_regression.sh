@@ -8,7 +8,7 @@ WINDOW_SEC="${WINDOW_SEC:-120}"
 SAMPLE_SEC="${SAMPLE_SEC:-5}"
 CI_MODE=false
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SEED_AUDIO="${SEED_AUDIO:-$ROOT_DIR/soloud/example/assets/audio/8_bit_mentality.mp3}"
+SEED_AUDIO="${SEED_AUDIO:-$ROOT_DIR/soloud/src/filters/signalsmith-stretch/web/demo/loop.mp3}"
 APP_TRACK_PATH="/data/user/0/$PKG/files/8_bit_mentality.mp3"
 
 usage() {
