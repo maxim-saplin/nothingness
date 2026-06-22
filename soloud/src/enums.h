@@ -108,6 +108,8 @@ typedef enum SoundType {
   TYPE_SYNTH,
   // this sound is a streaming buffer
   TYPE_BUFFER_STREAM,
+  // this sound is an on-demand streaming Opus decoder
+  TYPE_OPUS_STREAM,
 } SoundType_t;
 
 typedef enum FilterType {

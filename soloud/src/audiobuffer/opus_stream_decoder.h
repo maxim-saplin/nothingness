@@ -37,7 +37,7 @@ public:
 private:
     AudioMetadata getMetadata(ogg_packet* packet);
     OpusInfo parseOpusHead(ogg_packet *packet);
-    std::vector<float> decodePacket(ogg_packet *packet);
+    void decodePacket(ogg_packet *packet, std::vector<float>& out);
     bool ensureDecoder(int newSampleRate, int newChannels);
 
     OpusDecoder *decoder;
@@ -59,6 +59,10 @@ private:
     int skipSamplesPending;
     int64_t totalOutputSamples;
     int64_t totalSamplesExpected;
+
+    // Reusable scratch buffer for opus_decode_float output, grown on demand
+    // and reused across packets to avoid per-packet allocation/zeroing.
+    std::vector<float> mDecodeScratch;
 
     OpusInfo opusInfo;
 };

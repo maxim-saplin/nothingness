@@ -169,6 +169,19 @@ std::pair<std::vector<float>, DecoderError> OpusDecoderWrapper::decode(std::vect
         return {decodedData, DecoderError::NoError};
     }
 
+    // Reserve output capacity up front to cut reallocation churn. Bounded
+    // heuristic: opus music ~128kbps -> ~48k stereo floats per input byte.
+    const size_t inputBytes = buffer.size();
+    if (inputBytes > 0)
+    {
+        size_t estFloats = inputBytes * 6;
+        const size_t cap = (size_t)64 * 1024 * 1024; // bound to 64M floats
+        if (estFloats > cap)
+            estFloats = cap;
+        if (decodedData.capacity() < estFloats)
+            decodedData.reserve(estFloats);
+    }
+
     // Write data into ogg sync buffer
     char *oggBuffer = ogg_sync_buffer(&oy, buffer.size());
     memcpy(oggBuffer, buffer.data(), buffer.size());
@@ -240,11 +253,7 @@ std::pair<std::vector<float>, DecoderError> OpusDecoderWrapper::decode(std::vect
         // Extract packets from page
         while (ogg_stream_packetout(&os, &op) == 1)
         {
-            auto packetData = decodePacket(&op);
-            if (!packetData.empty())
-            {
-                decodedData.insert(decodedData.end(), packetData.begin(), packetData.end());
-            }
+            decodePacket(&op, decodedData);
         }
     }
 
@@ -319,10 +328,8 @@ OpusInfo OpusDecoderWrapper::parseOpusHead(ogg_packet* packet) {
     return head;
 }
 
-std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
+void OpusDecoderWrapper::decodePacket(ogg_packet* packet, std::vector<float>& out)
 {
-    std::vector<float> packetPcm;
-
     // Skip header packets (first 2 packets in Ogg Opus stream)
     if (!headerParsed)
     {
@@ -335,7 +342,7 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
             }
             catch (const std::exception &)
             {
-                return packetPcm;
+                return;
             }
 
             // Opus only supports specific output sample rates.
@@ -357,7 +364,7 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
 
             if (!ensureDecoder(desiredSampleRate, desiredChannels))
             {
-                return packetPcm;
+                return;
             }
 
             skipSamplesPending = static_cast<int>(
@@ -374,24 +381,31 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
                 (static_cast<int64_t>(opusInfo.pre_skip) * decodingSamplerate + 47999) / 48000);
         }
         packetCount++;
-        return packetPcm;
+        return;
     }
 
     if (decoder == nullptr)
     {
-        return packetPcm;
+        return;
     }
 
     // Opus can handle frame sizes from 2.5ms to 60ms
-    // We'll use buffer size to accommodate any frame size
+    // We'll use buffer size to accommodate any frame size.
+    // Reuse a scratch buffer across packets: opus_decode_float does not
+    // require a zeroed output and only writes the samples it returns, so we
+    // grow on demand and read only [0, samples*channels).
     const int maxFrameSize = decodingSamplerate * 60 / 1000; // 60ms frame size
-    std::vector<float> outputBuffer(maxFrameSize * decodingChannels);
+    const size_t needed = static_cast<size_t>(maxFrameSize) * decodingChannels;
+    if (mDecodeScratch.size() < needed)
+    {
+        mDecodeScratch.resize(needed);
+    }
 
     // Try decoding the packet
     int samples = opus_decode_float(decoder,
                                     packet->packet,
                                     static_cast<opus_int32>(packet->bytes),
-                                    outputBuffer.data(),
+                                    mDecodeScratch.data(),
                                     maxFrameSize,
                                     0);
 
@@ -409,7 +423,7 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
         //             packet->packet[0], packet->packet[1], 
         //             packet->packet[2], packet->packet[3]);
         
-        return packetPcm; // Skip invalid packet instead of throwing
+        return; // Skip invalid packet instead of throwing
     }
 
     if (samples > 0)
@@ -427,7 +441,7 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
 
         if (usableSamples <= 0)
         {
-            return packetPcm;
+            return;
         }
 
         int64_t allowedSamples = usableSamples;
@@ -436,7 +450,7 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
             const int64_t remaining = totalSamplesExpected - totalOutputSamples;
             if (remaining <= 0)
             {
-                return packetPcm;
+                return;
             }
             if (allowedSamples > remaining)
             {
@@ -446,17 +460,16 @@ std::vector<float> OpusDecoderWrapper::decodePacket(ogg_packet* packet)
 
         if (allowedSamples <= 0)
         {
-            return packetPcm;
+            return;
         }
 
         const size_t startIndex = static_cast<size_t>(skippedSamples) * decodingChannels;
         const size_t floatsToCopy = static_cast<size_t>(allowedSamples) * decodingChannels;
 
-        packetPcm.insert(packetPcm.end(),
-                         outputBuffer.begin() + startIndex,
-                         outputBuffer.begin() + startIndex + floatsToCopy);
+        out.insert(out.end(),
+                   mDecodeScratch.data() + startIndex,
+                   mDecodeScratch.data() + startIndex + floatsToCopy);
         totalOutputSamples += allowedSamples;
     }
-    return packetPcm;
 }
 #endif // #if defined(NO_XIPH_LIBS)

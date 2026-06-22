@@ -7,6 +7,7 @@
 // #include "soloud_thread.h"
 #include "soloud_wavstream.h"
 #include "synth/basic_wave.h"
+#include "audiobuffer/opus_stream.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -309,37 +310,18 @@ bool Player::tryLoadOpusBufferStream(
     outErr = xiphLibsNotFound;
     return true;
 #else
-    // Build a PRESERVED, auto-detecting BufferStream — the same source type and
-    // settings the Dart-side workaround used, except the decode now happens in
-    // this (background/compute-isolate) call instead of on the UI isolate.
-    newSound->sound = std::make_unique<SoLoud::BufferStream>();
-    newSound->soundType = SoundType::TYPE_BUFFER_STREAM;
-    auto *stream = static_cast<SoLoud::BufferStream *>(newSound->sound.get());
+    // Build an on-demand streaming Opus source. Unlike the old BufferStream
+    // path that decoded the whole file upfront, OpusStream::load() only copies
+    // the compressed bytes + parses headers + builds a page index; decode now
+    // happens lazily during playback (like SoLoud's MP3 WavStream). This is the
+    // real way to cut track-switch latency.
+    newSound->sound = std::make_unique<SoLoud::OpusStream>();
+    newSound->soundType = SoundType::TYPE_OPUS_STREAM;
+    auto *st = static_cast<SoLoud::OpusStream *>(newSound->sound.get());
+    st->mThePlayer = this;
+    st->mParent = newSound;
 
-    // AUTO autodetects the Opus samplerate/channels from OpusHead; the 44100/2
-    // seed mirrors the values the Dart loader passed. maxBufferSize is a cap,
-    // not an allocation (mirrors the Dart loader's 200 MB headroom).
-    PCMformat fmt = {44100, 2, 4, BufferType::AUTO};
-    outErr = stream->setBufferStream(
-        this, newSound,
-        200u * 1024u * 1024u,
-        BufferingType::PRESERVED,
-        2.0f,
-        fmt, nullptr, nullptr);
-    if (outErr != noError)
-        return true;
-
-    // Feed the whole compressed buffer in one call, then signal end-of-data.
-    // setDataIsEnded() flushes the decoder so getLength() is final and the
-    // end-of-playback (handleIsNoMoreValid) event fires normally.
-    PlayerErrors addErr = stream->addData(mem, (unsigned int)length, false);
-    if (addErr != noError && addErr != pcmBufferFull)
-    {
-        outErr = addErr;
-        return true;
-    }
-    stream->setDataIsEnded();
-    outErr = noError;
+    outErr = st->load(mem, length);
     return true;
 #endif
 }
@@ -951,7 +933,18 @@ void Player::disposeSound(unsigned int soundHash)
                     bufferStream->markForDestruction();
                 }
             }
-            
+            // Mark OpusStream for destruction before removing it. Combined with
+            // isValid() checks and mDecodeMutex in the instance, this makes any
+            // in-flight getAudio()/seek() safe (mirrors BufferStream).
+            else if (it->get()->soundType == SoundType::TYPE_OPUS_STREAM)
+            {
+                auto *opusStream = static_cast<SoLoud::OpusStream *>(it->get()->sound.get());
+                if (opusStream != nullptr)
+                {
+                    opusStream->markForDestruction();
+                }
+            }
+
             // Clear all filters from this sound BEFORE moving it out.
             // This prevents the audio thread from accessing filter instances
             // when the sound is destroyed.
@@ -1006,6 +999,14 @@ void Player::disposeAllSound()
                 if (bufferStream != nullptr)
                 {
                     bufferStream->markForDestruction();
+                }
+            }
+            else if (sound->soundType == SoundType::TYPE_OPUS_STREAM)
+            {
+                auto *opusStream = static_cast<SoLoud::OpusStream *>(sound->sound.get());
+                if (opusStream != nullptr)
+                {
+                    opusStream->markForDestruction();
                 }
             }
             // Clear all filters from this sound
@@ -1151,6 +1152,8 @@ double Player::getLength(unsigned int soundHash)
         return static_cast<SoLoud::Wav *>(s->sound.get())->getLength();
     if (s->soundType == TYPE_BUFFER_STREAM)
         return static_cast<SoLoud::BufferStream *>(s->sound.get())->getLength();
+    if (s->soundType == TYPE_OPUS_STREAM)
+        return static_cast<SoLoud::OpusStream *>(s->sound.get())->getLength();
     if (s->soundType == TYPE_WAVSTREAM)
         return static_cast<SoLoud::WavStream *>(s->sound.get())->getLength();
     return 0.0;
@@ -1169,6 +1172,9 @@ PlayerErrors Player::seek(SoLoud::handle handle, float time)
         return invalidParameter;
 
     // A BufferStream using `release` buffer type cannot use seek.
+    // NOTE: TYPE_OPUS_STREAM is intentionally NOT caught here (this guard tests
+    // == TYPE_BUFFER_STREAM), so it falls through to normal soloud.seek(), which
+    // calls OpusStreamInstance::seek(). No checkBuffering is needed for it.
     if (sound != nullptr && sound->soundType == SoundType::TYPE_BUFFER_STREAM &&
         static_cast<SoLoud::BufferStream *>(sound->sound.get())->getBufferingType() == BufferingType::RELEASED)
     {
@@ -1242,10 +1248,16 @@ int Player::countAudioSource(unsigned int soundHash)
         return 0;
     case TYPE_WAV:
         as = static_cast<SoLoud::Wav *>(s->sound.get());
+        break;
     case TYPE_WAVSTREAM:
         as = static_cast<SoLoud::WavStream *>(s->sound.get());
+        break;
     case TYPE_BUFFER_STREAM:
         as = static_cast<SoLoud::BufferStream *>(s->sound.get());
+        break;
+    case TYPE_OPUS_STREAM:
+        as = static_cast<SoLoud::OpusStream *>(s->sound.get());
+        break;
     default:
         return 0;
     }
