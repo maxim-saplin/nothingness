@@ -244,13 +244,19 @@ if echo "$START_OUT" | grep -qiE 'Error type|does not exist|Exception'; then
   echo "$START_OUT" >&2
   exit 2
 fi
-sleep 8
+# Cold start on a loaded CI x86 emulator is slow (first-frame ~8s, boot "swap"
+# ~18s). Wait generously so boot finishes before the play/pause/home steps and
+# doesn't bleed into the idle measurement window further below.
+sleep 25
 adb -s "$DEVICE" shell am start -n "$ACTIVITY" -a "$PKG.action.PLAY" >/dev/null
 sleep 4
 adb -s "$DEVICE" shell am start -n "$ACTIVITY" -a "$PKG.action.PAUSE" >/dev/null
 sleep 4
 adb -s "$DEVICE" shell input keyevent KEYCODE_HOME
-sleep 8
+# Let the backgrounding/teardown transition (audio hibernation, final frames,
+# any remaining cold-start work) fully settle before measuring true idle; this
+# is slow on CI emulators, so wait longer than a fast device would need.
+sleep 20
 
 # Measure only the post-pause idle window. Resetting here removes historical
 # batterystats entries from earlier runs and excludes the expected play/pause
