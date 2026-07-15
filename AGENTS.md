@@ -2,6 +2,19 @@
 
 This is a Flutter media controller application
 
+## Talking to me
+
+Default to colleague-to-colleague discussion, not reports. When we're thinking through a problem:
+- Lead with the answer in 1-2 sentences. Earn every line after that.
+- No multi-section walls, no restating my question back, no "here are the 5 considerations." If it reads like a chapter, it's wrong.
+- One idea per reply. Ask which way I want to go before expanding.
+- A verbatim quote or a concrete next step beats a paragraph explaining one.
+
+**Self-test before sending:**
+1. If the user reads only the first sentence, do they have the answer? If not, rewrite the first sentence.
+2. For every later sentence, ask: "Does removing this change the user's action, risk, or decision?" If no, delete.
+3. Count sentences before the first actionable claim. If >2, you've drifted — restart in bullets.
+
 ## Agent Behavior
 
 1. **Context efficiency**: Don't load all rules—consult only those relevant to the current task
