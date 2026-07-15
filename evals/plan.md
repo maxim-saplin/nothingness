@@ -105,7 +105,7 @@ The image contains environment dependencies, not candidate source:
 - Xvfb, Openbox, x11vnc, and noVNC
 - PulseAudio or an equivalent virtual audio backend
 - Python, `websockets`, `uv`, and Pi prerequisites
-- `ffmpeg` for deterministic media generation
+- `ffmpeg` and `ffprobe` for fixture validation
 - native system FLAC, Opus, Ogg, and Vorbis libraries
 - `TRY_SYSTEM_LIBS_FIRST=1`
 
@@ -127,7 +127,7 @@ Start with cold candidate builds because they are easier to audit.
 3. Initialize the exported snapshot as a fresh Git repository with one baseline commit.
 4. Create an empty host artifact directory owned by the evaluator.
 5. Select unique localhost ports and a unique run ID.
-6. Generate or copy deterministic media into the container-visible fixture area.
+6. Copy the committed Opus fixtures into the container-visible library folder.
 
 The candidate workspace is a writable copy of the seed. The seed remains read-only so the evaluator can verify provenance.
 
@@ -197,7 +197,7 @@ When Pi exits, reaches a stopping limit, or is stopped by the supervisor:
 
 ## Candidate Media Contract
 
-Media must never depend on host application permissions or mounted personal libraries. The image includes ten deterministic Opus tracks under one discoverable library folder. Tracks have distinct filenames, embedded metadata, frequencies, and sufficient duration for seeking. Their generation recipe, expected hashes, durations, and metadata are version controlled; generated binaries live in the image rather than Git.
+Media must never depend on host application permissions or mounted personal libraries at run time. Ten real Opus fixtures are committed under [`evals/assets/opus/`](assets/opus/) and copied into one discoverable container library folder. Their manifest records expected hashes, durations, codec properties, and metadata. The evaluation image must use these exact committed bytes rather than downloading or generating substitutes.
 
 The paths may be discoverable through normal filesystem inspection, but the task prompt should not reveal them unless media discovery is outside the capability being tested. Candidate-created files inside the workspace are also readable by the app.
 
@@ -391,6 +391,7 @@ The skill is canonical in `.agents/skills/nothingness-evals/`; do not duplicate 
 evals/
   README.md                orientation and latest result index
   plan.md
+  assets/opus/             committed Opus fixtures and manifest
   archive/                historical field tests
   image/                  Dockerfile, entrypoint, locked image inputs
   tasks/                  public task manifests and prompts
@@ -408,7 +409,7 @@ Create directories only when the first real file is needed.
 
 1. Create the results-first `evals/README.md` and the evaluator skill skeleton with references and script contracts.
 2. Promote the working `.tmp/docker-smoke` prototype into `evals/image` and pin the Flutter base image by digest.
-3. Add deterministic generation and validation for ten Opus fixtures plus native codec dependencies for ARM64 and AMD64.
+3. Add image packaging and validation for the ten committed Opus fixtures plus native codec dependencies for ARM64 and AMD64.
 4. Add a container entrypoint with health endpoints for Xvfb, noVNC, audio, media, and workspace state. Do not auto-launch the app.
 5. Define all seven Linux task manifests, hidden assertions, limits, and invalidation policies.
 6. Implement fixture export, fresh baseline repository creation, unique ports, container launch, collection, and cleanup as skill scripts.

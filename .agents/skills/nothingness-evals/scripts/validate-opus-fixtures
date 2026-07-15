@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+fixture_dir="$root/evals/assets/opus"
+manifest="$fixture_dir/manifest.json"
+
+command -v ffmpeg >/dev/null
+command -v ffprobe >/dev/null
+command -v jq >/dev/null
+
+count=$(jq 'length' "$manifest")
+[[ $count -eq 10 ]]
+[[ $(find "$fixture_dir" -maxdepth 1 -type f -name '*.opus' | wc -l | tr -d ' ') -eq 10 ]]
+
+while IFS= read -r relative_path; do
+  file="$root/$relative_path"
+  [[ -f "$file" ]]
+
+  expected=$(jq -r --arg path "$relative_path" '.[] | select(.path == $path) | .sha256' "$manifest")
+  actual=$(shasum -a 256 "$file" | awk '{print $1}')
+  [[ "$actual" == "$expected" ]]
+
+  codec=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$file")
+  [[ "$codec" == opus ]]
+  ffmpeg -nostdin -v error -i "$file" -f null -
+done < <(jq -r '.[].path' "$manifest")
+
+jq -n --argjson count "$count" '{ok:true,count:$count,codec:"opus",fullDecode:true}'
