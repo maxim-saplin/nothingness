@@ -1,0 +1,19 @@
+---
+name: nothingness-evals
+description: Build and operate isolated Nothingness Linux evaluations.
+---
+
+# Nothingness Evaluator
+
+Operate from the repository root. Pi must already work on the host for the requested provider, model, and thinking level. The evaluator reads only `auth.json`, `models.json`, and `settings.json` from `PI_CODING_AGENT_DIR` or `~/.pi/agent`; provider-scoped Azure settings are allowlisted separately. Credential values move only over `docker exec` stdin and are never written to host run artifacts.
+
+1. Run `uv run python .agents/skills/nothingness-evals/scripts/verify-offline-baseline.py --build-image`. This mandatory zero-credential gate uses `--network none`, never launches Pi beyond `--version`, verifies the clean fixture, immutable media, offline package resolution, and a full Linux build, then removes its disposable container. Do not spend admission or candidate tokens until it passes.
+2. Run `uv run python .agents/skills/nothingness-evals/scripts/verify-runtime-baseline.py`. This second zero-credential gate launches the real Linux debug app on `--network none`, queues evaluator-owned Opus fixtures, proves play, pause, skip, seek, final playback, spectrum output, screenshot rendering, and zero overflows, then removes its disposable container. Do not start admission unless both baseline gates pass.
+3. Start one judge-supervised trial with `judge-run.py start <suite> <task-id> --trial <n> [--calibration]`. The committed suite manifest is the independent requested-model contract, and the script generates an identity-bearing run ID. Preparation fails unless Pi's offline registry contains that exact provider/model and supports the requested thinking level. Preflight then makes the real isolated admission call whose prompt is exactly `Reply exactly READY`.
+4. Start `watch-eval.py <run-id>` for the user. This compact dashboard reports model, task, trial totals, elapsed time, tool calls, provider-reported tokens/cost, latest activity, timeout budget, and noVNC URL. It is not the judge's supervision interface.
+5. The judge actively follows `judge-events.py <run-id> --after <sequence>` through the terminal sequence, inspects with `judge-inspect.py <run-id> --runtime --git --processes`, and considers Pi's messages, tool calls, results, retries, app state, workspace, and evidence. Retain every contiguous event-batch observation ID plus the inspection observation ID for the decision; classification derives sequence coverage from their digest-verified payloads. Send candidate-facing messages only through `judge-control.py`; every `steer` or `follow-up` requires an intervention class, message, and reason. Passive inspection is not an intervention.
+6. When Pi reaches `candidate awaiting judge`, the judge either intervenes or runs `judge-control.py <run-id> finish --reason <reason>`. Use `abort` for an invalid or irrecoverable attempt. Never kill Pi or Docker directly.
+7. Run `judge-run.py collect <run-id>`, inspect `summary.json`, task evidence, lifecycle journal, diff, logs, and runtime evidence, then run `judge-run.py decide ... --observation-id <events-id> --observation-id <inspection-id>`. The judge owns validity, outcome, score, and rationale; deterministic checks provide evidence but do not replace judgment.
+8. Run `judge-run.py cleanup <run-id>` only after the decision. After three independently judged valid trials, use `consolidate.py`; calibration and invalid attempts cannot enter a cohort.
+
+See [architecture](references/architecture.md), [run protocol](references/run-protocol.md), and [scoring](references/scoring.md) for the applicable phase rules. The repository [evaluator overview](../../../evals/README.md) covers purpose, method, evidence, and results.

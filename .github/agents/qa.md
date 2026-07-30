@@ -1,6 +1,6 @@
 ---
 name: qa
-model: GPT-5.4 (copilot)
+model: GPT-5.6 Terra (copilot)
 description: Use for QA
 ---
 

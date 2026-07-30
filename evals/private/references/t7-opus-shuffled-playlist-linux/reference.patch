@@ -1,0 +1,21 @@
+diff --git a/dev/agent_service.dart b/dev/agent_service.dart
+index 41ddfed..8dee76e 100644
+--- a/dev/agent_service.dart
++++ b/dev/agent_service.dart
+@@ -836,13 +836,14 @@ class AgentService {
+       return _error('paths parameter required (comma-separated)');
+     }
+     final startIndex = int.tryParse(params['startIndex'] ?? '0') ?? 0;
++    final shuffle = (params['shuffle'] ?? 'false').toLowerCase() == 'true';
+     final tracks = pathsCsv.split(',').map((path) {
+       final trimmed = path.trim();
+       return AudioTrack(path: trimmed, title: trimmed.split('/').last);
+     }).toList();
+ 
+-    await p.setQueue(tracks, startIndex: startIndex);
+-    return _ok({'queued': tracks.length, 'startIndex': startIndex});
++    await p.setQueue(tracks, startIndex: startIndex, shuffle: shuffle);
++    return _ok({'queued': tracks.length, 'startIndex': startIndex, 'shuffle': shuffle});
+   }
+ 
+   static _R _getDiagnostics(

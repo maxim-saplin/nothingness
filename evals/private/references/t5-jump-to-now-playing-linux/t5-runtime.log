@@ -1,0 +1,162 @@
+{
+  "count": 32,
+  "extensions": [
+    "ext.nothingness.clearPreference",
+    "ext.nothingness.closeSettingsSheet",
+    "ext.nothingness.dragByKey",
+    "ext.nothingness.getAudioEvents",
+    "ext.nothingness.getDiagnostics",
+    "ext.nothingness.getFrameTimings",
+    "ext.nothingness.getLibraryState",
+    "ext.nothingness.getNowPlayingJumpState",
+    "ext.nothingness.getOverflowReports",
+    "ext.nothingness.getPlaybackState",
+    "ext.nothingness.getRouterState",
+    "ext.nothingness.getSemantics",
+    "ext.nothingness.getSettings",
+    "ext.nothingness.getWidgetTree",
+    "ext.nothingness.navigateVoid",
+    "ext.nothingness.navigateVoidUp",
+    "ext.nothingness.next",
+    "ext.nothingness.openSettingsSheet",
+    "ext.nothingness.pause",
+    "ext.nothingness.play",
+    "ext.nothingness.playTrackByPath",
+    "ext.nothingness.prev",
+    "ext.nothingness.probeText",
+    "ext.nothingness.requestLibraryPermission",
+    "ext.nothingness.screenshot",
+    "ext.nothingness.seek",
+    "ext.nothingness.setPreference",
+    "ext.nothingness.setQueue",
+    "ext.nothingness.setSetting",
+    "ext.nothingness.simulateInterruption",
+    "ext.nothingness.simulateNoisy",
+    "ext.nothingness.tapByKey"
+  ]
+}
+{
+  "playingPath": null,
+  "playingParent": null,
+  "browserPath": null,
+  "action": {
+    "present": false,
+    "enabled": false,
+    "semanticLabel": null
+  },
+  "scrollOffset": null,
+  "targetRow": {
+    "path": null,
+    "present": false,
+    "built": false,
+    "visible": false,
+    "top": null,
+    "bottom": null
+  },
+  "viewport": {
+    "top": null,
+    "bottom": null
+  }
+}
+{
+  "set": "screen",
+  "value": "void"
+}
+{
+  "currentPath": "/opt/nothingness/media/t5",
+  "folders": 0,
+  "tracks": 48,
+  "error": null
+}
+{
+  "ok": true,
+  "path": "/opt/nothingness/media/t5/t5-row-01.opus"
+}
+{
+  "playingPath": "/opt/nothingness/media/t5/t5-row-01.opus",
+  "playingParent": "/opt/nothingness/media/t5",
+  "browserPath": "/opt/nothingness/media/t5",
+  "action": {
+    "present": true,
+    "enabled": true,
+    "semanticLabel": "jump to now playing"
+  },
+  "scrollOffset": 0.0,
+  "targetRow": {
+    "path": "/opt/nothingness/media/t5/t5-row-01.opus",
+    "present": true,
+    "built": false,
+    "visible": false,
+    "top": null,
+    "bottom": null
+  },
+  "viewport": {
+    "top": 230.4,
+    "bottom": 486.1746478873239
+  }
+}
+{
+  "path": "/workspace/.tmp/agent_shots/t5_before.png",
+  "width": 1278,
+  "height": 720
+}
+{
+  "tapped": "void-crumb-jump-to-playing",
+  "mode": "descendant-callback"
+}
+{
+  "playingPath": "/opt/nothingness/media/t5/t5-row-01.opus",
+  "playingParent": "/opt/nothingness/media/t5",
+  "browserPath": "/opt/nothingness/media/t5",
+  "action": {
+    "present": true,
+    "enabled": true,
+    "semanticLabel": "jump to now playing"
+  },
+  "scrollOffset": 0.0,
+  "targetRow": {
+    "path": "/opt/nothingness/media/t5/t5-row-01.opus",
+    "present": true,
+    "built": false,
+    "visible": false,
+    "top": null,
+    "bottom": null
+  },
+  "viewport": {
+    "top": 230.4,
+    "bottom": 486.1746478873239
+  }
+}
+{
+  "path": "/workspace/.tmp/agent_shots/t5_after.png",
+  "width": 1278,
+  "height": 720
+}
+{
+  "playingPath": "/opt/nothingness/media/t5/t5-row-01.opus",
+  "playingParent": "/opt/nothingness/media/t5",
+  "browserPath": "/opt/nothingness/media/t5",
+  "action": {
+    "present": false,
+    "enabled": false,
+    "semanticLabel": null
+  },
+  "scrollOffset": 1761.225352112676,
+  "targetRow": {
+    "path": "/opt/nothingness/media/t5/t5-row-01.opus",
+    "present": true,
+    "built": true,
+    "visible": true,
+    "top": 235.725,
+    "bottom": 276.725
+  },
+  "viewport": {
+    "top": 230.4,
+    "bottom": 486.1746478873239
+  }
+}
+{
+  "path": "/workspace/.tmp/agent_shots/t5_after.png",
+  "width": 1278,
+  "height": 720
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "t7-opus-shuffled-playlist-linux",
+  "title": "Opus shuffled playlist",
+  "fixture_commit": "5fc7e04",
+  "platform_variant": "linux",
+  "prompt": "On Linux, queue the evaluator-supplied ten immutable Opus fixtures exactly once, enable shuffle, play valid supplied media, and perform one navigation transition. The current media before and after must remain within the supplied fixture set.",
+  "media": {"manifest": "evals/assets/opus/manifest.json", "container_path": "/opt/nothingness/media", "required_fixture_count": 10},
+  "network": {"docker_mode": "none", "egress": "none"},
+  "limits": {"timeout_seconds": 1200, "cpus": 4, "memory": "8g", "pids_limit": 512},
+  "candidate": {"entrypoint": "dev/main_debug.dart", "workspace": "/workspace"},
+  "evidence": {"required": ["inventory", "queue", "playing", "next_action", "post_navigation"]}
+}

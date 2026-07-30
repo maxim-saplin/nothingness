@@ -1,0 +1,345 @@
+diff --git a/dev/agent_service.dart b/dev/agent_service.dart
+index 41ddfed..774119f 100644
+--- a/dev/agent_service.dart
++++ b/dev/agent_service.dart
+@@ -62,6 +62,7 @@ class AgentService {
+     // Generic primitives.
+     'getWidgetTree': _getWidgetTree,
+     'getSemantics': _getSemantics,
++    'getNowPlayingJumpState': _getNowPlayingJumpState,
+     'tapByKey': _tapByKey,
+     'dragByKey': _dragByKey,
+     'getSettings': _getSettings,
+@@ -234,6 +235,9 @@ class AgentService {
+     return false;
+   });
+ 
++  static bool _hasOnTapInSubtree(Element root) =>
++      _walkSubtree(root, (element) => _onTapOf(element) != null);
++
+   /// Invoke horizontal/vertical drag callbacks on the first matching
+   /// [GestureDetector] in [root]'s subtree.
+   static bool _invokeDragInSubtree(
+@@ -400,6 +404,94 @@ class AgentService {
+     return _ok({'semantics': _truncate(root.toStringDeep(), 0)});
+   }
+ 
++  static String _parentPath(String path) {
++    final separator = path.lastIndexOf('/');
++    return separator <= 0 ? '' : path.substring(0, separator);
++  }
++
++  static ScrollableState? _browserScrollable(Element? row) {
++    if (row != null) return Scrollable.maybeOf(row);
++    final root = WidgetsBinding.instance.rootElement;
++    ScrollableState? found;
++    if (root == null) return null;
++    _walkSubtree(root, (element) {
++      if (element is StatefulElement && element.state is ScrollableState) {
++        found = element.state as ScrollableState;
++        return true;
++      }
++      return false;
++    }, includeSelf: true);
++    return found;
++  }
++
++  static String? _semanticLabel(Element element) {
++    String? label;
++    element.visitAncestorElements((ancestor) {
++      final widget = ancestor.widget;
++      final semanticsLabel = widget is Semantics ? widget.properties.label : null;
++      if (semanticsLabel != null && semanticsLabel.isNotEmpty) {
++        label = semanticsLabel;
++        return false;
++      }
++      return true;
++    });
++    return label;
++  }
++
++  static _R _getNowPlayingJumpState(
++    String method,
++    Map<String, String> params,
++  ) async {
++    final player = DebugHooks.provider as PlaybackController?;
++    final library = DebugHooks.libraryController as LibraryController?;
++    final playingPath = player?.songInfo?.track.path;
++    final row = playingPath == null || playingPath.isEmpty
++        ? null
++        : _findElementByKey('void-file:$playingPath');
++    final scrollable = _browserScrollable(row);
++    final position = scrollable?.position;
++    final viewport = scrollable?.context.findRenderObject();
++    final viewportBox = viewport is RenderBox && viewport.hasSize ? viewport : null;
++    final rowObject = row?.findRenderObject();
++    final rowBox = rowObject is RenderBox && rowObject.hasSize ? rowObject : null;
++    final rowTop = rowBox?.localToGlobal(Offset.zero).dy;
++    final rowBottom = rowTop == null ? null : rowTop + rowBox!.size.height;
++    final viewportTop = viewportBox?.localToGlobal(Offset.zero).dy;
++    final viewportBottom = viewportTop == null
++        ? null
++        : viewportTop + viewportBox!.size.height;
++    final visible = rowTop != null &&
++        rowBottom != null &&
++        viewportTop != null &&
++        viewportBottom != null &&
++        viewportTop <= rowTop &&
++        rowBottom <= viewportBottom;
++    final action = _findElementByKey('void-crumb-jump-to-playing');
++    final actionEnabled = action != null && _hasOnTapInSubtree(action);
++
++    return _ok({
++      'playingPath': playingPath,
++      'playingParent': playingPath == null ? null : _parentPath(playingPath),
++      'browserPath': library?.currentPath,
++      'action': {
++        'present': action != null,
++        'enabled': actionEnabled,
++        'semanticLabel': action == null ? null : _semanticLabel(action),
++      },
++      'scrollOffset': position?.pixels,
++      'targetRow': {
++        'path': playingPath,
++        'present': playingPath != null &&
++            library?.tracks.any((track) => track.path == playingPath) == true,
++        'built': row != null,
++        'visible': visible,
++        'top': rowTop,
++        'bottom': rowBottom,
++      },
++      'viewport': {'top': viewportTop, 'bottom': viewportBottom},
++    });
++  }
++
+   static _R _tapByKey(String method, Map<String, String> params) async {
+     final keyValue = params['key'];
+     if (keyValue == null || keyValue.isEmpty) {
+diff --git a/lib/screens/void_screen.dart b/lib/screens/void_screen.dart
+index da5f641..91980bc 100644
+--- a/lib/screens/void_screen.dart
++++ b/lib/screens/void_screen.dart
+@@ -69,6 +69,7 @@ class VoidScreen extends HookWidget {
+ 
+     // B-015: lets the crumb's jump tap drive scrollToTrack after loadFolder.
+     final browserController = useMemoized(() => VoidBrowserController());
++    useListenable(browserController);
+     // B-012: lets the drag accumulator fire the swipe flash when prev/next triggers.
+     final heroFlashController = useMemoized(() => HeroFlashController());
+     useEffect(() => heroFlashController.dispose, [heroFlashController]);
+@@ -509,7 +510,7 @@ class VoidScreen extends HookWidget {
+     // B-015: "jump to what's playing" tap target — `⊙` in fgPrimary at rowSize
+     // (B-033 contrast bump), 44×44 hit target (B-013).
+     Widget buildJumpGlyph(String playingPath) => glyphButton(
+-      semanticsLabel: 'jump to now-playing folder',
++      semanticsLabel: 'jump to now playing',
+       buttonKey: const ValueKey('void-crumb-jump-to-playing'),
+       onTap: () => jumpToNowPlaying(playingPath),
+       box: 44,
+@@ -597,13 +598,13 @@ class VoidScreen extends HookWidget {
+               return Selector<PlaybackController, String?>(
+                 selector: (_, player) => player.songInfo?.track.path,
+                 builder: (context, playingPath, _) {
+-                  // B-015: show the jump glyph when the playing track lives outside
+-                  // the browsed folder; B-031 debounces the hide.
+-                  final divergent =
++                    final canJump =
+                       playingPath != null &&
+                       playingPath.isNotEmpty &&
+-                      p.dirname(playingPath) != (path ?? '');
+-                  final showJumpGlyph = resolveJumpGlyphVisible(divergent);
++                      (p.dirname(playingPath) != (path ?? '') ||
++                        (browserController.hasTrack(playingPath) &&
++                          !browserController.isTrackVisible(playingPath)));
++                    final showJumpGlyph = resolveJumpGlyphVisible(canJump);
+                   // 12-px vertical padding preserves the crumb baseline; the 44×44
+                   // glyph hit target sits outside it (Material min, B-013).
+                   return Row(
+diff --git a/lib/widgets/void_browser.dart b/lib/widgets/void_browser.dart
+index 662dd12..d01e599 100644
+--- a/lib/widgets/void_browser.dart
++++ b/lib/widgets/void_browser.dart
+@@ -1,7 +1,8 @@
+ import 'dart:async';
+ 
+ import 'package:flutter/material.dart';
+-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
++import 'package:flutter/rendering.dart'
++  show RenderAbstractViewport, ScrollCacheExtent;
+ import 'package:flutter_hooks/flutter_hooks.dart';
+ import 'package:logging/logging.dart';
+ import 'package:path/path.dart' as p;
+@@ -31,12 +32,20 @@ final _log = Logger('nothingness.browser');
+ /// `GlobalKey<VoidBrowserState>`). The browser registers its internal
+ /// implementation onto [_scrollToTrack] while mounted; callers invoke
+ /// [scrollToTrack], which no-ops when nothing is registered.
+-class VoidBrowserController {
++class VoidBrowserController extends ChangeNotifier {
+   Future<void> Function(String path)? _scrollToTrack;
++  bool Function(String path)? _isTrackVisible;
++  bool Function(String path)? _hasTrack;
+ 
+   /// Centre the row for [path] in view; no-op when the browser is unmounted.
+   Future<void> scrollToTrack(String path) async =>
+       await _scrollToTrack?.call(path);
++
++  bool isTrackVisible(String path) => _isTrackVisible?.call(path) ?? false;
++
++  bool hasTrack(String path) => _hasTrack?.call(path) ?? false;
++
++  void _notifyVisibilityChanged() => notifyListeners();
+ }
+ 
+ class VoidBrowser extends HookWidget {
+@@ -201,11 +210,50 @@ class VoidBrowser extends HookWidget {
+           curve: Curves.easeOutCubic);
+     }
+ 
++    bool isTrackVisible(String path) {
++      final rowContext = rowKeys[path]?.currentContext;
++      if (rowContext == null || !rowContext.mounted) return false;
++      RenderObject? rowBox;
++      try {
++        rowBox = rowContext.findRenderObject();
++      } catch (_) {
++        return false;
++      }
++      if (rowBox is! RenderBox || !rowBox.hasSize) return false;
++      final viewport = RenderAbstractViewport.of(rowBox);
++      if (viewport is! RenderBox) return false;
++      final viewportBox = viewport as RenderBox;
++      final rowTop = rowBox.localToGlobal(Offset.zero).dy;
++      final rowBottom = rowTop + rowBox.size.height;
++      final viewportTop = viewportBox.localToGlobal(Offset.zero).dy;
++      final viewportBottom = viewportTop + viewportBox.size.height;
++      return viewportTop <= rowTop && rowBottom <= viewportBottom;
++    }
++
++    bool hasTrack(String path) => ctrl.tracks.any((track) => track.path == path);
++
+     // Register the scroll-to-track implementation onto the passed handle; clear
+     // it on dispose / handle swap so a stale browser never answers a call.
+     useEffect(() {
++      var registered = true;
+       browserController?._scrollToTrack = scrollToTrack;
+-      return () => browserController?._scrollToTrack = null;
++      browserController?._isTrackVisible = isTrackVisible;
++      browserController?._hasTrack = hasTrack;
++      void notifyAfterFrame() {
++        WidgetsBinding.instance.addPostFrameCallback((_) {
++          if (registered) browserController?._notifyVisibilityChanged();
++        });
++      }
++      void onScroll() => notifyAfterFrame();
++      scroll.addListener(onScroll);
++      notifyAfterFrame();
++      return () {
++        registered = false;
++        scroll.removeListener(onScroll);
++        browserController?._scrollToTrack = null;
++        browserController?._isTrackVisible = null;
++        browserController?._hasTrack = null;
++      };
+     }, [browserController]);
+ 
+     // First init + restore. When the parent supplies the controller it owns init
+diff --git a/macos/Flutter/GeneratedPluginRegistrant.swift b/macos/Flutter/GeneratedPluginRegistrant.swift
+index dcd26c2..ca9f608 100644
+--- a/macos/Flutter/GeneratedPluginRegistrant.swift
++++ b/macos/Flutter/GeneratedPluginRegistrant.swift
+@@ -9,7 +9,6 @@ import audio_service
+ import audio_session
+ import macos_secure_bookmarks
+ import package_info_plus
+-import path_provider_foundation
+ import shared_preferences_foundation
+ import sqflite_darwin
+ 
+@@ -18,7 +17,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+   AudioSessionPlugin.register(with: registry.registrar(forPlugin: "AudioSessionPlugin"))
+   SecureBookmarksPlugin.register(with: registry.registrar(forPlugin: "SecureBookmarksPlugin"))
+   FPPPackageInfoPlusPlugin.register(with: registry.registrar(forPlugin: "FPPPackageInfoPlusPlugin"))
+-  PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
+   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
+   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))
+ }
+diff --git a/test/screens/void_screen_test.dart b/test/screens/void_screen_test.dart
+index 08dbba9..33b0025 100644
+--- a/test/screens/void_screen_test.dart
++++ b/test/screens/void_screen_test.dart
+@@ -350,6 +350,35 @@ void main() {
+               'B-015: glyph must be hidden when already in the playing folder.');
+     });
+ 
++
++    testWidgets('same-folder offscreen action preserves the browser folder',
++        (tester) async {
++      final tracks = List<AudioTrack>.generate(
++        48,
++        (index) => AudioTrack(
++          path: '/lib/Indie/track_$index.mp3',
++          title: 'Track $index',
++        ),
++      );
++      final target = tracks.first;
++      final controller = _RecordingLibraryController(
++        currentPath: '/lib/Indie', tracks: tracks);
++      final provider = FakeAudioPlayerProvider(
++        songInfo: SongInfo(
++          track: target, isPlaying: true, position: 0, duration: 1000));
++      await _pump(tester, const SpectrumScreenConfig(),
++          provider: provider, libraryController: controller);
++      await tester.pump();
++      final glyph = find.byKey(glyphKey);
++      expect(glyph, findsOneWidget);
++      expect(tester.getSemantics(glyph).label, contains('jump to now playing'));
++      await tester.tap(glyph);
++      await tester.pumpAndSettle();
++      expect(controller.currentPath, '/lib/Indie');
++      expect(controller.loadFolderCalls, isEmpty);
++      expect(find.byKey(const ValueKey('void-file:/lib/Indie/track_0.mp3')),
++          findsOneWidget);
++    });
+     testWidgets('visible when dirname(playing) != currentPath',
+         (tester) async {
+       final controller = _RecordingLibraryController(
+diff --git a/test/widgets/void_browser_test.dart b/test/widgets/void_browser_test.dart
+index 90fb214..f761151 100644
+--- a/test/widgets/void_browser_test.dart
++++ b/test/widgets/void_browser_test.dart
+@@ -40,6 +40,35 @@ void main() {
+   );
+ 
+   group('B-015: VoidBrowser.scrollToTrack', () {
++    testWidgets('end-of-list target changes from offscreen to visible',
++        (tester) async {
++      final tracks = List<AudioTrack>.generate(48, (index) => AudioTrack(
++          path: '/music/track_$index.mp3', title: 'Track $index'));
++      final target = tracks.first;
++      final controller = _FakeLibraryController(
++          currentPath: '/music', tracks: tracks);
++      final browserController = VoidBrowserController();
++      await tester.pumpWidget(wrapWithProvider(
++        FakeAudioPlayerProvider(),
++        ChangeNotifierProvider<LibraryController>.value(
++          value: controller,
++          child: SizedBox(height: 220, child: VoidBrowser(
++            browserController: browserController, controller: controller)),
++        ),
++      ));
++      await tester.pump();
++      expect(browserController.hasTrack(target.path), isTrue);
++      expect(browserController.isTrackVisible(target.path), isFalse);
++      final scrollFuture = browserController.scrollToTrack(target.path);
++      for (var index = 0; index < 60; index++) {
++        await tester.pump(const Duration(milliseconds: 16));
++      }
++      await tester.pump(const Duration(milliseconds: 240));
++      await scrollFuture;
++      await tester.pumpAndSettle();
++      expect(browserController.isTrackVisible(target.path), isTrue);
++    });
++
+     testWidgets(
+         'scrolls the now-playing row into view (on-screen after the call)',
+         (tester) async {

@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!entrypoint.py
+!candidate.py
+!egress_proxy.py
+!pi.py
+!pi-artifact.tar.gz
+!pi-packages.tar.gz
+!dependency-seed/
+!dependency-seed/pubspec.yaml
+!dependency-seed/soloud/
+!dependency-seed/soloud/pubspec.yaml
+!media/
+!media/manifest.json
+!media/*.opus

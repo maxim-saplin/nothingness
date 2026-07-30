@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "t3-settings-placement-color-scheme-linux",
+  "title": "Cassette settings placement and color scheme label",
+  "fixture_commit": "5fc7e04",
+  "platform_variant": "linux",
+  "prompt": "On Linux, update Settings so that, when the selected screen is Cassette, its cassette variant controls appear immediately below the screen setting. Rename the color-changing cassette variant setting to exactly `color scheme`. Preserve the existing behavior of the controls. Provide a screenshot showing the relevant Settings region with Cassette selected.",
+  "scoring": {"mode": "scored", "cohort": "linux-isolated-baseline"},
+  "media": {"manifest": "evals/assets/opus/manifest.json", "container_path": "/opt/nothingness/media", "required_fixture_count": 10},
+  "network": {"docker_mode": "internal-proxy", "egress": "allowlist", "reason": "Candidate traffic is isolated on a fresh internal network and may leave only through the exact-host HTTPS proxy allowlist."},
+  "limits": {"timeout_seconds": 1800, "cpus": 4, "memory": "8g", "pids_limit": 512},
+  "candidate": {"entrypoint": "dev/main_debug.dart", "workspace": "/workspace", "session_output": "/run/nothingness/candidate.jsonl"},
+  "evidence": {"required": ["settings_semantics", "settings_screenshot"]}
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "t1-playback-smoke-linux",
+  "title": "Playback smoke",
+  "fixture_commit": "5fc7e04",
+  "platform_variant": "linux",
+  "prompt": "Drive Linux app, smoke test play/pause, skip and fast forward",
+  "scoring": {"mode": "scored", "cohort": "linux-isolated-baseline"},
+  "media": {"manifest": "evals/assets/opus/manifest.json", "container_path": "/opt/nothingness/media", "required_fixture_count": 10},
+  "network": {"docker_mode": "internal-proxy", "egress": "allowlist", "reason": "Candidate traffic is isolated on a fresh internal network and may leave only through the exact-host HTTPS proxy allowlist."},
+  "limits": {"timeout_seconds": 1800, "cpus": 4, "memory": "8g", "pids_limit": 512},
+  "candidate": {"entrypoint": "dev/main_debug.dart", "workspace": "/workspace", "session_output": "/run/nothingness/candidate.jsonl"}
+}

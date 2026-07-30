@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "t4-swipe-to-seek-linux",
+  "status": "frozen",
+  "fixture": {
+    "commit": "5fc7e04",
+    "absence_command": "git diff --exit-code 5fc7e04 448f6db -- lib/screens/void_screen.dart lib/widgets/hero_feedback_surface.dart",
+    "absence_descriptor": "the fixture has a center seek HUD and no folder-line seek preview lifecycle"
+  },
+  "known_good": {
+    "status": "established",
+    "owner": "evaluator",
+    "kind": "evaluator_reference_patch",
+    "reference_patch": "evals/private/references/t4-swipe-to-seek-linux/reference.patch",
+    "reference_result": "evals/private/references/t4-swipe-to-seek-linux/result.json",
+    "semantic_evidence": "evals/private/references/t4-swipe-to-seek-linux/semantic.json",
+    "hashes": {
+      "reference_patch": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/reference.patch",
+        "sha256": "ab59d3eb73b512b8f5cdc31bac71e09b608245315876791aeb3df004bdbc63f5"
+      },
+      "reference_result": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/result.json",
+        "sha256": "cfa3d228107ae82afbabfc8a1ecd940c71d03e20b08218acaded19b7efc8dfb0"
+      },
+      "semantic_evidence": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/semantic.json",
+        "sha256": "4908470a3b8aced4aca52ae72534e2c9a4feebb195e48bd28b38cb92374ec027"
+      },
+      "during_screenshot": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4_during.png",
+        "sha256": "0a57a4e2ee4a1629da5feb5a96c6b4ea60047895a80b00185229262be7a64f63"
+      },
+      "post_screenshot": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4_post.png",
+        "sha256": "81f3ef00186027e58075b045f14889a9ccf97a43a80af7e374689d3234185f8c"
+      },
+      "pub_get_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-pub-get.log",
+        "sha256": "ec4e4973af0a96471c225ecf3c61f92311b324c0ecb3038a802dc0b6fe81af4b"
+      },
+      "analyze_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-analyze.log",
+        "sha256": "b600da926c558e29e1b91d5b99382dbbbbf2f5363c7f31e63b1d17c39e55a5cf"
+      },
+      "focused_test_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-focused-validation.log",
+        "sha256": "e99f4d560f8bd5a288b898773f8ad5d904d82da42dc0d29240205c94dd32fe79"
+      },
+      "runtime_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-runtime.log",
+        "sha256": "50bddd1c2f6d22db4b2cdaf4dab62ea6f7aa626232e3974dce82ed54253e4e56"
+      },
+      "host_oracle_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-host-oracle.log",
+        "sha256": "6a696c243084c2b28dedca03694cac3f874c29a7368f1de98d55bc942f787bf8"
+      },
+      "p2_oracle_test_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-p2-oracle-tests.log",
+        "sha256": "3e5e13e45c5679793abc28956a6df70007e21db734fe0b654ea32d652c337f49"
+      },
+      "evaluator_regression_log": {
+        "path": "evals/private/references/t4-swipe-to-seek-linux/t4-evaluator-regressions.log",
+        "sha256": "8f718887a7c215b0e65e6f90e4d429bf1d94f16c75fad4cbc1d88fee56ae2be0"
+      }
+    }
+  },
+  "evidence": {
+    "pre": "one playing evaluator-owned Opus track with exact path, integer start position under 5000ms, and integer duration",
+    "action": "split standardized horizontal drag, start/update dx=240 steps=12/end",
+    "during": "held preview is active with exact target and duration; target-start is at least 1000ms; folder line time/fraction matches target; center indicator is absent; semantics/tree/screenshot are retained",
+    "post": "the first post-end getPlaybackState sample with the same path and position within 3000ms of target is retained; later preview-cleared screenshot has neither transient nor center indicator"
+  },
+  "oracle": {
+    "module": "p2_gesture_navigation_oracle.py",
+    "task": "t4-swipe-to-seek-linux"
+  }
+}

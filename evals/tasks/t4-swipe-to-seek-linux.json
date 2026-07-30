@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "t4-swipe-to-seek-linux",
+  "title": "Swipe-to-seek feedback placement",
+  "fixture_commit": "5fc7e04",
+  "platform_variant": "linux",
+  "prompt": "On Linux, update swipe-to-seek feedback so a horizontal swipe shows the target position, duration, and progress in the bottom folder line while swiping. Do not show a center seek indicator. The temporary feedback must clear after the gesture. Provide during-gesture and post-gesture screenshots.",
+  "scoring": {"mode": "scored", "cohort": "linux-isolated-baseline"},
+  "media": {"manifest": "evals/assets/opus/manifest.json", "container_path": "/opt/nothingness/media", "required_fixture_count": 10},
+  "network": {"docker_mode": "internal-proxy", "egress": "allowlist", "reason": "Candidate traffic is isolated on a fresh internal network and may leave only through the exact-host HTTPS proxy allowlist."},
+  "limits": {"timeout_seconds": 1800, "cpus": 4, "memory": "8g", "pids_limit": 512},
+  "candidate": {"entrypoint": "dev/main_debug.dart", "workspace": "/workspace", "session_output": "/run/nothingness/candidate.jsonl"},
+  "evidence": {"required": ["swipe_pre_state", "swipe_action", "swipe_during_state", "swipe_during_screenshot", "swipe_post_state", "swipe_post_screenshot"]}
+}

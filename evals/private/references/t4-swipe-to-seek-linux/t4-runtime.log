@@ -1,0 +1,27 @@
+fixture=5fc7e04
+image=sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9
+network=none
+entrypoint=dev/main_debug.dart
+target=linux
+contract_extensions=35
+queue=/opt/nothingness/media/01-undercover-49.opus
+pre.track_path=/opt/nothingness/media/01-undercover-49.opus
+pre.position_ms=53
+pre.duration_ms=83783
+pre.is_playing=true
+gesture=dragStartByKey:void-hero-gesture-surface:touch;dragUpdateByKey:dx=240,dy=0,steps=12;dragEndByKey:void-hero-gesture-surface
+during.preview.active=true
+during.target_ms=21319
+during.duration_ms=83783
+during.progress_fraction=0.2544
+during.semantics_folder_line=0:21 / 1:23
+during.center_seek_indicator=false
+post.first_matching_poll=2
+post.track_path=/opt/nothingness/media/01-undercover-49.opus
+post.position_ms=21457
+post.target_delta_ms=138
+post.is_playing=true
+post.preview_cleared=true
+post.center_seek_indicator=false
+during_screenshot=1280x720 0a57a4e2ee4a1629da5feb5a96c6b4ea60047895a80b00185229262be7a64f63
+post_screenshot=1280x720 81f3ef00186027e58075b045f14889a9ccf97a43a80af7e374689d3234185f8c

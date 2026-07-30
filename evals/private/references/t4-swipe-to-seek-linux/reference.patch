@@ -1,0 +1,651 @@
+diff --git a/dev/agent_service.dart b/dev/agent_service.dart
+index 41ddfed..69adb1c 100644
+--- a/dev/agent_service.dart
++++ b/dev/agent_service.dart
+@@ -34,6 +34,32 @@ typedef _Handler = _R Function(String method, Map<String, String> params);
+ /// Signature for a handler that requires the registered provider.
+ typedef _PHandler = _R Function(PlaybackController p, Map<String, String> p2);
+ 
++class _ActiveSyntheticDrag {
++  _ActiveSyntheticDrag({
++    required this.key,
++    required this.pointer,
++    required this.kind,
++    required this.start,
++    required this.position,
++    required this.timeStamp,
++    required this.renderBox,
++    required this.onStart,
++    required this.onUpdate,
++    required this.onEnd,
++  });
++
++  final String key;
++  final int pointer;
++  final PointerDeviceKind kind;
++  final Offset start;
++  Offset position;
++  Duration timeStamp;
++  final RenderBox renderBox;
++  final GestureDragStartCallback onStart;
++  final GestureDragUpdateCallback onUpdate;
++  final GestureDragEndCallback onEnd;
++}
++
+ /// Debug-only VM service extensions for agent-driven app automation.
+ ///
+ /// Registers one `ext.nothingness.<name>` extension per entry in [_extensions]
+@@ -64,10 +90,14 @@ class AgentService {
+     'getSemantics': _getSemantics,
+     'tapByKey': _tapByKey,
+     'dragByKey': _dragByKey,
++    'dragStartByKey': _dragStartByKey,
++    'dragUpdateByKey': _dragUpdateByKey,
++    'dragEndByKey': _dragEndByKey,
+     'getSettings': _getSettings,
+     'setSetting': _setSetting,
+     // Playback shortcuts.
+     'getPlaybackState': _withProvider(_getPlaybackState),
++    'getSeekPreviewState': _withProvider(_getSeekPreviewState),
+     'play': _withProvider(_play),
+     'pause': _withProvider(_pause),
+     'next': _withProvider(_next),
+@@ -367,6 +397,38 @@ class AgentService {
+   }
+ 
+   static int _syntheticPointerSeq = 0;
++  static _ActiveSyntheticDrag? _activeSyntheticDrag;
++
++  static PointerDeviceKind _pointerKind(Map<String, String> params) {
++    final kind = (params['kind'] ?? '').toLowerCase();
++    return switch (kind) {
++      'touch' => PointerDeviceKind.touch,
++      'mouse' => PointerDeviceKind.mouse,
++      _ => (defaultTargetPlatform == TargetPlatform.macOS ||
++              defaultTargetPlatform == TargetPlatform.linux ||
++              defaultTargetPlatform == TargetPlatform.windows)
++          ? PointerDeviceKind.mouse
++          : PointerDeviceKind.touch,
++    };
++  }
++
++  static Map<String, Object?> _activeDragState(_ActiveSyntheticDrag drag) => {
++    'key': drag.key,
++    'pointer': drag.pointer,
++    'kind': drag.kind.name,
++    'from': {'x': drag.start.dx, 'y': drag.start.dy},
++    'at': {'x': drag.position.dx, 'y': drag.position.dy},
++  };
++
++  static void _finishActiveSyntheticDrag({required bool canceled}) {
++    final drag = _activeSyntheticDrag;
++    if (drag == null) return;
++    try {
++      if (!canceled) drag.onEnd(DragEndDetails(primaryVelocity: 0));
++    } finally {
++      _activeSyntheticDrag = null;
++    }
++  }
+ 
+   static String _truncate(String text, int depth) {
+     if (depth > 0) {
+@@ -434,6 +496,145 @@ class AgentService {
+     );
+   }
+ 
++  static _R _dragStartByKey(
++    String method,
++    Map<String, String> params,
++  ) async {
++    if (_activeSyntheticDrag != null) {
++      return _error('a synthetic drag is already active');
++    }
++    final keyValue = params['key'];
++    if (keyValue == null || keyValue.isEmpty) {
++      return _error('key parameter required');
++    }
++    final element = _findElementByKey(keyValue);
++    if (element == null) {
++      return _error('no widget found with key "$keyValue"');
++    }
++    final ro = element.findRenderObject();
++    if (ro is! RenderBox || !ro.attached || !ro.hasSize || ro.size.isEmpty) {
++      return _error('widget with key "$keyValue" has no usable RenderBox');
++    }
++
++    GestureDetector? detector;
++    RenderBox? detectorBox;
++    _walkSubtree(element, (candidate) {
++      final widget = candidate.widget;
++      final renderObject = candidate.findRenderObject();
++      if (widget is GestureDetector &&
++          widget.onHorizontalDragStart != null &&
++          widget.onHorizontalDragUpdate != null &&
++          widget.onHorizontalDragEnd != null &&
++          renderObject is RenderBox &&
++          renderObject.attached &&
++          renderObject.hasSize &&
++          !renderObject.size.isEmpty) {
++        detector = widget;
++        detectorBox = renderObject;
++        return true;
++      }
++      return false;
++    });
++    if (detector == null || detectorBox == null) {
++      return _error('no horizontal drag callbacks found under key "$keyValue"');
++    }
++
++    _syntheticPointerSeq++;
++    final start = ro.localToGlobal(ro.size.center(Offset.zero));
++    final drag = _ActiveSyntheticDrag(
++      key: keyValue,
++      pointer: 0x70000 | (_syntheticPointerSeq & 0xFFFF),
++      kind: _pointerKind(params),
++      start: start,
++      position: start,
++      timeStamp: Duration(milliseconds: DateTime.now().millisecondsSinceEpoch),
++      renderBox: detectorBox!,
++      onStart: detector!.onHorizontalDragStart!,
++      onUpdate: detector!.onHorizontalDragUpdate!,
++      onEnd: detector!.onHorizontalDragEnd!,
++    );
++    _activeSyntheticDrag = drag;
++    try {
++      drag.onStart(
++        DragStartDetails(
++          globalPosition: start,
++          localPosition: drag.renderBox.globalToLocal(start),
++        ),
++      );
++      return _ok({'started': true, 'active': true, ..._activeDragState(drag)});
++    } catch (_) {
++      _finishActiveSyntheticDrag(canceled: true);
++      rethrow;
++    }
++  }
++
++  static _R _dragUpdateByKey(
++    String method,
++    Map<String, String> params,
++  ) async {
++    final drag = _activeSyntheticDrag;
++    if (drag == null) return _error('no synthetic drag is active');
++    if (params['key'] != drag.key) {
++      return _error('key must match the active synthetic drag');
++    }
++    final dx = double.tryParse(params['dx'] ?? '');
++    final dy = double.tryParse(params['dy'] ?? '');
++    if (dx == null || dy == null) {
++      return _error('dx and dy parameters required (double)');
++    }
++    final steps = (int.tryParse(params['steps'] ?? '8') ?? 8).clamp(1, 120);
++    try {
++      final start = drag.position;
++      for (var index = 1; index <= steps; index++) {
++        final position = Offset(
++          start.dx + (dx * index / steps),
++          start.dy + (dy * index / steps),
++        );
++        drag.timeStamp += const Duration(milliseconds: 8);
++        final delta = position - drag.position;
++        drag.onUpdate(
++          DragUpdateDetails(
++            globalPosition: position,
++            localPosition: drag.renderBox.globalToLocal(position),
++            delta: delta,
++            primaryDelta: delta.dx,
++          ),
++        );
++        drag.position = position;
++      }
++      SchedulerBinding.instance.scheduleFrame();
++      await SchedulerBinding.instance.endOfFrame;
++      return _ok({
++        'updated': true,
++        'active': true,
++        'dx': dx,
++        'dy': dy,
++        'steps': steps,
++        ..._activeDragState(drag),
++      });
++    } catch (_) {
++      _finishActiveSyntheticDrag(canceled: true);
++      rethrow;
++    }
++  }
++
++  static _R _dragEndByKey(
++    String method,
++    Map<String, String> params,
++  ) async {
++    final drag = _activeSyntheticDrag;
++    if (drag == null) return _error('no synthetic drag is active');
++    if (params['key'] != drag.key) {
++      return _error('key must match the active synthetic drag');
++    }
++    final canceled = params['cancel'] == 'true';
++    final state = _activeDragState(drag);
++    _finishActiveSyntheticDrag(canceled: canceled);
++    SchedulerBinding.instance.scheduleFrame();
++    await SchedulerBinding.instance.endOfFrame;
++    return _ok({'ended': true, 'active': false, 'canceled': canceled, ...state});
++  }
++
+   static _R _dragByKey(String method, Map<String, String> params) async {
+     final keyValue = params['key'];
+     if (keyValue == null || keyValue.isEmpty) {
+@@ -791,6 +992,28 @@ class AgentService {
+     });
+   }
+ 
++  static _R _getSeekPreviewState(
++    PlaybackController p,
++    Map<String, String> params,
++  ) async {
++    final info = p.songInfo;
++    return _ok({
++      'preview': DebugHooks.seekPreviewLookup?.call() ??
++          <String, Object?>{
++            'present': false,
++            'active': false,
++            'targetMs': null,
++            'durationMs': 0,
++          },
++      'playback': {
++        'path': info?.track.path,
++        'positionMs': info?.position,
++        'durationMs': info?.duration,
++        'isPlaying': p.isPlaying,
++      },
++    });
++  }
++
+   static _R _play(PlaybackController p, Map<String, String> params) async {
+     if (!p.isPlaying) await p.playPause();
+     return _ok({'isPlaying': true});
+diff --git a/lib/debug_hooks.dart b/lib/debug_hooks.dart
+index dea6664..71dd9b0 100644
+--- a/lib/debug_hooks.dart
++++ b/lib/debug_hooks.dart
+@@ -13,6 +13,7 @@ class DebugHooks {
+   static bool Function()? immersiveLookup;
+   static String? Function()? screenLookup;
+   static Future<void> Function()? settingsOpener;
++  static Map<String, Object?> Function()? seekPreviewLookup;
+   /// Opens/closes the swipe-up library browser (drives the slide for QA of the
+   /// overlay behavior). Set by VoidScreen in debug builds.
+   static void Function(bool expanded)? browserExpander;
+diff --git a/lib/screens/void_screen.dart b/lib/screens/void_screen.dart
+index da5f641..deba926 100644
+--- a/lib/screens/void_screen.dart
++++ b/lib/screens/void_screen.dart
+@@ -26,6 +26,7 @@ import '../widgets/heroes/spectrum_hero.dart';
+ import '../widgets/heroes/void_hero.dart';
+ import '../widgets/mid_ellipsis.dart';
+ import '../widgets/press_feedback.dart';
++import '../widgets/retro_lcd_display.dart';
+ import '../widgets/transport_row.dart';
+ import '../widgets/void_browser.dart';
+ import '../widgets/void_settings_sheet.dart';
+@@ -41,6 +42,8 @@ const Duration _jumpGlyphHideDebounce = Duration(milliseconds: 200);
+ // Settle window after opening the browser so its first frame lays out before
+ // we navigate + scroll; ~250 ms reads as one gesture.
+ const Duration _browserOpenSettle = Duration(milliseconds: 250);
++// Keep seek preview visible briefly after drag-end so the target is readable.
++const Duration _seekPreviewHold = Duration(milliseconds: 1200);
+ 
+ /// Home shell for all four visualisations: hero, embedded [VoidBrowser],
+ /// transport row, crumb (path / search), progress hairline. Hero tap-zones
+@@ -131,6 +134,10 @@ class VoidScreen extends HookWidget {
+     final lastPersistedPath = useRef<String?>(null);
+     final hintFadeTimer = useRef<Timer?>(null);
+     final jumpGlyphHideTimer = useRef<Timer?>(null);
++    final seekPreviewClearTimer = useRef<Timer?>(null);
++    final seekPreviewTargetMs = useState<int?>(null);
++    final seekPreviewDurationMs = useState(0);
++    final seekPreviewActive = useState(false);
+     // B-031: the latch is a ref (mutated during build, mirroring the old plain
+     // field) so flipping it true never notifies mid-build; the hide-timer bumps
+     // [rebuildTick] to force the one rebuild that drops the glyph.
+@@ -412,6 +419,25 @@ class VoidScreen extends HookWidget {
+       const [],
+     );
+ 
++    // Cancel seek-preview timer on unmount.
++    useEffect(() => () => seekPreviewClearTimer.value?.cancel(), const []);
++
++    Map<String, Object?> seekPreviewLookup() => <String, Object?>{
++      'present': seekPreviewTargetMs.value != null,
++      'active': seekPreviewActive.value,
++      'targetMs': seekPreviewTargetMs.value,
++      'durationMs': seekPreviewDurationMs.value,
++    };
++    DebugHooks.seekPreviewLookup = seekPreviewLookup;
++    useEffect(
++      () => () {
++        if (identical(DebugHooks.seekPreviewLookup, seekPreviewLookup)) {
++          DebugHooks.seekPreviewLookup = null;
++        }
++      },
++      [seekPreviewLookup],
++    );
++
+     // --- theming helpers -----------------------------------------------------
+ 
+     final theme = Theme.of(context);
+@@ -493,6 +519,7 @@ class VoidScreen extends HookWidget {
+           browserPresentation.value == BrowserPresentation.swipeUp &&
+           !browserExpanded.value;
+       return HeroFeedbackSurface(
++        key: const ValueKey('void-hero-gesture-surface'),
+         flashController: heroFlashController,
+         onPlayPause: () => player.playPause(),
+         onPrevious: () => player.previous(),
+@@ -500,6 +527,22 @@ class VoidScreen extends HookWidget {
+         onSeek: (d) => player.seek(d),
+         positionMs: () => player.songInfo?.position ?? 0,
+         durationMs: () => player.songInfo?.duration ?? 0,
++        onSeekPreviewChanged: ({
++          required bool active,
++          required int targetMs,
++          required int durationMs,
++        }) {
++          seekPreviewClearTimer.value?.cancel();
++          seekPreviewTargetMs.value = targetMs;
++          seekPreviewDurationMs.value = durationMs;
++          seekPreviewActive.value = active;
++          if (!active) {
++            seekPreviewClearTimer.value = Timer(_seekPreviewHold, () {
++              seekPreviewTargetMs.value = null;
++              seekPreviewDurationMs.value = 0;
++            });
++          }
++        },
+         onVerticalDragUpdate: acceptVertical ? onHeroVerticalDrag : null,
+         onVerticalDragEnd: acceptVertical ? onHeroVerticalDragEnd : null,
+         child: child,
+@@ -587,6 +630,53 @@ class VoidScreen extends HookWidget {
+                   child: buildSearchCrumb(),
+                 );
+               }
++              final seekTargetMs = seekPreviewTargetMs.value;
++              if (seekTargetMs != null) {
++                final durationMs = seekPreviewDurationMs.value;
++                final fraction = durationMs <= 0
++                    ? 0.0
++                    : (seekTargetMs / durationMs).clamp(0.0, 1.0);
++                final label = durationMs <= 0
++                    ? '--:-- / --:--'
++                    : '${formatClock(seekTargetMs)} / ${formatClock(durationMs)}';
++                final textStyle = mono(
++                  palette.fgPrimary,
++                  typography.crumbSize,
++                ).copyWith(
++                  color: null,
++                  foreground: Paint()
++                    ..blendMode = BlendMode.difference
++                    ..color = Colors.white,
++                );
++                return Stack(
++                  key: const ValueKey('void-crumb-seek-preview'),
++                  fit: StackFit.expand,
++                  children: [
++                    ColoredBox(color: palette.background),
++                    Align(
++                      alignment: Alignment.centerLeft,
++                      child: FractionallySizedBox(
++                        widthFactor: fraction,
++                        heightFactor: 1,
++                        child: ColoredBox(color: palette.fgPrimary),
++                      ),
++                    ),
++                    Center(
++                      child: Padding(
++                        padding: const EdgeInsets.symmetric(horizontal: 16),
++                        child: Text(
++                          label,
++                          textAlign: TextAlign.center,
++                          maxLines: 1,
++                          overflow: TextOverflow.fade,
++                          softWrap: false,
++                          style: textStyle,
++                        ),
++                      ),
++                    ),
++                  ],
++                );
++              }
+               LibraryController? controller;
+               try {
+                 controller = Provider.of<LibraryController>(context);
+diff --git a/lib/widgets/hero_feedback_surface.dart b/lib/widgets/hero_feedback_surface.dart
+index a187e1e..bb7169b 100644
+--- a/lib/widgets/hero_feedback_surface.dart
++++ b/lib/widgets/hero_feedback_surface.dart
+@@ -3,7 +3,6 @@ import 'package:flutter_hooks/flutter_hooks.dart';
+ 
+ import '../theme/app_palette.dart';
+ import '../theme/app_typography.dart';
+-import 'retro_lcd_display.dart';
+ 
+ /// Drives the directional edge flash from outside the widget (replaces the old
+ /// `GlobalKey<HeroFeedbackSurfaceState>.flashSwipe`). Each [flash] bumps a
+@@ -41,6 +40,7 @@ class HeroFeedbackSurface extends HookWidget {
+     required this.onSeek,
+     required this.positionMs,
+     required this.durationMs,
++    this.onSeekPreviewChanged,
+     this.flashController,
+     this.onVerticalDragUpdate,
+     this.onVerticalDragEnd,
+@@ -70,13 +70,19 @@ class HeroFeedbackSurface extends HookWidget {
+   /// Current track duration in ms — read at drag start.
+   final int Function() durationMs;
+ 
++  /// Emits seek preview lifecycle updates while horizontal drag is active.
++  final void Function({
++    required bool active,
++    required int targetMs,
++    required int durationMs,
++  })? onSeekPreviewChanged;
++
+   final void Function(DragUpdateDetails)? onVerticalDragUpdate;
+   final void Function(DragEndDetails)? onVerticalDragEnd;
+ 
+   /// Stable keys for widget tests.
+   static const Key tapRingKey = ValueKey<String>('hero-tap-ring');
+   static const Key swipeFlashKey = ValueKey<String>('hero-swipe-flash');
+-  static const Key seekHudKey = ValueKey<String>('hero-seek-hud');
+ 
+   /// Duration of each feedback animation.
+   static const Duration ringDuration = Duration(milliseconds: 180);
+@@ -164,6 +170,11 @@ class HeroFeedbackSurface extends HookWidget {
+       seekAccumDx.value = 0;
+       seekTargetMs.value = seekStartMs.value;
+       seeking.value = true;
++      onSeekPreviewChanged?.call(
++        active: true,
++        targetMs: seekTargetMs.value,
++        durationMs: seekDurationMs.value,
++      );
+     }
+ 
+     void onSeekUpdate(DragUpdateDetails d) {
+@@ -173,12 +184,22 @@ class HeroFeedbackSurface extends HookWidget {
+           (seekAccumDx.value / width.value) * seekDurationMs.value;
+       seekTargetMs.value =
+           raw.clamp(0, seekDurationMs.value.toDouble()).round();
++      onSeekPreviewChanged?.call(
++        active: true,
++        targetMs: seekTargetMs.value,
++        durationMs: seekDurationMs.value,
++      );
+     }
+ 
+     void onSeekEnd(DragEndDetails _) {
+       final hadDuration = seekDurationMs.value > 0;
+       final target = seekTargetMs.value;
+       seeking.value = false;
++      onSeekPreviewChanged?.call(
++        active: false,
++        targetMs: target,
++        durationMs: seekDurationMs.value,
++      );
+       if (hadDuration) {
+         onSeek(Duration(milliseconds: target));
+       }
+@@ -264,23 +285,6 @@ class HeroFeedbackSurface extends HookWidget {
+                 ),
+               ),
+             ),
+-            // Seek HUD — time readout + preview line, only while scrubbing.
+-            if (seeking.value)
+-              Positioned.fill(
+-                child: IgnorePointer(
+-                  child: _SeekHud(
+-                    fraction: seekDurationMs.value <= 0
+-                        ? 0
+-                        : (seekTargetMs.value / seekDurationMs.value)
+-                            .clamp(0.0, 1.0),
+-                    label: seekDurationMs.value <= 0
+-                        ? '--:-- / --:--'
+-                        : '${formatClock(seekTargetMs.value)} / ${formatClock(seekDurationMs.value)}',
+-                    palette: palette,
+-                    typography: typography,
+-                  ),
+-                ),
+-              ),
+           ],
+         );
+       },
+@@ -288,54 +292,6 @@ class HeroFeedbackSurface extends HookWidget {
+   }
+ }
+ 
+-/// Centered time readout + a thin full-width preview line at [fraction].
+-class _SeekHud extends StatelessWidget {
+-  const _SeekHud({
+-    required this.fraction,
+-    required this.label,
+-    required this.palette,
+-    required this.typography,
+-  });
+-
+-  final double fraction;
+-  final String label;
+-  final AppPalette palette;
+-  final AppTypography typography;
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    return Stack(
+-      key: HeroFeedbackSurface.seekHudKey,
+-      fit: StackFit.expand,
+-      children: [
+-        Center(
+-          child: Text(
+-            label,
+-            style: TextStyle(
+-              color: palette.fgPrimary,
+-              fontFamily: typography.monoFamily,
+-              fontSize: typography.heroSize * 0.5,
+-              height: 1,
+-              fontWeight: FontWeight.w300,
+-            ),
+-          ),
+-        ),
+-        // Preview line: full-height marker at the target x (fraction → -1..1).
+-        Align(
+-          alignment: Alignment(fraction * 2 - 1, 0),
+-          child: FractionallySizedBox(
+-            heightFactor: 1,
+-            child: SizedBox(
+-              width: 2,
+-              child: ColoredBox(color: palette.progress),
+-            ),
+-          ),
+-        ),
+-      ],
+-    );
+-  }
+-}
+-
+ class _TapRingPainter extends CustomPainter {
+   _TapRingPainter({
+     required this.center,
+diff --git a/test/widgets/hero_feedback_surface_test.dart b/test/widgets/hero_feedback_surface_test.dart
+index 21e77a1..4d05e36 100644
+--- a/test/widgets/hero_feedback_surface_test.dart
++++ b/test/widgets/hero_feedback_surface_test.dart
+@@ -20,6 +20,7 @@ void main() {
+     Widget widget,
+     List<String> events,
+     List<Duration> seeks,
++    List<({bool active, int targetMs, int durationMs})> previews,
+   }) build({
+     HeroFlashController? flashController,
+     int positionMs = 10000,
+@@ -27,6 +28,7 @@ void main() {
+   }) {
+     final events = <String>[];
+     final seeks = <Duration>[];
++    final previews = <({bool active, int targetMs, int durationMs})>[];
+     final w = SizedBox(
+       width: 400,
+       height: 400,
+@@ -38,10 +40,19 @@ void main() {
+         onSeek: (d) => seeks.add(d),
+         positionMs: () => positionMs,
+         durationMs: () => durationMs,
++        onSeekPreviewChanged: ({
++          required bool active,
++          required int targetMs,
++          required int durationMs,
++        }) {
++          previews.add(
++            (active: active, targetMs: targetMs, durationMs: durationMs),
++          );
++        },
+         child: const ColoredBox(color: Colors.black),
+       ),
+     );
+-    return (widget: w, events: events, seeks: seeks);
++    return (widget: w, events: events, seeks: seeks, previews: previews);
+   }
+ 
+   group('tap ring', () {
+@@ -148,7 +159,7 @@ void main() {
+       expect(b.seeks.single.inSeconds, lessThan(40));
+     });
+ 
+-    testWidgets('the seek HUD shows the time readout while dragging',
++    testWidgets('emits seek preview updates while dragging',
+         (tester) async {
+       final b = build(positionMs: 10000, durationMs: 60000);
+       await tester.pumpWidget(host(b.widget));
+@@ -158,14 +169,19 @@ void main() {
+       await gesture.moveBy(const Offset(120, 0));
+       await tester.pump();
+ 
+-      expect(find.byKey(HeroFeedbackSurface.seekHudKey), findsOneWidget);
+-      // Readout is "m:ss / m:ss".
+-      expect(find.textContaining(' / 1:00'), findsOneWidget);
++      expect(b.previews, isNotEmpty);
++      expect(
++        b.previews.where((p) => p.active).isNotEmpty,
++        isTrue,
++      );
++      expect(
++        b.previews.last.durationMs,
++        60000,
++      );
+ 
+       await gesture.up();
+       await tester.pump();
+-      // HUD is gone once the drag ends.
+-      expect(find.byKey(HeroFeedbackSurface.seekHudKey), findsNothing);
++      expect(b.previews.last.active, isFalse);
+     });
+ 
+     testWidgets('with no duration the drag does not seek', (tester) async {

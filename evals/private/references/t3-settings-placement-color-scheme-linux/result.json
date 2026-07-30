@@ -1,0 +1,115 @@
+{
+  "fixture_commit": "5fc7e04",
+  "reference_baseline_commit": "2d05fa88051a0e689219bd99c66f0bace508f09b",
+  "reference_owner": "evaluator",
+  "repository_revision": false,
+  "network": "none",
+  "credentials": "not_loaded",
+  "image": {
+    "name": "nothingness-eval:t1",
+    "immutable_id": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "architecture": "arm64"
+  },
+  "runtime": {
+    "flutter": "Flutter 3.44.0 channel [user-branch] unknown source",
+    "dart": "3.12.0 stable linux_arm64",
+    "entrypoint": "dev/main_debug.dart",
+    "target": "linux"
+  },
+  "reference_patch": {
+    "path": "evals/private/references/t3-settings-placement-color-scheme-linux/reference.patch",
+    "sha256": "ef1f4b560978a9a2f7f36826f2ec3d5479d8f6ca298ed56667c67ac88c12ee30"
+  },
+  "semantic_evidence": {
+    "path": "evals/private/references/t3-settings-placement-color-scheme-linux/semantic.json",
+    "sha256": "34a610f92e2652e0cfad53c4cc99692e974f3e468098c4338e404ab086cd90f4"
+  },
+  "checks": {
+    "selector_action": true,
+    "selector_value_changed": true,
+    "post_action_adjacency": true,
+    "oracle_t2": true,
+    "oracle_t3": true,
+    "oracle_post_cassette_variants_contiguous": true,
+    "widget_test": true,
+    "live_semantics": true,
+    "screenshot_nonblank": true,
+    "cleanup": true,
+    "patch_applies": true,
+    "hashes_match": true
+  },
+  "deterministic": {
+    "container": {
+      "image": "nothingness-eval:t1",
+      "network": "none",
+      "entrypoint": "sleep infinity",
+      "workspace": "/workspace",
+      "home": "/run/nothingness/home",
+      "setup_command": "docker exec -u root <container> sh -lc 'mkdir -p /run/nothingness/home /workspace/.dart_tool /workspace/build && chmod -R a+rwX /run/nothingness /workspace'"
+    },
+    "command": "docker exec <container> sh -lc 'cd /workspace && HOME=/run/nothingness/home flutter pub get --offline && HOME=/run/nothingness/home flutter test --no-pub test/t3_settings_placement_reference_test.dart'",
+    "result": "00:00 +1: All tests passed!",
+    "summary": "post_action_adjacency=true; post_cassette_variants_contiguous=true",
+    "checks": [
+      "cassette row directly follows screen row",
+      "post-action cassette row directly follows screen row",
+      "cassette row contains exact color scheme",
+      "cassette row does not contain variant",
+      "oracle reports post_cassette_variants_contiguous true"
+    ]
+  },
+  "patch_application": {
+    "command": "git apply --check evals/private/references/t3-settings-placement-color-scheme-linux/reference.patch",
+    "fixture_commit": "5fc7e04",
+    "result": "passed"
+  },
+  "live": {
+    "rerun": false,
+    "integrity_reverified": true,
+    "commands": [
+      "drive.py screen cassette",
+      "drive.py settings open",
+      "drive.py call ext.nothingness.getSemantics",
+      "drive.py call ext.nothingness.getSemantics",
+      "drive.py tap void-settings-cassette-variant",
+      "drive.py call ext.nothingness.getSemantics",
+      "drive.py shoot t3_settings"
+    ],
+    "semantic": "semantic.json",
+    "selector": {
+      "command": "drive.py tap void-settings-cassette-variant",
+      "result": {"tapped": "void-settings-cassette-variant", "mode": "descendant-callback"},
+      "before": "Tape \u00b7 Amber",
+      "after": "Tape \u00b7 Colour",
+      "old_value_absent_after": true,
+      "color_scheme_label_preserved": true,
+      "screen_cassette_adjacency_preserved": true
+    },
+    "screenshot": {
+      "path": "t3_settings.png",
+      "sha256": "0b240fe7f8ffdb1cc06e5e28b5373b36994b38f0a417cfdb36802d9a9256257e",
+      "dimensions": [1278, 720],
+      "nonblank": true
+    }
+  },
+  "cleanup_evidence": {
+    "independent_check": true,
+    "commands": [
+      "docker ps -a --filter label=nothingness-eval",
+      "docker network ls --filter label=nothingness-eval",
+      "pgrep -af nothingness-eval"
+    ],
+    "counts": {
+      "containers": 0,
+      "networks": 0,
+      "processes": 0
+    }
+  },
+  "secret_scan": {
+    "provider_aware_scanner_available": false,
+    "credentials_loaded": false,
+    "pattern_scan": "passed: no provider-oriented credential patterns matched the retained text artifacts",
+    "result": "gitleaks, trufflehog, and detect-secrets were unavailable"
+  },
+  "status": "passed"
+}

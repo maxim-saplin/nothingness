@@ -1,0 +1,73 @@
+{
+  "status": "frozen",
+  "fixture_commit": "5fc7e04",
+  "fixture_tree": "021b5e899b666628f8402c07fc4acd371252800",
+  "network": "none",
+  "credentials": "not_loaded",
+  "image": {
+    "tag": "nothingness-eval:t1",
+    "required_id": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "before": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "after": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "architecture": "arm64",
+    "hashes_match": true
+  },
+  "artifacts": {
+    "reference_patch": {"path": "reference.patch", "sha256": "76e928cef9fd79ffa8b4ddab16d0a575fa9958a57f4ebc64505a3a5b2140f053"},
+    "fixture_absence": {"path": "fixture_presence.json", "sha256": "2547b271046da2d95b81ac5630816e2e733622c8319fec23c6574d70d9ab11cf"},
+    "semantic": {"path": "semantic.json", "sha256": "eceb3744e7e5db90df847e0159b8469dd823d27dc0f293cc1bedaf5ddf9ef163"},
+    "before_screenshot": {"path": "t5_before.png", "sha256": "d9798d699a2db35516ad1076499065300fe8c80f93247904c45d9a09f27f3452", "dimensions": [1278, 720], "nonblank": true},
+    "after_screenshot": {"path": "t5_after.png", "sha256": "a733c2aafa0db6d06e173c7bb430e0ab1a8b6681a4ca9f6ba5383549cdf71c24", "dimensions": [1278, 720], "nonblank": true},
+    "pub_get_log": {"path": "t5-pub-get.log", "sha256": "0b3bad5cce3ce16b4934d9a7744fff4229fbe3a027cf289ff6f1d0f5a275e506", "result": "pass"},
+    "analyze_log": {"path": "t5-analyze.log", "sha256": "134e6661f1dc96f221bb6407bb080eede482e0447e30cc82452b9a600858a127", "result": "pass"},
+    "focused_test_log": {"path": "t5-focused-validation.log", "sha256": "1e422bd14cbd27a6a22fe8f917141099ec95986e3cba0ed5f0e928f03c6b8b10", "result": "pass: 49 tests"},
+    "runtime_log": {"path": "t5-runtime.log", "sha256": "be75fc4463734e465ebdc373b2331e289e39ac971fb5b1279451ba6dc2e89c53"},
+    "host_oracle_log": {"path": "t5-host-oracle.log", "sha256": "d14e022c54a1cc56f673696c4559f1e83b10f1570f41fcf955dcf298ba45ab7c", "result": "pass: 9 checks"},
+    "p2_oracle_test_log": {"path": "t5-p2-oracle-tests.log", "sha256": "3e5e13e45c5679793abc28956a6df70007e21db734fe0b654ea32d652c337f49", "result": "pass: 11 tests"},
+    "evaluator_regression_log": {"path": "t5-evaluator-regressions.log", "sha256": "8205d6bcc41ab672f4aab953c77cd4c129f4adc0bbecae4460a601c4376be426", "result": "pass: 37 tests"}
+  },
+  "commands": {
+    "fixture_export": "git archive 5fc7e04 | tar -x -C <fresh-workspace>; docker exec -u root <container> sh -lc 'mkdir -p /workspace /run/nothingness/t5-home/.config /run/nothingness/t5-home/.local/share && chmod -R a+rwX /workspace /run/nothingness'; docker cp <fresh-workspace>/. <container>:/workspace; docker cp evals/private/references/t5-jump-to-now-playing-linux/reference.patch <container>:/tmp/t5-reference.patch; rm -rf <fresh-workspace>; docker exec <container> sh -lc 'test -f /workspace/dev/main_debug.dart && test -f /tmp/t5-reference.patch && cd /workspace && git apply --check /tmp/t5-reference.patch && git apply /tmp/t5-reference.patch'",
+    "container": "docker run -d --rm --name nothingness-t5-reference --label nothingness.eval.t5-reference=true --network none --cap-drop ALL --security-opt no-new-privileges=true nothingness-eval:t1",
+    "staging": "copy evals/assets/opus/01-undercover-49.opus to /opt/nothingness/media/t5/t5-row-01.opus through t5-row-48.opus inside the container",
+    "validation": "cd /workspace && HOME=/run/nothingness/t5-home XDG_CONFIG_HOME=/run/nothingness/t5-home/.config XDG_DATA_HOME=/run/nothingness/t5-home/.local/share flutter pub get --offline && flutter analyze && flutter test --no-pub test/screens/void_screen_test.dart test/widgets/void_browser_test.dart",
+    "launch": "DISPLAY=:99 HOME=/run/nothingness/t5-home XDG_CONFIG_HOME=/run/nothingness/t5-home/.config XDG_DATA_HOME=/run/nothingness/t5-home/.local/share flutter run -d linux --no-pub --debug -t dev/main_debug.dart",
+    "inspection": "ext.nothingness.getNowPlayingJumpState",
+    "activation": "ext.nothingness.tapByKey key=void-crumb-jump-to-playing",
+    "host_oracle": "python3 .agents/skills/nothingness-evals/scripts/oracles/p2_gesture_navigation_oracle.py --task t5-jump-to-now-playing-linux < evals/private/references/t5-jump-to-now-playing-linux/semantic.json"
+  },
+  "runtime": {
+    "entrypoint": "dev/main_debug.dart",
+    "platform": "linux",
+    "home": "/run/nothingness/t5-home",
+    "xdg_config_home": "/run/nothingness/t5-home/.config",
+    "xdg_data_home": "/run/nothingness/t5-home/.local/share",
+    "staged_folder": "/opt/nothingness/media/t5",
+    "staged_rows": 48,
+    "target": "/opt/nothingness/media/t5/t5-row-01.opus",
+    "transition": {
+      "pre_scroll_offset": 0.0,
+      "post_scroll_offset": 1761.225352112676,
+      "pre_visible": false,
+      "post_visible": true,
+      "post_row_bounds": [235.725, 276.725],
+      "viewport_bounds": [230.4, 486.1746478873239],
+      "browser_path_preserved": true,
+      "action": {"label": "jump to now playing", "enabled": true, "succeeded": true},
+      "no_playing": {"affordance_present": false}
+    }
+  },
+  "results": {
+    "flutter_analyze": "pass: No issues found",
+    "focused_tests": "pass: 49 tests",
+    "host_oracle": "pass: all 9 checks true",
+    "p2_oracle_tests": "pass: 11 tests",
+    "evaluator_regression_tests": "pass: 37 tests"
+  },
+  "cleanup": {
+    "container_count": 0,
+    "network_count": 0,
+    "matching_process_count": 0,
+    "temporary_workspaces_absent": true
+  }
+}

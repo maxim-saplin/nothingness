@@ -1,0 +1,120 @@
+diff --git a/lib/widgets/void_settings_sheet.dart b/lib/widgets/void_settings_sheet.dart
+index 2329a6d..c45ef6d 100644
+--- a/lib/widgets/void_settings_sheet.dart
++++ b/lib/widgets/void_settings_sheet.dart
+@@ -354,16 +354,6 @@ class VoidSettingsSheet extends HookWidget {
+                   (v) => cfg.copyWith(textScale: v)),
+             ],
+           CassetteScreenConfig() => [
+-              _Cycle(
+-                'void-settings-cassette-variant',
+-                'variant',
+-                cassetteVariantMeta[cfg.variant]!.label,
+-                () {
+-                  final next = CassetteVariant.values[
+-                      (cfg.variant.index + 1) % CassetteVariant.values.length];
+-                  settings.saveScreenConfig(cfg.copyWith(variant: next));
+-                },
+-              ),
+               textSize('void-settings-cassette-text-size', cfg.textScale,
+                   (v) => cfg.copyWith(textScale: v)),
+               _Toggle(
+@@ -400,6 +390,17 @@ class VoidSettingsSheet extends HookWidget {
+                 const [ThemeVariant.dark, ThemeVariant.light, ThemeVariant.system],
+                 settings.themeVariantNotifier.value))),
+         _Cycle('void-settings-screen', 'screen', labelFor(cfg.type), cycleScreen),
++        if (cfg is CassetteScreenConfig)
++          _Cycle(
++            'void-settings-cassette-variant',
++            'color scheme',
++            cassetteVariantMeta[cfg.variant]!.label,
++            () {
++              final next = CassetteVariant.values[
++                  (cfg.variant.index + 1) % CassetteVariant.values.length];
++              settings.saveScreenConfig(cfg.copyWith(variant: next));
++            },
++          ),
+         _Toggle('void-settings-immersive', 'immersive',
+             settings.immersiveNotifier.value,
+             () => settings.setImmersive(!settings.immersiveNotifier.value)),
+diff --git a/test/t3_settings_placement_reference_test.dart b/test/t3_settings_placement_reference_test.dart
+new file mode 100644
+index 0000000..9a08df0
+--- /dev/null
++++ b/test/t3_settings_placement_reference_test.dart
+@@ -0,0 +1,74 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:nothingness/models/operating_mode.dart';
++import 'package:nothingness/models/screen_config.dart';
++import 'package:nothingness/models/theme_id.dart';
++import 'package:nothingness/services/settings_service.dart';
++import 'package:nothingness/theme/themes.dart';
++import 'package:nothingness/widgets/void_settings_sheet.dart';
++import 'package:shared_preferences/shared_preferences.dart';
++
++Widget _wrap(Widget child) => MaterialApp(
++      theme: buildAppTheme(id: ThemeId.void_, brightness: Brightness.dark),
++      home: child,
++    );
++
++Future<void> _pumpInTallViewport(WidgetTester tester, Widget app) async {
++  await tester.binding.setSurfaceSize(const Size(800, 2400));
++  await tester.pumpWidget(app);
++  await tester.pump();
++  addTearDown(() => tester.binding.setSurfaceSize(null));
++}
++
++void main() {
++  TestWidgetsFlutterBinding.ensureInitialized();
++
++  setUp(() async {
++    SharedPreferences.setMockInitialValues(<String, Object>{});
++    final settings = SettingsService();
++    settings.operatingModeNotifier.value = OperatingMode.own;
++    await settings.saveScreenConfig(const CassetteScreenConfig());
++  });
++
++  testWidgets('cassette color scheme follows screen directly and cycles', (tester) async {
++    await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
++
++    final screen = find.byKey(
++      const ValueKey('void-settings-screen'),
++      skipOffstage: false,
++    );
++    final cassette = find.byKey(
++      const ValueKey('void-settings-cassette-variant'),
++      skipOffstage: false,
++    );
++    expect(screen, findsOneWidget);
++    expect(cassette, findsOneWidget);
++
++    final screenRect = tester.getRect(screen);
++    final cassetteRect = tester.getRect(cassette);
++    expect(cassetteRect.top, screenRect.bottom);
++    expect(
++      find.descendant(of: cassette, matching: find.text('color scheme')),
++      findsOneWidget,
++    );
++    expect(
++      find.descendant(of: cassette, matching: find.text('variant')),
++      findsNothing,
++    );
++
++    const initialValue = 'Tape · Mono';
++    const nextValue = 'Tape · Amber';
++    expect(find.descendant(of: cassette, matching: find.text(initialValue)), findsOneWidget);
++    await tester.tap(cassette);
++    await tester.pump();
++    final postScreenRect = tester.getRect(screen);
++    final postCassetteRect = tester.getRect(cassette);
++    expect(postCassetteRect.top, postScreenRect.bottom);
++    expect(find.descendant(of: cassette, matching: find.text(nextValue)), findsOneWidget);
++    expect(find.descendant(of: cassette, matching: find.text(initialValue)), findsNothing);
++    expect(
++      find.descendant(of: cassette, matching: find.text('color scheme')),
++      findsOneWidget,
++    );
++  });
++}
+\ No newline at end of file

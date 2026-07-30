@@ -1,0 +1,7 @@
+# Scoring
+
+T1 is the first real scored baseline. The judge manually assigns `unassisted_pass`, `assisted_pass`, or `candidate_fail` and a compatible score from $0$ to $3$ only after reviewing the complete Pi conversation, tool activity, app/runtime state, workspace evidence, interventions, and deterministic task evidence.
+
+The evaluator-generated T1 oracle pairs successful Pi tool starts and ends to require play, pause, skip, and seek operations, then independently inspects live playback for a non-empty queue, valid index, and real Opus track. An oracle pass is required for a pass outcome. An oracle failure after clean infrastructure supports `candidate_fail`; it does not make the attempt infrastructure-invalid by itself.
+
+`unassisted_pass` requires zero delivered interventions. `assisted_pass` requires at least one intervention recorded as delivered by both host and candidate journals. `candidate_fail` requires score $0$. `invalid_infrastructure` and `unassigned` runs cannot receive an outcome or score. Consolidation accepts exactly three distinct, numbered, non-calibration valid trials with identical frozen task, image, requested and selected model identities, and configuration fingerprints. Admission cost is reported separately from candidate benchmark cost; absent provider pricing remains unknown rather than zero.

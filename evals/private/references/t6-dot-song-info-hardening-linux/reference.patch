@@ -1,0 +1,401 @@
+diff --git a/dev/agent_service.dart b/dev/agent_service.dart
+index 41ddfed..5a1cee4 100644
+--- a/dev/agent_service.dart
++++ b/dev/agent_service.dart
+@@ -24,6 +24,7 @@ import 'package:nothingness/models/theme_variant.dart';
+ import 'package:nothingness/models/transport_position.dart';
+ import 'package:nothingness/services/playback_controller.dart';
+ import 'package:nothingness/services/settings_service.dart';
++import 'package:nothingness/widgets/heroes/dot_hero.dart';
+ 
+ /// Short alias for the response future returned by every handler.
+ typedef _R = Future<developer.ServiceExtensionResponse>;
+@@ -43,6 +44,11 @@ typedef _PHandler = _R Function(PlaybackController p, Map<String, String> p2);
+ class AgentService {
+   AgentService._();
+ 
++  static const String _longArtist =
++      'A very long artist name that wraps across two lines';
++  static const String _longTitle =
++      'A very long song title that also wraps across two lines';
++
+   /// Ring buffer of layout-overflow events; exposed via `getOverflowReports`.
+   static final Queue<Map<String, Object?>> _overflowReports =
+       Queue<Map<String, Object?>>();
+@@ -62,6 +68,8 @@ class AgentService {
+     // Generic primitives.
+     'getWidgetTree': _getWidgetTree,
+     'getSemantics': _getSemantics,
++    'getDotSongInfoState': _getDotSongInfoState,
++    'setDotScreenConfig': _setDotScreenConfig,
+     'tapByKey': _tapByKey,
+     'dragByKey': _dragByKey,
+     'getSettings': _getSettings,
+@@ -79,6 +87,7 @@ class AgentService {
+     'getAudioEvents': _withProvider(_getAudioEvents),
+     'simulateInterruption': _withProvider(_simulateInterruption),
+     'simulateNoisy': _withProvider(_simulateNoisy),
++    'prepareDotSongInfoScenario': _withProvider(_prepareDotSongInfoScenario),
+     // P-A inspection surface.
+     'getRouterState': _getRouterState,
+     'getLibraryState': _getLibraryState,
+@@ -106,6 +115,7 @@ class AgentService {
+     _installed = true;
+     _installOverflowHook();
+     DebugHooks.onAppReady = (_) {
++      DebugHooks.appInstanceId = '${DateTime.now().microsecondsSinceEpoch}';
+       _registerExtensions();
+       _installFrameHook();
+     };
+@@ -400,6 +410,126 @@ class AgentService {
+     return _ok({'semantics': _truncate(root.toStringDeep(), 0)});
+   }
+ 
++  static Map<String, double>? _globalBounds(Element? element) {
++    final renderObject = element?.findRenderObject();
++    if (renderObject is! RenderBox ||
++        !renderObject.attached ||
++        !renderObject.hasSize ||
++        renderObject.size.isEmpty) {
++      return null;
++    }
++    final topLeft = renderObject.localToGlobal(Offset.zero);
++    final bottomRight = renderObject.localToGlobal(
++      Offset(renderObject.size.width, renderObject.size.height),
++    );
++    return {
++      'left': topLeft.dx,
++      'top': topLeft.dy,
++      'right': bottomRight.dx,
++      'bottom': bottomRight.dy,
++    };
++  }
++
++  static Element? _findDotHeroElement() {
++    Element? found;
++    final root = WidgetsBinding.instance.rootElement;
++    if (root == null) return null;
++    _walkSubtree(root, (element) {
++      if (element.widget is DotHero) {
++        found = element;
++        return true;
++      }
++      return false;
++    }, includeSelf: true);
++    return found;
++  }
++
++  static bool _hasVisibleSongInfo() {
++    final artist = _findElementByKey('hero-artist');
++    final song = _findElementByKey('hero-song');
++    bool visible(Element? element) {
++      final renderObject = element?.findRenderObject();
++      return renderObject is RenderBox &&
++          renderObject.attached &&
++          renderObject.hasSize &&
++          renderObject.size.height > 0;
++    }
++    return visible(artist) || visible(song);
++  }
++
++  static _R _getDotSongInfoState(String method, Map<String, String> params) async {
++    final config = SettingsService().screenConfigNotifier.value;
++    final onDot = config.type == ScreenType.dot;
++    final dotConfig = config is DotScreenConfig ? config : null;
++    final showSongInfo = dotConfig?.showSongInfo ?? false;
++    final hasSongInfo = onDot && showSongInfo && _hasVisibleSongInfo();
++    final overflows = _overflowReports
++        .map((report) => report['message'])
++        .whereType<String>()
++        .toList(growable: false);
++    return _ok({
++      'app_instance': DebugHooks.appInstanceId,
++      'show_song_info': showSongInfo,
++      'has_song_info': hasSongInfo,
++      'hero_bounds': _globalBounds(_findDotHeroElement()),
++      'dot_bounds': _globalBounds(_findElementByKey('dot-visual')),
++      'artist_bounds': _globalBounds(_findElementByKey('hero-artist')),
++      'title_bounds': _globalBounds(_findElementByKey('hero-song')),
++      'overflow_errors': overflows,
++      'text_scale': dotConfig?.textScale,
++    });
++  }
++
++  static _R _setDotScreenConfig(String method, Map<String, String> params) async {
++    final settings = SettingsService();
++    final current = settings.screenConfigNotifier.value;
++    final base = current is DotScreenConfig
++        ? current
++        : (await settings.loadScreenConfig(
++              SettingsService.screenIdForType(ScreenType.dot),
++            ) as DotScreenConfig?) ??
++            const DotScreenConfig();
++    bool? parseBool(String? value) =>
++        value == null ? null : value.toLowerCase() == 'true';
++    double? parseDouble(String? value) =>
++        value == null ? null : double.tryParse(value);
++    final next = base.copyWith(
++      showSongInfo: parseBool(params['showSongInfo']) ?? base.showSongInfo,
++      textScale: parseDouble(params['textScale']) ?? base.textScale,
++      maxDotSize: parseDouble(params['maxDotSize']) ?? base.maxDotSize,
++      sensitivity: parseDouble(params['sensitivity']) ?? base.sensitivity,
++    );
++    await settings.saveScreenConfig(next);
++    return _ok({
++      'showSongInfo': next.showSongInfo,
++      'textScale': next.textScale,
++      'maxDotSize': next.maxDotSize,
++      'sensitivity': next.sensitivity,
++    });
++  }
++
++  static _R _prepareDotSongInfoScenario(
++    PlaybackController player,
++    Map<String, String> params,
++  ) async {
++    final path = params['path'] ?? '/opt/nothingness/media/01-undercover-49.opus';
++    final peak = double.tryParse(params['spectrumPeak'] ?? '') ?? 1.0;
++    await player.setQueue(
++      [
++        AudioTrack(path: path, title: _longTitle, artist: _longArtist),
++      ],
++      startIndex: 0,
++    );
++    if (!player.isPlaying) await player.playPause();
++    player.debugInjectSpectrumFrame(List<double>.filled(8, peak));
++    return _ok({
++      'path': path,
++      'artist': _longArtist,
++      'title': _longTitle,
++      'spectrumPeak': peak,
++    });
++  }
++
+   static _R _tapByKey(String method, Map<String, String> params) async {
+     final keyValue = params['key'];
+     if (keyValue == null || keyValue.isEmpty) {
+diff --git a/lib/debug_hooks.dart b/lib/debug_hooks.dart
+index dea6664..4197cce 100644
+--- a/lib/debug_hooks.dart
++++ b/lib/debug_hooks.dart
+@@ -19,4 +19,6 @@ class DebugHooks {
+   /// Set by the harness; invoked by the app once init completes so the harness
+   /// can register VM-service extensions. No-op if unset (production).
+   static void Function(Object provider)? onAppReady;
++  /// Fresh identifier stamped on each app bootstrap (used by evaluator harness).
++  static String? appInstanceId;
+ }
+diff --git a/lib/services/playback_controller.dart b/lib/services/playback_controller.dart
+index c83d524..c5775cd 100644
+--- a/lib/services/playback_controller.dart
++++ b/lib/services/playback_controller.dart
+@@ -355,6 +355,10 @@ class PlaybackController extends ChangeNotifier {
+   /// Debug seam for tests / `ext.nothingness.simulateNoisy`.
+   void debugSimulateBecomingNoisy() => _onBecomingNoisy();
+ 
++  /// Debug seam for evaluator harness spectrum pinning.
++  void debugInjectSpectrumFrame(List<double> values) =>
++      _spectrum.debugInjectFrame(values);
++
+   // ---- Transport events -----------------------------------------------------
+ 
+   void _handleTransportEvent(TransportEvent event) {
+diff --git a/lib/services/spectrum_source.dart b/lib/services/spectrum_source.dart
+index bd07078..5f0d736 100644
+--- a/lib/services/spectrum_source.dart
++++ b/lib/services/spectrum_source.dart
+@@ -21,6 +21,12 @@ class SpectrumSource extends ChangeNotifier {
+   void updateSettings(SpectrumSettings settings) =>
+       _transport.updateSpectrumSettings(settings);
+ 
++  /// Debug seam for evaluator harness spectrum pinning.
++  void debugInjectFrame(List<double> values) {
++    _data = values;
++    notifyListeners();
++  }
++
+   /// Begin mirroring the transport's spectrum stream into [data].
+   void start() {
+     _sub ??= _transport.spectrumStream.listen((d) {
+diff --git a/lib/widgets/heroes/dot_hero.dart b/lib/widgets/heroes/dot_hero.dart
+index bd20b3d..24fd9ef 100644
+--- a/lib/widgets/heroes/dot_hero.dart
++++ b/lib/widgets/heroes/dot_hero.dart
+@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
+ import '../../models/screen_config.dart';
+ import '../../services/playback_controller.dart';
+ import '../../theme/app_palette.dart';
++import '../../theme/app_typography.dart';
+ import 'base_hero_container.dart';
+ import 'hero_title_block.dart';
+ 
+@@ -16,14 +17,47 @@ class DotHero extends StatelessWidget {
+   final DotScreenConfig config;
+ 
+   double _radiusFor(List<double> spectrum, double maxAllowed) {
+-    if (spectrum.isEmpty) return min(config.minDotSize, maxAllowed);
++    final upper = min(config.maxDotSize, maxAllowed);
++    if (upper <= 0) return 0;
++    if (spectrum.isEmpty) return min(config.minDotSize, upper);
+     var bass = 0.0;
+     for (var i = 0; i < min(spectrum.length, 3); i++) {
+       bass = max(bass, spectrum[i]);
+     }
+     final r = config.minDotSize +
+         bass * bass * config.sensitivity * (config.maxDotSize - config.minDotSize);
+-    return r.clamp(config.minDotSize, min(config.maxDotSize, maxAllowed));
++    return r.clamp(min(config.minDotSize, upper), upper);
++  }
++
++  double _songInfoHeight(BuildContext context, double maxWidth) {
++    final typography = Theme.of(context).extension<AppTypography>()!;
++    final track = context.read<PlaybackController>().songInfo?.track;
++    final textWidth = maxWidth - 112;
++    if (track == null || textWidth <= 0) return 0;
++
++    double heightFor(String text, double fontSize) {
++      final painter = TextPainter(
++        text: TextSpan(
++          text: text,
++          style: heroHeadingStyle(
++            typography,
++            color: Colors.transparent,
++            fontSize: fontSize,
++          ),
++        ),
++        textDirection: Directionality.of(context),
++        maxLines: 2,
++        ellipsis: '...',
++      )..layout(maxWidth: textWidth);
++      return painter.height;
++    }
++
++    final artist = track.artist.trim();
++    final h1 = typography.heroSize * config.textScale;
++    if (artist.isEmpty) return heightFor(track.title, h1);
++    return heightFor(artist, h1) +
++        8 +
++        heightFor(track.title, h1 * heroSongSizeFactor);
+   }
+ 
+   @override
+@@ -36,27 +70,41 @@ class DotHero extends StatelessWidget {
+     return LayoutBuilder(
+       builder: (context, constraints) {
+         final maxAllowed = min(constraints.maxWidth, constraints.maxHeight) / 2;
++        final infoTop = 12.0;
++        final songBlockHeight = config.showSongInfo
++            ? _songInfoHeight(context, constraints.maxWidth)
++            : 0.0;
++        final reservedTop = config.showSongInfo ? infoTop + songBlockHeight : 0.0;
++        final remainingHeight = max(0.0, constraints.maxHeight - reservedTop);
++        final radiusCap = config.showSongInfo
++            ? min(maxAllowed, max(8.0, remainingHeight / 2 - 4))
++            : maxAllowed;
+         return BaseHeroContainer(
+           child: Stack(
+             children: [
+-              // Pulsing dot — always centered. Only this subtree repaints per
+-              // spectrum frame (RepaintBoundary-isolated).
+-              Center(
+-                child: RepaintBoundary(
+-                  child: AnimatedBuilder(
+-                    animation: player.spectrumListenable,
+-                    builder: (context, _) {
+-                      final r = _radiusFor(player.spectrumData, maxAllowed);
+-                      return Container(
+-                        width: r * 2,
+-                        height: r * 2,
+-                        decoration: BoxDecoration(
+-                          color: palette.fgPrimary
+-                              .withValues(alpha: config.dotOpacity),
+-                          shape: BoxShape.circle,
+-                        ),
+-                      );
+-                    },
++              Positioned(
++                left: 0,
++                right: 0,
++                top: reservedTop,
++                height: remainingHeight,
++                child: Center(
++                  child: RepaintBoundary(
++                    child: AnimatedBuilder(
++                      animation: player.spectrumListenable,
++                      builder: (context, _) {
++                        final r = _radiusFor(player.spectrumData, radiusCap);
++                        return Container(
++                          key: const ValueKey('dot-visual'),
++                          width: r * 2,
++                          height: r * 2,
++                          decoration: BoxDecoration(
++                            color: palette.fgPrimary
++                                .withValues(alpha: config.dotOpacity),
++                            shape: BoxShape.circle,
++                          ),
++                        );
++                      },
++                    ),
+                   ),
+                 ),
+               ),
+@@ -65,7 +113,7 @@ class DotHero extends StatelessWidget {
+                 Positioned(
+                   left: 0,
+                   right: 0,
+-                  top: 12,
++                  top: infoTop,
+                   child: Opacity(
+                     opacity: config.textOpacity.clamp(0.0, 1.0),
+                     child: HeroTitleBlock(textScale: config.textScale),
+diff --git a/test/widgets/heroes/dot_hero_test.dart b/test/widgets/heroes/dot_hero_test.dart
+index ef72bc6..541ac47 100644
+--- a/test/widgets/heroes/dot_hero_test.dart
++++ b/test/widgets/heroes/dot_hero_test.dart
+@@ -184,4 +184,46 @@ void main() {
+ 
+     expect(find.text('nothingness'), findsOneWidget);
+   });
++
++  testWidgets('long max-scale metadata stays in the hero and clear of the dot',
++      (tester) async {
++    final provider = FakeAudioPlayerProvider(
++      songInfo: const SongInfo(
++        track: AudioTrack(
++          path: '/media/long.opus',
++          artist: 'A very long artist name that wraps across two lines',
++          title: 'A very long song title that also wraps across two lines',
++        ),
++        isPlaying: true,
++        position: 0,
++        duration: 200000,
++      ),
++      spectrumData: List<double>.filled(8, 1.0),
++    );
++
++    await tester.pumpWidget(
++      wrapWithProvider(
++        provider,
++        const SizedBox(
++          width: 400,
++          height: 400,
++          child: DotHero(
++            config: DotScreenConfig(showSongInfo: true, textScale: 1.5),
++          ),
++        ),
++      ),
++    );
++
++    final heroBounds = tester.getRect(find.byType(DotHero));
++    final dotBounds = tester.getRect(find.byKey(const ValueKey('dot-visual')));
++    final artistBounds = tester.getRect(find.text(
++        'A very long artist name that wraps across two lines'));
++    final titleBounds = tester.getRect(find.text(
++        'A very long song title that also wraps across two lines'));
++    final textBounds = artistBounds.expandToInclude(titleBounds);
++
++    expect(heroBounds.contains(textBounds.topLeft), isTrue);
++    expect(heroBounds.contains(textBounds.bottomRight), isTrue);
++    expect(textBounds.overlaps(dotBounds), isFalse);
++  });
+ }

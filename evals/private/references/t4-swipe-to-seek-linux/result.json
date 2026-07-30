@@ -1,0 +1,139 @@
+{
+  "status": "frozen",
+  "fixture_commit": "5fc7e04",
+  "fixture_tree": "021b5e8999b666628f8402c07fc4acd371252800",
+  "known_good_commit": "448f6db3ea9160ef33cab5e7c02613fd2459bbbf",
+  "reference_is_direct_child": true,
+  "network": "none",
+  "credentials": "not_loaded",
+  "image": {
+    "tag": "nothingness-eval:t1",
+    "required_id": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "before": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "after": "sha256:bb08b8fde7f78c251fc540ab9eca5d6f32c7422b0cfc58ca78d0b941e9caacd9",
+    "architecture": "arm64",
+    "hashes_match": true
+  },
+  "artifacts": {
+    "reference_patch": {
+      "path": "reference.patch",
+      "sha256": "ab59d3eb73b512b8f5cdc31bac71e09b608245315876791aeb3df004bdbc63f5"
+    },
+    "semantic": {
+      "path": "semantic.json",
+      "sha256": "4908470a3b8aced4aca52ae72534e2c9a4feebb195e48bd28b38cb92374ec027"
+    },
+    "during_screenshot": {
+      "path": "t4_during.png",
+      "sha256": "0a57a4e2ee4a1629da5feb5a96c6b4ea60047895a80b00185229262be7a64f63",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "nonblank": true
+    },
+    "post_screenshot": {
+      "path": "t4_post.png",
+      "sha256": "81f3ef00186027e58075b045f14889a9ccf97a43a80af7e374689d3234185f8c",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "nonblank": true
+    },
+    "pub_get_log": {
+      "path": "t4-pub-get.log",
+      "sha256": "ec4e4973af0a96471c225ecf3c61f92311b324c0ecb3038a802dc0b6fe81af4b",
+      "result": "pass"
+    },
+    "analyze_log": {
+      "path": "t4-analyze.log",
+      "sha256": "b600da926c558e29e1b91d5b99382dbbbbf2f5363c7f31e63b1d17c39e55a5cf",
+      "result": "pass"
+    },
+    "focused_test_log": {
+      "path": "t4-focused-validation.log",
+      "sha256": "e99f4d560f8bd5a288b898773f8ad5d904d82da42dc0d29240205c94dd32fe79",
+      "result": "pass: 60 tests"
+    },
+    "runtime_log": {
+      "path": "t4-runtime.log",
+      "sha256": "50bddd1c2f6d22db4b2cdaf4dab62ea6f7aa626232e3974dce82ed54253e4e56"
+    },
+    "host_oracle_log": {
+      "path": "t4-host-oracle.log",
+      "sha256": "6a696c243084c2b28dedca03694cac3f874c29a7368f1de98d55bc942f787bf8",
+      "result": "pass: 12 checks"
+    },
+    "p2_oracle_test_log": {
+      "path": "t4-p2-oracle-tests.log",
+      "sha256": "3e5e13e45c5679793abc28956a6df70007e21db734fe0b654ea32d652c337f49",
+      "result": "pass: 11 tests"
+    },
+    "evaluator_regression_log": {
+      "path": "t4-evaluator-regressions.log",
+      "sha256": "8f718887a7c215b0e65e6f90e4d429bf1d94f16c75fad4cbc1d88fee56ae2be0",
+      "result": "pass: 37 tests"
+    }
+  },
+  "commands": {
+    "fixture_export": "git archive 5fc7e04 | tar -x -C <fresh-workspace>; chmod -R a+rwX <fresh-workspace>; docker cp <fresh-workspace>/. nothingness-t4-reference:/workspace; git apply --check evals/private/references/t4-swipe-to-seek-linux/reference.patch; git apply evals/private/references/t4-swipe-to-seek-linux/reference.patch",
+    "container": "docker run -d --rm --name nothingness-t4-reference --label nothingness.eval.t4-reference=true --network none --cap-drop ALL --security-opt no-new-privileges=true --entrypoint /bin/sh nothingness-eval:t1 -c 'sleep infinity'",
+    "validation": "cd /workspace && HOME=/run/nothingness/t4-home XDG_CONFIG_HOME=/run/nothingness/t4-home/.config XDG_DATA_HOME=/run/nothingness/t4-home/.local/share flutter pub get --offline && flutter analyze && flutter test --no-pub --reporter compact test/widgets/hero_feedback_surface_test.dart test/screens/void_screen_test.dart",
+    "launch": "cd /workspace && HOME=/run/nothingness/t4-home XDG_CONFIG_HOME=/run/nothingness/t4-home/.config XDG_DATA_HOME=/run/nothingness/t4-home/.local/share xvfb-run -a flutter run -d linux --no-pub --debug -t dev/main_debug.dart",
+    "capture": "setQueue one /opt/nothingness/media/01-undercover-49.opus; resume; dragStartByKey key=void-hero-gesture-surface kind=touch; dragUpdateByKey key=void-hero-gesture-surface dx=240 dy=0 steps=12; getSeekPreviewState while held; dragEndByKey; poll getPlaybackState and retain the first same-track sample within 3000ms of target",
+    "host_oracle": "python3 .agents/skills/nothingness-evals/scripts/oracles/p2_gesture_navigation_oracle.py --task t4-swipe-to-seek-linux < evals/private/references/t4-swipe-to-seek-linux/semantic.json"
+  },
+  "runtime": {
+    "entrypoint": "dev/main_debug.dart",
+    "target": "linux",
+    "queue": [
+      "/opt/nothingness/media/01-undercover-49.opus"
+    ],
+    "pre": {
+      "track_path": "/opt/nothingness/media/01-undercover-49.opus",
+      "position_ms": 53,
+      "duration_ms": 83783,
+      "is_playing": true
+    },
+    "during": {
+      "pointer": 458753,
+      "active": true,
+      "from": [
+        640.0,
+        115.2
+      ],
+      "to": [
+        880.0,
+        115.2
+      ],
+      "target_ms": 21319,
+      "duration_ms": 83783,
+      "fraction": 0.2544,
+      "semantics_folder_line": "0:21 / 1:23",
+      "center_seek_indicator": false
+    },
+    "post": {
+      "first_matching_poll": 2,
+      "track_path": "/opt/nothingness/media/01-undercover-49.opus",
+      "position_ms": 21457,
+      "target_delta_ms": 138,
+      "is_playing": true,
+      "preview_cleared": true,
+      "center_seek_indicator": false
+    }
+  },
+  "results": {
+    "flutter_analyze": "pass: No issues found",
+    "focused_tests": "pass: 60 tests",
+    "host_oracle": "pass: all 12 checks true",
+    "p2_oracle_tests": "pass: 11 tests",
+    "evaluator_regression_tests": "pass: 37 tests"
+  },
+  "cleanup": {
+    "container_count": 0,
+    "network_count": 0,
+    "matching_process_count": 0,
+    "temporary_workspaces_absent": true
+  }
+}

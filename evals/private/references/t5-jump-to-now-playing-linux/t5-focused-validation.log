@@ -1,0 +1,51 @@
+00:00 +0: loading /workspace/test/screens/void_screen_test.dart
+00:00 +0: /workspace/test/screens/void_screen_test.dart: VoidScreen hero dispatcher void config → VoidHero
+00:00 +1: /workspace/test/widgets/void_browser_test.dart: B-015: VoidBrowser.scrollToTrack end-of-list target changes from offscreen to visible
+00:00 +2: /workspace/test/widgets/void_browser_test.dart: B-015: VoidBrowser.scrollToTrack end-of-list target changes from offscreen to visible
+00:00 +3: /workspace/test/widgets/void_browser_test.dart: B-015: VoidBrowser.scrollToTrack end-of-list target changes from offscreen to visible
+00:00 +4: /workspace/test/widgets/void_browser_test.dart: B-015: VoidBrowser.scrollToTrack end-of-list target changes from offscreen to visible
+00:00 +5: /workspace/test/widgets/void_browser_test.dart: B-015: VoidBrowser.scrollToTrack end-of-list target changes from offscreen to visible
+00:00 +6: /workspace/test/widgets/void_browser_test.dart: B-015: VoidBrowser.scrollToTrack end-of-list target changes from offscreen to visible
+00:00 +7: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) search input renders at row-size (typography.rowSize)
+00:00 +8: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) search input renders at row-size (typography.rowSize)
+00:00 +9: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) search input renders at row-size (typography.rowSize)
+00:00 +10: /workspace/test/widgets/void_browser_test.dart: B-031: VoidBrowser.scrollToTrack fallback for long folders falls back to ScrollController.animateTo when the row key has not built
+00:00 +11: /workspace/test/widgets/void_browser_test.dart: B-031: VoidBrowser.scrollToTrack fallback for long folders falls back to ScrollController.animateTo when the row key has not built
+00:00 +12: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) vertical swipe-down on crumb closes search
+00:00 +13: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) vertical swipe-down on crumb closes search
+00:01 +14: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) vertical swipe-down on crumb closes search
+00:01 +15: /workspace/test/widgets/void_browser_test.dart: B-032: VoidBrowser drag handle drag handle uses palette fgSecondary and ~40x6 px (B-033)
+00:01 +16: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) focus-out collapses search even with a non-empty query (B-013)
+00:01 +17: /workspace/test/screens/void_screen_test.dart: VoidScreen search crumb (B-013) focus-out collapses search even with a non-empty query (B-013)
+00:01 +18: /workspace/test/screens/void_screen_test.dart: B-018: per-skin transport contract hostsChromeTransport: hosted heroes true, Polo false
+00:01 +19: /workspace/test/screens/void_screen_test.dart: B-018: per-skin transport contract transport=bottom: Spectrum (hosted) gets hero band == total - transport row height
+00:01 +20: /workspace/test/screens/void_screen_test.dart: B-018: per-skin transport contract transport=off: hosted heroes get the full hero area, no TransportRow painted
+00:01 +21: /workspace/test/screens/void_screen_test.dart: B-018: per-skin transport contract Polo with transport=bottom: shell does NOT paint TransportRow
+00:01 +22: /workspace/test/screens/void_screen_test.dart: B-018: per-skin transport contract Polo with transport=top: shell does NOT paint TransportRow
+00:01 +23: /workspace/test/screens/void_screen_test.dart: B-015: crumb jump-to-now-playing glyph hidden when nothing is playing
+00:01 +24: /workspace/test/screens/void_screen_test.dart: B-015: crumb jump-to-now-playing glyph hidden when dirname(playing) == currentPath (already in the folder)
+00:01 +25: /workspace/test/screens/void_screen_test.dart: B-015: crumb jump-to-now-playing glyph same-folder offscreen action preserves the browser folder
+00:01 +26: /workspace/test/screens/void_screen_test.dart: B-015: crumb jump-to-now-playing glyph visible when dirname(playing) != currentPath
+00:01 +27: /workspace/test/screens/void_screen_test.dart: B-015: crumb jump-to-now-playing glyph tapping the glyph calls loadFolder(dirname(playing-track-path))
+00:01 +28: /workspace/test/screens/void_screen_test.dart: hero tap-zones + drag-to-seek tapping the left third fires previous
+00:01 +29: /workspace/test/screens/void_screen_test.dart: hero tap-zones + drag-to-seek tapping the centre fires play/pause
+00:01 +30: /workspace/test/screens/void_screen_test.dart: hero tap-zones + drag-to-seek tapping the right third fires next
+00:01 +31: /workspace/test/screens/void_screen_test.dart: hero tap-zones + drag-to-seek a horizontal drag seeks (never changes track)
+00:01 +32: /workspace/test/screens/void_screen_test.dart: B-031: jump-to-now-playing reliability glyph stays visible during a transient currentPath==dirname flip (<200ms)
+00:01 +33: /workspace/test/screens/void_screen_test.dart: B-031: jump-to-now-playing reliability glyph hides if currentPath==dirname persists past 200ms
+00:01 +34: /workspace/test/screens/void_screen_test.dart: B-031: jump-to-now-playing reliability tap on glyph opens the swipe-up browser when it is dismissed
+00:01 +35: /workspace/test/screens/void_screen_test.dart: B-031: jump-to-now-playing reliability tap on glyph does NOT toggle browser state when it is already visible
+00:02 +36: /workspace/test/screens/void_screen_test.dart: B-032: drag-down-to-close drag handle visible only after the browser opens
+00:02 +37: /workspace/test/screens/void_screen_test.dart: B-032: drag-down-to-close drag DOWN > 60 dp on the handle closes the browser
+00:02 +38: /workspace/test/screens/void_screen_test.dart: B-032: drag-down-to-close fast short flick DOWN (<60 dp, >300 dp/s) closes the browser
+00:02 +39: /workspace/test/screens/void_screen_test.dart: B-032: drag-down-to-close vertical drag UP (negative dy) does NOT close
+00:02 +40: /workspace/test/screens/void_screen_test.dart: B-032: drag-down-to-close drag DOWN on the scrollable list does NOT close
+00:03 +41: /workspace/test/screens/void_screen_test.dart: B-032: drag-down-to-close fixed presentation: no drag handle, drag has no effect
+00:03 +42: /workspace/test/screens/void_screen_test.dart: B-033: swipe-up browser slide animation collapsed swipe-up: VoidBrowser is in tree but parked offscreen below the viewport
+00:03 +43: /workspace/test/screens/void_screen_test.dart: B-033: swipe-up browser slide animation expanding the swipe-up browser slides it up into view over ~280 ms
+00:03 +44: /workspace/test/screens/void_screen_test.dart: B-033: jump-to-now-playing glyph visibility bump glyph renders at typography.rowSize in palette.fgPrimary
+00:03 +45: /workspace/test/screens/void_screen_test.dart: B-043: search auto-expands a collapsed swipe-up browser entering search expands the collapsed browser; exiting re-collapses
+00:03 +46: /workspace/test/screens/void_screen_test.dart: B-043: search auto-expands a collapsed swipe-up browser does NOT re-collapse a browser the user opened before searching
+00:03 +47: /workspace/test/screens/void_screen_test.dart: B-030 follow-up: chrome tappables wear PressFeedback settings ⋮ button has a PressFeedback ancestor
+00:03 +48: /workspace/test/screens/void_screen_test.dart: B-030 follow-up: chrome tappables wear PressFeedback swipe-up hint has a PressFeedback wrapping its onTap
+00:03 +49: All tests passed!

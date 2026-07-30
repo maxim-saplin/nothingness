@@ -1,6 +1,6 @@
 ---
 name: qa-1
-model: Gemini 3.1 Pro (Preview) (copilot)
+model: GPT-5.6 Terra (copilot)
 description: Use for QA
 ---
 
