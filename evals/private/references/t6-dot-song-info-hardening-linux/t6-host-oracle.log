@@ -1,1 +1,0 @@
-{"schema_version":1,"oracle":"p3-dot-opus","task":"t6-dot-song-info-hardening-linux","classification":"pass","checks":{"frozen_stress_scenario":true,"fresh_default_off":true,"enabled_conditional_info":true,"restart_persisted":true,"disabled_removes_info":true,"exact_scales":true,"geometry_clear_at_both_scales":true},"passed":true}

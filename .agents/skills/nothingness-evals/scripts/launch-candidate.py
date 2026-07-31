@@ -5,7 +5,7 @@ import os
 import sys
 import time
 
-from common import ROOT, command, command_or_fail, emit_json, fail, read_host_pi_config, read_json, run_dir, require_command, utc_now, validate_frozen_task, validate_model_identity, validate_run_id, write_json
+from common import ROOT, command, command_or_fail, emit_json, fail, read_host_pi_config, read_json, run_dir, require_command, utc_now, validate_frozen_rubric, validate_frozen_task, validate_model_identity, validate_run_id, write_json
 
 
 def main() -> None:
@@ -18,6 +18,13 @@ def main() -> None:
     if not (run / "preflight.json").is_file():
         fail(4, "preflight_required")
     metadata = read_json(run / "run.json")
+    # By this point `selected_model` in run.json is no longer a copy of
+    # `requested_model`: preflight.py persisted it there only after pi's own
+    # admission probe echoed back the provider/model it actually served, and
+    # only when that matched what was requested (a mismatch fails preflight
+    # outright, never reaching here). This comparison is therefore a genuine
+    # check that run.json was not tampered with between preflight and launch,
+    # not the tautology it was before.
     validate_model_identity(metadata["requested_model"], metadata["selected_model"])
     admission_path = run / "admission.json"
     if not admission_path.is_file():
@@ -27,6 +34,7 @@ def main() -> None:
         fail(4, "admission_mismatch")
     task_path = ROOT / "evals" / "tasks" / f"{metadata['task_id']}.json"
     validate_frozen_task(metadata, task_path)
+    validate_frozen_rubric(metadata, ROOT / "evals" / "tasks" / "rubrics" / f"{metadata['task_id']}.md")
     model = metadata["selected_model"]
     pi_config = read_host_pi_config(provider=model["provider"])
     if pi_config["config_fingerprints"] != metadata["pi"]["config_fingerprints"]:
@@ -57,7 +65,7 @@ def main() -> None:
         time.sleep(0.1)
     if not ready:
         fail(5, "candidate_control_not_ready")
-    result = {"ok": True, "run_id": run_id, "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": True, "timeout_seconds": task["limits"]["timeout_seconds"], "output_mode": "rpc-jsonl", "canonical_output": "/run/nothingness/candidate.jsonl", "lifecycle_output": "/run/nothingness/lifecycle.jsonl", "progress_output": "/run/nothingness/progress.json", "launched_at": utc_now()}
+    result = {"ok": True, "run_id": run_id, "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": admission["identity_verified"], "timeout_seconds": task["limits"]["timeout_seconds"], "output_mode": "rpc-jsonl", "canonical_output": "/run/nothingness/candidate.jsonl", "lifecycle_output": "/run/nothingness/lifecycle.jsonl", "progress_output": "/run/nothingness/progress.json", "launched_at": utc_now()}
     write_json(run / "launch.json", result)
     emit_json(result)
 

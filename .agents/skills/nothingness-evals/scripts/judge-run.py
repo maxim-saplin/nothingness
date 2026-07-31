@@ -44,7 +44,11 @@ def start(arguments: argparse.Namespace) -> None:
     except BaseException:
         invoke("cleanup.py", run_id)
         raise
-    result = {"ok": True, "action": "start", "run_id": run_id, "suite_id": suite["id"], "task_id": arguments.task_id, "trial": arguments.trial, "calibration": arguments.calibration, "requested_model": prepared["requested_model"], "selected_model": prepared["selected_model"], "identity_verified": prepared["requested_model"] == prepared["selected_model"], "novnc_url": prepared["novnc_url"], "preflight": preflight["ok"], "launch": launch["ok"], "judge_events_command": f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/judge-events.py {run_id}", "dashboard_command": f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/watch-eval.py {run_id}", "started_at": utc_now()}
+    # `selected_model`/`identity_verified` come from preflight's output, not
+    # prepare's: prepare-run.py has not called pi yet at that point, so it has
+    # nothing genuine to report. preflight.py's admission probe is what
+    # actually discovers what pi served and derives whether it matches.
+    result = {"ok": True, "action": "start", "run_id": run_id, "suite_id": suite["id"], "task_id": arguments.task_id, "trial": arguments.trial, "calibration": arguments.calibration, "requested_model": preflight["requested_model"], "selected_model": preflight["selected_model"], "identity_verified": preflight["identity_verified"], "novnc_url": prepared["novnc_url"], "preflight": preflight["ok"], "launch": launch["ok"], "judge_events_command": f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/judge-events.py {run_id}", "started_at": utc_now()}
     write_json(run_dir(run_id) / "judge-start.json", result)
     emit_json(result)
 
@@ -62,9 +66,9 @@ def collect(arguments: argparse.Namespace) -> None:
 
 
 def decide(arguments: argparse.Namespace) -> None:
-    classify = [arguments.run_id, "--validity", arguments.validity, "--outcome", arguments.outcome]
-    if arguments.score is not None:
-        classify.extend(("--score", str(arguments.score)))
+    classify = [arguments.run_id, "--validity", arguments.validity]
+    if arguments.scorecard:
+        classify.extend(("--scorecard", arguments.scorecard))
     if arguments.notes:
         classify.extend(("--notes", arguments.notes))
     for observation_id in arguments.observation_id:
@@ -83,23 +87,22 @@ def cleanup(arguments: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     subparsers = parser.add_subparsers(dest="action", required=True)
-    start_parser = subparsers.add_parser("start")
+    start_parser = subparsers.add_parser("start", allow_abbrev=False)
     start_parser.add_argument("suite", type=Path)
     start_parser.add_argument("task_id")
     start_parser.add_argument("--trial", required=True, type=int)
     start_parser.add_argument("--calibration", action="store_true")
-    collect_parser = subparsers.add_parser("collect")
+    collect_parser = subparsers.add_parser("collect", allow_abbrev=False)
     collect_parser.add_argument("run_id")
-    decide_parser = subparsers.add_parser("decide")
+    decide_parser = subparsers.add_parser("decide", allow_abbrev=False)
     decide_parser.add_argument("run_id")
     decide_parser.add_argument("--validity", required=True, choices=("valid", "invalid_infrastructure", "unassigned"))
-    decide_parser.add_argument("--outcome", required=True, choices=("unassisted_pass", "assisted_pass", "candidate_fail", "unassigned"))
-    decide_parser.add_argument("--score", type=int)
+    decide_parser.add_argument("--scorecard")
     decide_parser.add_argument("--notes", required=True)
     decide_parser.add_argument("--observation-id", action="append", default=[])
-    cleanup_parser = subparsers.add_parser("cleanup")
+    cleanup_parser = subparsers.add_parser("cleanup", allow_abbrev=False)
     cleanup_parser.add_argument("run_id")
     cleanup_parser.add_argument("--force", action="store_true")
     arguments = parser.parse_args()

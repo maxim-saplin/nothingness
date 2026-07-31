@@ -1,15 +1,169 @@
 # Nothingness Evaluator
 
-This evaluator compares coding agents on real Nothingness Flutter tasks that require code changes and live-app feedback. Each trial runs in an isolated Linux container against a frozen fixture, task manifest, and image; the task suite and architecture are described in [plan.md](plan.md). Current release status is in [status-report.md](status-report.md).
+This is a benchmark for coding agents. A candidate agent gets a real feature
+request against Nothingness — this ~15k-LOC Flutter media controller app —
+and works it in an isolated Linux container. A judge agent then decides
+whether the app actually does the thing, by driving it and looking at it.
+Full context and rationale live in [plan.md](plan.md); operational steps are
+in [the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md).
 
-Pi must already be installed and configured for the exact requested model. The committed suite manifest is the independent request contract; configured alternatives are never substituted. Operational workflow is in [the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md).
+Status: the harness (container, proxy, judge tooling) has been proven by one
+scored trial. No multi-task campaign has been run yet. Nothing here should be
+read as validated or finished — see "Current Results" below.
 
-The judge actively follows the actual Pi event stream, inspects the app and workspace, records any intervention, and assigns validity and score from the complete evidence. Deterministic task checks support that judgment but do not replace it. Infrastructure-invalid and unassigned runs retain diagnostics without a candidate score. Three independently judged valid trials are required for a comparable reliability-cohort result.
+## Isolation model
 
-The evaluator records preflight admission cost separately from candidate cost, then reports their combined total when provider pricing is available; unavailable pricing remains `unknown`. It also records requested and selected model identities, Pi/config/image/task fingerprints, elapsed times, tool activity, judge commands, transactional intervention states, and digest-verified judge observations. Candidate-derived artifacts are redacted, including structured keys and filenames, and scanned in unpublished staging before collection creates the final artifact directory. Valid judge coverage is derived from contiguous event sequences in the verified evidence rather than trusted cursor metadata. Cleanup verifies and journals that the candidate container is absent after removal. A compact CLI dashboard is available for user observation; the judge uses richer structured events and inspection commands.
+Each trial runs in a container built from a pinned image. Preparation exports
+the app fixture at commit `5fc7e04` and initializes a one-commit Git
+baseline — the candidate never sees repository history. The candidate
+container has all Linux capabilities dropped and `no-new-privileges`, and
+joins only a fresh internal Docker network. Its only route out is through a
+second, equally restricted proxy sidecar that allows HTTPS CONNECT to a
+single allowlisted hostname — the exact host derived from the requested
+provider's configured `baseUrl` — and rejects literal IPs and other ports.
+Provider credentials are never written to container config; they're sent
+over stdin to a short-lived bootstrap process at launch. noVNC, used to
+observe the running app, is published from the candidate on `127.0.0.1`
+only, never exposed beyond the host.
 
-Working artifacts live in `.tmp/evals/<run-id>/`: `run.json`, `admission.json`, `interventions.json`, `artifacts/`, `summary.json`, and manually classified `result.json`. Consolidated, reviewed results belong in [results/](results/); historical material is in [archive/](archive/).
+## The deterministic/agentic split
+
+The agent orchestrates; scripts are its hands; the dashboard is a dumb
+renderer. Nothing that requires judgment is scripted, and nothing
+deterministic is left to agent narration.
+
+| Deterministic CLI (no judgment) | Agent (no scripts) |
+| --- | --- |
+| Build/verify image; offline + runtime baselines | Read the pi event stream, understand what's happening |
+| Fixture export, container/network/proxy, app-data reset | Drive the app, look at it, decide if the feature works |
+| Launch candidate with the frozen prompt | Decide whether to intervene, which class, what to say |
+| Stream events; dump runtime/git/process state | Decide valid vs. infrastructure-invalid |
+| Deliver an intervention **and record it verbatim** | Assign outcome and score; write the rationale |
+| Capture screenshots/semantics on demand | Decide a run is terminal vs. merely stuck |
+| Store the agent's decision, schema-validated | Decide whether to retry a task or move on |
+| Cleanup + prove absence; token/cost accounting | Decide the campaign is done |
+| Write campaign progress; render dashboard; render report | |
+
+**Honesty rule:** progress is a side effect of deterministic calls, never
+agent narration. The one exception is a `current_activity` string the judge
+sets explicitly, because "the judge is thinking" is real information only it
+has.
+
+## Guiding principles
+
+These exist to prevent a specific failure this repo already had: hundreds of
+lines of scoring machinery built and "frozen" against runs that never
+happened.
+
+1. **A run that never ran is worth nothing.** Nothing is "frozen" or
+   "release-ready" until a real scored run exercised it. The unit of done is
+   a `result.json` with real cost on it.
+2. **The judge has eyes, not schemas.** Verification means an agent driving
+   the actual app and looking at it. If a judge can't tell whether it worked
+   by using the app, the *task* is badly written — fix the task, don't add
+   an assertion.
+3. **Measure behavior, never implementation.** A check that fails a
+   correct-but-different implementation is broken. The
+   `settings_contract_oracle.py:65` hardcoding
+   `key: "void-settings-cassette-variant"` is the anti-pattern in one line
+   (see below; the oracle layer has since been deleted).
+4. **Tasks are real asks in the user's voice.** Terse, like you'd actually
+   type. Ambiguous where real life is ambiguous — coping with that is part
+   of what's measured.
+5. **Assisted is a result, not a rescue.** Interventions allowed, classed,
+   recorded. An assisted pass is never reported as unassisted.
+6. **Smallest thing that produces a number.** Add machinery only after a
+   real run proves it's needed.
+
+## Why oracles were rejected
+
+An earlier design tried to make scoring deterministic with frozen JSON
+"oracle" contracts and Python that replayed a candidate's recorded actions
+against them — around 416 lines across three oracle scripts. It never
+worked as a verification system: the oracles consumed an evidence schema no
+collection code emitted, were invoked by nothing in the run pipeline, and
+were unit-tested only against handwritten fixtures standing in for real
+runs. One of them, `settings_contract_oracle.py:65`, hardcoded a check for
+`action == {"type": "tap_by_key", "key": "void-settings-cassette-variant", ...}`.
+That check passes only if the candidate happens to name a specific widget
+key. A candidate that builds the identical user-visible feature with a
+different key, a different widget tree, or a different settings-page layout
+fails it. That is the anti-pattern this benchmark exists to avoid: an oracle
+measures *how* a candidate implemented something, never *whether* the
+feature works.
+
+The replacement has no oracle layer. Verification means a judge agent
+driving the running app — tapping, seeking, taking a screenshot, reading the
+semantics tree — and forming a verdict against a prose expectation. If that
+verdict can be disputed, the fix is a better-written expectation or a better
+observation, never a script that inspects the diff or replays a recorded
+action.
+
+## Scoring rubric
+
+Score is an aggregate over a per-task **expectations bundle**, not a judge
+gut-number. Outcome is derived from the score; assistance is tracked
+separately and never hidden.
+
+Every task ships `evals/tasks/rubrics/<task-id>.md`: an ordered list of
+expectations, each with an `id`, a prose `statement`, and a tier —
+`required` (the core ask; any unmet `required` expectation caps the run at
+`partial`, never a pass) or `secondary` (polish, evidence quality, not
+breaking adjacent behavior). The rubric file is hashed into `result.json`
+alongside the task manifest, so a score is reproducible against the exact
+expectations it was judged under.
+
+The judge records one verdict per expectation — `met` (1.0), `partial`
+(0.5), `unmet` (0.0) — each with a justification and a reference to the
+supporting observation. From the scorecard:
+
+```
+raw       = Σ(credit) / count                     # over all expectations
+penalty   = 0.05 × min(delivered_interventions, 3)   # low weight, max 0.15
+adjusted  = clamp(raw − penalty, 0, 1)
+```
+
+`adjusted` maps to one of four bands, each with a headline score and
+outcome:
+
+| `adjusted` | Score | Meaning | Outcome |
+| --- | --- | --- | --- |
+| ≥ 0.85 | **3** | GOOD — clean, verified, evidence matches | `pass` |
+| 0.60–0.85 | **2** | AVG — works, but nudged or rough | `partial` |
+| 0.30–0.60 | **1** | BAD — barely; broken or invented behavior | `partial` |
+| < 0.30 | **0** | FAIL — didn't do it, or no evidence | `fail` |
+
+Hard rule: any unmet `required` expectation caps the score at 2, regardless
+of `adjusted` — a run cannot pass while missing the core ask.
+
+Assistance is a separate field, never folded into outcome: `assisted: bool`
+is true iff any intervention was delivered, and `intervention_count` is
+hard-capped at 3 — the judge is refused a fourth delivery and must
+terminalize the run instead. An assisted pass is still reported as a pass,
+and reported as assisted; the two facts sit side by side, never laundered
+into one.
+
+## Operator flow
+
+The user names a model for a session. The judge agent runs the task suite in
+sequence against that model, driving each trial through preparation,
+candidate work, verification, and decision. A compact CLI dashboard
+(`watch-eval.py`) shows live progress — model, task, elapsed time, tokens,
+cost, latest activity — for the user to observe without interfering. Output
+is a consolidated report per model once real scored results exist.
+
+## Where things live
+
+Working artifacts for an in-progress run live under `.tmp/evals/<run-id>/`.
+Consolidated, reviewed results belong in [results/](results/), one directory
+per model. Superseded material — the oracle-based design, prior campaign
+attempts, the macOS field test this benchmark's bands are aligned to — is in
+[archive/](archive/).
 
 ## Current Results
 
-- [GPT-5.4 Nano](results/gpt-5.4-nano/README.md): T1 reliability cohort trial 1, valid candidate failure, score `0` (`1/3` trials). Seven-task campaign harness ready; no scored campaign yet.
+- [GPT-5.4 Nano](results/gpt-5.4-nano/README.md): one real, valid trial — T1,
+  candidate failure, score `0` — from a 3-trial reliability cohort that
+  predates this rewrite and is not part of any campaign. It is the one
+  scored run that proved the container/proxy/judge plumbing works, not a
+  campaign result. No seven-task campaign has run for any model yet.

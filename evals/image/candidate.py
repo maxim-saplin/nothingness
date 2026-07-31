@@ -397,7 +397,17 @@ def run_probe(arguments: argparse.Namespace, config_dir: Path, provider_env: dic
         usage = final.get("usage") if isinstance(final.get("usage"), dict) else next((event.get("usage") for event in reversed(events) if isinstance(event.get("usage"), dict)), {})
         stop_reason = final.get("stopReason", final.get("stop_reason"))
         total_tokens = usage.get("totalTokens", usage.get("total_tokens")) if isinstance(usage, dict) else None
-        result = {"ok": completed.returncode == 0 and text == "READY" and stop_reason in {"stop", "end_turn", "completed"} and isinstance(total_tokens, (int, float)) and total_tokens > 0, "exit_code": completed.returncode, "elapsed_ms": round((time.monotonic() - started) * 1000), "text": text, "stop_reason": stop_reason, "usage": usage}
+        # pi's own assistant message carries the provider/model that actually
+        # served the response (confirmed against a real captured transcript:
+        # every message_end/turn_end for role=assistant includes "api",
+        # "provider", "model" alongside content/usage) — this is genuine,
+        # discoverable evidence of what was served, not something the caller
+        # chooses. It is the only part of the requested identity pi's stream
+        # confirms: "thinking" is a request-time parameter with no analogous
+        # server-echoed confirmation anywhere in the event stream.
+        served_provider, served_model = final.get("provider"), final.get("model")
+        served = {"provider": served_provider, "model": served_model} if isinstance(served_provider, str) and isinstance(served_model, str) else None
+        result = {"ok": completed.returncode == 0 and text == "READY" and stop_reason in {"stop", "end_turn", "completed"} and isinstance(total_tokens, (int, float)) and total_tokens > 0 and served is not None, "exit_code": completed.returncode, "elapsed_ms": round((time.monotonic() - started) * 1000), "text": text, "stop_reason": stop_reason, "usage": usage, "served_model": served}
     except (subprocess.TimeoutExpired, json.JSONDecodeError):
         result = {"ok": False, "elapsed_ms": round((time.monotonic() - started) * 1000)}
     atomic_json(admission / "result.json", result)

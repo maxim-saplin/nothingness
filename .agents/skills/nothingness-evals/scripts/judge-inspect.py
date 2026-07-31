@@ -6,7 +6,7 @@ import json
 import subprocess
 import uuid
 
-from common import append_jsonl, command, emit_json, fail, read_host_pi_config, read_json, redact_value, run_dir, secret_values, utc_now, validate_run_id, write_json
+from common import DRIVE_NO_LIVE_APP_REASON as NO_LIVE_APP_REASON, append_jsonl, command, discover_drive_endpoint, drive_exec_args, emit_json, fail, read_host_pi_config, read_json, redact_value, run_dir, secret_values, utc_now, validate_run_id, write_json
 
 
 def decoded(result: subprocess.CompletedProcess[str]) -> object:
@@ -16,6 +16,20 @@ def decoded(result: subprocess.CompletedProcess[str]) -> object:
         return json.loads(result.stdout)
     except json.JSONDecodeError:
         return {"available": True, "output": result.stdout[:16_000]}
+
+
+def discover_endpoint(container: str) -> dict[str, object]:
+    """Find a live app inside the container before the runtime capture below.
+    Shares `judge-verify.py`'s exact discovery algorithm via
+    `common.discover_drive_endpoint` -- see its docstring. Historically this
+    script ran `docker exec container python3 drive.py inspect` with no env
+    override, so it reported `{"available": false}` for a perfectly live app
+    whenever the candidate launched `flutter run` logging anywhere but the
+    default `/tmp/flutter_run.log` -- the same D-class bug judge-verify.py had
+    (and the one blocking `classify-run.py`'s `validate_judge_review`, which
+    requires a cited `inspection` observation with a genuine runtime
+    capture)."""
+    return discover_drive_endpoint(container, command)
 
 
 def main() -> None:
@@ -35,8 +49,25 @@ def main() -> None:
     container = metadata["container"]
     result: dict[str, object] = {"ok": True, "run_id": arguments.run_id, "novnc_url": metadata.get("novnc_url")}
     if arguments.runtime:
-        inspection = command(["docker", "exec", container, "python3", "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py", "inspect"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        result["runtime"] = decoded(inspection)
+        # Locate a live app before capturing runtime state — see
+        # discover_endpoint's docstring for why a bare, no-env-override
+        # `docker exec ... drive.py inspect` is not reliable. The discovery
+        # outcome is recorded distinctly from the capture result itself, so a
+        # judge (and classify-run.py's validate_judge_review) can tell "no
+        # live app anywhere" apart from "app found, this capture failed".
+        discovery = discover_endpoint(container)
+        result["runtime_discovery"] = {"method": discovery["method"], "log_path": discovery["log_path"], "env": discovery["env"]}
+        if discovery["ok"]:
+            inspection = command(drive_exec_args(container, discovery["env"], "inspect"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            result["runtime"] = decoded(inspection)
+        else:
+            # Preserve the existing honest `{"available": false}` shape for
+            # the genuine no-app case — same value as before, just without
+            # the doomed docker exec. `runtime_discovery.method: "unavailable"`
+            # (plus this reason) is what distinguishes this from a live app
+            # whose `inspect` call itself failed.
+            result["runtime_discovery"]["reason"] = NO_LIVE_APP_REASON
+            result["runtime"] = {"available": False}
     if arguments.git:
         status = command(["docker", "exec", container, "git", "-C", "/workspace", "status", "--short"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         diff = command(["docker", "exec", container, "git", "-C", "/workspace", "diff", "--stat"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)

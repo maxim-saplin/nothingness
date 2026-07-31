@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, container_name, derive_provider_egress_host, emit_json, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_model_identity, validate_pi_model, validate_run_id, write_json
+from common import IMAGE_NAME, ROOT, command, command_or_fail, container_name, derive_provider_egress_host, emit_json, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
 
 
 def main() -> None:
@@ -38,10 +39,25 @@ def main() -> None:
     scoring = task_scoring(task)
     if fixture != "5fc7e04":
         fail(2, "unexpected_fixture_commit")
+    # F1: freeze the rubric's hash now, before the candidate ever sees the
+    # prompt, mirroring task_contract.manifest_sha256 below. A task that
+    # cannot be scored must not be launched — T3-T7 have no rubric yet
+    # (WP7 writes them before the full campaign), so preparing a run for
+    # those tasks correctly fails here rather than launching an unscoreable
+    # trial.
+    rubric_path = ROOT / "evals" / "tasks" / "rubrics" / f"{task_id}.md"
+    if not rubric_path.is_file():
+        fail(2, f"rubric_not_found:{task_id}")
+    rubric_sha256 = sha256(rubric_path)
     pi = resolve_pi()
     requested_model = dict(suite["requested_model"])
-    selected_model = requested_model.copy()
-    validate_model_identity(requested_model, selected_model)
+    # `selected_model` (the model identity pi actually served) is not knowable
+    # yet: nothing has called pi. It is only genuinely discoverable once
+    # preflight's admission probe gets a real response back with pi's own
+    # provider/model fields on it — preflight.py fills this in and persists it
+    # here. A run classified before preflight ever ran (invalid_infrastructure)
+    # correctly carries no selected_model at all: no evidence, no claim.
+    selected_model = None
     validate_pi_model(pi["payload"], requested_model)
     pi_config = read_host_pi_config(provider=requested_model["provider"])
     egress_host = derive_provider_egress_host(pi_config["pi_config"]["models"], requested_model["provider"], pi_config["provider_env"])
@@ -57,9 +73,24 @@ def main() -> None:
         fail(2, f"container_already_exists:{container}")
     if command(["docker", "container", "inspect", proxy], stdout=os.devnull, stderr=os.devnull).returncode == 0:
         fail(2, f"proxy_already_exists:{proxy}")
-    image_id = command_or_fail(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_NAME], 3, "image_not_available", stdout=subprocess.PIPE).stdout.strip()
+    image_inspect = command_or_fail(["docker", "image", "inspect", IMAGE_NAME], 3, "image_not_available", stdout=subprocess.PIPE).stdout
+    try:
+        image_info = json.loads(image_inspect)[0]
+    except (ValueError, IndexError, TypeError):
+        fail(3, "image_not_available")
+    image_id = image_info.get("Id")
     if not image_id:
         fail(3, "image_id_missing")
+    image_labels = image_info.get("Config", {}).get("Labels") or {}
+    # The fix for "nothing detects a stale image": before this run touches a
+    # single docker container or spends an admission token, refuse to proceed
+    # if the image's baked-in source hash (set by `build-image.py`) no longer
+    # matches `evals/image/` on disk right now. This is deliberately the
+    # earliest possible gate -- prepare-run.py creates no containers yet and
+    # preflight.py's admission probe hasn't run -- so a stale image fails
+    # loudly for free, instead of silently running old candidate.py code and
+    # surfacing as a confusing admission failure three steps later.
+    image_source_sha256 = validate_image_matches_sources(image_labels)
     (run / "seed").mkdir(parents=True)
     write_json(run / "interventions.json", [])
     result = {
@@ -72,11 +103,12 @@ def main() -> None:
         "planned_valid_trials": suite_task["valid_trials"],
         "task_id": task_id,
         "task_contract": {"id": task["id"], "manifest_sha256": hashlib.sha256(task_path.read_bytes()).hexdigest(), "prompt": task["prompt"], "limits": task["limits"], "platform_variant": task["platform_variant"]},
+        "rubric_contract": {"manifest_sha256": rubric_sha256},
         "fixture_commit": fixture,
         "container": container,
         "proxy": proxy,
         "network": network,
-        "image": {"name": IMAGE_NAME, "immutable_id": image_id},
+        "image": {"name": IMAGE_NAME, "immutable_id": image_id, "source_sha256": image_source_sha256},
         "pi": {"version": pi["version"], "config_fingerprints": pi_config["config_fingerprints"]},
         "requested_model": requested_model,
         "selected_model": selected_model,

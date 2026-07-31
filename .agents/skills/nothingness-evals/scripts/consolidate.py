@@ -9,11 +9,19 @@ from common import ROOT, emit_json, fail, load_suite, read_json, run_dir, utc_no
 
 
 COHORT_FIELDS = ("task_id", "fixture_commit", "requested_model", "selected_model", "image", "config_fingerprints", "task_contract")
+# classify-run.py's result schema this consolidator understands. Bumped by WP3
+# from 2 (T1 oracle era: unassisted_pass/assisted_pass/candidate_fail) to 3
+# (expectations-bundle era: pass/partial/fail + assisted). Old results are
+# never migrated -- a schema this script doesn't recognize is rejected rather
+# than silently computing rates over fields that no longer exist.
+SUPPORTED_SCHEMA_VERSION = 3
 
 
 def consolidate_results(results: list[dict[str, Any]], required_trials: int) -> dict[str, Any]:
     if len(results) != required_trials or len({item.get("run_id") for item in results}) != required_trials:
         fail(2, "exact_distinct_valid_trials_required")
+    if any(item.get("schema_version") != SUPPORTED_SCHEMA_VERSION for item in results):
+        fail(2, f"unsupported_result_schema_version:expected_{SUPPORTED_SCHEMA_VERSION}")
     if any(item.get("validity") != "valid" or not item.get("model_identity_verified") for item in results):
         fail(2, "valid_identity_verified_trials_required")
     reference = results[0]
@@ -25,7 +33,7 @@ def consolidate_results(results: list[dict[str, Any]], required_trials: int) -> 
         fail(2, "canonical_trial_numbers_required")
     scores = [item["score"] for item in trials]
     outcomes = [item["outcome"] for item in trials]
-    return {"schema_version": 1, "suite_id": read_json(run_dir(trials[0]["run_id"]) / "run.json")["suite_id"], "task_id": reference["task_id"], "requested_model": reference["requested_model"], "selected_model": reference["selected_model"], "trial_run_ids": [item["run_id"] for item in trials], "scores": scores, "outcomes": outcomes, "median_score": statistics.median(scores), "score_range": [min(scores), max(scores)], "unassisted_pass_rate": outcomes.count("unassisted_pass") / required_trials, "assisted_pass_rate": outcomes.count("assisted_pass") / required_trials, "stability": "stable" if len(set(scores)) == 1 else "mixed", "consolidated_at": utc_now()}
+    return {"schema_version": 1, "suite_id": read_json(run_dir(trials[0]["run_id"]) / "run.json")["suite_id"], "task_id": reference["task_id"], "requested_model": reference["requested_model"], "selected_model": reference["selected_model"], "trial_run_ids": [item["run_id"] for item in trials], "scores": scores, "outcomes": outcomes, "median_score": statistics.median(scores), "score_range": [min(scores), max(scores)], "pass_rate": outcomes.count("pass") / required_trials, "partial_rate": outcomes.count("partial") / required_trials, "fail_rate": outcomes.count("fail") / required_trials, "assisted_rate": sum(1 for item in trials if item.get("assisted")) / required_trials, "stability": "stable" if len(set(scores)) == 1 else "mixed", "consolidated_at": utc_now()}
 
 
 def main() -> None:

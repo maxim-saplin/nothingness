@@ -5,9 +5,10 @@
   "fixture_commit": "5fc7e04",
   "platform_variant": "linux",
   "prompt": "On Linux, preserve Dot's default-off persistent show-song-info option. With long artist and title metadata at normal and maximum text size, information must remain visible inside the hero without clipping or intersecting the centered pulsing dot. Provide screenshots at both scales.",
+  "scoring": {"mode": "scored", "cohort": "linux-isolated-baseline"},
   "media": {"manifest": "evals/assets/opus/manifest.json", "container_path": "/opt/nothingness/media", "required_fixture_count": 10},
-  "network": {"docker_mode": "none", "egress": "none"},
+  "network": {"docker_mode": "internal-proxy", "egress": "allowlist", "reason": "Candidate traffic is isolated on a fresh internal network and may leave only through the exact-host HTTPS proxy allowlist."},
   "limits": {"timeout_seconds": 1800, "cpus": 4, "memory": "8g", "pids_limit": 512},
-  "candidate": {"entrypoint": "dev/main_debug.dart", "workspace": "/workspace"},
+  "candidate": {"entrypoint": "dev/main_debug.dart", "workspace": "/workspace", "session_output": "/run/nothingness/candidate.jsonl"},
   "evidence": {"required": ["fresh_default", "persisted_enabled", "normal_geometry", "max_geometry", "normal_screenshot", "max_screenshot", "disabled_state"]}
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import json
 import os
 import shutil
 import subprocess
@@ -8,7 +9,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command_or_fail, emit_json, pi_package_roots, require_command, resolve_pi, sha256
+from common import IMAGE_NAME, IMAGE_SOURCE_HASH_LABEL, IMAGE_SOURCE_MANIFEST_LABEL, ROOT, command_or_fail, emit_json, image_source_hashes, image_source_sha256, pi_package_roots, require_command, resolve_pi, sha256
 
 
 def reproducible_archive(destination: Path, sources: tuple[tuple[Path, str], ...]) -> None:
@@ -27,6 +28,21 @@ def reproducible_archive(destination: Path, sources: tuple[tuple[Path, str], ...
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
             shutil.copyfileobj(source, compressed)
     uncompressed.unlink()
+
+
+def source_labels(hashes: dict[str, str]) -> list[str]:
+    """The `--label` arguments that bake `evals/image/`'s source hash into the
+    built image -- a plain `docker build` CLI flag, so no Dockerfile change is
+    needed. Two labels, not one: the combined digest is what a stale-image
+    check compares against; the per-file manifest alongside it is what lets
+    that check name exactly which file drifted, cheaply (no container needed
+    to inspect it -- both live on the image's own `docker image inspect`
+    labels, same as the existing `nothingness.eval.pi_packages_sha256` label
+    this mirrors)."""
+    return [
+        "--label", f"{IMAGE_SOURCE_HASH_LABEL}={image_source_sha256(hashes)}",
+        "--label", f"{IMAGE_SOURCE_MANIFEST_LABEL}={json.dumps(hashes, separators=(',', ':'))}",
+    ]
 
 
 def main() -> None:
@@ -49,17 +65,19 @@ def main() -> None:
         packages_archive = context / "pi-packages.tar.gz"
         reproducible_archive(packages_archive, tuple((root, root.name) for root in pi_package_roots()))
         packages_sha = sha256(packages_archive)
+        source_hashes = image_source_hashes()
+        source_sha = image_source_sha256(source_hashes)
         dependency_seed = context / "dependency-seed"
         (dependency_seed / "soloud").mkdir(parents=True)
         for repository_path, destination in (("pubspec.yaml", dependency_seed / "pubspec.yaml"), ("soloud/pubspec.yaml", dependency_seed / "soloud" / "pubspec.yaml")):
             destination.write_bytes(command_or_fail(["git", "show", f"5fc7e04:{repository_path}"], 3, "fixture_dependency_manifest_failed", stdout=subprocess.PIPE, text=False).stdout)
         command_or_fail(
-            ["docker", "build", "--label", "nothingness.eval=true", "--label", f"nothingness.eval.pi_packages_sha256={packages_sha}", "--build-arg", f"PI_ARTIFACT_SHA256={artifact_sha}", "--build-arg", f"PI_PACKAGES_SHA256={packages_sha}", "-t", IMAGE_NAME, str(context)],
+            ["docker", "build", "--label", "nothingness.eval=true", "--label", f"nothingness.eval.pi_packages_sha256={packages_sha}", *source_labels(source_hashes), "--build-arg", f"PI_ARTIFACT_SHA256={artifact_sha}", "--build-arg", f"PI_PACKAGES_SHA256={packages_sha}", "-t", IMAGE_NAME, str(context)],
             3,
             "image_build_failed",
             stdout=os.devnull,
         )
-    emit_json({"ok": True, "image": IMAGE_NAME, "pi_version": pi["version"], "pi_artifact_sha256": artifact_sha, "pi_packages_sha256": packages_sha})
+    emit_json({"ok": True, "image": IMAGE_NAME, "pi_version": pi["version"], "pi_artifact_sha256": artifact_sha, "pi_packages_sha256": packages_sha, "source_sha256": source_sha})
 
 
 if __name__ == "__main__":

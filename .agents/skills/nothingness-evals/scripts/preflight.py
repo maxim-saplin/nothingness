@@ -4,13 +4,66 @@ import os
 import sys
 import time
 
-from common import ROOT, command, emit_json, fail, read_host_pi_config, read_json, run_dir, require_command, utc_now, validate_frozen_suite, validate_frozen_task, validate_model_identity, validate_run_id, write_json
+from common import ROOT, command, emit_json, fail, read_host_pi_config, read_json, run_dir, require_command, utc_now, validate_frozen_rubric, validate_frozen_suite, validate_frozen_task, validate_run_id, write_json
 from usage import normalized_usage
 
 
 def validate_pre_admission_contract(metadata: dict[str, object], root: object = ROOT) -> None:
     validate_frozen_suite(metadata, root)
     validate_frozen_task(metadata, root / "evals" / "tasks" / f"{metadata['task_id']}.json")
+    validate_frozen_rubric(metadata, root / "evals" / "tasks" / "rubrics" / f"{metadata['task_id']}.md")
+
+
+def admission_failure_detail(raw_admission: dict[str, object]) -> str:
+    """Surface whatever the probe itself captured about a genuine provider
+    rejection -- pi's own exit code / stop reason / final text, exactly the
+    fields `candidate.py`'s `run_probe` writes onto `result.json` when the
+    request completed but didn't qualify as `ok`. When none of those are
+    present, the probe hit its except branch (subprocess timeout or an
+    undecodable event stream) before it ever got that far."""
+    parts = [f"{name}={raw_admission[name]!r}" for name in ("exit_code", "stop_reason", "text") if name in raw_admission]
+    return ",".join(parts) if parts else "probe_timed_out_or_output_undecodable"
+
+
+def evaluate_admission_probe(probe: object, probe_result: object) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    """Replaces the old single `pi_admission_failed` catch-all with the
+    distinct causes an operator actually needs to tell apart: our own exec of
+    the probe crashing, `result.json` being absent or corrupt, pi's own
+    provider genuinely rejecting the request (`ok: false` -- the one case
+    that really means "check Azure config/quota"), and our own probe contract
+    being violated (`usage`/`served_model` missing or malformed -- never the
+    provider's fault; this is exactly the defect class a stale image with an
+    older `candidate.py` produces, now caught here as a second line of
+    defense behind Part 1's build-time hash check)."""
+    if probe.returncode:
+        fail(4, f"admission_probe_process_failed:exit={probe.returncode}")
+    if probe_result.returncode:
+        fail(4, "admission_result_missing")
+    try:
+        raw_admission = read_json_value(probe_result.stdout)
+    except (ValueError, TypeError):
+        fail(4, "admission_result_unparseable")
+    if not isinstance(raw_admission, dict):
+        fail(4, "admission_result_unparseable")
+    if not raw_admission.get("ok"):
+        fail(4, f"admission_rejected:{admission_failure_detail(raw_admission)}")
+    usage = raw_admission.get("usage")
+    if not isinstance(usage, dict):
+        fail(4, "admission_usage_missing")
+    served = raw_admission.get("served_model")
+    if not (isinstance(served, dict) and isinstance(served.get("provider"), str) and isinstance(served.get("model"), str)):
+        fail(4, "admission_served_model_missing")
+    return raw_admission, usage, served
+
+
+def served_model_matches(requested: dict[str, object], served: object) -> bool:
+    """The one genuine identity check the admission probe can make: does the
+    provider/model pi's own response reported (`served`, straight off the
+    "provider"/"model" fields on its assistant message -- see
+    candidate.py's run_probe) match what we asked it to run? `thinking` is
+    deliberately excluded: it is a request-time parameter pi's event stream
+    never echoes back, so there is nothing to compare it against."""
+    return isinstance(served, dict) and served.get("provider") == requested.get("provider") and served.get("model") == requested.get("model")
 
 
 def main() -> None:
@@ -24,7 +77,10 @@ def main() -> None:
     if not (run / "run.json").is_file():
         fail(3, "run_not_prepared")
     metadata = read_json(run / "run.json")
-    validate_model_identity(metadata["requested_model"], metadata["selected_model"])
+    # There is nothing to compare `selected_model` against yet: prepare-run.py
+    # correctly leaves it `None` because no pi call has happened. The genuine
+    # comparison happens below, once the admission probe returns pi's own
+    # account of what it served.
     validate_pre_admission_contract(metadata)
     container, proxy, network, url = metadata["container"], metadata["proxy"], metadata["network"], metadata["novnc_url"]
     if command(["docker", "container", "inspect", container], stdout=os.devnull, stderr=os.devnull).returncode:
@@ -113,31 +169,46 @@ assert not any((Path('/run/nothingness') / name).exists() for name in ('candidat
     results = [command(check, stdout=-1, stderr=os.devnull) for check in checks]
     if any(result.returncode for result in results[:2]) or results[2].stdout.strip() or results[3].returncode == 0 or any(result.returncode for result in results[4:]):
         fail(4, "container_state_not_clean")
-    model = metadata["selected_model"]
-    pi_config = read_host_pi_config(provider=model["provider"])
+    # `requested_model` is what we ask pi to run with -- there is no other
+    # candidate value to pass, since we are the one choosing the flags. It is
+    # NOT yet "the selected model": that term is reserved for what pi's own
+    # response says it actually served, established below once the probe
+    # returns.
+    requested = metadata["requested_model"]
+    pi_config = read_host_pi_config(provider=requested["provider"])
     if pi_config["config_fingerprints"] != metadata["pi"]["config_fingerprints"]:
         fail(4, "pi_config_changed")
     probe = command(
-        ["docker", "exec", "-i", container, "python3", "/usr/local/bin/nothingness-eval-candidate", "--probe", "--provider", model["provider"], "--model", model["model"], "--thinking", model["thinking"], "--prompt", "unused", "--timeout-seconds", "60", "--run-id", run_id],
+        ["docker", "exec", "-i", container, "python3", "/usr/local/bin/nothingness-eval-candidate", "--probe", "--provider", requested["provider"], "--model", requested["model"], "--thinking", requested["thinking"], "--prompt", "unused", "--timeout-seconds", "60", "--run-id", run_id],
         input=__import__("json").dumps({"pi_config": pi_config["pi_config"], "provider_env": pi_config["provider_env"]}),
         stdout=-1,
         stderr=os.devnull,
     )
     probe_result = command(["docker", "exec", container, "cat", "/run/nothingness/admission/result.json"], stdout=-1, stderr=os.devnull)
-    try:
-        raw_admission = read_json_value(probe_result.stdout)
-        usage = raw_admission.get("usage") if isinstance(raw_admission, dict) else None
-        normalized = normalized_usage(usage)
-        if probe.returncode or not raw_admission.get("ok") or not isinstance(usage, dict):
-            raise ValueError
-    except (ValueError, AttributeError):
-        fail(4, "pi_admission_failed")
-    admission = {"ok": True, "timestamp": utc_now(), "elapsed_ms": raw_admission["elapsed_ms"], "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": True, "config_fingerprints": metadata["pi"]["config_fingerprints"], "pi_version": metadata["pi"]["version"], "usage": usage, "normalized_usage": normalized}
+    raw_admission, usage, served = evaluate_admission_probe(probe, probe_result)
+    normalized = normalized_usage(usage)
+    # This is the genuine identity check: `served` came back on pi's own
+    # assistant message (its "provider"/"model" fields), independent of
+    # anything we asked for. `thinking` has no analogous server confirmation
+    # anywhere in pi's event stream (see candidate.py's run_probe), so it is
+    # carried through from the request, not verified -- documented in
+    # references/scoring.md and references/run-protocol.md rather than
+    # silently claimed. A provider/model mismatch is infrastructure-invalid:
+    # the harness asked for one model and something else answered.
+    if not served_model_matches(requested, served):
+        fail(4, "served_model_identity_mismatch")
+    selected_model = {"provider": served["provider"], "model": served["model"], "thinking": requested["thinking"]}
+    admission = {"ok": True, "timestamp": utc_now(), "elapsed_ms": raw_admission["elapsed_ms"], "requested_model": requested, "selected_model": selected_model, "served_model": served, "identity_verified": True, "config_fingerprints": metadata["pi"]["config_fingerprints"], "pi_version": metadata["pi"]["version"], "usage": usage, "normalized_usage": normalized}
     write_json(run / "admission.json", admission)
+    # Persist the genuinely-discovered selected_model back into run.json: every
+    # later stage of this run (launch-candidate.py, judge-control.py,
+    # judge-verify.py, judge-events.py, judge-inspect.py, collect.py) reads
+    # `selected_model` straight from run.json, not from admission.json.
+    write_json(run / "run.json", {**metadata, "selected_model": selected_model})
     command(["docker", "exec", container, "rm", "-rf", "/run/nothingness/admission", "/run/nothingness/pi-config"], stdout=os.devnull, stderr=os.devnull)
     if command(["docker", "exec", container, "python3", "-c", clean], stdout=os.devnull, stderr=os.devnull).returncode:
         fail(4, "candidate_artifacts_before_launch")
-    result = {"ok": True, "run_id": run_id, "novnc_url": url, "health": "ready", "workspace": "clean", "flutter": "not_running", "candidate_artifacts": "absent", "capabilities": "dropped", "no_new_privileges": True, "network_policy": metadata["network_policy"], "egress_proxy": "verified", "admission": "passed"}
+    result = {"ok": True, "run_id": run_id, "novnc_url": url, "health": "ready", "workspace": "clean", "flutter": "not_running", "candidate_artifacts": "absent", "capabilities": "dropped", "no_new_privileges": True, "network_policy": metadata["network_policy"], "egress_proxy": "verified", "admission": "passed", "requested_model": requested, "selected_model": selected_model, "identity_verified": True}
     write_json(run / "preflight.json", result)
     emit_json(result)
 

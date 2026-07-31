@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -133,107 +131,6 @@ def publish_artifacts(staging: Path, destination: Path, scan_root: Path, secrets
         raise
 
 
-def drive_action(arguments: object) -> str | None:
-    if not isinstance(arguments, dict) or not isinstance(arguments.get("command"), str):
-        return None
-    raw = arguments["command"]
-    if any(character in raw for character in ";&|<>$`()\r\n"):
-        return None
-    lexer = shlex.shlex(raw, posix=True, punctuation_chars=";&|<>")
-    lexer.whitespace_split = True
-    try:
-        tokens = list(lexer)
-    except ValueError:
-        return None
-    if not tokens or any(token and set(token) <= set(";&|<>") for token in tokens):
-        return None
-    while tokens and "=" in tokens[0] and not tokens[0].startswith(("/", "./", "../")):
-        tokens.pop(0)
-    if tokens and Path(tokens[0]).name in {"python", "python3"}:
-        tokens.pop(0)
-    elif tokens[:2] == ["uv", "run"]:
-        tokens = tokens[2:]
-        if tokens and tokens[0] == "--script":
-            tokens.pop(0)
-        elif tokens and Path(tokens[0]).name in {"python", "python3"}:
-            tokens.pop(0)
-    if len(tokens) < 2 or Path(tokens[0]).name != "drive.py":
-        return None
-    action = tokens[1]
-    if action in {"play", "resume"}:
-        return "play"
-    if action == "pause":
-        return "pause"
-    if action in {"next", "prev"}:
-        return "skip"
-    if action == "seek":
-        return "seek"
-    if action == "call" and len(tokens) >= 3:
-        return {
-            "ext.nothingness.play": "play",
-            "ext.nothingness.playTrackByPath": "play",
-            "ext.nothingness.pause": "pause",
-            "ext.nothingness.next": "skip",
-            "ext.nothingness.prev": "skip",
-            "ext.nothingness.seek": "seek",
-        }.get(tokens[2])
-    return None
-
-
-def drive_actions(arguments: object) -> set[str]:
-    direct = drive_action(arguments)
-    if direct is not None:
-        return {direct}
-    if not isinstance(arguments, dict) or not isinstance(arguments.get("command"), str):
-        return set()
-    lines = [line.strip() for line in arguments["command"].splitlines() if line.strip() and not line.lstrip().startswith("#")]
-    if "set -euo pipefail" not in lines:
-        return set()
-    variables: set[str] = set()
-    for line in lines:
-        match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)=([^\s;&|<>$`()]+)", line)
-        if match and Path(match.group(2)).name == "drive.py":
-            variables.add(match.group(1))
-    observed: set[str] = set()
-    for line in lines:
-        match = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)\s+(resume|pause|next|prev|seek)(?:\s+([0-9]+(?::[0-9]{2})?))?\s*(?:>>?\s*[^\s;&|<>$`()]+)?", line)
-        if not match or match.group(1) not in variables:
-            continue
-        command_name, command_argument = match.group(2), match.group(3)
-        if command_name == "seek" and command_argument is None:
-            continue
-        if command_name != "seek" and command_argument is not None:
-            continue
-        observed.add({"resume": "play", "pause": "pause", "next": "skip", "prev": "skip", "seek": "seek"}[command_name])
-    return observed
-
-
-def t1_task_evidence(transcript: Path, inspection: subprocess.CompletedProcess[str]) -> dict[str, object]:
-    starts: dict[str, object] = {}
-    successful: set[str] = set()
-    with transcript.open(encoding="utf-8", errors="replace") as source:
-        for line in source:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            call_id = event.get("toolCallId")
-            if event.get("type") == "tool_execution_start" and isinstance(call_id, str):
-                starts[call_id] = event.get("args")
-            elif event.get("type") == "tool_execution_end" and isinstance(call_id, str) and event.get("isError") is False:
-                successful.add(call_id)
-    observed = set().union(*(drive_actions(starts[call_id]) for call_id in successful if call_id in starts))
-    actions = {name: name in observed for name in ("play", "pause", "skip", "seek")}
-    state = None
-    if inspection.returncode == 0:
-        try:
-            state = json.loads(inspection.stdout).get("playback")
-        except (json.JSONDecodeError, AttributeError):
-            pass
-    state_valid = isinstance(state, dict) and isinstance(state.get("queueLength"), int) and state["queueLength"] > 0 and isinstance(state.get("currentIndex"), int) and 0 <= state["currentIndex"] < state["queueLength"] and isinstance(state.get("songInfo"), dict) and str(state["songInfo"].get("path", "")).endswith(".opus")
-    return {"schema_version": 1, "oracle": "t1-playback-smoke-linux", "actions": actions, "post_run_playback": state, "passed": all(actions.values()) and state_valid}
-
-
 def main() -> None:
     require_command("docker")
     if len(sys.argv) != 2:
@@ -269,18 +166,12 @@ def main() -> None:
         flutter_log_copied = copy_optional(container, "/run/nothingness/drive/flutter_run.log", artifacts / "flutter_run.log", secrets)
         if not flutter_log_copied:
             flutter_log_copied = copy_optional(container, "/tmp/flutter_run.log", artifacts / "flutter_run.log", secrets)
-        task_evidence_copied = False
-        if metadata["task_id"] == "t1-playback-smoke-linux":
-            inspection = command(["docker", "exec", container, "python3", "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py", "inspect"], stdout=-1, stderr=os.devnull)
-            evidence = t1_task_evidence(artifacts / "candidate.jsonl", inspection)
-            write_json(artifacts / "task-evidence.json", redact_value(evidence, secrets))
-            task_evidence_copied = True
         proxy_logs = command(["docker", "logs", metadata["proxy"]], stdout=-1, stderr=subprocess.STDOUT)
         if proxy_logs.returncode == 0:
             (artifacts / "proxy.log").write_text(redact_text(proxy_logs.stdout, secrets))
         with (artifacts / "container.txt").open("w") as output:
             command_or_fail(["docker", "inspect", "--format", "{{.Id}} {{.Image}} {{.State.Status}}", container], 4, "container_metadata_failed", stdout=output)
-        result = {"ok": True, "run_id": run_id, "artifacts": str(destination), "scoring": metadata["scoring"], "untracked_files": untracked_count, "flutter_log_copied": flutter_log_copied, "task_evidence_copied": task_evidence_copied, "lifecycle_copied": (artifacts / "lifecycle.jsonl").is_file(), "progress_copied": (artifacts / "progress.json").is_file(), "proxy_log_copied": proxy_logs.returncode == 0}
+        result = {"ok": True, "run_id": run_id, "artifacts": str(destination), "scoring": metadata["scoring"], "untracked_files": untracked_count, "flutter_log_copied": flutter_log_copied, "lifecycle_copied": (artifacts / "lifecycle.jsonl").is_file(), "progress_copied": (artifacts / "progress.json").is_file(), "proxy_log_copied": proxy_logs.returncode == 0}
         publish_artifacts(artifacts, destination, run, secrets)
         write_json(run / "collect.json", result)
         emit_json(result)

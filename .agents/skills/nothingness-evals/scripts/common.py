@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -24,6 +26,14 @@ ROOT = Path(
 )
 RUNS_ROOT = ROOT / ".tmp" / "evals"
 IMAGE_NAME = os.environ.get("NOTHINGNESS_EVAL_IMAGE", "nothingness-eval:t1")
+# The files `build-image.py` actually bakes into the image (see its Dockerfile
+# COPY list) -- everything the candidate/proxy/entrypoint run as code, plus
+# the Dockerfile itself. `.dockerignore` and the media/dependency-seed/pi
+# archives are build inputs, not code the image executes, so they are
+# deliberately excluded from the staleness contract below.
+IMAGE_SOURCE_FILES = ("Dockerfile", "entrypoint.py", "candidate.py", "egress_proxy.py", "pi.py")
+IMAGE_SOURCE_HASH_LABEL = "nothingness.eval.source_sha256"
+IMAGE_SOURCE_MANIFEST_LABEL = "nothingness.eval.source_manifest"
 HOSTNAME_PATTERN = re.compile(
     r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?"
 )
@@ -284,6 +294,77 @@ def validate_frozen_task(metadata: dict[str, Any], task_path: Path) -> None:
         fail(4, "frozen_task_mismatch")
 
 
+def validate_frozen_rubric(metadata: dict[str, Any], rubric_path: Path) -> None:
+    """Mirrors `validate_frozen_task`: `prepare-run.py` freezes the rubric's
+    hash into `run.json["rubric_contract"]` before the candidate ever sees the
+    prompt (F1) — a hash a scorer recomputes from disk at scoring time and
+    compares against a value the scorecard declares about itself is circular,
+    since both are written by the same actor at the same time. Distinguishes
+    "no rubric on disk" (`2`, the task cannot be scored at all — the same
+    clean error `classify-run.py` always gave for this case) from "the rubric
+    that's there no longer matches what was frozen at prepare" (`4`, the same
+    infrastructure-tamper class as `task_manifest_changed`)."""
+    contract = metadata.get("rubric_contract")
+    if not isinstance(contract, dict) or not isinstance(contract.get("manifest_sha256"), str):
+        fail(4, "rubric_contract_missing")
+    if not rubric_path.is_file():
+        fail(2, "rubric_not_found")
+    if sha256(rubric_path) != contract["manifest_sha256"]:
+        fail(4, "rubric_manifest_changed")
+
+
+def image_source_hashes(root: Path = ROOT) -> dict[str, str]:
+    """Per-file sha256 of `evals/image/`'s baked-in sources, keyed by
+    filename. This is the raw material both `build-image.py` (bakes it into
+    image labels at build time) and `validate_image_matches_sources` (recomputes
+    it from the working tree at prepare time) hash from -- kept as a
+    dict-per-file rather than a single digest so a mismatch can name exactly
+    which file drifted, not just "something did"."""
+    directory = root / "evals" / "image"
+    return {name: sha256(directory / name) for name in IMAGE_SOURCE_FILES}
+
+
+def image_source_sha256(hashes: dict[str, str]) -> str:
+    """Combines the per-file hashes into the single digest baked into the
+    image label, in the fixed `IMAGE_SOURCE_FILES` order so the result is
+    stable regardless of dict ordering."""
+    digest = hashlib.sha256()
+    for name in IMAGE_SOURCE_FILES:
+        digest.update(f"{name}:{hashes[name]}\n".encode())
+    return digest.hexdigest()
+
+
+def validate_image_matches_sources(labels: dict[str, Any], root: Path = ROOT) -> str:
+    """The fix for "nothing detects a stale image": mirrors
+    `validate_frozen_task`/`validate_frozen_rubric` (the image's declared
+    source hash was frozen into its labels at build time; this recomputes the
+    same hash from the current `evals/image/` working tree and refuses to let
+    a run proceed if they disagree), except the "manifest" being frozen is the
+    image's own labels rather than a JSON file on disk. A missing label (an
+    image built before this check existed, or with `build-image.py` bypassed)
+    is treated the same as a mismatch -- there is no baseline to trust it
+    against, so it fails closed rather than silently passing an unverifiable
+    image. Returns the current source hash on success so the caller can record
+    it in `run.json` without a second recomputation.
+    """
+    current_hashes = image_source_hashes(root)
+    current_sha256 = image_source_sha256(current_hashes)
+    baked_sha256 = labels.get(IMAGE_SOURCE_HASH_LABEL) if isinstance(labels, dict) else None
+    if baked_sha256 == current_sha256:
+        return current_sha256
+    baked_manifest_raw = labels.get(IMAGE_SOURCE_MANIFEST_LABEL) if isinstance(labels, dict) else None
+    try:
+        baked_manifest = json.loads(baked_manifest_raw) if isinstance(baked_manifest_raw, str) else {}
+    except json.JSONDecodeError:
+        baked_manifest = {}
+    if not isinstance(baked_manifest, dict):
+        baked_manifest = {}
+    differing = sorted(name for name in IMAGE_SOURCE_FILES if baked_manifest.get(name) != current_hashes.get(name))
+    files = ",".join(differing) if differing else "unknown (image predates source verification)"
+    fail(4, f"image_stale_vs_sources:{files} -- rebuild with: verify-offline-baseline.py --build-image")
+    raise AssertionError("unreachable")
+
+
 def validate_frozen_suite(metadata: dict[str, Any], root: Path = ROOT) -> None:
     suite_id = metadata.get("suite_id")
     if not isinstance(suite_id, str):
@@ -420,6 +501,23 @@ def append_jsonl(path: Path, value: dict[str, Any]) -> None:
         os.fsync(output.fileno())
 
 
+@contextlib.contextmanager
+def exclusive_lock(path: Path):
+    """Hold an OS-level exclusive lock on `path` for the duration of the `with` block.
+
+    Blocks concurrent holders (including other processes) rather than merely
+    other threads, so a read-check-append-write sequence guarded by this lock
+    is atomic across concurrent CLI invocations, not just within one process.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -441,3 +539,94 @@ def command_or_fail(args: list[str], code: int, reason: str, **kwargs: Any) -> s
     if result.returncode:
         fail(code, reason)
     return result
+
+
+# --- drive.py endpoint discovery --------------------------------------------
+# Shared by judge-verify.py and judge-inspect.py, both of which drive the
+# candidate's live app inside its container via `docker exec ... drive.py`.
+# drive.py itself discovers the Dart VM service by scraping a `flutter run`
+# log, defaulting to /tmp/flutter_run.log and overridable via $DRIVE_RUN_LOG
+# (or its cached websocket URI, $DRIVE_WS_CACHE) -- but a candidate is free to
+# launch `flutter run` logging anywhere else, which otherwise makes the judge
+# structurally blind to a perfectly live, drivable app (the bug this closes).
+
+DRIVE_DRIVER = "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py"
+DRIVE_DEFAULT_RUN_LOG = "/tmp/flutter_run.log"
+DRIVE_NO_LIVE_APP_REASON = (
+    f"no live app found in container: default discovery ({DRIVE_DEFAULT_RUN_LOG} "
+    "and its cache) found no responsive Dart VM service, and scanning "
+    "/tmp/flutter_run*.log for another live session also found none"
+)
+
+
+def drive_exec_args(container: str, env: dict[str, str], *arguments: str) -> list[str]:
+    """Build the `docker exec [-e K=V ...] <container> python3 DRIVER <args>`
+    argv that drives `drive.py` inside `container` with an env override
+    (empty for none). Pure -- no subprocess call -- so each caller runs it
+    through its OWN already-imported `command`, keeping each script's
+    existing test-patching (`patch.object(<module>, "command", ...)`)
+    working unchanged rather than requiring every test to patch a single
+    shared `common.command`."""
+    exec_args = ["docker", "exec"]
+    for key, value in env.items():
+        exec_args += ["-e", f"{key}={value}"]
+    exec_args += [container, "python3", DRIVE_DRIVER, *arguments]
+    return exec_args
+
+
+def discover_drive_endpoint(container: str, run_command: Any) -> dict[str, object]:
+    """Find a live app inside `container` before any drive.py capture runs.
+
+    `run_command` is the CALLER's own `command`-shaped callable (same
+    signature as `command()` above), injected rather than imported directly,
+    so judge-verify.py and judge-inspect.py share this exact algorithm while
+    each script's own tests keep patching their own module's `command` name
+    instead of a shared one buried in this module.
+
+    Strategy, cheapest first:
+      1. Default discovery (no env override) -- works when the candidate used
+         the documented convention, and also covers drive.py's own WS-cache
+         fallback (it tries that internally when the default log has no URI).
+      2. Scan for other `/tmp/flutter_run*.log` files, newest first, pointing
+         DRIVE_RUN_LOG at each in turn. drive.py scopes its websocket cache
+         per log path, so a stale cache from one candidate cannot leak into
+         another.
+    Every candidate is validated by an actual RPC round trip (a cheap `drive.py
+    contract`, which only exits 0 when it can connect to the Dart VM service
+    and enumerate the live isolate's registered extensions -- deliberately
+    NOT a nothingness-specific payload check, so a live-but-content-odd app is
+    never mistaken for a dead one), never by file presence alone -- a stale WS
+    cache or a dead log both fail that check and get passed over, which is
+    exactly the class of bug this closes.
+
+    Returns the env overrides to use for every capture this invocation makes
+    (so they stay consistent with each other), plus enough metadata for the
+    caller's manifest to record how the endpoint was found: `method` is one
+    of `default` (the default log itself carried a live URI), `cache` (the
+    default log was absent/stale but drive.py's own cached websocket for it
+    still answered), `scanned_log` (a non-default log was found and
+    answered), or `unavailable` (nothing answered).
+    """
+    def alive(env: dict[str, str]) -> bool:
+        return run_command(drive_exec_args(container, env, "contract"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).returncode == 0
+
+    def log_exists(log_path: str) -> bool:
+        return run_command(["docker", "exec", container, "test", "-f", log_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+    def candidate_logs() -> list[str]:
+        listing = run_command(["docker", "exec", container, "sh", "-c", "ls -t /tmp/flutter_run*.log 2>/dev/null"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if listing.returncode:
+            return []
+        return [line.strip() for line in listing.stdout.splitlines() if line.strip()]
+
+    if alive({}):
+        if log_exists(DRIVE_DEFAULT_RUN_LOG):
+            return {"ok": True, "env": {}, "method": "default", "log_path": DRIVE_DEFAULT_RUN_LOG}
+        return {"ok": True, "env": {}, "method": "cache", "log_path": None}
+    for log_path in candidate_logs():
+        if log_path == DRIVE_DEFAULT_RUN_LOG:
+            continue  # already tried above
+        env = {"DRIVE_RUN_LOG": log_path}
+        if alive(env):
+            return {"ok": True, "env": env, "method": "scanned_log", "log_path": log_path}
+    return {"ok": False, "env": {}, "method": "unavailable", "log_path": None}

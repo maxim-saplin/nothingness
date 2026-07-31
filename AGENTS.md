@@ -40,6 +40,14 @@ Once configured, plain `adb` works from WSL2 with no bridge or shims needed.
 
 Python scripts (e.g. `drive.py`) are managed by `uv` against a repo-root `.venv`. Bootstrap once after checkout with `uv sync`. Deps are declared in `pyproject.toml`; `drive.py` also carries a PEP 723 inline header so it self-installs on first run.
 
+## Evals
+
+`evals/` benchmarks coding agents: hand one a real feature request against this app, let it work in an isolated container, then judge whether the app actually does the thing. The judge is an agent driving the running app and looking at it — tapping, seeking, screenshotting, reading the semantics tree — never a script replaying recorded actions against a fixed assertion.
+
+Task expectations (`evals/tasks/rubrics/*.md`) describe **behavior only**. Naming a widget key, file, or implementation approach in an expectation is a defect: it fails a correct-but-different implementation, which is the exact anti-pattern this benchmark's rejected oracle-based design fell into.
+
+See `evals/plan.md`, `evals/README.md`, and the `nothingness-evals` skill before touching anything under `evals/`.
+
 ## Temp Files
 
 Store at local .tmp/ folder
