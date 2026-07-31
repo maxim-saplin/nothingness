@@ -4,7 +4,7 @@
 - **Prompt (verbatim):** "On Linux, update Settings so that, when the selected screen is Cassette, its cassette variant controls appear immediately below the screen setting. Preserve the existing behavior of the controls. Provide a screenshot showing the relevant Settings region with Cassette selected."
 - **Fixture:** `evals/assets/opus/manifest.json` (media not required for this task; the settings sheet is reachable with an empty queue).
 - **Evidence this task's manifest already requires:** `settings_semantics`, `settings_screenshot`.
-- **Scoring:** per `evals/plan.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
+- **Scoring:** per `evals/README.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
 
 ## How to judge this task
 

@@ -4,7 +4,7 @@
 - **Prompt (verbatim):** "On Linux, update swipe-to-seek feedback so a horizontal swipe shows the target position, duration, and progress in the bottom folder line while swiping. Do not show a center seek indicator. The temporary feedback must clear after the gesture. Provide during-gesture and post-gesture screenshots."
 - **Fixture:** `evals/assets/opus/manifest.json` — 10 tracks mounted at `/opt/nothingness/media` in the candidate's container. Prefer a longer track (several minutes) so seek targets are unambiguous and far from either end of the track.
 - **Evidence this task's manifest already requires:** `swipe_pre_state`, `swipe_action`, `swipe_during_state`, `swipe_during_screenshot`, `swipe_post_state`, `swipe_post_screenshot`.
-- **Scoring:** per `evals/plan.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
+- **Scoring:** per `evals/README.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
 
 ## How to judge this task
 

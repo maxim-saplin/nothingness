@@ -15,7 +15,7 @@ TIERS = ("required", "secondary")
 MAX_PENALIZED_INTERVENTIONS = 3
 INTERVENTION_PENALTY_WEIGHT = 0.05
 
-# Rubric convention (see evals/plan.md "Scoring rubric" and evals/tasks/rubrics/*.md):
+# Rubric convention (see evals/README.md "Scoring rubric" and evals/tasks/rubrics/*.md):
 # a rubric is markdown with a "## Required expectations" section and a
 # "## Secondary expectations" section, each containing one "### <id> — <title>"
 # sub-heading per expectation, followed by the existing free-form

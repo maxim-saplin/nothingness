@@ -4,7 +4,7 @@
 - **Prompt (verbatim):** "On Linux, preserve Dot's default-off persistent show-song-info option. With long artist and title metadata at normal and maximum text size, information must remain visible inside the hero without clipping or intersecting the centered pulsing dot. Provide screenshots at both scales."
 - **Fixture:** `evals/assets/opus/manifest.json` — 10 tracks mounted at `/opt/nothingness/media` in the candidate's container. None of the ten carries genuinely long artist/title tags, so the candidate (and you, reproducing) need a track with deliberately long metadata — e.g. a copy of one fixture retagged, or played under a path/name long enough to surface as long metadata, however the app resolves it.
 - **Evidence this task's manifest already requires:** `fresh_default`, `persisted_enabled`, `normal_geometry`, `max_geometry`, `normal_screenshot`, `max_screenshot`, `disabled_state`.
-- **Scoring:** per `evals/plan.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
+- **Scoring:** per `evals/README.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
 
 ## How to judge this task
 

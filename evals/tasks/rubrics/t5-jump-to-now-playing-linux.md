@@ -4,7 +4,7 @@
 - **Prompt (verbatim):** "On Linux, add a conditional, accessible action that brings the current playing track into view when it is outside the visible browser region, including when its parent is already the current browser folder. Activation must keep the browser in that folder and make the row visible. Do not expose an active action when no track is playing. Provide before and after screenshots."
 - **Fixture:** `evals/assets/opus/manifest.json` — 10 tracks mounted at `/opt/nothingness/media` in the candidate's container.
 - **Evidence this task's manifest already requires:** `jump_pre_state`, `jump_action`, `jump_post_state`, `jump_before_screenshot`, `jump_after_screenshot`, `no_playing_state`.
-- **Scoring:** per `evals/plan.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
+- **Scoring:** per `evals/README.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**
 
 ## How to judge this task
 

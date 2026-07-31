@@ -4,8 +4,8 @@ This is a benchmark for coding agents. A candidate agent gets a real feature
 request against Nothingness — this ~15k-LOC Flutter media controller app —
 and works it in an isolated Linux container. A judge agent then decides
 whether the app actually does the thing, by driving it and looking at it.
-Full context and rationale live in [plan.md](plan.md); operational steps are
-in [the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md).
+Operational steps are in
+[the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md).
 
 Status: the harness (container, proxy, judge tooling) has been proven by one
 scored trial. No multi-task campaign has been run yet. Nothing here should be
@@ -142,6 +142,51 @@ hard-capped at 3 — the judge is refused a fourth delivery and must
 terminalize the run instead. An assisted pass is still reported as a pass,
 and reported as assisted; the two facts sit side by side, never laundered
 into one.
+
+## Trust model
+
+The scorecard is the judge's testimony about what it saw. All the machinery
+above — frozen rubric hashes, per-expectation evidence binding, genuine-capture
+checks, the intervention lock — exists to catch *mistakes*: a capture that
+silently failed, a rubric that drifted between authoring and scoring, two
+judge processes racing. None of it constrains a judge that deliberately
+misreports what it saw; a judge willing to mark every expectation `met`
+against a genuine screenshot that doesn't show what it claims defeats any
+scheme built on top of its own attestation. That is a property of the trust
+model, not a defect to be fixed. Harden against mistakes, not the operator.
+Documented, un-patched limitations of this model live in
+[`references/scoring.md`](../.agents/skills/nothingness-evals/references/scoring.md)
+§ Known limitations.
+
+## Gate results — T1, both models, 2026-07-31
+
+| Model | Score | Outcome | `adjusted` | Assisted | Cost | Tool calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | 2 | `partial` | 0.7857 | no | $0.0524 | 61 |
+| `gpt-5.4-mini` | 2 | `partial` | 0.7857 | no | $0.1831 | 42 |
+
+Both failed the same `required` skip expectation identically. The judge
+proved skip works in both containers, which isolates the failure to
+candidate diligence, not the environment. T1 currently has a low ceiling —
+no model has passed it yet.
+
+## Lessons from the first live run
+
+A throwaway live trial surfaced four defects that three rounds of
+adversarial QA had missed entirely, because each only exists once a real
+container and a real candidate are involved:
+
+| Defect | One-line summary |
+| --- | --- |
+| Stale image | Container ran old candidate code and reported the resulting failure as a provider/admission problem, not a build bug. |
+| `judge-verify.py` blind to a non-default log path | `flutter run` logging somewhere other than the assumed default left every capture reporting "unavailable" while the app was alive and drivable. |
+| `judge-inspect.py` — same defect | Made a scored run unclassifiable outright, since a cited inspection with `runtime: true` is required. |
+| T4 rubric cited uncitable evidence | Required expectations told the judge to use "the candidate's own screenshot", but the pipeline only ever produces fresh judge-captured evidence — there is no such artifact to cite. |
+
+**Lesson:** run a throwaway live trial before any scored campaign starts.
+Adversarial review of scoring logic finds real defects, but every defect
+that would have stopped a campaign came from running the thing once — it is
+the cheapest QA available.
 
 ## Operator flow
 

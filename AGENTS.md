@@ -46,7 +46,7 @@ Python scripts (e.g. `drive.py`) are managed by `uv` against a repo-root `.venv`
 
 Task expectations (`evals/tasks/rubrics/*.md`) describe **behavior only**. Naming a widget key, file, or implementation approach in an expectation is a defect: it fails a correct-but-different implementation, which is the exact anti-pattern this benchmark's rejected oracle-based design fell into.
 
-See `evals/plan.md`, `evals/README.md`, and the `nothingness-evals` skill before touching anything under `evals/`.
+See `evals/README.md` and the `nothingness-evals` skill before touching anything under `evals/`.
 
 ## Temp Files
 

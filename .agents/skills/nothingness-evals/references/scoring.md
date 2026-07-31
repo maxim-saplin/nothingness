@@ -1,6 +1,6 @@
 # Scoring
 
-The judge never asserts an outcome or a score directly. It writes one verdict per expectation in the task's rubric — a **scorecard** — and `classify-run.py --scorecard <path>` computes everything else deterministically. This is the full contract in `evals/plan.md` § Scoring rubric.
+The judge never asserts an outcome or a score directly. It writes one verdict per expectation in the task's rubric — a **scorecard** — and `classify-run.py --scorecard <path>` computes everything else deterministically. This is the full contract in `evals/README.md` § Scoring rubric.
 
 ## Expectations bundle
 
