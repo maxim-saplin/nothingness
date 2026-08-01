@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -228,6 +230,26 @@ def render(campaign_id: str) -> tuple[str, bool]:
     return "\n".join(lines), finished
 
 
+def fit(line: str, width: int) -> str:
+    """Hard-truncate to the terminal width. A line that wraps costs the frame an
+    extra physical row, which is what actually pushes earlier rows up and turns an
+    in-place refresh back into a scrolling log."""
+    if width <= 1 or len(line) <= width:
+        return line
+    return line[: width - 1] + "…"
+
+
+def frame(display: str, width: int, height: int) -> str:
+    """One redraw, cursor-homed rather than screen-cleared.
+
+    `\\033[2J` (clear whole screen) makes most terminals push the old contents into
+    scrollback every cycle, which reads as endless scroll. Homing with `\\033[H` and
+    erasing per line (`\\033[K`) overwrites the same rows in place instead; the
+    trailing `\\033[J` drops any leftover rows when a frame gets shorter."""
+    rows = [fit(line, width) for line in display.split("\n")[: max(1, height - 1)]]
+    return "\033[H" + "\033[K\n".join(rows) + "\033[K\033[J"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_id")
@@ -237,14 +259,39 @@ def main() -> None:
     validate_run_id(arguments.campaign_id)
     if not campaign_path(arguments.campaign_id).is_file():
         fail(3, "campaign_not_found")
-    while True:
-        display, finished = render(arguments.campaign_id)
-        if not arguments.once:
-            print("\033[2J\033[H", end="")
-        print(display, flush=True)
-        if arguments.once or finished:
-            return
-        time.sleep(max(0.2, arguments.refresh))
+
+    # Only drive the terminal when there is one. Piping to a file or a log keeps the
+    # plain append-only behaviour, with no escape codes in the captured output.
+    if arguments.once or not sys.stdout.isatty():
+        while True:
+            display, finished = render(arguments.campaign_id)
+            print(display, flush=True)
+            if arguments.once or finished:
+                return
+            time.sleep(max(0.2, arguments.refresh))
+
+    # Alternate screen keeps the watch out of scrollback entirely, so quitting leaves
+    # the shell exactly as it was found.
+    sys.stdout.write("\033[?1049h\033[?25l")
+    latest = ""
+    try:
+        while True:
+            latest, finished = render(arguments.campaign_id)
+            size = shutil.get_terminal_size((100, 40))
+            sys.stdout.write(frame(latest, size.columns, size.lines))
+            sys.stdout.flush()
+            if finished:
+                break
+            time.sleep(max(0.2, arguments.refresh))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sys.stdout.write("\033[?25h\033[?1049l")
+        sys.stdout.flush()
+    # Reprint on the real screen: the alternate buffer is discarded on exit, and the
+    # last frame is the part worth keeping.
+    if latest:
+        print(latest, flush=True)
 
 
 if __name__ == "__main__":

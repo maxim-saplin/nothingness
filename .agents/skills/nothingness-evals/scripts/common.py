@@ -608,7 +608,20 @@ def discover_drive_endpoint(container: str, run_command: Any) -> dict[str, objec
     answered), or `unavailable` (nothing answered).
     """
     def alive(env: dict[str, str]) -> bool:
-        return run_command(drive_exec_args(container, env, "contract"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).returncode == 0
+        # Exit code alone is not liveness. `drive.py contract` exits 0 whenever it can
+        # reach the VM service at all, including against a half-initialized isolate
+        # that has registered nothing and answers `{"count": 0, "extensions": []}`.
+        # Accepting that endpoint makes discovery stop on a dead app and never scan
+        # the log the candidate is actually using, so every later capture fails with
+        # no obvious cause. Require a registered extension surface.
+        result = run_command(drive_exec_args(container, env, "contract"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if result.returncode:
+            return False
+        try:
+            payload = json.loads(result.stdout)
+        except (json.JSONDecodeError, TypeError):
+            return False
+        return isinstance(payload, dict) and isinstance(payload.get("count"), int) and payload["count"] > 0
 
     def log_exists(log_path: str) -> bool:
         return run_command(["docker", "exec", container, "test", "-f", log_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0

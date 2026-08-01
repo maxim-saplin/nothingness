@@ -245,7 +245,11 @@ class AgentService {
   }) {
     final isHorizontal = dx.abs() >= dy.abs();
     final delta = Offset(dx / steps, dy / steps);
-    return _walkSubtree(root, (el) {
+    // `includeSelf` matters: a key placed directly ON the gesture surface (the only
+    // way to address a detector whose every other key lives inside its child) makes
+    // the keyed element itself the match. Without this the walk skips the root and
+    // falls through to the synthetic-pointer path, which aborts on Linux desktop.
+    return _walkSubtree(root, includeSelf: true, (el) {
       final widget = el.widget;
       if (widget is! GestureDetector) return false;
       final ro = el.findRenderObject();
@@ -368,36 +372,88 @@ class AgentService {
 
   static int _syntheticPointerSeq = 0;
 
-  static String _truncate(String text, int depth) {
-    if (depth > 0) {
-      final lines = text.split('\n');
-      if (lines.length > depth) {
-        return '${lines.take(depth).join('\n')}\n'
-            '... (${lines.length - depth} more lines)';
+  /// Default ceiling on a dump's size, to avoid blowing up the VM service protocol.
+  static const int _defaultMaxChars = 128000;
+
+  /// Clip [text] to at most [lineLimit] lines (0 = no line limit) and
+  /// [maxChars] characters, starting at [skipLines].
+  ///
+  /// [lineLimit] counts LINES, not tree depth — the whole tree is rendered first
+  /// and then sliced. [skipLines] exists because the interesting part of a widget
+  /// tree is usually the end (a settings sheet sits far below the app shell) and
+  /// the character cap alone silently drops exactly that part.
+  static String _truncate(
+    String text,
+    int lineLimit, {
+    int maxChars = _defaultMaxChars,
+    int skipLines = 0,
+  }) {
+    var body = text;
+    if (skipLines > 0) {
+      final lines = body.split('\n');
+      final kept = lines.skip(skipLines).toList();
+      body = '... ($skipLines earlier lines skipped)\n${kept.join('\n')}';
+    }
+    if (lineLimit > 0) {
+      final lines = body.split('\n');
+      if (lines.length > lineLimit) {
+        body = '${lines.take(lineLimit).join('\n')}\n'
+            '... (${lines.length - lineLimit} more lines)';
       }
     }
-    // Hard limit to avoid blowing up the VM service protocol.
-    const maxLen = 128000;
-    if (text.length > maxLen) {
-      return '${text.substring(0, maxLen)}\n... (truncated at $maxLen chars)';
+    if (maxChars > 0 && body.length > maxChars) {
+      return '${body.substring(0, maxChars)}\n... (truncated at $maxChars chars)';
     }
-    return text;
+    return body;
   }
 
+  /// Shared paging/limit parameters for the two dump extensions.
+  static ({int lineLimit, int maxChars, int skipLines}) _dumpLimits(
+    Map<String, String> params,
+  ) => (
+    // `depth` is the historical spelling; `lines` is the honest one.
+    lineLimit:
+        int.tryParse(params['lines'] ?? params['depth'] ?? '') ?? 0,
+    maxChars: int.tryParse(params['maxChars'] ?? '') ?? _defaultMaxChars,
+    skipLines: int.tryParse(params['skipLines'] ?? '') ?? 0,
+  );
+
   static _R _getWidgetTree(String method, Map<String, String> params) async {
-    final depth = int.tryParse(params['depth'] ?? '') ?? 0; // 0 = unlimited
+    final limits = _dumpLimits(params);
     final root = WidgetsBinding.instance.rootElement;
     if (root == null) return _ok({'tree': 'no root element'});
     final tree = root.toStringDeep(minLevel: DiagnosticLevel.debug);
-    return _ok({'tree': _truncate(tree, depth)});
+    return _ok({
+      'tree': _truncate(
+        tree,
+        limits.lineLimit,
+        maxChars: limits.maxChars,
+        skipLines: limits.skipLines,
+      ),
+      'totalLines': '\n'.allMatches(tree).length + 1,
+      'totalChars': tree.length,
+    });
   }
 
   static _R _getSemantics(String method, Map<String, String> params) async {
+    final limits = _dumpLimits(params);
     final root = WidgetsBinding.instance.rootElement
         ?.findRenderObject()
         ?.debugSemantics;
     if (root == null) return _ok({'semantics': 'semantics not available'});
-    return _ok({'semantics': _truncate(root.toStringDeep(), 0)});
+    final dump = root.toStringDeep();
+    // Same knobs as getWidgetTree: this is the surface callers fall back to when the
+    // widget tree is too big to read, so it cannot be the one with no way to page.
+    return _ok({
+      'semantics': _truncate(
+        dump,
+        limits.lineLimit,
+        maxChars: limits.maxChars,
+        skipLines: limits.skipLines,
+      ),
+      'totalLines': '\n'.allMatches(dump).length + 1,
+      'totalChars': dump.length,
+    });
   }
 
   static _R _tapByKey(String method, Map<String, String> params) async {

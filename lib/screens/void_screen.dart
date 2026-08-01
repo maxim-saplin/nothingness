@@ -364,9 +364,17 @@ class VoidScreen extends HookWidget {
       DebugHooks.immersiveLookup = () => immersive.value;
       DebugHooks.browserExpander = setBrowserExpanded;
       return () {
-        DebugHooks.immersiveLookup = null;
-        DebugHooks.libraryController = null;
-        DebugHooks.browserExpander = null;
+        // Only retract hooks this effect still owns. Changing `phoneFrame` swaps the
+        // widget type at the MaterialApp.builder slot, so the whole subtree below is
+        // rebuilt: the replacement VoidScreen registers before the outgoing one is
+        // disposed, and an unconditional clear here would wipe the live registration
+        // and leave `getLibraryState` reporting "no LibraryController registered"
+        // with no way back short of relaunching the app.
+        if (identical(DebugHooks.libraryController, libCtrl)) {
+          DebugHooks.libraryController = null;
+          DebugHooks.immersiveLookup = null;
+          DebugHooks.browserExpander = null;
+        }
       };
     }, [libCtrl]);
 

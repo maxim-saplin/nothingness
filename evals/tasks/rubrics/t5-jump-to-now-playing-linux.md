@@ -10,7 +10,7 @@
 
 A "jump to now playing" affordance already exists in some form when the playing track lives in a *different* folder than the one being browsed. The prompt's load-bearing clause — "**including when its parent is already the current browser folder**" — asks for the harder case: the playing track's folder is already open, but its row has scrolled out of view, and the action must still surface and still work, by scrolling rather than by navigating. A plausible-but-wrong fix ships only the easy (different-folder) case and never the harder one; a differently plausible-but-wrong fix shows the action unconditionally regardless of whether the row is actually out of view. Settle every expectation below by driving the real Linux build and looking at what the browser and its accessibility tree actually do — never by trusting the candidate's write-up.
 
-To force a folder to overflow one screenful (needed for the "same folder, scrolled out of view" cases), shrink the window first, e.g. `drive.py window 400 640`, before browsing into the ten-fixture folder.
+The ten-fixture folder already overflows one screenful at the default window size — only about six of its eleven entries render — so the "same folder, scrolled out of view" case is reached simply by playing one of the later tracks (e.g. `10-undercover-47.opus`) and re-entering the folder so the list resets to the top. Prefer that. Avoid `drive.py window` / `setSetting phoneFrame` for this: changing the phone frame swaps the widget type at the app-shell slot and tears down the whole subtree beneath it, which historically dropped the Void `LibraryController` registration and left `nav`/`getLibraryState` inert until the app was relaunched.
 
 ## Required expectations
 

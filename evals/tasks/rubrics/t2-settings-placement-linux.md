@@ -12,6 +12,8 @@ Settle every expectation below by driving the actual running Linux build yoursel
 
 The task prompt has three clauses, and this bundle has a required expectation for each: **where** the control now sits (E1), that its **existing behavior still works** (E2 + E3, covering both halves — the screen control and the variant control), and that a **screenshot proving it** was actually produced (E5). E4 guards against a fix that solves the letter of the prompt only for the Cassette case while leaving the other screens or their own controls damaged.
 
+**Reading the sheet:** use `getSemantics`, not `getWidgetTree`. With the settings sheet open this build's widget tree runs to ~280,000 characters and the dump caps at 128,000, so the sheet's rows — which render last — fall past the cutoff and simply are not in the response. (`drive.py tree N` also takes a LINE count, not a tree depth.) The semantics dump is a few KB, and every row appears as one node carrying `"label\nvalue"`, an `indexInParent`, and a rect — consecutive indices with abutting y-ranges are what proves two rows are adjacent, and it includes rows scrolled out of the viewport. If you do need the widget tree, page it with `skipLines=` / `maxChars=`.
+
 ## Required expectations
 
 ### E1 — Placement: the variant control is the very next row after "screen", only when Cassette is selected
@@ -19,7 +21,7 @@ The task prompt has three clauses, and this bundle has a required expectation fo
 
 **Statement:** With the "screen" setting cycled to Cassette, the settings sheet shows the cassette-variant selector — the row whose value cycles through the cassette's variant/artwork options — as the very next row after the "screen" row. No other row, group header, or gap sits between them.
 
-**Drive:** `drive.py settings open`; `drive.py screen cassette`; `drive.py tree 80` (deep enough to capture the whole sheet) and `drive.py shoot t2_cassette_region` to see rendered order; optionally `drive.py call ext.nothingness.getSettings` alongside, to confirm the underlying screen really is cassette while you read the tree/screenshot.
+**Drive:** `drive.py settings open`; `drive.py screen cassette`; `drive.py call ext.nothingness.getSemantics` (the settings rows carry their label, value, `indexInParent` and rect, which is what settles adjacency — and unlike the widget tree it comfortably fits a single response) and `drive.py shoot t2_cassette_region` to see rendered order; optionally `drive.py call ext.nothingness.getSettings` alongside, to confirm the underlying screen really is cassette while you read the dump/screenshot.
 
 **Confirms `met`:** in document order, the tree (or the screenshot, read plainly) shows the "screen" row immediately followed by the variant-selector row, nothing between them.
 

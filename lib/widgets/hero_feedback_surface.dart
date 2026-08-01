@@ -78,6 +78,16 @@ class HeroFeedbackSurface extends HookWidget {
   static const Key swipeFlashKey = ValueKey<String>('hero-swipe-flash');
   static const Key seekHudKey = ValueKey<String>('hero-seek-hud');
 
+  /// The gesture surface itself, so a driver can address it directly.
+  ///
+  /// `ext.nothingness.dragByKey` reaches a drag handler by walking *descendants*
+  /// of the keyed widget. Every other key in the hero band sits inside [child],
+  /// which is this detector's own child — a descendant, never an ancestor — so
+  /// none of them can resolve to it and drags fell through to the synthetic
+  /// pointer fallback, which aborts on Linux desktop. Keying the detector gives
+  /// the direct-callback path something to find.
+  static const Key gestureSurfaceKey = ValueKey<String>('hero-gesture-surface');
+
   /// Duration of each feedback animation.
   static const Duration ringDuration = Duration(milliseconds: 180);
   static const Duration swipeFlashDuration = Duration(milliseconds: 180);
@@ -193,6 +203,7 @@ class HeroFeedbackSurface extends HookWidget {
           fit: StackFit.expand,
           children: [
             GestureDetector(
+              key: HeroFeedbackSurface.gestureSurfaceKey,
               behavior: HitTestBehavior.opaque,
               onTapDown: (d) => spawnRing(d.localPosition),
               onTapUp: onTapUp,

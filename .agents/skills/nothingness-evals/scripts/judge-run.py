@@ -75,7 +75,14 @@ def decide(arguments: argparse.Namespace) -> None:
         classify.extend(("--observation-id", observation_id))
     invoke("classify-run.py", *classify)
     result = read_json(run_dir(arguments.run_id) / "result.json")
-    emit_json({"ok": True, "action": "decide", "run_id": arguments.run_id, "result": result})
+    # Publish as part of deciding, not as a step someone has to remember. A verdict
+    # that exists only under gitignored `.tmp/` is invisible to review and is lost
+    # with the next scratch wipe.
+    publish = [arguments.run_id]
+    if arguments.scorecard:
+        publish.extend(("--scorecard", arguments.scorecard))
+    published = invoke("publish-run.py", *publish)
+    emit_json({"ok": True, "action": "decide", "run_id": arguments.run_id, "result": result, "published": published})
 
 
 def cleanup(arguments: argparse.Namespace) -> None:
