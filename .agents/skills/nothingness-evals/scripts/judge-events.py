@@ -33,7 +33,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("run_id")
     parser.add_argument("--after", type=int, default=0)
-    parser.add_argument("--limit", type=int, default=100)
+    # 100 forced every real supervision session into needless paging (the skill
+    # had to tell judges to pass --limit 2500 every time); default to the value
+    # the documented workflow actually wants.
+    parser.add_argument("--limit", type=int, default=2500)
     arguments = parser.parse_args()
     validate_run_id(arguments.run_id)
     run = run_dir(arguments.run_id)
@@ -69,7 +72,10 @@ def main() -> None:
     write_json(batch_path, batch)
     digest = hashlib.sha256(batch_path.read_bytes()).hexdigest()
     append_jsonl(run / "judge-observations.jsonl", {"observation_id": observation_id, "timestamp": utc_now(), "kind": "events", "after": arguments.after, "next_sequence": last_sequence, "event_count": len(events), "event_types": [item["event"].get("type") for item in events], "evidence": str(batch_path.relative_to(run)), "sha256": digest})
-    emit_json({"ok": True, "run_id": arguments.run_id, "after": arguments.after, "next_sequence": last_sequence, "events": events})
+    # Echo the observation id: `decide` requires it, and withholding it here
+    # forced every judge to go re-read judge-observations.jsonl to recover an
+    # value that was in scope all along.
+    emit_json({"ok": True, "run_id": arguments.run_id, "observation_id": observation_id, "after": arguments.after, "next_sequence": last_sequence, "events": events})
 
 
 if __name__ == "__main__":

@@ -43,7 +43,30 @@ def emit_json(value: dict[str, Any], *, stream: Any = sys.stdout) -> None:
     print(json.dumps(value, separators=(",", ":")), file=stream)
 
 
+# One-line fixes for reasons a human hits during setup, not mid-run. Keyed by
+# either the full reason or the part before its first `:` (many of these carry
+# a dynamic suffix, e.g. `missing_pi_config:models.json`), so `fail()` can
+# append a concrete next step the same way `image_stale_vs_sources` already
+# does by hand. Only cover reasons where there IS a single, real command to
+# suggest -- not every failure has one.
+SETUP_REMEDIATION: dict[str, str] = {
+    "pi_payload_not_found": "install pi (npm i -g @earendil-works/pi-coding-agent) or set PI_ARTIFACT to its install dir",
+    "invalid_PI_ARTIFACT": "point PI_ARTIFACT at a pi install dir containing bin/pi (or libexec/bin/pi), or a package.json with a bin.pi entry",
+    "missing_command": "install the missing command and ensure it is on PATH",
+    "missing_pi_config": "run `pi` once to generate ~/.pi/agent config, or set PI_CODING_AGENT_DIR to a directory with auth.json/models.json/settings.json",
+    "invalid_pi_config": "fix the malformed JSON in the named file under ~/.pi/agent (or $PI_CODING_AGENT_DIR)",
+    "unsafe_pi_config_permissions": "chmod 600 ~/.pi/agent/*.json",
+    "requested_model_unavailable": "check available models: pi --offline --list-models <model>",
+    "requested_thinking_unavailable": "pick a model/thinking combination pi actually supports: pi --offline --list-models <model>",
+    "azure_provider_endpoint_missing": "set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME in ~/.pi/agent/auth.json or the environment",
+    "unsupported_container_arch": "harness gap, not a misconfiguration: add this `uname -m` value to FLUTTER_ARCH in verify-offline-baseline.py",
+}
+
+
 def fail(code: int, reason: str) -> None:
+    remediation = SETUP_REMEDIATION.get(reason) or SETUP_REMEDIATION.get(reason.split(":", 1)[0])
+    if remediation and " -- " not in reason:
+        reason = f"{reason} -- {remediation}"
     emit_json({"ok": False, "reason": reason}, stream=sys.stderr)
     raise SystemExit(code)
 
@@ -75,43 +98,76 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def pi_payload_root(executable: Path) -> Path:
-    executable = executable.resolve()
-    candidates = (executable.parent.parent / "libexec", executable.parent.parent)
-    for candidate in candidates:
-        if (candidate / "bin" / "pi").is_file():
-            return candidate
-    fail(3, "pi_payload_not_found")
-    raise AssertionError("unreachable")
+PI_BUNDLED_ENTRY = "bin/pi"
+
+
+def pi_package_entry(root: Path) -> str | None:
+    """The `bin.pi` entry of a package-manager install (npm/pnpm/bun global),
+    relative to `root`. Pi ships as an npm package whose manifest points at
+    `dist/cli.js`; there is no `bin/` directory to find."""
+    manifest = root / "package.json"
+    if not manifest.is_file():
+        return None
+    try:
+        binaries = json.loads(manifest.read_text(encoding="utf-8")).get("bin")
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    declared = binaries.get("pi") if isinstance(binaries, dict) else binaries
+    if not isinstance(declared, str) or not declared:
+        return None
+    entry = Path(declared.lstrip("./"))
+    if entry.is_absolute() or ".." in entry.parts or not (root / entry).is_file():
+        return None
+    return entry.as_posix()
+
+
+def pi_payload_layout(root: Path) -> tuple[Path, str] | None:
+    """`(payload root, node entry relative to it)` for one candidate directory,
+    or None. Two layouts exist in the wild and the evaluator must not care
+    which one the operator has: the bundled artifact (`bin/pi`, sometimes
+    nested under `libexec/`) and a package-manager global install."""
+    for base in (root / "libexec", root):
+        if (base / PI_BUNDLED_ENTRY).is_file():
+            return base, PI_BUNDLED_ENTRY
+        entry = pi_package_entry(base)
+        if entry is not None:
+            return base, entry
+    return None
 
 
 def resolve_pi() -> dict[str, str]:
     override = os.environ.get("PI_ARTIFACT")
     if override:
-        artifact = Path(override).expanduser()
-        payload = artifact / "libexec" if (artifact / "libexec" / "bin" / "pi").is_file() else artifact
-        if not (payload / "bin" / "pi").is_file():
+        layout = pi_payload_layout(Path(override).expanduser())
+        if layout is None:
             fail(3, "invalid_PI_ARTIFACT")
     else:
         found = shutil.which("pi")
         if found is None:
             fail(3, "missing_command:pi")
-        payload = pi_payload_root(Path(found))
-    version = command_or_fail([str(payload / "bin" / "pi"), "--version"], 3, "pi_version_failed", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.strip()
+        executable = Path(found).resolve()
+        layout = pi_payload_layout(executable.parent.parent) or pi_payload_layout(executable.parent.parent.parent)
+        if layout is None:
+            fail(3, "pi_payload_not_found")
+    payload, entry = layout
+    version = command_or_fail([str(payload / entry), "--version"], 3, "pi_version_failed", stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.strip()
     if not version:
         fail(3, "pi_version_missing")
-    return {"payload": str(payload), "version": version}
+    return {"payload": str(payload), "entry": entry, "version": version}
 
 
 def host_pi_config_dir() -> Path:
     return Path(os.environ.get("PI_CODING_AGENT_DIR", "~/.pi/agent")).expanduser()
 
 
-def pi_package_roots(config_dir: Path | None = None) -> tuple[Path, Path]:
+def pi_package_roots(config_dir: Path | None = None) -> tuple[Path, ...]:
+    """The pi package caches to freeze into the image. Either may be absent: pi
+    only creates them once `pi install` has run, so a clean install legitimately
+    has no packages at all and the candidate simply gets none."""
     directory = config_dir or host_pi_config_dir()
-    roots = (directory / "npm", directory / "git")
+    roots = tuple(root for root in (directory / "npm", directory / "git") if root.exists())
     if not all(root.is_dir() and not root.is_symlink() for root in roots):
-        fail(3, "pi_package_cache_missing")
+        fail(3, "unsafe_pi_package_root")
     for root in roots:
         for path in root.rglob("*"):
             if path.is_symlink():
@@ -250,9 +306,9 @@ def parse_pi_model_listing(output: str) -> list[dict[str, str]]:
     return models
 
 
-def validate_pi_model(payload: str, requested: dict[str, str]) -> None:
+def validate_pi_model(pi: dict[str, str], requested: dict[str, str]) -> None:
     listing = command_or_fail(
-        [str(Path(payload) / "bin" / "pi"), "--offline", "--list-models", requested["model"]],
+        [str(Path(pi["payload"]) / pi["entry"]), "--offline", "--list-models", requested["model"]],
         3,
         "pi_model_registry_failed",
         stdout=subprocess.PIPE,
@@ -538,6 +594,31 @@ def command_or_fail(args: list[str], code: int, reason: str, **kwargs: Any) -> s
     result = command(args, **kwargs)
     if result.returncode:
         fail(code, reason)
+    return result
+
+
+def command_or_fail_chained(args: list[str], code: int, reason: str, **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+    """Like `command_or_fail`, but `args` invokes ANOTHER harness script that
+    itself calls `fail()` on error -- its real cause lands on ITS stderr as
+    one `emit_json` object. Surfacing only the outer, generic `reason` (the
+    caller's own label for "the sub-invocation failed") throws that cause
+    away; this recovers it and chains it on as `reason:inner_reason`, falling
+    back to the bare outer `reason` if stderr is missing, not JSON, or has no
+    `reason` field.
+    """
+    kwargs.setdefault("stderr", subprocess.PIPE)
+    result = command(args, **kwargs)
+    if result.returncode:
+        inner_reason = None
+        stderr = result.stderr
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode(errors="replace")
+        if isinstance(stderr, str) and stderr.strip():
+            try:
+                inner_reason = json.loads(stderr.strip().splitlines()[-1]).get("reason")
+            except (json.JSONDecodeError, AttributeError):
+                inner_reason = None
+        fail(code, f"{reason}:{inner_reason}" if isinstance(inner_reason, str) else reason)
     return result
 
 

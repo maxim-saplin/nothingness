@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -12,6 +13,8 @@ from common import IMAGE_NAME, ROOT, command, command_or_fail, emit_json, fail, 
 
 
 FIXTURE = "5fc7e04"
+DESKTOP_READY_POLLS = 480
+DESKTOP_READY_INTERVAL = 0.25
 DRIVER = "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py"
 TRACKS = tuple(f"/opt/nothingness/media/0{index}-undercover-{48 + index}.opus" for index in range(1, 4))
 
@@ -77,14 +80,21 @@ def main() -> None:
             command_or_fail(container_run_command(name), 3, "runtime_container_start_failed", stdout=os.devnull)
             command_or_fail(["docker", "cp", f"{seed}/.", f"{name}:/workspace"], 3, "runtime_workspace_copy_failed", stdout=os.devnull)
             ready = False
-            for _ in range(150):
+            # Warm, the desktop is up in well under 10s; the very first launch
+            # after an image build, against a cold page cache, takes far longer
+            # -- budget for the slow machine rather than fail the run that
+            # follows every rebuild. A partially-written health.json is a normal
+            # race here, not a failure: keep polling instead of dying on it.
+            for _ in range(DESKTOP_READY_POLLS):
                 health = command(["docker", "exec", name, "cat", "/run/nothingness/health.json"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-                if health.returncode == 0 and json.loads(health.stdout).get("status") == "ready":
-                    ready = True
+                if health.returncode == 0:
+                    with contextlib.suppress(json.JSONDecodeError):
+                        ready = json.loads(health.stdout).get("status") == "ready"
+                if ready:
                     break
-                time.sleep(0.25)
+                time.sleep(DESKTOP_READY_INTERVAL)
             if not ready:
-                fail(4, "runtime_desktop_not_ready")
+                fail(4, f"runtime_desktop_not_ready:waited_{round(DESKTOP_READY_POLLS * DESKTOP_READY_INTERVAL)}s")
             command_or_fail(["docker", "exec", name, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/runtime-pub.log"], 4, "runtime_pub_failed")
             launch = """set -eu
 home=/tmp/nothingness-runtime-baseline

@@ -11,6 +11,25 @@ Status: the harness (container, proxy, judge tooling) has been proven by one
 scored trial. No multi-task campaign has been run yet. Nothing here should be
 read as validated or finished — see "Current Results" below.
 
+## Setup
+
+The harness needs, on the host (not in the candidate container):
+
+- `docker` (daemon running), `git`, `tar`, `uv`, `pi` on `PATH`. Pi's install
+  method doesn't matter — npm global, pnpm, bun, or a bundled artifact all
+  work; set `PI_ARTIFACT` if none is found automatically.
+- `~/.pi/agent/auth.json`, `models.json`, and `settings.json` all present,
+  valid JSON, and mode `0600` (`chmod 600 ~/.pi/agent/*.json`). `models.json`
+  may be as bare as `{"providers": {}}` if you have no custom providers, but
+  it must exist and not be empty.
+- Provider credentials via env — e.g. `AZURE_OPENAI_BASE_URL` and
+  `AZURE_OPENAI_API_KEY` for `azure-openai-responses`.
+
+Run `uv run python .agents/skills/nothingness-evals/scripts/check-host.py
+--suite evals/suites/<suite>.json` before anything else — it verifies all of
+the above plus the requested model triple and image freshness, reports every
+failure in one pass with a fix for each, and costs nothing.
+
 ## Isolation model
 
 Each trial runs in a container built from a pinned image. Preparation exports

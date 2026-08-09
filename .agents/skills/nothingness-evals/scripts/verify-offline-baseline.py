@@ -8,10 +8,24 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, emit_json, fail, require_command
+from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, require_command
 
 
 FIXTURE = "5fc7e04"
+
+# Flutter's own arch naming (`bin/cache/artifacts/engine/linux-<arch>`, `build/linux/<arch>`),
+# keyed by the container's `uname -m` -- read from the CONTAINER, not the host, since docker
+# can run an emulated image whose arch differs from the host's.
+FLUTTER_ARCH = {"x86_64": "x64", "aarch64": "arm64", "arm64": "arm64"}
+VERSION_CHECKS = frozenset({"python", "uv", "flutter", "dart", "pi", "websockets"})
+
+
+def container_arch(name: str) -> str:
+    machine = command_or_fail(["docker", "exec", name, "uname", "-m"], 4, "container_arch_probe_failed", stdout=subprocess.PIPE).stdout.strip()
+    arch = FLUTTER_ARCH.get(machine)
+    if arch is None:
+        fail(4, f"unsupported_container_arch:{machine}")
+    return arch
 
 
 def container_run_command(name: str) -> list[str]:
@@ -23,7 +37,7 @@ def container_run_command(name: str) -> list[str]:
     ]
 
 
-def baseline_checks(name: str) -> tuple[tuple[str, list[str]], ...]:
+def baseline_checks(name: str, arch: str) -> tuple[tuple[str, list[str]], ...]:
     return (
         ("exec", ["docker", "exec", name, "true"]),
         ("python", ["docker", "exec", name, "/usr/bin/python3", "--version"]),
@@ -32,11 +46,11 @@ def baseline_checks(name: str) -> tuple[tuple[str, list[str]], ...]:
         ("dart", ["docker", "exec", name, "sh", "-c", "dart --version 2>&1"]),
         ("pi", ["docker", "exec", name, "pi", "--version"]),
         ("websockets", ["docker", "exec", name, "python3", "-c", "import websockets; print(websockets.__version__)"]),
-        ("linux_engine", ["docker", "exec", name, "test", "-f", "/sdks/flutter/bin/cache/artifacts/engine/linux-arm64/libflutter_linux_gtk.so"]),
+        ("linux_engine", ["docker", "exec", name, "test", "-f", f"/sdks/flutter/bin/cache/artifacts/engine/linux-{arch}/libflutter_linux_gtk.so"]),
         ("media", ["docker", "exec", name, "python3", "-c", "import json; from pathlib import Path; root=Path('/opt/nothingness/media'); assert len(list(root.glob('*.opus'))) == 10; assert len(json.loads((root/'manifest.json').read_text())) == 10"]),
         ("workspace", ["docker", "exec", name, "sh", "-c", "touch /workspace/.baseline-write && rm /workspace/.baseline-write && test -z \"$(git -C /workspace status --porcelain)\""]),
         ("pub", ["docker", "exec", name, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/nothingness-baseline-pub.log"]),
-        ("linux_build", ["docker", "exec", name, "sh", "-c", "cd /workspace && flutter build linux --no-pub >/tmp/nothingness-baseline-build.log && test -x build/linux/arm64/release/bundle/nothingness"]),
+        ("linux_build", ["docker", "exec", name, "sh", "-c", f"cd /workspace && flutter build linux --no-pub >/tmp/nothingness-baseline-build.log && test -x build/linux/{arch}/release/bundle/nothingness"]),
     )
 
 
@@ -50,7 +64,7 @@ def main() -> None:
     if active.stdout.strip():
         fail(2, "evaluator_container_already_running")
     if arguments.build_image:
-        command_or_fail([sys.executable, str(Path(__file__).with_name("build-image.py"))], 3, "image_build_failed", stdout=subprocess.PIPE)
+        command_or_fail_chained([sys.executable, str(Path(__file__).with_name("build-image.py"))], 3, "image_build_failed", stdout=subprocess.PIPE)
     image_id = command_or_fail(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_NAME], 3, "image_not_available", stdout=subprocess.PIPE).stdout.strip()
     name = f"nothingness-eval-baseline-{uuid.uuid4().hex[:12]}"
     checks: dict[str, str] = {}
@@ -68,9 +82,14 @@ def main() -> None:
             command_or_fail(["docker", "cp", f"{seed}/.", f"{name}:/workspace"], 3, "baseline_workspace_copy_failed", stdout=os.devnull)
             command_or_fail(["docker", "exec", name, "mkdir", "-p", "/run/nothingness/home"], 3, "baseline_home_setup_failed")
             command_or_fail(["docker", "exec", name, "git", "config", "--global", "--add", "safe.directory", "/workspace"], 3, "baseline_git_trust_failed")
-            for label, check in baseline_checks(name):
+            arch = container_arch(name)
+            for label, check in baseline_checks(name, arch):
                 output = command_or_fail(check, 4, f"baseline_check_failed:{label}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.strip()
-                checks[label] = output.splitlines()[0] if output else "passed"
+                # Only the version probes have meaningful stdout. Every other check
+                # is pass/fail, and echoing its first output line reports things like
+                # SoLoud's CMake banner as if it were the result -- which reads as a
+                # broken check to anyone who hasn't seen a build log here before.
+                checks[label] = (output.splitlines()[0] if output else "passed") if label in VERSION_CHECKS else "passed"
     finally:
         command(["docker", "rm", "-f", name], stdout=os.devnull, stderr=os.devnull)
     if command(["docker", "container", "inspect", name], stdout=os.devnull, stderr=os.devnull).returncode == 0:

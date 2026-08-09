@@ -89,9 +89,29 @@ def settings_capture(container: str, env: dict[str, str]) -> tuple[object, bool,
     return payload, True, None
 
 
+def desktop_screenshot(container: str) -> bytes:
+    """An X-level grab of the candidate's desktop, independent of the app.
+
+    Every other capture here reaches the app through its VM service, so a
+    session that never launched (or that died) leaves the judge with no image
+    at all -- blind in exactly the case worth looking at. Xvfb is up whenever
+    the container is, and ffmpeg is already in the image for fixture
+    validation, so this needs nothing new."""
+    grab = command(
+        ["docker", "exec", container, "ffmpeg", "-nostdin", "-v", "error", "-f", "x11grab", "-draw_mouse", "0", "-video_size", "1280x800", "-i", ":99", "-frames:v", "1", "-f", "image2", "-c:v", "png", "-"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=False,
+    )
+    return grab.stdout if grab.returncode == 0 and grab.stdout.startswith(PNG_MAGIC) else b""
+
+
 def screenshot_capture(container: str, env: dict[str, str], shot_name: str) -> tuple[bytes, bool, str | None]:
     shoot = drive(container, env, "shoot", shot_name)
     if shoot.returncode:
+        fallback = desktop_screenshot(container)
+        if fallback:
+            return fallback, True, "app not drivable; captured the X display directly (desktop-level grab, not an app screenshot)"
         return b"", False, "drive.py shoot failed"
     screenshot = command(["docker", "exec", container, "cat", f"/workspace/.tmp/agent_shots/{shot_name}.png"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=False)
     if screenshot.returncode or not screenshot.stdout.startswith(PNG_MAGIC):
@@ -148,7 +168,12 @@ def main() -> None:
         tree_text, tree_ok, tree_reason = "", False, NO_LIVE_APP_REASON
         semantics_payload, semantics_ok, semantics_reason = {"available": False}, False, NO_LIVE_APP_REASON
         settings_payload, settings_ok, settings_reason = {"available": False}, False, NO_LIVE_APP_REASON
-        screenshot_bytes, screenshot_ok, screenshot_reason = b"", False, NO_LIVE_APP_REASON
+        # The app being unreachable says nothing about the desktop: grab the X
+        # display anyway so a run that never launched still leaves the judge a
+        # picture of what was actually on screen.
+        screenshot_bytes = desktop_screenshot(container)
+        screenshot_ok = bool(screenshot_bytes)
+        screenshot_reason = None if screenshot_ok else NO_LIVE_APP_REASON
 
     artifacts["runtime"] = write_artifact(run, destination, "inspect.json", json.dumps(redact_value(runtime_payload, secrets), separators=(",", ":")).encode())
     availability["runtime"] = runtime_ok

@@ -36,8 +36,16 @@ GZIP_THRESHOLD_BYTES = 256 * 1024
 
 
 def model_slug(result: dict) -> str:
+    """The published slot must separate reasoning efforts: the same model at
+    two thinking levels is two different subjects, and keying on the model name
+    alone makes the second campaign collide with the first's committed results
+    (`results_slot_occupied_by`) instead of landing beside it. `off` keeps the
+    bare model name so existing non-reasoning result paths stay put."""
     model = result.get("selected_model") or result.get("requested_model") or {}
     name = str(model.get("model") or "unknown-model")
+    thinking = str(model.get("thinking") or "").strip()
+    if thinking and thinking != "off":
+        name = f"{name}-{thinking}"
     return name.replace("/", "-").replace(" ", "-")
 
 

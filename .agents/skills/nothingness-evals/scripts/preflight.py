@@ -4,8 +4,12 @@ import os
 import sys
 import time
 
-from common import ROOT, command, emit_json, fail, read_host_pi_config, read_json, run_dir, require_command, utc_now, validate_frozen_rubric, validate_frozen_suite, validate_frozen_task, validate_run_id, write_json
+from common import ROOT, command, emit_json, fail, read_host_pi_config, read_json, redact_text, run_dir, require_command, secret_values, utc_now, validate_frozen_rubric, validate_frozen_suite, validate_frozen_task, validate_run_id, write_json
 from usage import normalized_usage
+
+
+NOVNC_READY_POLLS = 30
+NOVNC_READY_INTERVAL = 0.5
 
 
 def validate_pre_admission_contract(metadata: dict[str, object], root: object = ROOT) -> None:
@@ -25,7 +29,7 @@ def admission_failure_detail(raw_admission: dict[str, object]) -> str:
     return ",".join(parts) if parts else "probe_timed_out_or_output_undecodable"
 
 
-def evaluate_admission_probe(probe: object, probe_result: object) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+def evaluate_admission_probe(probe: object, probe_result: object, secrets: tuple[str, ...] = ()) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
     """Replaces the old single `pi_admission_failed` catch-all with the
     distinct causes an operator actually needs to tell apart: our own exec of
     the probe crashing, `result.json` being absent or corrupt, pi's own
@@ -36,7 +40,14 @@ def evaluate_admission_probe(probe: object, probe_result: object) -> tuple[dict[
     older `candidate.py` produces, now caught here as a second line of
     defense behind Part 1's build-time hash check)."""
     if probe.returncode:
-        fail(4, f"admission_probe_process_failed:exit={probe.returncode}")
+        # The probe crashing on our side (a staging bug, a missing path) is
+        # indistinguishable from a provider rejection unless its own error comes
+        # with it -- an opaque `exit=1` cost hours once. The probe handles
+        # credentials, so the tail is redacted with the same secret set the
+        # artifact scanner uses, and bounded rather than dumped whole.
+        detail = redact_text((probe.stderr or "").strip(), secrets).splitlines()
+        suffix = f" -- {detail[-1][:300]}" if detail else ""
+        fail(4, f"admission_probe_process_failed:exit={probe.returncode}{suffix}")
     if probe_result.returncode:
         fail(4, "admission_result_missing")
     try:
@@ -128,8 +139,20 @@ def main() -> None:
         fail(4, "health_missing")
     if not ready:
         fail(4, "desktop_not_ready")
-    if command(["curl", "--fail", "--silent", "--output", os.devnull, url]).returncode:
-        fail(4, "novnc_unreachable")
+    # noVNC binds its port slightly after the desktop reports healthy, so a single
+    # probe here throws away the several minutes prepare-run.py already spent on
+    # fixture export, container, network and proxy setup -- for a race that clears
+    # in a second. Retry on the same budget as the health loop above.
+    # The timeouts are as important as the retry: a published port that accepts the
+    # connection but never answers (as a misconfigured proxy does) hangs curl on the
+    # OS TCP timeout, so an unbounded call here turns a retry loop into a multi-minute
+    # stall -- which is exactly how this failure first presented.
+    for attempt in range(NOVNC_READY_POLLS):
+        if command(["curl", "--fail", "--silent", "--connect-timeout", "2", "--max-time", "2", "--output", os.devnull, url]).returncode == 0:
+            break
+        if attempt + 1 == NOVNC_READY_POLLS:
+            fail(4, "novnc_unreachable")
+        time.sleep(NOVNC_READY_INTERVAL)
     allowed_host = metadata["egress_host"]
     blocked_host = "example.com" if allowed_host != "example.com" else "blocked.invalid"
     proxy_probe = """import socket,sys
@@ -182,10 +205,10 @@ assert not any((Path('/run/nothingness') / name).exists() for name in ('candidat
         ["docker", "exec", "-i", container, "python3", "/usr/local/bin/nothingness-eval-candidate", "--probe", "--provider", requested["provider"], "--model", requested["model"], "--thinking", requested["thinking"], "--prompt", "unused", "--timeout-seconds", "60", "--run-id", run_id],
         input=__import__("json").dumps({"pi_config": pi_config["pi_config"], "provider_env": pi_config["provider_env"]}),
         stdout=-1,
-        stderr=os.devnull,
+        stderr=-1,
     )
     probe_result = command(["docker", "exec", container, "cat", "/run/nothingness/admission/result.json"], stdout=-1, stderr=os.devnull)
-    raw_admission, usage, served = evaluate_admission_probe(probe, probe_result)
+    raw_admission, usage, served = evaluate_admission_probe(probe, probe_result, secret_values(pi_config["pi_config"], pi_config["provider_env"]))
     normalized = normalized_usage(usage)
     # This is the genuine identity check: `served` came back on pi's own
     # assistant message (its "provider"/"model" fields), independent of

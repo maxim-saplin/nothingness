@@ -72,7 +72,7 @@ def main() -> None:
         for repository_path, destination in (("pubspec.yaml", dependency_seed / "pubspec.yaml"), ("soloud/pubspec.yaml", dependency_seed / "soloud" / "pubspec.yaml")):
             destination.write_bytes(command_or_fail(["git", "show", f"5fc7e04:{repository_path}"], 3, "fixture_dependency_manifest_failed", stdout=subprocess.PIPE, text=False).stdout)
         command_or_fail(
-            ["docker", "build", "--label", "nothingness.eval=true", "--label", f"nothingness.eval.pi_packages_sha256={packages_sha}", *source_labels(source_hashes), "--build-arg", f"PI_ARTIFACT_SHA256={artifact_sha}", "--build-arg", f"PI_PACKAGES_SHA256={packages_sha}", "-t", IMAGE_NAME, str(context)],
+            ["docker", "build", "--label", "nothingness.eval=true", "--label", f"nothingness.eval.pi_packages_sha256={packages_sha}", *source_labels(source_hashes), "--build-arg", f"PI_ARTIFACT_SHA256={artifact_sha}", "--build-arg", f"PI_ENTRY={pi['entry']}", "--build-arg", f"PI_PACKAGES_SHA256={packages_sha}", "-t", IMAGE_NAME, str(context)],
             3,
             "image_build_failed",
             stdout=os.devnull,

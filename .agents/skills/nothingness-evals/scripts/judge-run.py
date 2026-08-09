@@ -3,9 +3,15 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from common import ROOT, SCRIPT_DIR, command, emit_json, fail, load_suite, read_json, run_dir, utc_now, validate_run_id, write_json
+
+# Phases where the candidate has stopped and is waiting on the judge.
+TERMINAL_PHASES = ("awaiting_judge", "completed", "timed_out", "failed")
+WAIT_DEFAULT_TIMEOUT = 2700
+WAIT_POLL_INTERVAL = 5.0
 
 
 def invoke(name: str, *arguments: str) -> dict[str, object]:
@@ -85,6 +91,29 @@ def decide(arguments: argparse.Namespace) -> None:
     emit_json({"ok": True, "action": "decide", "run_id": arguments.run_id, "result": result, "published": published})
 
 
+def wait(arguments: argparse.Namespace) -> None:
+    """Block until the candidate stops needing the judge to do nothing.
+
+    `awaiting_judge` is a *blocked* candidate: nothing notifies anyone, and the
+    run burns its timeout until `judge-control.py finish` arrives. Polling
+    progress.json by hand is how a finished candidate sits unnoticed for
+    minutes, so make the wait a first-class command instead of a habit judges
+    are expected to remember."""
+    run = run_dir(arguments.run_id)
+    progress_path = run / "progress.json"
+    deadline = time.monotonic() + max(arguments.timeout_seconds, 1)
+    phase = None
+    while time.monotonic() < deadline:
+        progress = read_json(progress_path) if progress_path.is_file() else None
+        if isinstance(progress, dict):
+            phase = progress.get("phase")
+            if phase in TERMINAL_PHASES:
+                emit_json({"ok": True, "action": "wait", "run_id": arguments.run_id, "phase": phase, "elapsed_seconds": progress.get("elapsed_seconds"), "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"), "event_sequence": progress.get("event_sequence"), "next": "judge-control.py finish"})
+                return
+        time.sleep(arguments.poll_seconds)
+    fail(4, f"wait_timed_out:phase={phase} -- candidate still running after {arguments.timeout_seconds}s; inspect with judge-events.py or raise --timeout-seconds")
+
+
 def cleanup(arguments: argparse.Namespace) -> None:
     run = run_dir(arguments.run_id)
     if not (run / "result.json").is_file() and not arguments.force:
@@ -109,13 +138,17 @@ def main() -> None:
     decide_parser.add_argument("--scorecard")
     decide_parser.add_argument("--notes", required=True)
     decide_parser.add_argument("--observation-id", action="append", default=[])
+    wait_parser = subparsers.add_parser("wait", allow_abbrev=False)
+    wait_parser.add_argument("run_id")
+    wait_parser.add_argument("--timeout-seconds", type=int, default=WAIT_DEFAULT_TIMEOUT)
+    wait_parser.add_argument("--poll-seconds", type=float, default=WAIT_POLL_INTERVAL)
     cleanup_parser = subparsers.add_parser("cleanup", allow_abbrev=False)
     cleanup_parser.add_argument("run_id")
     cleanup_parser.add_argument("--force", action="store_true")
     arguments = parser.parse_args()
     if hasattr(arguments, "run_id"):
         validate_run_id(arguments.run_id)
-    {"start": start, "collect": collect, "decide": decide, "cleanup": cleanup}[arguments.action](arguments)
+    {"start": start, "collect": collect, "decide": decide, "cleanup": cleanup, "wait": wait}[arguments.action](arguments)
 
 
 if __name__ == "__main__":

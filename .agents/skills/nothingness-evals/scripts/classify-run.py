@@ -177,7 +177,13 @@ def validate_scorecard_evidence_kinds(run: Path, scorecard: list[dict[str, objec
         ledger_item = reference[0]
         if ledger_item.get("kind") != required_kind:
             fail(2, f"evidence_kind_mismatch:{item['id']}:requires_{required_kind}")
-        if required_kind == "verification":
+        # An `unmet` verdict is the one case where a capture that found nothing
+        # is itself the evidence: when the candidate never launched the app,
+        # "no live app in container" is exactly what proves the expectation
+        # failed, and demanding a successful capture makes the single most
+        # common weak-model outcome unscoreable. Credit still requires a real
+        # capture of the declared lens, so absence can never buy a `met`.
+        if required_kind == "verification" and item["verdict"] != "unmet":
             lens = declaration.get("lens")
             availability = ledger_item.get("availability")
             if lens is not None:
@@ -269,14 +275,17 @@ def has_genuine_capture(item: dict[str, object]) -> bool:
     return isinstance(availability, dict) and any(bool(value) for value in availability.values())
 
 
-def validate_judge_review(run: Path, completion: dict[str, object], observations: list[dict[str, object]], cited_ids: list[str]) -> None:
+def validate_judge_review(run: Path, completion: dict[str, object], observations: list[dict[str, object]], cited_ids: list[str], credited_refs: frozenset[str] = frozenset()) -> None:
     terminal = completion.get("terminal_event_sequence")
     if not isinstance(terminal, int) or terminal < 1:
         fail(2, "terminal_event_sequence_required")
     verified = verified_observations(run, observations)
     cited = set(cited_ids)
-    if not cited or not cited.issubset(verified):
-        fail(2, "judge_review_and_rationale_required")
+    if not cited:
+        fail(2, "judge_review_required:cite observations with --observation-id (events, inspection and verification)")
+    unverified = sorted(cited - set(verified))
+    if unverified:
+        fail(2, f"cited_observation_unverified:{','.join(unverified)} -- id absent from judge-observations.jsonl or its evidence file failed its sha256")
     coverage = 0
     event_ranges = []
     for observation_id in cited:
@@ -284,11 +293,11 @@ def validate_judge_review(run: Path, completion: dict[str, object], observations
         if item.get("kind") == "events":
             observed_range = event_range(item, evidence)
             if observed_range is None:
-                fail(2, "judge_review_and_rationale_required")
+                fail(2, f"event_observation_malformed:{observation_id} -- ledger range disagrees with the stored batch")
             event_ranges.append(observed_range)
     for after, next_sequence in sorted(event_ranges):
         if after != coverage or next_sequence <= after:
-            fail(2, "judge_review_and_rationale_required")
+            fail(2, f"event_coverage_not_contiguous:expected_after={coverage},got_after={after},next={next_sequence} -- cite one events read per range, chained from 0")
         coverage = next_sequence
     inspections = {
         name: any(
@@ -301,9 +310,25 @@ def validate_judge_review(run: Path, completion: dict[str, object], observations
         for name in ("runtime", "git", "processes")
     }
     cited_kinds = {verified[value][0].get("kind") for value in cited}
-    verification_captured = any(item.get("kind") == "verification" and has_genuine_capture(item) for item, _evidence in (verified[value] for value in cited))
-    if coverage != terminal or not all(inspections.values()) or not {"events", "inspection", "verification"}.issubset(cited_kinds) or not verification_captured:
-        fail(2, "judge_review_and_rationale_required")
+    # "The judge looked" is satisfied either by a real capture, or by a capture
+    # that honestly found nothing live and is used only to justify `unmet`
+    # verdicts -- `credited_refs` carries every observation a met/partial verdict
+    # leans on, and those still have to be genuine (see
+    # validate_scorecard_evidence_kinds).
+    verification_captured = any(
+        item.get("kind") == "verification" and (has_genuine_capture(item) or observation_id not in credited_refs)
+        for observation_id, (item, _evidence) in ((value, verified[value]) for value in cited)
+    )
+    if coverage != terminal:
+        fail(2, f"event_coverage_incomplete:{coverage}/{terminal} -- page events again after judge-control.py finish, which appends its own terminal events")
+    missing_lenses = sorted(name for name, present in inspections.items() if not present)
+    if missing_lenses:
+        fail(2, f"inspection_lenses_missing:{','.join(missing_lenses)} -- run judge-inspect.py --runtime --git --processes and cite it")
+    missing_kinds = sorted({"events", "inspection", "verification"} - cited_kinds)
+    if missing_kinds:
+        fail(2, f"cited_observation_kinds_missing:{','.join(missing_kinds)} -- cite at least one observation of each kind")
+    if not verification_captured:
+        fail(2, "verification_capture_required -- every cited verification failed its captures and a met/partial verdict leans on it; only unmet verdicts may rest on a capture that found nothing")
 
 
 def main() -> None:
@@ -372,8 +397,16 @@ def main() -> None:
     if arguments.validity == "valid":
         if not arguments.notes:
             fail(2, "judge_review_and_rationale_required")
-        validate_judge_review(run, completion, observations, arguments.observation_id)
         scorecard_task_id, scorecard_rubric_sha256, raw_scorecard = load_scorecard_file(Path(arguments.scorecard))
+        # Read the scorecard first: whether a capture that found nothing counts
+        # as "the judge looked" depends on whether any verdict actually claims
+        # credit from it, which is only knowable once the verdicts are in hand.
+        credited_refs = frozenset(
+            entry["evidence_ref"]
+            for entry in raw_scorecard
+            if isinstance(entry, dict) and isinstance(entry.get("evidence_ref"), str) and entry.get("verdict") != "unmet"
+        )
+        validate_judge_review(run, completion, observations, arguments.observation_id, credited_refs)
         if scorecard_task_id != metadata["task_id"]:
             fail(2, "scorecard_task_mismatch")
         rubric_path = rubric_path_for_task(metadata["task_id"])

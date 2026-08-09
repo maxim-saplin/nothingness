@@ -5,6 +5,7 @@ FROM ghcr.io/astral-sh/uv:0.11.28 AS uv
 FROM ghcr.io/cirruslabs/flutter:stable
 
 ARG PI_ARTIFACT_SHA256
+ARG PI_ENTRY=bin/pi
 ARG PI_PACKAGES_SHA256
 ENV DEBIAN_FRONTEND=noninteractive \
     TRY_SYSTEM_LIBS_FIRST=1 \
@@ -49,6 +50,8 @@ RUN test -n "$PI_ARTIFACT_SHA256" \
   && echo "$PI_ARTIFACT_SHA256  /tmp/pi-artifact.tar.gz" | sha256sum -c - \
   && mkdir -p /opt/pi \
   && tar -xzf /tmp/pi-artifact.tar.gz -C /opt/pi --strip-components=1 \
+  && test -f "/opt/pi/$PI_ENTRY" \
+  && { [ "$PI_ENTRY" = "bin/pi" ] || { mkdir -p /opt/pi/bin && ln -sf "/opt/pi/$PI_ENTRY" /opt/pi/bin/pi; }; } \
   && test -f /opt/pi/bin/pi \
   && rm /tmp/pi-artifact.tar.gz
 
@@ -57,7 +60,7 @@ RUN test -n "$PI_PACKAGES_SHA256" \
   && echo "$PI_PACKAGES_SHA256  /tmp/pi-packages.tar.gz" | sha256sum -c - \
   && mkdir -p /opt/pi-packages \
   && tar -xzf /tmp/pi-packages.tar.gz -C /opt/pi-packages \
-  && test -f /opt/pi-packages/npm/package.json \
+  && test -d /opt/pi-packages \
   && rm /tmp/pi-packages.tar.gz
 
 COPY media/ /opt/nothingness/media/

@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, container_name, derive_provider_egress_host, emit_json, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
+from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
 
 
 def main() -> None:
@@ -58,11 +58,11 @@ def main() -> None:
     # here. A run classified before preflight ever ran (invalid_infrastructure)
     # correctly carries no selected_model at all: no evidence, no claim.
     selected_model = None
-    validate_pi_model(pi["payload"], requested_model)
+    validate_pi_model(pi, requested_model)
     pi_config = read_host_pi_config(provider=requested_model["provider"])
     egress_host = derive_provider_egress_host(pi_config["pi_config"]["models"], requested_model["provider"], pi_config["provider_env"])
     command_or_fail(["git", "cat-file", "-e", f"{fixture}^{{commit}}"], 3, "fixture_commit_unavailable")
-    command_or_fail([sys.executable, str(Path(__file__).with_name("validate-opus-fixtures.py"))], 3, "opus_fixture_validation_failed", stdout=os.devnull)
+    command_or_fail_chained([sys.executable, str(Path(__file__).with_name("validate-opus-fixtures.py"))], 3, "opus_fixture_validation_failed", stdout=os.devnull)
     run = run_dir(run_id)
     container = container_name(run_id)
     proxy = proxy_name(run_id)
@@ -126,13 +126,21 @@ def main() -> None:
     command_or_fail(["chmod", "-R", "a+rwX", str(seed)], 3, "fixture_permissions_failed")
     checksum = command_or_fail(["cksum"], 3, "checksum_failed", input=run_id, stdout=subprocess.PIPE).stdout.split()[0]
     port = 20000 + int(checksum) % 20000
-    while command(["curl", "--silent", "--output", os.devnull, f"http://127.0.0.1:{port}/"]).returncode == 0:
+    while command(["curl", "--silent", "--connect-timeout", "2", "--max-time", "2", "--output", os.devnull, f"http://127.0.0.1:{port}/"]).returncode == 0:
         port += 1
     command_or_fail(["docker", "network", "create", "--internal", "--label", "nothingness.eval=true", "--label", f"nothingness.eval.run_id={run_id}", network], 3, "network_create_failed", stdout=os.devnull)
-    proxy_args = ["docker", "run", "-d", "--name", proxy, "--label", "nothingness.eval=true", "--label", f"nothingness.eval.run_id={run_id}", "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true", "--network", network, "-p", f"127.0.0.1:{port}:6080", "--entrypoint", "python3", IMAGE_NAME, "/usr/local/bin/nothingness-eval-proxy", "--novnc-host", container]
+    # Attach order is load-bearing, not stylistic. Docker wires a published port's
+    # DNAT at creation time, to the address the container has on the network it is
+    # created on -- an `--internal` network's address is not routable from the host,
+    # and connecting `bridge` afterwards does not rewire the mapping. Creating the
+    # proxy on the internal network first therefore publishes a port that accepts
+    # connections and never answers, failing every run at preflight's noVNC probe.
+    # The end state is identical either way (proxy on both networks, candidate on
+    # the internal one only), so this costs no isolation.
+    proxy_args = ["docker", "run", "-d", "--name", proxy, "--label", "nothingness.eval=true", "--label", f"nothingness.eval.run_id={run_id}", "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true", "--network", "bridge", "-p", f"127.0.0.1:{port}:6080", "--entrypoint", "python3", IMAGE_NAME, "/usr/local/bin/nothingness-eval-proxy", "--novnc-host", container]
     proxy_args.extend(["--allow-host", egress_host])
     command_or_fail(proxy_args, 3, "proxy_start_failed", stdout=os.devnull)
-    command_or_fail(["docker", "network", "connect", "bridge", proxy], 3, "proxy_bridge_attach_failed")
+    command_or_fail(["docker", "network", "connect", network, proxy], 3, "proxy_internal_attach_failed")
     docker_args = ["docker", "run", "-d", "--name", container, "--label", "nothingness.eval=true", "--label", f"nothingness.eval.run_id={run_id}", "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true", "--network", network, "--cpus", str(task["limits"]["cpus"]), "--memory", task["limits"]["memory"], "--pids-limit", str(task["limits"]["pids_limit"]), "-e", f"HTTP_PROXY=http://{proxy}:3128", "-e", f"HTTPS_PROXY=http://{proxy}:3128", "-e", "NO_PROXY=localhost,127.0.0.1"]
     command_or_fail([*docker_args, IMAGE_NAME], 3, "container_start_failed", stdout=os.devnull)
     command_or_fail(["docker", "cp", f"{seed}/.", f"{container}:/workspace"], 3, "workspace_copy_failed")

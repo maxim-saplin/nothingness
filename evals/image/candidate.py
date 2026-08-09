@@ -370,8 +370,14 @@ def stage_payload(arguments: argparse.Namespace) -> tuple[Path, dict[str, str]]:
     config_dir = RUNTIME / "pi-config"
     config_dir.mkdir(mode=0o700, exist_ok=True)
     config_dir.chmod(0o700)
+    # Either cache may be absent: pi only creates them once `pi install` has run,
+    # so an operator with no pi packages ships an image without them and the
+    # candidate simply gets none. Copying unconditionally crashes the probe before
+    # it reaches the provider, which surfaces as an opaque admission failure.
     for name in ("npm", "git"):
-        shutil.copytree(Path("/opt/pi-packages") / name, config_dir / name, symlinks=True)
+        source = Path("/opt/pi-packages") / name
+        if source.is_dir():
+            shutil.copytree(source, config_dir / name, symlinks=True)
     for name, content in pi_config.items():
         path = config_dir / f"{name}.json"
         path.write_text(content)
