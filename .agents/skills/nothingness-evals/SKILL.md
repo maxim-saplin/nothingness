@@ -52,24 +52,28 @@ Run every task in the suite, in suite order, without pausing between tasks to as
    ```
    uv run python .agents/skills/nothingness-evals/scripts/campaign.py add-run <campaign-id> <task-id> <run-id>
    ```
-3. **Supervise.** Block on the candidate rather than guessing when it is done, then follow events, inspect, and capture verification evidence:
+3. **Observe.** One command watches the live run, prints each thing the candidate does, and returns the moment it stops:
    ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py wait <run-id>
-   uv run python .agents/skills/nothingness-evals/scripts/judge-events.py <run-id> --after <sequence>
-   uv run python .agents/skills/nothingness-evals/scripts/judge-inspect.py <run-id> --runtime --git --processes
-   uv run python .agents/skills/nothingness-evals/scripts/judge-verify.py <run-id> --label <name>
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py observe <run-id>
    ```
-   `wait` returns as soon as the candidate reaches a terminal phase; until it does, the candidate is still working and there is nothing to judge.
-   Send candidate-facing messages only through `judge-control.py steer|follow-up|request`, each with an intervention class, message, and reason. Passive inspection is never an intervention. Interventions are hard-capped at 3 delivered; a 4th is refused (exit `6`) — terminalize the run instead of continuing to steer. Default to **not** intervening unless the candidate is genuinely stuck; do not ask the user whether to intervene.
+   It pages events as they arrive (so the cited coverage is contiguous by construction) and streams a per-event digest to stderr. Do not hand-poll, and do not sit blind: this *is* the supervision loop. Note the `event_observation_ids` and `event_sequence` it returns — step 5 needs them.
+
+   Send candidate-facing messages only through `judge-control.py steer|follow-up|request`, each with an intervention class, message, and reason. Passive inspection is never an intervention. Interventions are hard-capped at 3 delivered; a 4th is refused (exit `6`) — terminalize the run instead of continuing to steer.
+
+   **Intervene only when the candidate is stuck, never when it is failing.** Stuck means it cannot proceed: a crashed app it hasn't noticed, a blocking tool error, a genuine ambiguity in the prompt. Failing means it is proceeding confidently in a way that will score badly — writing instructions instead of driving the app, testing the wrong thing, inventing fixtures. Steering a failing candidate converts an honest `0` into an assisted result and destroys the comparison. Let it fail and score it. Never ask the user whether to intervene.
 4. **Finish** when the candidate reaches `candidate awaiting judge`:
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-control.py <run-id> finish --reason <reason>
    ```
    Use `abort` only for an invalid/irrecoverable attempt. Never kill Pi or Docker directly.
-5. **Collect**:
+5. **Collect, then assemble the citations.** `finish` appends its own terminal events, so the tail has to be paged after it — `evidence` does that, captures the inspection and verification, and prints the exact flags to pass to `decide`:
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py collect <run-id>
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py evidence <run-id> \
+     --after <event_sequence from observe> \
+     --event-observation-id <each id observe returned>
    ```
+   Use its `decide_flags` verbatim in step 7. Assembling this set by hand is the most error-prone part of the whole lifecycle and has rejected real decisions over citation mechanics rather than judgement.
 6. **Build the scorecard** from `evals/tasks/rubrics/<task-id>.md`: one `met`/`partial`/`unmet` verdict per expectation, each with a one-line justification and an `evidence_ref` naming an observation of exactly the kind (and, where declared, the lens) the expectation's own `**Evidence:**` line requires. Write the scorecard file with the task id and the `rubric_sha256` you read.
 7. **Decide**:
    ```
@@ -91,7 +95,7 @@ Do not stop mid-suite to ask about strategy, re-runs, or scope changes — if a 
 ## Sharp edges (cost real time last night — read before you hit them)
 
 - **A fresh clone with a perfectly working `pi` on the host can still fail cold, for reasons `pi` working tells you nothing about.** A bundled-artifact-only pi resolver missed an npm-installed pi (`dist/cli.js`), the harness assumed `~/.pi/agent/npm` and `~/.pi/agent/git` exist (they only appear after `pi install`), and it demanded `models.json` be non-empty, valid JSON, and mode `0600`. The first two are now handled (any pi install layout resolves; absent package caches are a normal clean install, not an error) and the third fails with a specific, self-explaining `unsafe_pi_config_permissions:models.json` — but `check-host.py` catches all of them up front, so run it first instead of debugging blind from an error code.
-- **`candidate awaiting judge` is a blocked candidate, not a working one.** It sits there burning its timeout until you call `judge-control.py finish`, and nothing notifies you. Don't hand-poll: `judge-run.py wait <run-id>` blocks until the candidate actually stops and then tells you what it did, so a finished candidate can't sit unnoticed.
+- **`candidate awaiting judge` is a blocked candidate, not a working one.** It sits there burning its timeout until you call `judge-control.py finish`, and nothing notifies you. `judge-run.py observe` returns the moment that happens — and shows you the run as it goes, so you are not choosing between noticing the end and watching the middle.
 - **Judge-driving the app inside the candidate container needs offline flags.** The recipe `drive.py preflight` prints ends in a bare `flutter run`, which tries pub.dev and dies against the egress allowlist with `Proxy failed to establish tunnel (403 destination denied)`. Add `--offline` (dependencies are already primed in the image).
 - **A trial that fails before launch gets a fresh `-attempt-NN` directory, and the failed one still belongs in the campaign.** `judge-run.py start` reports only the run id it picked, not that it incremented over a previous attempt, so `campaign.py add-run` every attempt you start — a task whose attempts are all unrecorded reports "not started" on the dashboard while it is actually running.
 - **Expect `judge-run.py start` to take minutes, not seconds.** `prepare-run.py` alone (fixture export, git baseline, `chmod -R`, network, proxy, container, workspace copy) runs 2-5 minutes before preflight even begins, so a shell with a 5-minute timeout will appear to hang. It is not stuck.
