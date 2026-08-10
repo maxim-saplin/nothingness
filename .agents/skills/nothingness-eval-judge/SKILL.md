@@ -25,6 +25,12 @@ You are given: a **run id**, a **task id**, and the rubric at `evals/tasks/rubri
    Use `--show actions` (default). For a chatty run, `--max-lines 10`. It saves its cursor, so
    nothing has to be carried by hand into step 4.
 
+   **Run it with an explicit long timeout** — at least 15 minutes (`timeout: 900000` on the Bash
+   tool). A run takes 5-20 minutes and `observe` blocks for its whole duration; on the default
+   2-minute tool timeout it is silently moved to the background, your turn ends, and the candidate
+   is left running with nobody watching it. If it returns while the phase is still `running`, call
+   it again — it resumes from its cursor and will not duplicate the event chain.
+
 2. **Finish** once it settles.
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-control.py <run-id> finish --reason "<what it did>"

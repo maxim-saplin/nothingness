@@ -147,6 +147,20 @@ def main() -> None:
     command_or_fail([*docker_args, IMAGE_NAME], 3, "container_start_failed", stdout=os.devnull)
     command_or_fail(["docker", "cp", f"{seed}/.", f"{container}:/workspace"], 3, "workspace_copy_failed")
     command_or_fail(["docker", "exec", container, "git", "config", "--global", "--add", "safe.directory", "/workspace"], 3, "workspace_git_trust_failed")
+    # Resolve dependencies before the candidate ever sees the workspace. The
+    # container is offline by design, `drive.py preflight` hands out a launch
+    # recipe ending in a bare `flutter run`, and that command cannot work here --
+    # it resolves against pub.dev and dies on the egress allowlist. Leaving that
+    # in place tests whether a model can guess `--offline`, not whether it can
+    # drive the app. `.dart_tool/`, `build/` and `pubspec.lock` are all
+    # gitignored in the fixture, so priming leaves the candidate's diff clean.
+    command_or_fail(["docker", "exec", container, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/prepare-pub.log 2>&1"], 3, "workspace_pub_get_failed")
+    # Fold what pub get regenerated into the baseline, so the candidate starts from
+    # a clean tree. Flutter rewrites tracked files here (the linux plugin registrant
+    # and cmake, and the macos registrant), and leaving them uncommitted would both
+    # trip preflight's cleanliness check and charge the candidate for a diff it did
+    # not make -- which is exactly the exception the T1 rubric has had to carve out.
+    command_or_fail(["docker", "exec", container, "sh", "-c", "cd /workspace && git add -A && git commit -qm 'primed dependencies' --allow-empty"], 3, "workspace_baseline_commit_failed")
     setup = "from pathlib import Path; Path('/run/nothingness/sessions').mkdir()"
     command_or_fail(["docker", "exec", container, "python3", "-c", setup], 3, "container_setup_failed")
     command_or_fail(["docker", "exec", container, "git", "-C", "/workspace", "status", "--porcelain"], 3, "container_setup_failed", stdout=os.devnull)

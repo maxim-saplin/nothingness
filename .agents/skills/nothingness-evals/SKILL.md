@@ -57,6 +57,12 @@ Run every task in the suite, in suite order, without pausing between tasks to as
    results path, never the model name — it cannot anchor on what it cannot see. It observes,
    finishes, collects, gathers evidence, scores and decides; it does not publish.
 
+   **Watching is the judge's job, not yours** — it is the only party that can act on what it sees
+   by intervening when the candidate is genuinely stuck. Tell it to run `observe` with a Bash
+   timeout of at least 15 minutes; on the default 2-minute timeout the call is silently
+   backgrounded, its turn ends, and a live run is left unwatched. Do not take observation back
+   because the judge stopped early — fix the timeout.
+
 4. **Publish** — the results store is yours alone, single-writer:
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py publish <run-id> --scorecard <path>
