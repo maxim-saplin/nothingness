@@ -159,19 +159,38 @@ def main() -> None:
             result = command_or_fail(["docker", "exec", container, "git", "-C", "/workspace", *git_args], 4, "workspace_artifact_failed", stdout=subprocess.PIPE)
             (artifacts / name).write_text(redact_text(result.stdout, secrets))
         untracked_count = copy_untracked(container, artifacts, secrets)
+        # `copy_untracked` runs `git ls-files --others --exclude-standard`, which
+        # by design skips gitignored paths -- and `.tmp/` is gitignored while
+        # `.tmp/agent_shots/` is exactly where the driving skill tells the
+        # candidate to put `drive.py shoot` output. Every screenshot deliverable
+        # was therefore dropped from published artifacts, on every task that asks
+        # for one. Copy that directory explicitly rather than un-excluding
+        # ignores wholesale, which would hoover up build/ and .dart_tool/.
+        shots_count = container_tree(container, "/workspace/.tmp/agent_shots", artifacts / "agent-shots", secrets)
         health = command(["docker", "exec", container, "cat", "/run/nothingness/health.json"], stdout=-1, stderr=os.devnull)
         write_json(artifacts / "health.json", redact_value(json.loads(health.stdout), secrets) if health.returncode == 0 else {"available": False})
         processes = command(["docker", "top", container, "-eo", "pid,ppid,stat,etime,comm"], stdout=-1, stderr=os.devnull)
         write_json(artifacts / "processes.json", redact_value({"available": processes.returncode == 0, "snapshot": processes.stdout.splitlines()[:200] if processes.returncode == 0 else []}, secrets))
+        # Only two fixed paths were checked, but `drive.py preflight` itself
+        # recommends a DRIVE_SESSION_TAG launch that writes
+        # /tmp/flutter_run_<tag>.log -- so a candidate following the printed
+        # recipe produced a real 37KB run log and still got
+        # `flutter_log_copied: false`, which reads as "the app never launched".
+        # Take the newest matching log when the fixed paths miss.
         flutter_log_copied = copy_optional(container, "/run/nothingness/drive/flutter_run.log", artifacts / "flutter_run.log", secrets)
         if not flutter_log_copied:
             flutter_log_copied = copy_optional(container, "/tmp/flutter_run.log", artifacts / "flutter_run.log", secrets)
+        if not flutter_log_copied:
+            newest = command(["docker", "exec", container, "sh", "-c", "ls -1t /tmp/flutter_run*.log 2>/dev/null | head -1"], stdout=-1, stderr=os.devnull)
+            candidate_log = newest.stdout.strip() if newest.returncode == 0 else ""
+            if candidate_log:
+                flutter_log_copied = copy_optional(container, candidate_log, artifacts / "flutter_run.log", secrets)
         proxy_logs = command(["docker", "logs", metadata["proxy"]], stdout=-1, stderr=subprocess.STDOUT)
         if proxy_logs.returncode == 0:
             (artifacts / "proxy.log").write_text(redact_text(proxy_logs.stdout, secrets))
         with (artifacts / "container.txt").open("w") as output:
             command_or_fail(["docker", "inspect", "--format", "{{.Id}} {{.Image}} {{.State.Status}}", container], 4, "container_metadata_failed", stdout=output)
-        result = {"ok": True, "run_id": run_id, "artifacts": str(destination), "scoring": metadata["scoring"], "untracked_files": untracked_count, "flutter_log_copied": flutter_log_copied, "lifecycle_copied": (artifacts / "lifecycle.jsonl").is_file(), "progress_copied": (artifacts / "progress.json").is_file(), "proxy_log_copied": proxy_logs.returncode == 0}
+        result = {"ok": True, "run_id": run_id, "artifacts": str(destination), "scoring": metadata["scoring"], "untracked_files": untracked_count, "agent_shots": shots_count, "flutter_log_copied": flutter_log_copied, "lifecycle_copied": (artifacts / "lifecycle.jsonl").is_file(), "progress_copied": (artifacts / "progress.json").is_file(), "proxy_log_copied": proxy_logs.returncode == 0}
         publish_artifacts(artifacts, destination, run, secrets)
         write_json(run / "collect.json", result)
         emit_json(result)

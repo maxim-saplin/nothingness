@@ -73,6 +73,9 @@ losing the whole run costs you the data point.
 
 ## Reading the UI
 
+- **There is no paging out of this.** On the pinned fixture `getWidgetTree` takes only `depth` and
+  truncates at 128,000 chars from the top; `skipLines=`/`maxChars=` are silently ignored (added later
+  at harness HEAD). `getSemantics` is the only way to reach the settings rows.
 - **Settings sheet: `getSemantics`, never `getWidgetTree`.** The tree exceeds the 128k cap with the
   sheet open and the rows fall past the cutoff. Consecutive `indexInParent` with abutting y-ranges is
   what proves adjacency. Note `drive.py tree N` takes N as a *line* count, not a depth.

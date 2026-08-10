@@ -12,6 +12,43 @@ given. A typo fix or a clearer error message does not need a bump.
 Results published under different versions are not directly comparable; say so
 rather than averaging them.
 
+## 1.2.1 — 2026-08-10
+
+Found by running 1.2.0 as a shakedown with judges on a different model, told
+to report defects rather than work around them. Every item below was a silent
+failure: nothing errored, the numbers just meant less than they appeared to.
+
+- **Screenshot deliverables were never published.** `collect.py` gathers
+  untracked workspace files with `git ls-files --others --exclude-standard`,
+  which by design skips gitignored paths — and `.tmp/` is gitignored while
+  `.tmp/agent_shots/` is exactly where the driving skill tells candidates to
+  write `drive.py shoot` output. `artifacts/workspace-untracked/` came back
+  empty on a run whose screenshots demonstrably existed in the container. Every
+  task with a screenshot expectation was affected. That directory is now copied
+  explicitly (not by un-excluding ignores, which would drag in `build/` and
+  `.dart_tool/`), and the count lands in `collect.json` as `agent_shots`.
+- **`flutter_log_copied` read false for a genuine launch.** Only
+  `/run/nothingness/drive/flutter_run.log` and `/tmp/flutter_run.log` were
+  checked, but `drive.py preflight` recommends a `DRIVE_SESSION_TAG` launch
+  writing `/tmp/flutter_run_<tag>.log`. A candidate that followed the printed
+  recipe produced a real 37KB log and still looked, in the artifacts, like it
+  had never started the app. Falls back to the newest `/tmp/flutter_run*.log`.
+- **The docs promised widget-tree paging the fixture does not have.**
+  `skipLines=`/`maxChars=` exist at harness HEAD and are silently ignored at the
+  pinned fixture, which takes only `depth` and truncates at 128k from the top.
+  Same HEAD-versus-fixture drift as the drag keys in 1.2.0 — the third instance,
+  and the reason both skills now carry a standing warning to verify against the
+  fixture commit.
+- **The watchdog cried wolf twice.** It reported an empty campaign as finished
+  (it derived "done" from the run list, empty until the first trial registers),
+  and it flagged a judge as unattended after `judge_finish`, when the candidate
+  is `completed`, nothing is burning budget, and the judge is simply writing its
+  scorecard. It also re-announced every 30s because it deduped on message text
+  carrying a live minute count.
+
+Known and unfixed: the runtime gate failed once and passed twice on identical
+inputs. Not reproduced; the failure reason was lost.
+
 ## 1.2.0 — 2026-08-10
 
 Scores under 1.2.0 are not comparable with 1.1.0 and earlier: the candidate is
