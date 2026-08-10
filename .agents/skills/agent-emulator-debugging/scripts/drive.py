@@ -921,13 +921,22 @@ def _scan_run_log_markers() -> dict[str, Any]:
 def _desktop_launch_command(target: str) -> str:
     """Copy-pasteable desktop launch line with isolated paths by default.
 
-    Deliberately does NOT override HOME. The app's own storage is isolated by
-    XDG_CONFIG_HOME/XDG_DATA_HOME, which is what path_provider actually reads;
-    HOME added nothing for that and broke the toolchain. Where flutter is a snap
-    its SDK lives under $HOME/snap/flutter, so a fresh HOME reads as a fresh
-    install and re-downloads ~1.4GB of SDK per session. Three agents following
-    this recipe at once filled a 3.9G /tmp twice and took out the Bash tool for
-    every session on the machine.
+    HOME *is* overridden, and DRIVE_DESKTOP_HOME must not live on tmpfs.
+
+    Both halves are load-bearing, and each was learned by breaking the other:
+
+    - Dropping the HOME override does not work. `Hive.initFlutter()` resolves
+      through path_provider's documents directory, which on Linux derives from
+      $HOME, not XDG_DATA_HOME -- so the library box lock lands at
+      $HOME/librarybox.lock and two concurrent sessions collide with
+      "FileSystemException: lock failed". XDG isolation alone is not isolation.
+    - Defaulting it under /tmp does not work either. Where flutter is a snap the
+      SDK cache lives under $HOME/snap/flutter, so a fresh HOME re-downloads
+      ~1.4GB. /tmp here is a 3.9G tmpfs; three agents doing that at once filled
+      it twice and killed the Bash tool for every session on the machine.
+
+    So: isolate HOME, on real disk. The SDK re-download costs a couple of
+    minutes per fresh tag and is the price of a session that cannot collide.
     """
     tag_default = f"nothingness_{target}_debug"
     return (
@@ -935,11 +944,11 @@ def _desktop_launch_command(target: str) -> str:
         f'export DRIVE_TARGET={target}; '
         'export DRIVE_RUN_LOG="${DRIVE_RUN_LOG:-/tmp/flutter_run_${DRIVE_SESSION_TAG}.log}"; '
         'export DRIVE_FLUTTER_FIFO="${DRIVE_FLUTTER_FIFO:-/tmp/flutter_input_${DRIVE_SESSION_TAG}}"; '
-        'export DRIVE_DESKTOP_HOME="${DRIVE_DESKTOP_HOME:-/tmp/nothingness_${DRIVE_SESSION_TAG}}"; '
+        'export DRIVE_DESKTOP_HOME="${DRIVE_DESKTOP_HOME:-$HOME/.nothingness-drive/${DRIVE_SESSION_TAG}}"; '
         'mkdir -p "$DRIVE_DESKTOP_HOME/.config" "$DRIVE_DESKTOP_HOME/.local/share"; '
         'if [ ! -p "$DRIVE_FLUTTER_FIFO" ]; then rm -f "$DRIVE_FLUTTER_FIFO"; mkfifo "$DRIVE_FLUTTER_FIFO"; fi; '
         'nohup sleep infinity > "$DRIVE_FLUTTER_FIFO" 2>/dev/null & '
-        'XDG_CONFIG_HOME="$DRIVE_DESKTOP_HOME/.config" '
+        'HOME="$DRIVE_DESKTOP_HOME" XDG_CONFIG_HOME="$DRIVE_DESKTOP_HOME/.config" '
         'XDG_DATA_HOME="$DRIVE_DESKTOP_HOME/.local/share" '
         f'nohup flutter run -d {target} --debug -t dev/main_debug.dart '
         '< "$DRIVE_FLUTTER_FIFO" > "$DRIVE_RUN_LOG" 2>&1 &'
