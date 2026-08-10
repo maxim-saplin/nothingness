@@ -280,7 +280,17 @@ def finalize(arguments: argparse.Namespace) -> None:
     class of bug where a campaign is "finished" but the index still says
     otherwise because someone forgot a step."""
     merged = []
-    source_root = Path(arguments.from_sandbox).expanduser().resolve() / "evals" / "results" if arguments.from_sandbox else None
+    sandbox = Path(arguments.from_sandbox).expanduser().resolve() if arguments.from_sandbox else None
+    if sandbox is not None:
+        # A worktree is pinned to the commit it was created at, so a sandbox made
+        # before a harness change silently runs stale scripts -- which is how a
+        # judge published a run without the notes.md its own skill told it to
+        # write. Refuse rather than merge results produced by unknown code.
+        head = command(["git", "-C", str(sandbox), "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+        current = command(["git", "-C", str(ROOT), "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+        if head and current and head != current:
+            fail(2, f"judge_sandbox_stale:{head[:7]}_vs_{current[:7]} -- recreate it: git worktree remove --force {arguments.from_sandbox} && git worktree add {arguments.from_sandbox} HEAD")
+    source_root = sandbox / "evals" / "results" if sandbox else None
     if source_root and source_root.is_dir():
         destination_root = ROOT / "evals" / "results"
         for run_directory in sorted(source_root.iterdir()):
