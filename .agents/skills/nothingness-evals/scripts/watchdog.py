@@ -57,12 +57,23 @@ def container_uptime(run_id: str) -> float | None:
         return None
 
 
-def maybe_json(path) -> dict | None:
-    if not path.is_file():
+def live_progress(run_id: str) -> dict | None:
+    """The candidate's progress as it stands right now, read from the container.
+
+    Not `artifacts/progress.json` on the host: that copy is made by `collect`,
+    after the run is over. Watching the host path meant the phase checks could
+    only ever see a finished run -- `awaiting_judge` and near-deadline, the two
+    states worth interrupting for, were unobservable while they were true.
+    """
+    result = subprocess.run(
+        ["docker", "exec", container_name(run_id), "cat", "/run/nothingness/progress.json"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode:
         return None
     try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
         return None
 
 
@@ -110,7 +121,7 @@ def main() -> None:
             if uptime is None:
                 continue
             live_any = True
-            progress = maybe_json(RUNS_ROOT / run / "artifacts" / "progress.json")
+            progress = live_progress(run)
             if progress is None:
                 # No progress.json means the candidate has not been launched yet:
                 # we are inside `start`'s prepare/preflight, which runs 2-5
