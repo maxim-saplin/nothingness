@@ -185,7 +185,9 @@ assert not any((Path('/run/nothingness') / name).exists() for name in ('candidat
         ["docker", "exec", container, "git", "-C", "/workspace", "status", "--porcelain"],
         ["docker", "exec", container, "pgrep", "-f", "flutter run|dart.*main_debug"],
         ["docker", "exec", container, "sh", "-c", "probe=/workspace/linux/flutter/.nothingness-write-probe; mkdir \"$probe\" && rmdir \"$probe\""],
-        ["docker", "exec", container, "/workspace/.claude/skills/agent-emulator-debugging/scripts/drive.py", "preflight"],
+        # `.agents/skills` is canonical; `.claude` is only a symlink to it. Reach
+        # for the real path so this keeps working if the symlink ever goes.
+        ["docker", "exec", container, "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py", "preflight"],
         ["docker", "exec", container, "flutter", "precache", "--linux"],
         ["docker", "exec", container, "sh", "-c", "temporary=$(mktemp -d); trap 'rm -rf \"$temporary\"' EXIT; cp -a /workspace/. \"$temporary\"; cd \"$temporary\"; flutter pub get --offline >/dev/null"],
     )
