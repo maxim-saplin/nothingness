@@ -46,11 +46,7 @@ Run every task in the suite, in suite order, without pausing between tasks to as
 
 1. **Start the trial** — generates an identity-bearing run ID and makes the real isolated admission call (prompt is exactly `Reply exactly READY`). Preparation fails outright if pi's offline registry lacks the exact provider/model/thinking triple — that failure is a legitimate stop-and-ask.
    ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py start evals/suites/<suite>.json <task-id> --trial <n>
-   ```
-2. **Record the run against the campaign immediately** so the dashboard can find it:
-   ```
-   uv run python .agents/skills/nothingness-evals/scripts/campaign.py add-run <campaign-id> <task-id> <run-id>
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py start evals/suites/<suite>.json <task-id> --trial <n> --campaign <campaign-id> --judge <who-scores-it>
    ```
 3. **Hand the trial to an isolated judge.** Spawn a subagent using the `nothingness-eval-judge`
    skill, working in a git worktree with the results tree removed:

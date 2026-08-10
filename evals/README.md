@@ -231,7 +231,11 @@ Cross-model comparison, generated from the published `result.json` files by
 any campaign, and add each model's own report under `results/<model>/README.md`.
 
 <!-- BEGIN GENERATED LEADERBOARD -->
-_No published results yet._
+| Model | Thinking | Date | Judge | Score | Tokens (in/out) | Cost | $/point | Report |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | medium | 2026-08-10 | claude-sonnet-5 | **0/3** | 70k / 14k | $0.0709 | – | [detail](results/gpt-5.4-nano-medium-20260810/README.md) |
+
+Score is the sum across the suite's tasks (0-3 each; any unmet `required` expectation caps a task at 2). Regenerate with `leaderboard.py --write`; do not hand-edit.
 <!-- END GENERATED LEADERBOARD -->
 
 ### Per-model notes

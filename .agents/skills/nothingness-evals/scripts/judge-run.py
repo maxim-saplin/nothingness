@@ -59,6 +59,13 @@ def start(arguments: argparse.Namespace) -> None:
     # nothing genuine to report. preflight.py's admission probe is what
     # actually discovers what pi served and derives whether it matches.
     result = {"ok": True, "action": "start", "run_id": run_id, "suite_id": suite["id"], "task_id": arguments.task_id, "trial": arguments.trial, "calibration": arguments.calibration, "requested_model": preflight["requested_model"], "selected_model": preflight["selected_model"], "identity_verified": preflight["identity_verified"], "novnc_url": prepared["novnc_url"], "preflight": preflight["ok"], "launch": launch["ok"], "judge_events_command": f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/judge-events.py {run_id}", "started_at": utc_now()}
+    # Register with the campaign here rather than leaving it as a step someone
+    # must remember immediately after every start. Forgetting it leaves the
+    # dashboard reporting "not started" for a task that is actively running --
+    # which is exactly what it did, twice.
+    if arguments.campaign:
+        invoke("campaign.py", "add-run", arguments.campaign, arguments.task_id, run_id)
+        result["campaign_id"] = arguments.campaign
     write_json(run_dir(run_id) / "judge-start.json", result)
     emit_json(result)
 
@@ -193,7 +200,14 @@ def observe(arguments: argparse.Namespace) -> None:
     run = run_dir(arguments.run_id)
     metadata = read_json(run / "run.json")
     deadline = time.monotonic() + max(arguments.timeout_seconds, 1)
-    cursor, phase, observation_ids = 0, None, []
+    # Resume where a previous invocation stopped. Observing is interruptible --
+    # a judge that has to re-attach would otherwise re-page the stream from 0,
+    # leaving two overlapping chains in the ledger and a contiguity walk that
+    # cannot be satisfied by citing either one cleanly.
+    saved = read_json(run / OBSERVE_CURSOR_FILE) if (run / OBSERVE_CURSOR_FILE).is_file() else {}
+    cursor = saved.get("event_sequence") or 0
+    observation_ids = list(saved.get("event_observation_ids") or [])
+    phase = None
     while time.monotonic() < deadline:
         progress = live_progress(run, metadata)
         if isinstance(progress, dict):
@@ -204,6 +218,11 @@ def observe(arguments: argparse.Namespace) -> None:
                 events = batch.get("events") if isinstance(batch.get("events"), list) else []
                 observation_ids.append(batch.get("observation_id"))
                 cursor = batch.get("next_sequence") if isinstance(batch.get("next_sequence"), int) else cursor
+                # Save after every poll, not only at the end: a watcher that is
+                # interrupted mid-run is exactly the case resuming exists for, and
+                # a cursor written only on the terminal path is never there when
+                # it is needed.
+                write_json(run / OBSERVE_CURSOR_FILE, {"event_sequence": cursor, "event_observation_ids": observation_ids})
                 if not arguments.quiet:
                     header = f"[{phase} {progress.get('elapsed_seconds')}s tools={progress.get('tool_calls')} retries={progress.get('retries')} cost={progress.get('cost_usd')} seq={cursor}]"
                     print("\n".join([header, *event_digest(events, arguments.show, arguments.max_lines)]), file=sys.stderr, flush=True)
@@ -262,6 +281,7 @@ def main() -> None:
     start_parser.add_argument("--trial", required=True, type=int)
     start_parser.add_argument("--calibration", action="store_true")
     start_parser.add_argument("--judge", default="", help="who will score this run; recorded in run.json and result.json")
+    start_parser.add_argument("--campaign", default="", help="campaign to record this run against, so the dashboard sees it without a second command")
     collect_parser = subparsers.add_parser("collect", allow_abbrev=False)
     collect_parser.add_argument("run_id")
     decide_parser = subparsers.add_parser("decide", allow_abbrev=False)
