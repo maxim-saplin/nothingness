@@ -57,6 +57,9 @@ events, then evidence/decide/publish as normal. Two campaigns each lost a run be
 
 ## Evidence plumbing
 
+- **Drive through `judge-verify.py` / `judge-inspect.py`, not raw `docker exec`.** Only those produce
+  citable observation ids. Poking the container directly is fine for orientation, but anything you
+  intend to cite has to be captured through the scripts or you will redo it.
 - **Launch the app before capturing evidence.** `judge-run.py evidence` run while the app is not live
   yields only the screenshot lens with `runtime`/`tree`/`semantics` false, and `decide` then fails
   with `inspection_lenses_missing`. Launch first, then `judge-verify.py` per state, then
