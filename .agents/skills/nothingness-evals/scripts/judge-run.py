@@ -11,6 +11,9 @@ from common import ROOT, RUNS_ROOT, SCRIPT_DIR, command, emit_json, fail, load_s
 
 # Phases where the candidate has stopped and is waiting on the judge.
 TERMINAL_PHASES = ("awaiting_judge", "completed", "timed_out", "failed")
+# Fraction of the candidate's budget after which `observe` hands control back so
+# the judge can finish the run itself rather than let it die at the wall.
+DEADLINE_FRACTION = 0.9
 PROGRESS_IN_CONTAINER = "/run/nothingness/progress.json"
 OBSERVE_CURSOR_FILE = "observe-cursor.json"
 OBSERVE_DEFAULT_TIMEOUT = 2700
@@ -232,6 +235,32 @@ def observe(arguments: argparse.Namespace) -> None:
                 if not arguments.quiet:
                     header = f"[{phase} {progress.get('elapsed_seconds')}s tools={progress.get('tool_calls')} retries={progress.get('retries')} cost={progress.get('cost_usd')} seq={cursor}]"
                     print("\n".join([header, *event_digest(events, arguments.show, arguments.max_lines)]), file=sys.stderr, flush=True)
+            budget = progress.get("timeout_seconds")
+            elapsed = progress.get("elapsed_seconds")
+            if (
+                phase not in TERMINAL_PHASES
+                and isinstance(budget, (int, float))
+                and isinstance(elapsed, (int, float))
+                and budget
+                and elapsed > budget * DEADLINE_FRACTION
+            ):
+                # Hand the judge back control before the wall instead of warning
+                # into a stream it is blocked on. Two campaigns lost a run each
+                # to this: the candidate ran to its deadline, never reached
+                # `awaiting_judge`, and `classify-run.py` refuses to score a
+                # timed-out run at all -- so a fully-evidenced trial became no
+                # data point. Finishing early only forfeits the `pass` ceiling,
+                # which a candidate that never finished cannot earn anyway.
+                write_json(run / OBSERVE_CURSOR_FILE, {"event_sequence": cursor, "event_observation_ids": observation_ids})
+                emit_json({
+                    "ok": True, "action": "observe", "run_id": arguments.run_id, "phase": phase,
+                    "deadline_warning": True,
+                    "elapsed_seconds": elapsed, "timeout_seconds": budget,
+                    "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"),
+                    "event_sequence": cursor, "event_observation_ids": observation_ids,
+                    "next": "STOP OBSERVING AND FINISH NOW: run judge-control.py finish, then page events again, then evidence/decide/publish. Waiting for awaiting_judge past this point risks the candidate hitting its deadline, which makes the whole run unscoreable.",
+                })
+                return
             if phase in TERMINAL_PHASES:
                 # Persist the hand-off instead of asking a judge to copy a number
                 # between two commands: a cursor read off the streaming digest

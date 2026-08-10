@@ -39,9 +39,15 @@ A candidate killed at the wall is a different story: it never reaches `judge_fin
 `unassigned` and **scores nothing at all**. In the first campaign that turned a fully-evidenced
 `partial` into no data point and burned 45% of the campaign's spend for zero results.
 
-So: if the candidate is approaching its budget (the watchdog warns at 90%), **finish it yourself and
-score what exists**. Losing the `pass` ceiling costs a candidate that was never going to pass nothing;
-losing the whole run costs you the data point.
+So: if the candidate is approaching its budget, **finish it yourself and score what exists**. Losing
+the `pass` ceiling costs a candidate that was never going to pass nothing; losing the whole run costs
+you the data point.
+
+You will not have to watch for this. **`judge-run.py observe` returns on its own at 90% of budget**
+with `"deadline_warning": true` and a `next` that tells you to finish. When you see that, do not call
+`observe` again hoping for `awaiting_judge` — call `judge-control.py finish` immediately, then page
+events, then evidence/decide/publish as normal. Two campaigns each lost a run because a judge sat in
+`observe` waiting for a handshake that the deadline arrived before.
 
 ## Evidence plumbing
 
