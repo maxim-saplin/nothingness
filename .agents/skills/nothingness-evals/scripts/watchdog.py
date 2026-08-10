@@ -44,12 +44,18 @@ def maybe_json(path) -> dict | None:
         return None
 
 
-def campaign_runs(campaign_id: str) -> list[str]:
+def campaign_state(campaign_id: str) -> tuple[list[str], dict[str, list[str]]]:
+    """Tasks the suite demands, and the runs registered against each so far.
+
+    Both halves matter: a task with no runs yet is *pending*, not done. Deriving
+    "done" from the run list alone reports a campaign complete the moment it is
+    created, before a single trial exists.
+    """
     state_path = CAMPAIGNS_ROOT / campaign_id / "campaign.json"
     if not state_path.is_file():
         fail(4, "campaign_not_found")
     state = read_json(state_path)
-    return [run for runs in state.get("runs", {}).values() for run in runs]
+    return list(state.get("tasks", [])), dict(state.get("runs", {}))
 
 
 def main() -> None:
@@ -64,7 +70,11 @@ def main() -> None:
             print(message, flush=True)
 
     while True:
-        unscored = [r for r in campaign_runs(campaign_id) if not (RUNS_ROOT / r / "result.json").is_file()]
+        tasks, runs_by_task = campaign_state(campaign_id)
+        # A task is done only when one of its runs carries a scored result --
+        # the same rule campaign.py next uses, so the two never disagree.
+        pending = [t for t in tasks if not any((RUNS_ROOT / r / "result.json").is_file() for r in runs_by_task.get(t, []))]
+        unscored = [r for t in pending for r in runs_by_task.get(t, []) if not (RUNS_ROOT / r / "result.json").is_file()]
         live_any = False
         for run in unscored:
             progress = maybe_json(RUNS_ROOT / run / "artifacts" / "progress.json")
@@ -86,11 +96,11 @@ def main() -> None:
                 if quiet > STALL_SECONDS:
                     say(f"{run}:stall", f"UNATTENDED {run}: container up but no judge observation for {quiet / 60:.0f} min -- judge likely ended its turn; re-attach it")
 
-        if not unscored:
-            emit_json({"ok": True, "campaign_id": campaign_id, "state": "done", "detail": "every task has a scored result"})
+        if not pending:
+            emit_json({"ok": True, "campaign_id": campaign_id, "state": "done", "detail": f"all {len(tasks)} task(s) have a scored result"})
             return
         if not live_any:
-            say("idle", f"IDLE {campaign_id}: {len(unscored)} task(s) unscored and no candidate container running -- the next task needs starting")
+            say("idle", f"IDLE {campaign_id}: {len(pending)} task(s) pending, no candidate container running -- the next task needs starting")
         time.sleep(POLL_SECONDS)
 
 
