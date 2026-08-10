@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import subprocess
@@ -100,16 +99,34 @@ def main() -> None:
             # -- budget for the slow machine rather than fail the run that
             # follows every rebuild. A partially-written health.json is a normal
             # race here, not a failure: keep polling instead of dying on it.
+            #
+            # Every failed poll is recorded rather than discarded. Swallowing
+            # stderr made "the container died" and "the desktop is slow" produce
+            # the same bare timeout, which sent the last two investigations
+            # after a nonexistent race -- the budget was raised twice for a
+            # symptom nobody had evidence of.
+            last_error = ""
             for _ in range(DESKTOP_READY_POLLS):
-                health = command(["docker", "exec", name, "cat", "/run/nothingness/health.json"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                health = command(["docker", "exec", name, "cat", "/run/nothingness/health.json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 if health.returncode == 0:
-                    with contextlib.suppress(json.JSONDecodeError):
-                        ready = json.loads(health.stdout).get("status") == "ready"
+                    try:
+                        status = json.loads(health.stdout).get("status")
+                    except json.JSONDecodeError:
+                        last_error = f"unparsable_health_json:{health.stdout.strip()[:80]}"
+                    else:
+                        ready = status == "ready"
+                        if not ready:
+                            last_error = f"status={status}"
+                else:
+                    last_error = (health.stderr or "").strip().splitlines()[-1][:120] if (health.stderr or "").strip() else f"exec_exit={health.returncode}"
                 if ready:
                     break
                 time.sleep(DESKTOP_READY_INTERVAL)
             if not ready:
-                fail(4, f"runtime_desktop_not_ready:waited_{round(DESKTOP_READY_POLLS * DESKTOP_READY_INTERVAL)}s")
+                state = command(["docker", "inspect", "--format", "{{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}", name], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                container = state.stdout.strip() if state.returncode == 0 else "gone (removed by --rm after exiting)"
+                waited = round(DESKTOP_READY_POLLS * DESKTOP_READY_INTERVAL)
+                fail(4, f"runtime_desktop_not_ready:waited_{waited}s container={container} last={last_error or 'no probe ever answered'} -- if the container is gone or OOM-killed the desktop never started, so raising the wait will not help; check host memory and `docker logs`")
             command_or_fail(["docker", "exec", name, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/runtime-pub.log"], 4, "runtime_pub_failed")
             launch = """set -eu
 home=/tmp/nothingness-runtime-baseline
