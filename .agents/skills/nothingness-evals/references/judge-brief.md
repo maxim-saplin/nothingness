@@ -53,6 +53,10 @@ losing the whole run costs you the data point.
   sequence 0 to `terminal_event_sequence`. Skip zero-length batches. `judge-control.py finish`
   appends events, so page events again **after** finishing.
 - `judge-events.py` returns its own `observation_id` — cite that.
+- **Each expectation's `Evidence:` line in the rubric is a hard-enforced contract, not a hint.**
+  Citing an `events-` observation where the line says `verification:runtime` is rejected at decide
+  time with `evidence_kind_mismatch:<id>:requires_verification`. Read the evidence kind (and lens,
+  where declared) off the rubric line before choosing what to cite, not after.
 
 ## Driving the Linux app in-container
 
