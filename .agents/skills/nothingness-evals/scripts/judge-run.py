@@ -244,21 +244,39 @@ def observe(arguments: argparse.Namespace) -> None:
                 and budget
                 and elapsed > budget * DEADLINE_FRACTION
             ):
-                # Hand the judge back control before the wall instead of warning
-                # into a stream it is blocked on. Two campaigns lost a run each
-                # to this: the candidate ran to its deadline, never reached
-                # `awaiting_judge`, and `classify-run.py` refuses to score a
-                # timed-out run at all -- so a fully-evidenced trial became no
-                # data point. Finishing early only forfeits the `pass` ceiling,
-                # which a candidate that never finished cannot earn anyway.
+                # Finish the run here rather than advise someone to. Three runs
+                # have now been lost this way: the candidate reaches its
+                # deadline, never enters `awaiting_judge`, and `classify-run.py`
+                # refuses to score a timed-out run at all, so a trial with real
+                # work in it becomes no data point.
+                #
+                # Advising did not work. `observe` returns its warning to a
+                # process, and that process is typically a backgrounded shell
+                # whose agent turn has already ended -- the last loss printed a
+                # deadline warning into a log nobody was reading, while the
+                # candidate sat hung on a single bash call it had given a
+                # timeout as long as its whole budget.
+                #
+                # Finishing costs only the `pass` ceiling (classify refuses
+                # `pass` unless the candidate reached `awaiting_judge` on its
+                # own), which a candidate still mid-turn at this point was not
+                # going to earn. Losing the run costs everything.
+                # Deliberately not `invoke`: that aborts on a non-zero exit, and
+                # the one case where finishing fails is a candidate already gone,
+                # where crashing the watcher helps nobody. Degrade instead.
+                control = command(
+                    [sys.executable, str(SCRIPT_DIR / "judge-control.py"), arguments.run_id, "finish",
+                     "--reason", f"deadline_guard: auto-finished at {elapsed:.0f}s of {budget:.0f}s to keep the run scoreable"],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                )
                 write_json(run / OBSERVE_CURSOR_FILE, {"event_sequence": cursor, "event_observation_ids": observation_ids})
                 emit_json({
                     "ok": True, "action": "observe", "run_id": arguments.run_id, "phase": phase,
-                    "deadline_warning": True,
+                    "deadline_warning": True, "auto_finished": control.returncode == 0,
                     "elapsed_seconds": elapsed, "timeout_seconds": budget,
                     "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"),
                     "event_sequence": cursor, "event_observation_ids": observation_ids,
-                    "next": "STOP OBSERVING AND FINISH NOW: run judge-control.py finish, then page events again, then evidence/decide/publish. Waiting for awaiting_judge past this point risks the candidate hitting its deadline, which makes the whole run unscoreable.",
+                    "next": "The candidate was auto-finished at the deadline guard to keep this run scoreable -- it did NOT reach awaiting_judge on its own, so it cannot score `pass`. Page events again now (finish appends them), then evidence/decide/publish as normal, and say in your notes that the run was terminated by the guard.",
                 })
                 return
             if phase in TERMINAL_PHASES:
