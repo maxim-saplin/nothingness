@@ -17,12 +17,18 @@ command or you will look for your run inside your own worktree, where nothing cr
 
 ## Turn discipline — the single most common way a judge loses its trial
 
-`judge-run.py start` takes **2–5 minutes** before the candidate is live. It is not stuck.
+`judge-run.py start` takes **2–5 minutes** before the candidate is live. It is not stuck. Give it the
+maximum Bash timeout (600000 ms).
 
-Give every long call (`start`, `observe`) the **maximum Bash timeout of 600000 ms**, and when one
-returns with the trial still live, call it again immediately. A short timeout silently backgrounds
-`observe` and ends your turn while the candidate keeps burning budget with nobody attached. That
-happened once and needed manual rescue. **Never end your turn while the trial is live.**
+**`observe` is a poll, not a wait.** It returns within about two minutes with
+`"still_running": true` and the candidate's elapsed/budget, or earlier if the run reaches a terminal
+phase. Call it in the **foreground**, look at what it returns, then call it again. That loop is the
+whole supervision model: every return is your turn to check the clock and decide.
+
+**Never background `observe`, and never raise `--timeout-seconds` to cover the whole run.** A call
+that outlives your turn takes you out of the loop — the process keeps streaming into a log nobody
+reads, and the candidate can run into its deadline with no one able to act. Three runs have been
+lost exactly that way.
 
 `candidate awaiting judge` means the candidate is **blocked**, burning its timeout until you call
 `judge-control.py finish`. `judge-run.py observe` returns the moment that happens.

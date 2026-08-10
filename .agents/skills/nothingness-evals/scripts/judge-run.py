@@ -16,7 +16,13 @@ TERMINAL_PHASES = ("awaiting_judge", "completed", "timed_out", "failed")
 DEADLINE_FRACTION = 0.9
 PROGRESS_IN_CONTAINER = "/run/nothingness/progress.json"
 OBSERVE_CURSOR_FILE = "observe-cursor.json"
-OBSERVE_DEFAULT_TIMEOUT = 2700
+# A poll interval, not a run length. `observe` used to default to the whole
+# candidate budget, so it always outlasted the caller's 600s tool cap, always
+# had to be backgrounded, and the agent's turn always ended -- after which
+# nobody read its output and nobody could act on the deadline. Returning inside
+# two minutes keeps the judge awake by construction: every call is a foreground
+# call that comes back, and the judge takes a turn and decides again.
+OBSERVE_DEFAULT_TIMEOUT = 120
 OBSERVE_POLL_INTERVAL = 5.0
 
 
@@ -287,7 +293,19 @@ def observe(arguments: argparse.Namespace) -> None:
                 emit_json({"ok": True, "action": "observe", "run_id": arguments.run_id, "phase": phase, "elapsed_seconds": progress.get("elapsed_seconds"), "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"), "event_sequence": cursor, "event_observation_ids": observation_ids, "next": "judge-control.py finish, then judge-run.py evidence (cursor is saved; no flags needed)"})
                 return
         time.sleep(arguments.poll_seconds)
-    fail(4, f"observe_timed_out:phase={phase} -- candidate still running after {arguments.timeout_seconds}s; raise --timeout-seconds or terminalize the run")
+    # Expiry is a normal poll result, not an error. Failing here made every
+    # bounded call look like a broken one, which is why judges reached for a
+    # single blocking call instead -- and then slept through the run.
+    progress = live_progress(run, metadata) or {}
+    write_json(run / OBSERVE_CURSOR_FILE, {"event_sequence": cursor, "event_observation_ids": observation_ids})
+    emit_json({
+        "ok": True, "action": "observe", "run_id": arguments.run_id, "phase": phase,
+        "still_running": True,
+        "elapsed_seconds": progress.get("elapsed_seconds"), "timeout_seconds": progress.get("timeout_seconds"),
+        "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"),
+        "event_sequence": cursor, "event_observation_ids": observation_ids,
+        "next": "Candidate is still working. Call observe again to keep watching -- the cursor is saved, so polling costs nothing and never double-pages. Do not background it and do not walk away: each call returning is your turn to check the clock and finish if the candidate is close to its budget.",
+    })
 
 
 def evidence(arguments: argparse.Namespace) -> None:
