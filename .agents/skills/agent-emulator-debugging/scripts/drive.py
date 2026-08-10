@@ -28,7 +28,7 @@ Usage (a few examples):
   drive.py contract                      # list registered ext.nothingness.* + count
   drive.py inspect                       # router + library + playback + overflow
   drive.py screen void                   # set the active home screen (spectrum|polo|dot|void|cassette)
-  drive.py cassettevariant 3             # select cassette variant 1..7 (or v1..v7)
+  drive.py cassettevariant 3             # select cassette variant 1..4 (or v1..v4)
   drive.py variant dark                  # dark / light / system
   drive.py mode own                      # own / background
   drive.py nav /storage/emulated/0/Music # navigate Void to a path
@@ -448,7 +448,7 @@ def cmd_variant(args) -> int:
 
 
 def cmd_cassette_variant(args) -> int:
-    """Select cassette variant 1..7.  drive.py cassettevariant 3"""
+    """Select cassette variant 1..4.  drive.py cassettevariant 3"""
     res = _ext_resilient("ext.nothingness.setSetting",
                          {"name": "cassetteVariant", "value": args.n})
     print(json.dumps(res, indent=2))
@@ -1591,9 +1591,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_variant)
 
     sp = sub.add_parser("cassettevariant",
-                        help="select cassette variant 1..7 (requires cassette screen active)")
-    sp.add_argument("n", choices=["1", "2", "3", "4", "5", "6", "7",
-                                   "v1", "v2", "v3", "v4", "v5", "v6", "v7"])
+                        help="select cassette variant 1..4 (requires cassette screen active)")
+    # CassetteVariant has exactly four members; offering 5-7 let argparse
+    # accept a value the app then rejected server-side with its own
+    # self-contradictory "expects 1..7, got 5".
+    sp.add_argument("n", choices=["1", "2", "3", "4", "v1", "v2", "v3", "v4"])
     sp.set_defaults(func=cmd_cassette_variant)
 
     sp = sub.add_parser("mode")

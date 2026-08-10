@@ -53,6 +53,11 @@ losing the whole run costs you the data point.
   sequence 0 to `terminal_event_sequence`. Skip zero-length batches. `judge-control.py finish`
   appends events, so page events again **after** finishing.
 - `judge-events.py` returns its own `observation_id` — cite that.
+- **`decide_flags` from `judge-run.py evidence` is a snapshot, not a running total.** It lists only
+  the observations that existed when `evidence` ran. Rubrics whose "Drive:" lines require a capture
+  per screen or per state mean several more `judge-verify.py --label ...` calls afterwards, and every
+  one of those observation ids must be appended to `decide --observation-id ...` yourself. Miss one
+  and `classify-run.py` fails with `cited_observation_unverified`. Keep your own list as you go.
 - **Each expectation's `Evidence:` line in the rubric is a hard-enforced contract, not a hint.**
   Citing an `events-` observation where the line says `verification:runtime` is rejected at decide
   time with `evidence_kind_mismatch:<id>:requires_verification`. Read the evidence kind (and lens,
