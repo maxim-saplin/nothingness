@@ -113,6 +113,11 @@ events, then evidence/decide/publish as normal. Two campaigns each lost a run be
   `dragByKey` success reply as evidence of movement; confirm against state or a fresh capture.
 - Use real X11 input via **XTEST** (`libXtst` is in the image, ~30 lines of `ctypes`). Holding the
   button down after the motion captures a genuine mid-gesture instant.
+- **Seek from mid-track, and expect the clamp.** A judge reported that leftward swipes never move
+  the seek target back. The fixture's math is symmetric — `start + (accumDx / width) * duration`,
+  clamped to `[0, duration]` — so the usual cause is starting near 0, where a backward swipe pins to
+  0 and looks inert. Seek from a position well inside a long track before concluding anything
+  directional, and say which position you started from.
 - **Hold for at least 6 seconds if you want a mid-gesture capture.** `judge-verify.py` takes roughly
   3.5s to gather its whole bundle (screenshot + tree + semantics + settings + runtime), so a 1.5-2.5s
   hold lands *after* release and quietly captures the settled state instead. Call verify immediately,
