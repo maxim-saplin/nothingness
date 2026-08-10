@@ -57,6 +57,22 @@ def container_uptime(run_id: str) -> float | None:
         return None
 
 
+def judge_attached(run_id: str) -> bool:
+    """Is a judge actually watching this run right now?
+
+    Checked by looking for its `observe` process, not by how recently
+    `judge-observations.jsonl` was touched. That file is written when `observe`
+    pages new events, not on a heartbeat, so a judge can be attached and correct
+    while the log sits still for ten minutes -- which raised a false alarm on a
+    perfectly healthy trial and sent me chasing it.
+    """
+    result = subprocess.run(
+        ["pgrep", "-f", f"judge-run.py observe {run_id}"],
+        capture_output=True, text=True, check=False,
+    )
+    return bool(result.stdout.strip())
+
+
 def live_progress(run_id: str) -> dict | None:
     """The candidate's progress as it stands right now, read from the container.
 
@@ -129,7 +145,7 @@ def main() -> None:
                 # short Bash timeout. Skipping the run here left the watchdog
                 # blind exactly when it was most needed -- a judge dropped out
                 # mid-prepare and the container sat up for 13 minutes unnoticed.
-                if uptime > PREPARE_STALL_SECONDS:
+                if uptime > PREPARE_STALL_SECONDS and not judge_attached(run):
                     say(f"{run}:prepare", f"STUCK-IN-START {run}: container up but no candidate launched after {PREPARE_STALL_SECONDS / 60:.0f} min -- judge likely ended its turn inside judge-run.py start; re-attach it")
                 continue
             phase = str(progress.get("phase", "unknown"))
@@ -146,7 +162,7 @@ def main() -> None:
             # composing its scorecard and notes -- neither writes an observation,
             # so the quiet clock would cry wolf on every single run.
             observations = RUNS_ROOT / run / "judge-observations.jsonl"
-            if phase not in {"completed", "awaiting_judge"} and observations.is_file():
+            if phase not in {"completed", "awaiting_judge"} and observations.is_file() and not judge_attached(run):
                 quiet = time.time() - observations.stat().st_mtime
                 if quiet > STALL_SECONDS:
                     say(f"{run}:stall", f"UNATTENDED {run}: candidate still {phase} but no judge observation for over {STALL_SECONDS / 60:.0f} min -- judge likely ended its turn; re-attach it")
