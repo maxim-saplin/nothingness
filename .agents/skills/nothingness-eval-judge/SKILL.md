@@ -54,15 +54,26 @@ You are given: a **run id**, a **task id**, and the rubric at `evals/tasks/rubri
    expectation's own `**Evidence:**` line requires. Write the scorecard with the task id and the
    rubric's `sha256`.
 
-6. **Decide.** Scoring ends here — you do not publish.
+6. **Decide.**
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py decide <run-id> \
      --validity valid --scorecard <path> --notes "<rationale>" <decide_flags>
    ```
 
-7. **Report back** the run id, the score, and 1–2 plain sentences per expectation on what the
-   candidate actually did and what you verified yourself. That prose is the deliverable — it lands
-   in the run's report.
+7. **Write your account to `.tmp/evals/<run-id>/notes.md`** — 1-3 plain sentences per expectation:
+   what the candidate actually did, and what you verified with your own hands. Write it for someone
+   who wasn't watching. This is published verbatim as the run's report, so it is the deliverable,
+   not a status message. Do not send it as chat prose; put it in the file.
+
+8. **Publish your run.**
+   ```
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py publish <run-id> --scorecard <path>
+   ```
+   This writes into your own sandbox, which holds nothing but your own run. The manager merges and
+   aggregates; you never see another run's results.
+
+9. **Tell the manager one line**: run id, score, outcome, and whether anything blocked you. Nothing
+   else — the substance is already on disk.
 
 ## Judging honestly
 

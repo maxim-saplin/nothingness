@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 import time
@@ -251,17 +252,51 @@ def evidence(arguments: argparse.Namespace) -> None:
     saved = read_json(run / OBSERVE_CURSOR_FILE) if (run / OBSERVE_CURSOR_FILE).is_file() else {}
     cursor = arguments.after if arguments.after else (saved.get("event_sequence") or 0)
     observation_ids = list(arguments.event_observation_id) or list(saved.get("event_observation_ids") or [])
-    sequence = progress.get("event_sequence") if isinstance(progress, dict) else None
-    if not isinstance(sequence, int) or sequence > cursor:
+    # Page until the stream stops advancing, not once. judge-events.py caps a
+    # batch at --limit, so a single call on a long run lands mid-stream and the
+    # contiguity check rejects the chain -- leaving the judge to hand-walk
+    # `--after` until it reaches the terminal sequence, which is exactly the
+    # fiddliness this command exists to remove.
+    while True:
         batch = invoke("judge-events.py", arguments.run_id, "--after", str(cursor))
-        if isinstance(batch.get("next_sequence"), int) and batch["next_sequence"] > cursor:
-            observation_ids.append(batch.get("observation_id"))
-            cursor = batch["next_sequence"]
+        next_sequence = batch.get("next_sequence")
+        if not isinstance(next_sequence, int) or next_sequence <= cursor:
+            break
+        observation_ids.append(batch.get("observation_id"))
+        cursor = next_sequence
     inspection = invoke("judge-inspect.py", arguments.run_id, "--runtime", "--git", "--processes")
     verification = invoke("judge-verify.py", arguments.run_id, "--label", arguments.label)
     cited = [*observation_ids, inspection.get("observation_id"), verification.get("observation_id")]
     flags = " ".join(f"--observation-id {value}" for value in cited if value)
     emit_json({"ok": True, "action": "evidence", "run_id": arguments.run_id, "event_sequence": cursor, "observation_ids": cited, "decide_flags": flags, "verification_availability": verification.get("availability")})
+
+
+def finalize(arguments: argparse.Namespace) -> None:
+    """Manager-side. Merge the judge's published runs in, then aggregate.
+
+    The judge publishes into its own sandbox, which only ever holds its own run,
+    so it can write a result without being able to read anyone else's. Merging
+    and aggregating are the manager's, and doing them in one command removes the
+    class of bug where a campaign is "finished" but the index still says
+    otherwise because someone forgot a step."""
+    merged = []
+    source_root = Path(arguments.from_sandbox).expanduser().resolve() / "evals" / "results" if arguments.from_sandbox else None
+    if source_root and source_root.is_dir():
+        destination_root = ROOT / "evals" / "results"
+        for run_directory in sorted(source_root.iterdir()):
+            if not run_directory.is_dir():
+                continue
+            target = destination_root / run_directory.name
+            for item in sorted(run_directory.rglob("*")):
+                if not item.is_file():
+                    continue
+                landing = target / item.relative_to(run_directory)
+                landing.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, landing)
+            merged.append(run_directory.name)
+    reports = [invoke("report.py", str((ROOT / "evals" / "results" / name).relative_to(ROOT)), "--write") for name in sorted(set(merged) | set(arguments.run_directory))]
+    board = invoke("leaderboard.py", "--write")
+    emit_json({"ok": True, "action": "finalize", "merged": merged, "reports": [item.get("wrote") for item in reports], "index": board.get("wrote")})
 
 
 def cleanup(arguments: argparse.Namespace) -> None:
@@ -306,13 +341,16 @@ def main() -> None:
     publish_parser.add_argument("run_id")
     publish_parser.add_argument("--scorecard")
     publish_parser.add_argument("--force", action="store_true")
+    finalize_parser = subparsers.add_parser("finalize", allow_abbrev=False)
+    finalize_parser.add_argument("--from-sandbox", default="", help="judge worktree whose evals/results should be merged in first")
+    finalize_parser.add_argument("--run-directory", action="append", default=[], help="results directory name to (re)report, e.g. gpt-5.4-nano-medium-20260810")
     cleanup_parser = subparsers.add_parser("cleanup", allow_abbrev=False)
     cleanup_parser.add_argument("run_id")
     cleanup_parser.add_argument("--force", action="store_true")
     arguments = parser.parse_args()
     if hasattr(arguments, "run_id"):
         validate_run_id(arguments.run_id)
-    {"start": start, "observe": observe, "evidence": evidence, "collect": collect, "decide": decide, "publish": publish, "cleanup": cleanup}[arguments.action](arguments)
+    {"start": start, "observe": observe, "evidence": evidence, "collect": collect, "decide": decide, "publish": publish, "finalize": finalize, "cleanup": cleanup}[arguments.action](arguments)
 
 
 if __name__ == "__main__":

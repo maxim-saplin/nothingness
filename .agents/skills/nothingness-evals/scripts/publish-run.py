@@ -30,7 +30,10 @@ from common import ROOT, emit_json, fail, read_json, run_dir, validate_run_id, w
 
 RESULTS_ROOT = ROOT / "evals" / "results"
 # Copied verbatim when present; small, and each one is cited by a verdict.
-PLAIN_FILES = ("result.json", "run.json", "interventions.json", "judge-observations.jsonl", "summary.json")
+# `notes.md` is the judge's own account of what the candidate did. It travels
+# with the run so the report can read it, rather than being relayed as chat
+# prose and pasted in by hand.
+PLAIN_FILES = ("result.json", "run.json", "interventions.json", "judge-observations.jsonl", "summary.json", "notes.md")
 # Anything at or above this size is stored gzipped rather than raw.
 GZIP_THRESHOLD_BYTES = 256 * 1024
 

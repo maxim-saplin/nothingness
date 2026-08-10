@@ -63,16 +63,27 @@ Run every task in the suite, in suite order, without pausing between tasks to as
    backgrounded, its turn ends, and a live run is left unwatched. Do not take observation back
    because the judge stopped early — fix the timeout.
 
-4. **Publish** — the results store is yours alone, single-writer:
-   ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py publish <run-id> --scorecard <path>
-   ```
-   Then `git worktree remove .tmp/judge-<run-id>`.
+4. **Supervise, don't relay.** The judge scores, writes its own `notes.md`, and publishes into its
+   own sandbox. Your job while it works is to check it is alive and unblocked — a container that
+   died, a judge stuck on the same step, a run past its timeout — and to step in only then. Do not
+   ferry its findings; they are already on disk.
 
 5. **Clean up**, only after publishing:
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py cleanup <run-id>
    ```
+
+When every task in the suite is done, merge and aggregate in one command:
+
+```
+uv run python .agents/skills/nothingness-evals/scripts/judge-run.py finalize --from-sandbox .tmp/judge-wt
+```
+
+It copies the judges' published runs into the results tree, regenerates each run's report (reading
+the `notes.md` each judge wrote), and rebuilds the index. Then `git worktree remove .tmp/judge-wt`.
+
+Historically this was three commands to remember; forgetting one left a finished campaign whose
+index still said otherwise.
 
 When every task in the suite is done, produce the two documents. **A campaign whose results are
 not stored and readable is not finished** — scoring is not the deliverable, a result someone can

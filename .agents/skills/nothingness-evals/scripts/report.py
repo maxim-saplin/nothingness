@@ -45,7 +45,13 @@ def thousands(value: Any) -> str:
 
 
 def build(directory: Path) -> list[str]:
-    results = [read_json(path) for path in sorted(directory.glob("*/trial-*/result.json"))]
+    paths = sorted(directory.glob("*/trial-*/result.json"))
+    notes = {}
+    for path in paths:
+        note = path.with_name("notes.md")
+        if note.is_file():
+            notes[read_json(path).get("task_id")] = note.read_text(encoding="utf-8").strip()
+    results = [read_json(path) for path in paths]
     if not results:
         fail(2, f"no_published_results_in:{directory.relative_to(ROOT)}")
     first = results[0]
@@ -88,7 +94,8 @@ def build(directory: Path) -> list[str]:
         "",
     ]
     for item in results:
-        lines.append(f"**{item.get('task_id')}** ({item.get('score')}) — <!-- judge: 1-2 plain sentences: what the model actually did, and what you verified yourself. -->")
+        account = notes.get(item.get("task_id")) or "<!-- judge wrote no notes.md for this task -->"
+        lines.append(f"**{item.get('task_id')}** ({item.get('score')}) — {account}")
         lines.append("")
     lines += [
         "## Interventions",
