@@ -62,11 +62,18 @@ def main() -> None:
     if len(sys.argv) != 2:
         fail(2, "usage:watchdog_campaign_id")
     campaign_id = sys.argv[1]
-    announced: dict[str, str] = {}
+    announced: set[str] = set()
 
     def say(key: str, message: str) -> None:
-        if announced.get(key) != message:
-            announced[key] = message
+        """One alert per condition per run, ever.
+
+        Keyed on the condition, never the text: an earlier version compared
+        whole messages, and because the stall message carried a live minute
+        count it re-fired on every poll -- a watchdog that cries every 30
+        seconds is one you stop reading.
+        """
+        if key not in announced:
+            announced.add(key)
             print(message, flush=True)
 
     while True:
@@ -90,11 +97,15 @@ def main() -> None:
             elif budget and elapsed > budget * 0.9:
                 say(f"{run}:wall", f"NEAR-DEADLINE {run}: {elapsed:.0f}s of {budget:.0f}s used -- tell the judge to call judge-control.py finish NOW and score what exists; a run killed at the wall is unscoreable, while finishing early only forfeits the pass ceiling")
 
+            # Only meaningful while the candidate can still burn budget. After
+            # `judge_finish` the phase is `completed` and a silent judge is just
+            # composing its scorecard and notes -- neither writes an observation,
+            # so the quiet clock would cry wolf on every single run.
             observations = RUNS_ROOT / run / "judge-observations.jsonl"
-            if observations.is_file():
+            if phase not in {"completed", "awaiting_judge"} and observations.is_file():
                 quiet = time.time() - observations.stat().st_mtime
                 if quiet > STALL_SECONDS:
-                    say(f"{run}:stall", f"UNATTENDED {run}: container up but no judge observation for {quiet / 60:.0f} min -- judge likely ended its turn; re-attach it")
+                    say(f"{run}:stall", f"UNATTENDED {run}: candidate still {phase} but no judge observation for over {STALL_SECONDS / 60:.0f} min -- judge likely ended its turn; re-attach it")
 
         if not pending:
             emit_json({"ok": True, "campaign_id": campaign_id, "state": "done", "detail": f"all {len(tasks)} task(s) have a scored result"})
