@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
+import json
 import os
 import subprocess
 import sys
@@ -8,7 +11,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, gate_fingerprint, passed_gate, record_gate_pass, require_command
+from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, gate_fingerprint, passed_gate, record_gate_pass, require_command, validate_image_matches_sources
 
 
 FIXTURE = "5fc7e04"
@@ -59,6 +62,22 @@ def baseline_checks(name: str, arch: str) -> tuple[tuple[str, list[str]], ...]:
     )
 
 
+
+def image_matches_sources() -> bool:
+    """True when the built image's frozen source manifest still matches disk."""
+    inspect = command(["docker", "image", "inspect", IMAGE_NAME], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if inspect.returncode:
+        return False
+    labels = json.loads(inspect.stdout)[0].get("Config", {}).get("Labels") or {}
+    buffer = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buffer):
+            validate_image_matches_sources(labels)
+    except SystemExit:
+        return False
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify the evaluator substrate without credentials, network, or a model call.")
     parser.add_argument("--build-image", action="store_true")
@@ -73,7 +92,13 @@ def main() -> None:
     # current there is nothing to build, and invoking the builder just to learn
     # that is most of what made this gate feel expensive on a no-op run.
     existing = command(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_NAME], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    if existing.returncode == 0 and not arguments.force:
+    if existing.returncode == 0 and not arguments.force and image_matches_sources():
+        # `image_matches_sources()` guards the skip because the fingerprint below
+        # is (image id, fixture, this script) and says nothing about the image's
+        # own sources. Editing candidate.py therefore left the fingerprint intact:
+        # the gate skipped, silently ignored --build-image, and reported ok on a
+        # stale image -- which `judge-run.py start` then refused, so the gate was
+        # the last thing to notice a problem it exists to catch.
         previous = passed_gate("offline-baseline", gate_fingerprint(existing.stdout.strip(), FIXTURE, Path(__file__)))
         if previous is not None:
             emit_json({**previous["result"], "skipped": "unchanged_since_last_pass", "previously_passed_at": previous["passed_at"], "reverify_with": "--force"})
