@@ -96,6 +96,10 @@ losing the whole run costs you the data point.
   `dragByKey` success reply as evidence of movement; confirm against state or a fresh capture.
 - Use real X11 input via **XTEST** (`libXtst` is in the image, ~30 lines of `ctypes`). Holding the
   button down after the motion captures a genuine mid-gesture instant.
+- **Hold for at least 6 seconds if you want a mid-gesture capture.** `judge-verify.py` takes roughly
+  3.5s to gather its whole bundle (screenshot + tree + semantics + settings + runtime), so a 1.5-2.5s
+  hold lands *after* release and quietly captures the settled state instead. Call verify immediately,
+  with no sleep before it, and give the hold room to outlast the bundle.
 - Sliders cannot be activated by synthetic pointers at all. Where a screen's only control is a text
   size slider, say so in your notes rather than scoring the candidate down for your own blind spot.
 - **These docs describe harness HEAD; you are driving the pinned fixture.** Confirm any widget key

@@ -78,6 +78,14 @@ def summarize_jsonl(path: Path) -> dict[str, Any]:
     aggregate_usage: Counter[str] = Counter()
     invalid_lines = 0
     served_models: list[dict[str, str]] = []
+    # A provider that truncates a turn is not the same as a model that chose to
+    # stop, and the difference is invisible unless someone reads the raw events.
+    # One candidate lost its screenshot deliverables to three
+    # `incomplete.content_filter` truncations with willRetry false, scored down
+    # for missing evidence it had tried to produce, and nothing in the run
+    # artifacts said so -- `final_stop_reason` was null because the field pi
+    # actually emits is `rawStopReason`, which was never read.
+    stop_reasons: Counter[str] = Counter()
 
     with path.open(encoding="utf-8", errors="replace") as source:
         for raw in source:
@@ -96,6 +104,16 @@ def summarize_jsonl(path: Path) -> dict[str, Any]:
                 tool_executions += 1
             if event_type == "message_end":
                 final_text = assistant_text(event) or final_text
+            if event_type == "turn_end":
+                # Read `message` directly rather than through `scalar`: the
+                # reasons live at message.stopReason/message.rawStopReason, and
+                # `agent_end` replays the whole message history, so a recursive
+                # search counts every past turn again on the final event.
+                message = event.get("message")
+                if isinstance(message, dict):
+                    raw = message.get("rawStopReason")
+                    if isinstance(raw, str):
+                        stop_reasons[raw] += 1
             if event_type in {"turn_end", "agent_end"}:
                 final_stop_reason = scalar(event, "stop_reason", "stopReason", "reason") or final_stop_reason
                 final_error = scalar(event, "error") or final_error
@@ -116,6 +134,8 @@ def summarize_jsonl(path: Path) -> dict[str, Any]:
         "invalid_jsonl_lines": invalid_lines,
         "final_assistant_text": final_text,
         "final_stop_reason": final_stop_reason,
+        "stop_reasons": dict(sorted(stop_reasons.items())),
+        "truncated_turns": sum(count for reason, count in stop_reasons.items() if reason != "completed"),
         "final_error": final_error,
         "usage": {"aggregate": normalized_usage(dict(aggregate_usage)), "final": normalized_usage(final_usage)},
         "served_models": served_models,

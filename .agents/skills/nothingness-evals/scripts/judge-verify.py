@@ -50,8 +50,16 @@ def runtime_capture(container: str, env: dict[str, str]) -> tuple[object, bool, 
     return payload, True, None
 
 
+# `drive.py tree N` takes N as a LINE count, not a depth. At 80 the capture
+# stopped ~30 nodes in -- every tree.txt came out the same 11349 bytes, cut off
+# with "(526 more lines)" before reaching the screen's own content, so the lens
+# was useless for exactly the widgets a judge needs to see. 600 reaches them and
+# still lands well inside the server-side 128k cap.
+TREE_LINES = "600"
+
+
 def tree_capture(container: str, env: dict[str, str]) -> tuple[str, bool, str | None]:
-    result = drive(container, env, "tree", "80")
+    result = drive(container, env, "tree", TREE_LINES)
     if result.returncode:
         return "", False, "drive.py tree failed"
     stripped = result.stdout.strip()
