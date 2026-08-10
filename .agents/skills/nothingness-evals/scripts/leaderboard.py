@@ -35,16 +35,9 @@ def load_results() -> list[dict[str, Any]]:
     for path in sorted(RESULTS_ROOT.glob("*/*/trial-*/result.json")):
         payload = read_json(path)
         if isinstance(payload, dict) and payload.get("task_id"):
-            payload["_model_dir"] = path.parents[2].name
+            payload["_run_dir"] = path.parents[2].name
             results.append(payload)
     return results
-
-
-def model_label(result: dict[str, Any]) -> str:
-    model = result.get("selected_model") or result.get("requested_model") or {}
-    name = str(model.get("model") or result["_model_dir"])
-    thinking = str(model.get("thinking") or "").strip()
-    return f"{name} ({thinking})" if thinking and thinking != "off" else name
 
 
 def cell(result: dict[str, Any] | None) -> str:
@@ -56,36 +49,33 @@ def cell(result: dict[str, Any] | None) -> str:
 
 
 def render(results: list[dict[str, Any]]) -> list[str]:
+    """One row per run, because a run is a run: the same model tomorrow, or
+    judged by someone else, is a separate line rather than a cell that
+    overwrites yesterday's. Cost and $/point sit beside the score -- a model
+    that scores well for ten times the money is not the same result."""
     if not results:
         return ["_No published results yet._"]
-    models = sorted({model_label(item) for item in results})
-    tasks = sorted({str(item["task_id"]) for item in results})
-    best: dict[tuple[str, str], dict[str, Any]] = {}
+    runs: dict[str, list[dict[str, Any]]] = {}
     for item in results:
-        key = (str(item["task_id"]), model_label(item))
-        # Highest scored valid trial wins the cell; per-trial detail lives in the
-        # model's own report, not in a comparison table.
-        current = best.get(key)
-        if current is None or (item.get("score") or 0) > (current.get("score") or 0):
-            best[key] = item
+        runs.setdefault(item["_run_dir"], []).append(item)
 
-    lines = [f"| Task | {' | '.join(models)} |", f"| --- | {' | '.join('---' for _ in models)} |"]
-    for task in tasks:
-        lines.append(f"| `{task}` | {' | '.join(cell(best.get((task, model))) for model in models)} |")
-
-    totals, costs, valid_counts = [], [], []
-    for model in models:
-        scored = [item for item in best.values() if model_label(item) == model and item.get("validity") == "valid"]
-        total = sum(item.get("score") or 0 for item in scored)
-        spend = sum((item.get("cost_usd") or {}).get("combined") or 0 for item in scored)
-        totals.append(f"**{total}/{len(scored) * 3}**" if scored else "–")
-        costs.append(f"${spend:.4f}" if scored else "–")
-        valid_counts.append(str(len(scored)))
-    lines.append(f"| **Total score** | {' | '.join(totals)} |")
-    lines.append(f"| **Tasks scored** | {' | '.join(valid_counts)} |")
-    lines.append(f"| **Spend** | {' | '.join(costs)} |")
-    lines.append("")
-    lines.append("Each cell is `score outcome` for that model's best valid trial (0-3; any unmet `required` expectation caps at 2). Regenerate with `leaderboard.py --write`; do not hand-edit.")
+    lines = ["| Model | Thinking | Date | Judge | Score | Tokens (in/out) | Cost | $/point | Report |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for name in sorted(runs, reverse=True):
+        items = runs[name]
+        model = items[0].get("selected_model") or items[0].get("requested_model") or {}
+        scored = [item for item in items if item.get("validity") == "valid"]
+        score = sum(item.get("score") or 0 for item in scored)
+        spend = sum((item.get("cost_usd") or {}).get("combined") or 0 for item in items)
+        tokens = {axis: sum(((item.get("candidate") or {}).get("usage") or {}).get("aggregate", {}).get("tokens", {}).get(axis) or 0 for item in items) for axis in ("input", "output")}
+        judges = sorted({str(item.get("judge") or "unrecorded") for item in items})
+        date = str(items[0].get("classified_at") or "")[:10]
+        lines.append(
+            f"| `{model.get('model', '?')}` | {model.get('thinking', '?')} | {date} | {', '.join(judges)} "
+            f"| **{score}/{len(scored) * 3}** | {tokens['input'] / 1000:.0f}k / {tokens['output'] / 1000:.0f}k "
+            f"| ${spend:.4f} | {f'${spend / score:.4f}' if score else '–'} | [detail](results/{name}/README.md) |"
+        )
+    lines += ["", "Score is the sum across the suite's tasks (0-3 each; any unmet `required` expectation caps a task at 2). Regenerate with `leaderboard.py --write`; do not hand-edit."]
     return lines
 
 
@@ -96,7 +86,7 @@ def main() -> None:
     results = load_results()
     table = render(results)
     if not arguments.write:
-        emit_json({"ok": True, "models": sorted({model_label(item) for item in results}), "results": len(results), "table": table})
+        emit_json({"ok": True, "runs": sorted({item["_run_dir"] for item in results}), "results": len(results), "table": table})
         return
     text = INDEX_PATH.read_text(encoding="utf-8")
     block = "\n".join([BEGIN_MARKER, *table, END_MARKER])
@@ -107,7 +97,7 @@ def main() -> None:
     else:
         fail(2, f"leaderboard_markers_missing -- add {BEGIN_MARKER} and {END_MARKER} to evals/README.md where the table belongs")
     INDEX_PATH.write_text(text, encoding="utf-8")
-    emit_json({"ok": True, "wrote": str(INDEX_PATH.relative_to(ROOT)), "models": sorted({model_label(item) for item in results}), "results": len(results)})
+    emit_json({"ok": True, "wrote": str(INDEX_PATH.relative_to(ROOT)), "runs": sorted({item["_run_dir"] for item in results}), "results": len(results)})
 
 
 if __name__ == "__main__":

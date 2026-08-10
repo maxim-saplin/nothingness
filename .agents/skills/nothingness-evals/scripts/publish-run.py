@@ -35,18 +35,23 @@ PLAIN_FILES = ("result.json", "run.json", "interventions.json", "judge-observati
 GZIP_THRESHOLD_BYTES = 256 * 1024
 
 
-def model_slug(result: dict) -> str:
-    """The published slot must separate reasoning efforts: the same model at
-    two thinking levels is two different subjects, and keying on the model name
-    alone makes the second campaign collide with the first's committed results
-    (`results_slot_occupied_by`) instead of landing beside it. `off` keeps the
-    bare model name so existing non-reasoning result paths stay put."""
+def run_slug(result: dict, prepared_at: str) -> str:
+    """`<model>-<thinking>-<YYYYMMDD>` — what a human navigating the tree
+    actually looks for.
+
+    A run is a run: the same model re-run tomorrow, or judged by someone else,
+    is a separate result and must land beside the old one rather than on top of
+    it. Keying on model and thinking alone made the second run collide with the
+    first and demand `--force` to overwrite committed results. The date comes
+    from the run's own `prepared_at`, so the folder name is a fact about the run
+    rather than about when someone got around to publishing it."""
     model = result.get("selected_model") or result.get("requested_model") or {}
     name = str(model.get("model") or "unknown-model")
     thinking = str(model.get("thinking") or "").strip()
     if thinking and thinking != "off":
         name = f"{name}-{thinking}"
-    return name.replace("/", "-").replace(" ", "-")
+    day = str(prepared_at)[:10].replace("-", "") or "unknown-date"
+    return f"{name}-{day}".replace("/", "-").replace(" ", "-")
 
 
 def copy_file(source: Path, destination: Path) -> dict:
@@ -89,12 +94,11 @@ def publish(run_id: str, scorecard: Path | None, force: bool) -> dict:
     if not result_path.is_file():
         fail(2, "judge_decision_required_before_publish")
     result = read_json(result_path)
-    trial = read_json(run / "run.json").get("trial", 1) if (run / "run.json").is_file() else 1
-    destination = RESULTS_ROOT / model_slug(result) / str(result.get("task_id") or "unknown-task") / f"trial-{trial}"
-    # The destination is keyed on model/task/trial, not run id, so two different
-    # runs can resolve to the same directory. Republishing the SAME run is a
-    # refresh; landing on a different run's committed results is data loss, and
-    # has to be asked for explicitly.
+    metadata = read_json(run / "run.json") if (run / "run.json").is_file() else {}
+    trial = metadata.get("trial", 1)
+    destination = RESULTS_ROOT / run_slug(result, str(metadata.get("prepared_at") or "")) / str(result.get("task_id") or "unknown-task") / f"trial-{trial}"
+    # Dated slots make same-run republishing the only way two runs collide, so a
+    # collision is a refresh rather than the data loss `--force` used to guard.
     if destination.exists():
         occupant = occupant_run_id(destination)
         if occupant is not None and occupant != run_id and not force:

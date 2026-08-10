@@ -52,49 +52,44 @@ Run every task in the suite, in suite order, without pausing between tasks to as
    ```
    uv run python .agents/skills/nothingness-evals/scripts/campaign.py add-run <campaign-id> <task-id> <run-id>
    ```
-3. **Observe.** One command watches the live run, prints each thing the candidate does, and returns the moment it stops:
+3. **Hand the trial to an isolated judge.** Spawn a subagent using the `nothingness-eval-judge`
+   skill, working in a git worktree with the results tree removed:
    ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py observe <run-id>
+   git worktree add .tmp/judge-<run-id> HEAD && rm -rf .tmp/judge-<run-id>/evals/results
    ```
-   It pages events as they arrive (so the cited coverage is contiguous by construction) and streams a per-event digest to stderr. Do not hand-poll, and do not sit blind: this *is* the supervision loop. It saves its cursor for step 5, so nothing has to be carried across by hand.
+   Give it only: the run id, the task id, and the rubric path. Never the campaign id, never a
+   results path, never the model name — it cannot anchor on what it cannot see. It observes,
+   finishes, collects, gathers evidence, scores and decides; it does not publish.
 
-   Send candidate-facing messages only through `judge-control.py steer|follow-up|request`, each with an intervention class, message, and reason. Passive inspection is never an intervention. Interventions are hard-capped at 3 delivered; a 4th is refused (exit `6`) — terminalize the run instead of continuing to steer.
+4. **Publish** — the results store is yours alone, single-writer:
+   ```
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py publish <run-id> --scorecard <path>
+   ```
+   Then `git worktree remove .tmp/judge-<run-id>`.
 
-   **Intervene only when the candidate is stuck, never when it is failing.** Stuck means it cannot proceed: a crashed app it hasn't noticed, a blocking tool error, a genuine ambiguity in the prompt. Failing means it is proceeding confidently in a way that will score badly — writing instructions instead of driving the app, testing the wrong thing, inventing fixtures. Steering a failing candidate converts an honest `0` into an assisted result and destroys the comparison. Let it fail and score it. Never ask the user whether to intervene.
-4. **Finish** when the candidate reaches `candidate awaiting judge`:
-   ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-control.py <run-id> finish --reason <reason>
-   ```
-   Use `abort` only for an invalid/irrecoverable attempt. Never kill Pi or Docker directly.
-5. **Collect, then assemble the citations.** `finish` appends its own terminal events, so the tail has to be paged after it — `evidence` does that, captures the inspection and verification, and prints the exact flags to pass to `decide`:
-   ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py collect <run-id>
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py evidence <run-id>
-   ```
-   No flags needed — `observe` saved its cursor and observation ids, and `evidence` continues from there, so there is no number to copy by hand (reading a cursor off the streaming digest instead of `observe`'s result is how a chain ends up non-contiguous). Use its `decide_flags` verbatim in step 7. Assembling this set by hand is the most error-prone part of the whole lifecycle and has rejected real decisions over citation mechanics rather than judgement.
-6. **Build the scorecard** from `evals/tasks/rubrics/<task-id>.md`: one `met`/`partial`/`unmet` verdict per expectation, each with a one-line justification and an `evidence_ref` naming an observation of exactly the kind (and, where declared, the lens) the expectation's own `**Evidence:**` line requires. Write the scorecard file with the task id and the `rubric_sha256` you read.
-7. **Decide**:
-   ```
-   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py decide <run-id> \
-     --validity <validity> --scorecard <path> --notes <rationale> \
-     --observation-id <events-id> --observation-id <inspection-id> --observation-id <verification-id>
-   ```
-   The judge owns validity, the scorecard's verdicts, and the rationale. Outcome and score are never asserted directly — `classify-run.py` computes both deterministically from the scorecard against the hashed rubric, capping the score at 2 if any `required` expectation is unmet.
-8. **Clean up**, only after the decision:
+5. **Clean up**, only after publishing:
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py cleanup <run-id>
    ```
-9. Move to the next task in the suite. Do not ask whether to proceed.
 
-When every task in the suite is done, regenerate the cross-model table — it is derived from the published results, never hand-written, and it is what makes a second model comparable to the first:
+When every task in the suite is done, produce the two documents. **A campaign whose results are
+not stored and readable is not finished** — scoring is not the deliverable, a result someone can
+act on is.
 
 ```
+uv run python .agents/skills/nothingness-evals/scripts/report.py evals/results/<model>-<thinking>-<date> --write
 uv run python .agents/skills/nothingness-evals/scripts/leaderboard.py --write
 ```
 
-Then build the consolidated report from the real `result.json` files and write it to `evals/results/<model>/README.md`, next to the per-trial directories `decide` published. Give it the shape of `evals/archive/local-model-field-test/report.md` — Environment, Tasks, Results table, cost/token economics, Takeaways — and refresh the "Current Results" section of `evals/README.md` so the top-level index is not stale. A campaign that leaves nothing in `git status` has not been reported.
+`report.py` fills in every number (scores, tokens, cost, $/point) and leaves `<!-- judge: ... -->`
+placeholders. Replace each with what the judges reported: one paragraph on the run, 1-2 plain
+sentences per task on what the model actually did and what was verified, interventions in words,
+up to three genuine surprises. Do not restate the table in prose, do not describe the environment
+(it lives here), do not describe the tasks (they live in `evals/tasks/` and the rubrics).
 
-Do not stop mid-suite to ask about strategy, re-runs, or scope changes — if a task's result looks wrong, record it as-is with an honest note; do not silently discard or re-run without a documented reason (a genuine infrastructure failure, not a disappointing score).
+`leaderboard.py --write` regenerates the roll-up in this file — one row per run, with cost and
+$/point beside the score. Never hand-edit between its markers.
+
 
 ## Sharp edges (cost real time last night — read before you hit them)
 

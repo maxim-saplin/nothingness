@@ -231,20 +231,7 @@ Cross-model comparison, generated from the published `result.json` files by
 any campaign, and add each model's own report under `results/<model>/README.md`.
 
 <!-- BEGIN GENERATED LEADERBOARD -->
-| Task | gpt-5.4-nano (medium) |
-| --- | --- |
-| `t1-playback-smoke-linux` | 0 fail |
-| `t2-settings-placement-linux` | 3 pass |
-| `t3-settings-placement-color-scheme-linux` | 3 pass |
-| `t4-swipe-to-seek-linux` | 2 partial |
-| `t5-jump-to-now-playing-linux` | 2 partial |
-| `t6-dot-song-info-hardening-linux` | 3 pass |
-| `t7-opus-shuffled-playlist-linux` | 1 partial |
-| **Total score** | **14/21** |
-| **Tasks scored** | 7 |
-| **Spend** | $0.6996 |
-
-Each cell is `score outcome` for that model's best valid trial (0-3; any unmet `required` expectation caps at 2). Regenerate with `leaderboard.py --write`; do not hand-edit.
+_No published results yet._
 <!-- END GENERATED LEADERBOARD -->
 
 ### Per-model notes

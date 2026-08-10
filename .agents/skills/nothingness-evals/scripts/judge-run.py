@@ -45,6 +45,8 @@ def start(arguments: argparse.Namespace) -> None:
     prepare_arguments = [arguments.task_id, run_id, "--suite", str(suite_path), "--trial", str(arguments.trial)]
     if arguments.calibration:
         prepare_arguments.append("--calibration")
+    if arguments.judge:
+        prepare_arguments.extend(("--judge", arguments.judge))
     prepared = invoke("prepare-run.py", *prepare_arguments)
     try:
         preflight = invoke("preflight.py", run_id)
@@ -83,14 +85,20 @@ def decide(arguments: argparse.Namespace) -> None:
         classify.extend(("--observation-id", observation_id))
     invoke("classify-run.py", *classify)
     result = read_json(run_dir(arguments.run_id) / "result.json")
-    # Publish as part of deciding, not as a step someone has to remember. A verdict
-    # that exists only under gitignored `.tmp/` is invisible to review and is lost
-    # with the next scratch wipe.
-    publish = [arguments.run_id]
+    # Deciding stops here. Publishing is the manager's, deliberately: the results
+    # store stays single-writer, and a judge that cannot write it also cannot read
+    # its way to another run's verdict before forming its own.
+    emit_json({"ok": True, "action": "decide", "run_id": arguments.run_id, "result": result, "next": "manager runs publish-run.py"})
+
+
+def publish(arguments: argparse.Namespace) -> None:
+    """Manager-side. Moves a judged run into the committed results tree."""
+    publish_arguments = [arguments.run_id]
     if arguments.scorecard:
-        publish.extend(("--scorecard", arguments.scorecard))
-    published = invoke("publish-run.py", *publish)
-    emit_json({"ok": True, "action": "decide", "run_id": arguments.run_id, "result": result, "published": published})
+        publish_arguments.extend(("--scorecard", arguments.scorecard))
+    if arguments.force:
+        publish_arguments.append("--force")
+    emit_json({"ok": True, "action": "publish", "run_id": arguments.run_id, "published": invoke("publish-run.py", *publish_arguments)})
 
 
 # What a judge needs to see to tell a working run from a failing one. Everything
@@ -253,6 +261,7 @@ def main() -> None:
     start_parser.add_argument("task_id")
     start_parser.add_argument("--trial", required=True, type=int)
     start_parser.add_argument("--calibration", action="store_true")
+    start_parser.add_argument("--judge", default="", help="who will score this run; recorded in run.json and result.json")
     collect_parser = subparsers.add_parser("collect", allow_abbrev=False)
     collect_parser.add_argument("run_id")
     decide_parser = subparsers.add_parser("decide", allow_abbrev=False)
@@ -273,13 +282,17 @@ def main() -> None:
     evidence_parser.add_argument("--after", type=int, default=0, help="last sequence already cited by observe")
     evidence_parser.add_argument("--event-observation-id", action="append", default=[], help="event observation ids observe already recorded")
     evidence_parser.add_argument("--label", default="post-run-state")
+    publish_parser = subparsers.add_parser("publish", allow_abbrev=False)
+    publish_parser.add_argument("run_id")
+    publish_parser.add_argument("--scorecard")
+    publish_parser.add_argument("--force", action="store_true")
     cleanup_parser = subparsers.add_parser("cleanup", allow_abbrev=False)
     cleanup_parser.add_argument("run_id")
     cleanup_parser.add_argument("--force", action="store_true")
     arguments = parser.parse_args()
     if hasattr(arguments, "run_id"):
         validate_run_id(arguments.run_id)
-    {"start": start, "observe": observe, "evidence": evidence, "collect": collect, "decide": decide, "cleanup": cleanup}[arguments.action](arguments)
+    {"start": start, "observe": observe, "evidence": evidence, "collect": collect, "decide": decide, "publish": publish, "cleanup": cleanup}[arguments.action](arguments)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--suite", required=True, type=Path)
     parser.add_argument("--trial", required=True, type=int)
     parser.add_argument("--calibration", action="store_true")
+    parser.add_argument("--judge", default="", help="who is scoring this run (model/agent id); recorded so two judges of the same candidate stay distinguishable")
     arguments = parser.parse_args()
     for executable in ("docker", "git", "curl"):
         require_command(executable)
@@ -110,6 +111,7 @@ def main() -> None:
         "network": network,
         "image": {"name": IMAGE_NAME, "immutable_id": image_id, "source_sha256": image_source_sha256},
         "pi": {"version": pi["version"], "config_fingerprints": pi_config["config_fingerprints"]},
+        "judge": arguments.judge,
         "requested_model": requested_model,
         "selected_model": selected_model,
         "egress_host": egress_host,

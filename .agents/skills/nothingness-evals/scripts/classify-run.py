@@ -441,7 +441,7 @@ def main() -> None:
         "score": score,
         "notes": arguments.notes,
         "rationale_observation_ids": arguments.observation_id,
-        "requested_model": metadata["requested_model"],
+        "judge": metadata.get("judge") or None, "requested_model": metadata["requested_model"],
         "selected_model": metadata.get("selected_model"),
         # True only for a `valid` run whose admission probe AND whose actual
         # candidate transcript both independently confirmed pi served the

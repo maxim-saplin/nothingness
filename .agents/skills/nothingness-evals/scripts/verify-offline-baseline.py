@@ -47,6 +47,11 @@ def baseline_checks(name: str, arch: str) -> tuple[tuple[str, list[str]], ...]:
         ("pi", ["docker", "exec", name, "pi", "--version"]),
         ("websockets", ["docker", "exec", name, "python3", "-c", "import websockets; print(websockets.__version__)"]),
         ("linux_engine", ["docker", "exec", name, "test", "-f", f"/sdks/flutter/bin/cache/artifacts/engine/linux-{arch}/libflutter_linux_gtk.so"]),
+        # The candidate must never see the machinery that scores it. The fixture is
+        # the whole repo at 5fc7e04, so this asserts that commit carries no rubrics,
+        # suites, published results or evaluator skill -- otherwise a candidate could
+        # read the rubric it is being graded against.
+        ("fixture_has_no_eval_machinery", ["docker", "exec", name, "sh", "-c", "! ls -d /workspace/evals /workspace/.agents/skills/nothingness-evals /workspace/.claude/skills/nothingness-evals 2>/dev/null | grep -q ."]),
         ("media", ["docker", "exec", name, "python3", "-c", "import json; from pathlib import Path; root=Path('/opt/nothingness/media'); assert len(list(root.glob('*.opus'))) == 10; assert len(json.loads((root/'manifest.json').read_text())) == 10"]),
         ("workspace", ["docker", "exec", name, "sh", "-c", "touch /workspace/.baseline-write && rm /workspace/.baseline-write && test -z \"$(git -C /workspace status --porcelain)\""]),
         ("pub", ["docker", "exec", name, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/nothingness-baseline-pub.log"]),
