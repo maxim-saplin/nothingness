@@ -65,6 +65,11 @@ events, then evidence/decide/publish as normal. Two campaigns each lost a run be
   sequence 0 to `terminal_event_sequence`. Skip zero-length batches. `judge-control.py finish`
   appends events, so page events again **after** finishing.
 - `judge-events.py` returns its own `observation_id` — cite that.
+- **If you are taking over a trial another judge started, rebuild the citation list by hand.**
+  `evidence` returns only its own call's batch plus the fresh inspection/verification it just took —
+  never the earlier judge's labelled captures. Trusting `decide_flags` verbatim after a resume
+  silently drops most of the prior evidence. Read `judge-observations.jsonl` in the run directory,
+  collect the ids you need, and pass them yourself.
 - **`decide_flags` from `judge-run.py evidence` is a snapshot, not a running total.** It lists only
   the observations that existed when `evidence` ran. Rubrics whose "Drive:" lines require a capture
   per screen or per state mean several more `judge-verify.py --label ...` calls afterwards, and every
