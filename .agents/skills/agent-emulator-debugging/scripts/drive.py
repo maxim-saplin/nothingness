@@ -148,7 +148,14 @@ def _resolve_target() -> str:
             if "macos" in dev or "darwin" in dev:
                 return "macos"
             return "android"
-    return "android"
+    # No explicit target and no run log to sniff. Defaulting to android made
+    # preflight probe adb on a Linux-only host and stall ~30s per call with zero
+    # devices attached. Default to this host's own desktop target instead; adb
+    # work is always reachable with DRIVE_TARGET=android, and once a session is
+    # running the run-log sniff above picks the real target anyway. Deliberately
+    # does not shell out to adb: _resolve_target runs at import, so every single
+    # drive.py invocation would pay for it.
+    return "macos" if sys.platform == "darwin" else "linux"
 
 
 TARGET = _resolve_target()

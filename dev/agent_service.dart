@@ -64,6 +64,11 @@ class AgentService {
     'getSemantics': _getSemantics,
     'tapByKey': _tapByKey,
     'dragByKey': _dragByKey,
+    // Stateful drag: real frames render between these calls, so a driver
+    // can capture a genuine mid-gesture instant. dragByKey cannot.
+    'dragStart': _dragStart,
+    'dragUpdate': _dragUpdate,
+    'dragEnd': _dragEnd,
     'getSettings': _getSettings,
     'setSetting': _setSetting,
     // Playback shortcuts.
@@ -87,6 +92,7 @@ class AgentService {
     'openSettingsSheet': _openSettingsSheet,
     'closeSettingsSheet': _closeSettingsSheet,
     'playTrackByPath': _playTrackByPath,
+    'setShuffle': _setShuffle,
     'setPreference': _setPreference,
     'clearPreference': _clearPreference,
     'requestLibraryPermission': _requestLibraryPermission,
@@ -488,6 +494,148 @@ class AgentService {
       'widget with key "$keyValue" found but has no descendant callback, '
       'no RenderBox, and no tappable ancestor',
     );
+  }
+
+  /// A drag held open across separate VM-service calls.
+  ///
+  /// `dragByKey` runs start, every update and end inside one synchronous call
+  /// with no frame yield, so nothing outside it can ever observe an
+  /// intermediate frame — a mid-gesture screenshot is impossible by
+  /// construction. These three keep the recognizer's callbacks alive between
+  /// calls, so a driver can update, capture, update again, then end.
+  static ({GestureDetector detector, RenderBox box, Offset at, bool horizontal})?
+  _dragSession;
+
+  static _R _dragStart(String method, Map<String, String> params) async {
+    final keyValue = params['key'];
+    if (keyValue == null || keyValue.isEmpty) {
+      return _error('key parameter required');
+    }
+    final axis = (params['axis'] ?? 'horizontal').toLowerCase();
+    if (axis != 'horizontal' && axis != 'vertical') {
+      return _error('axis must be "horizontal" or "vertical"');
+    }
+    if (_dragSession != null) {
+      return _error('a drag is already open; call dragEnd first');
+    }
+    final element = _findElementByKey(keyValue);
+    if (element == null) return _error('no widget found with key "$keyValue"');
+    final horizontal = axis == 'horizontal';
+
+    GestureDetector? detector;
+    RenderBox? box;
+    _walkSubtree(element, includeSelf: true, (el) {
+      final widget = el.widget;
+      if (widget is! GestureDetector) return false;
+      final ro = el.findRenderObject();
+      if (ro is! RenderBox || !ro.attached || !ro.hasSize || ro.size.isEmpty) {
+        return false;
+      }
+      final usable = horizontal
+          ? widget.onHorizontalDragStart != null &&
+                widget.onHorizontalDragUpdate != null &&
+                widget.onHorizontalDragEnd != null
+          : widget.onVerticalDragStart != null &&
+                widget.onVerticalDragUpdate != null &&
+                widget.onVerticalDragEnd != null;
+      if (!usable) return false;
+      detector = widget;
+      box = ro;
+      return true;
+    });
+
+    final found = detector;
+    final foundBox = box;
+    if (found == null || foundBox == null) {
+      return _error(
+        'no GestureDetector with $axis drag callbacks at or under key "$keyValue"',
+      );
+    }
+
+    final start = foundBox.localToGlobal(foundBox.size.center(Offset.zero));
+    final details = DragStartDetails(
+      globalPosition: start,
+      localPosition: foundBox.globalToLocal(start),
+    );
+    if (horizontal) {
+      found.onHorizontalDragStart!(details);
+    } else {
+      found.onVerticalDragStart!(details);
+    }
+    _dragSession = (
+      detector: found,
+      box: foundBox,
+      at: start,
+      horizontal: horizontal,
+    );
+    return _ok({
+      'dragStarted': keyValue,
+      'axis': axis,
+      'at': {'x': start.dx, 'y': start.dy},
+    });
+  }
+
+  static _R _dragUpdate(String method, Map<String, String> params) async {
+    final session = _dragSession;
+    if (session == null) return _error('no drag open; call dragStart first');
+    final dx = double.tryParse(params['dx'] ?? '0') ?? 0;
+    final dy = double.tryParse(params['dy'] ?? '0') ?? 0;
+    if (dx == 0 && dy == 0) return _error('dx or dy must be non-zero');
+    final delta = Offset(dx, dy);
+    final next = session.at + delta;
+    final details = DragUpdateDetails(
+      globalPosition: next,
+      localPosition: session.box.globalToLocal(next),
+      delta: delta,
+      primaryDelta: session.horizontal ? delta.dx : delta.dy,
+    );
+    if (session.horizontal) {
+      session.detector.onHorizontalDragUpdate!(details);
+    } else {
+      session.detector.onVerticalDragUpdate!(details);
+    }
+    _dragSession = (
+      detector: session.detector,
+      box: session.box,
+      at: next,
+      horizontal: session.horizontal,
+    );
+    return _ok({
+      'dragUpdated': {'dx': dx, 'dy': dy},
+      'at': {'x': next.dx, 'y': next.dy},
+    });
+  }
+
+  static _R _dragEnd(String method, Map<String, String> params) async {
+    final session = _dragSession;
+    if (session == null) return _error('no drag open; call dragStart first');
+    final details = DragEndDetails(primaryVelocity: 0);
+    if (session.horizontal) {
+      session.detector.onHorizontalDragEnd!(details);
+    } else {
+      session.detector.onVerticalDragEnd!(details);
+    }
+    _dragSession = null;
+    return _ok({
+      'dragEnded': true,
+      'at': {'x': session.at.dx, 'y': session.at.dy},
+    });
+  }
+
+  static _R _setShuffle(String method, Map<String, String> params) async {
+    final raw = (params['on'] ?? '').toLowerCase();
+    if (raw != 'true' && raw != 'false') {
+      return _error('on parameter required: true or false');
+    }
+    final p = DebugHooks.provider as PlaybackController?;
+    if (p == null) return _error('provider not registered');
+    final want = raw == 'true';
+    if (want) {
+      await p.shuffleQueue();
+    } else {
+      await p.disableShuffle();
+    }
+    return _ok({'shuffle': p.shuffle});
   }
 
   static _R _dragByKey(String method, Map<String, String> params) async {

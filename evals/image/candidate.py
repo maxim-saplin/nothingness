@@ -269,9 +269,29 @@ class RpcBridge:
             threading.Thread(target=self.serve_controls, daemon=True).start()
             self.send_rpc({"id": "initial-prompt", "type": "prompt", "message": self.arguments.prompt})
             deadline = self.started_monotonic + self.arguments.timeout_seconds
+            # Last line of defence, behind the judge and behind observe's
+            # own 90% handback: both depend on someone watching.
+            guard = self.started_monotonic + self.arguments.timeout_seconds * 0.97
             while not self.finish.wait(0.2):
                 if self.process.poll() is not None:
                     self.finish_reason = "pi_process_exit"
+                    break
+                if time.monotonic() >= guard:
+                    # Terminalize before the hard wall rather than at it. A run
+                    # killed at `deadline` sets timed_out and can never be
+                    # scored, so a trial full of real work becomes no data
+                    # point -- that happened three times in two campaigns,
+                    # including once to a candidate hung on a single bash call
+                    # it had given a timeout as long as its whole budget.
+                    # Finishing here keeps the run scoreable; it still cannot
+                    # score `pass`, because judge_finish_phase is not
+                    # `awaiting_judge`.
+                    self.finish_phase = self.phase
+                    self.finish_reason = (
+                        f"deadline_guard: supervisor finished at "
+                        f"{time.monotonic() - self.started_monotonic:.0f}s of "
+                        f"{self.arguments.timeout_seconds:.0f}s"
+                    )
                     break
                 if time.monotonic() >= deadline:
                     self.timed_out = True

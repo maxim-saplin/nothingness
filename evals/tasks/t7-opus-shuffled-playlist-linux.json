@@ -4,7 +4,7 @@
   "title": "Opus shuffled playlist",
   "fixture_commit": "5fc7e04",
   "platform_variant": "linux",
-  "prompt": "On Linux, queue the evaluator-supplied ten immutable Opus fixtures exactly once, enable shuffle, play valid supplied media, and perform one navigation transition. The current media before and after must remain within the supplied fixture set.",
+  "prompt": "On Linux, queue the evaluator-supplied ten immutable Opus fixtures exactly once, enable shuffle, play valid supplied media, and advance playback by exactly one track transition (next or previous). The current media before and after that transition must remain within the supplied fixture set. Browsing folders is not a track transition.",
   "scoring": {"mode": "scored", "cohort": "linux-isolated-baseline"},
   "media": {"manifest": "evals/assets/opus/manifest.json", "container_path": "/opt/nothingness/media", "required_fixture_count": 10},
   "network": {"docker_mode": "internal-proxy", "egress": "allowlist", "reason": "Candidate traffic is isolated on a fresh internal network and may leave only through the exact-host HTTPS proxy allowlist."},

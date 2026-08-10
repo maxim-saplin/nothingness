@@ -48,7 +48,9 @@ def drive(name: str, *arguments: str) -> dict[str, object]:
     return value
 
 
-def wait_for_state(name: str, label: str, predicate: object, timeout: float = 30) -> dict[str, object]:
+# 30s was too tight for a cold desktop start under load: the gate failed with
+# runtime_state_timeout:ready and passed on retry with nothing changed.
+def wait_for_state(name: str, label: str, predicate: object, timeout: float = 120) -> dict[str, object]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = command(drive_command(name, "inspect"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)

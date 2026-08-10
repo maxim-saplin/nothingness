@@ -12,6 +12,51 @@ given. A typo fix or a clearer error message does not need a bump.
 Results published under different versions are not directly comparable; say so
 rather than averaging them.
 
+## 1.3.0 — 2026-08-10
+
+Scores under 1.3.0 are not comparable with 1.2.x: t7's prompt was reworded,
+t5's budget changed, and a class of run that previously produced no data point
+now produces a scored one.
+
+- **A candidate that runs long is scoreable.** Three runs across two campaigns
+  were lost outright: the candidate reached its deadline, never entered
+  `awaiting_judge`, and `classify-run.py` refuses to score a timed-out run, so
+  real work became nothing. Two guards now sit behind the judge. `observe`
+  finishes the run itself at 90% of budget, and the in-container supervisor
+  terminalizes at 97% with a `deadline_guard:` reason that `classify-run.py`
+  accepts as valid. Neither can produce a `pass` — that still requires the
+  candidate to reach `awaiting_judge` on its own. Losing the run was biasing the
+  leaderboard against slower models rather than losing data at random.
+- **`observe` is a poll, not a wait.** It defaulted `--timeout-seconds` to the
+  whole candidate budget and treated its own expiry as a failure, so it could
+  never return inside a caller's tool-call limit: it had to be backgrounded, the
+  judge's turn ended, and nothing read its output or acted on the deadline.
+  Judges were not being careless; the tool required it. Now 120s, returning
+  normally with `still_running` and the candidate's elapsed/budget.
+- **A real gesture primitive.** `dragStart`/`dragUpdate`/`dragEnd` hold a drag
+  open across separate VM-service calls, so frames render between them and a
+  driver can capture a genuine mid-gesture instant. `dragByKey` ran start,
+  every update and end inside one synchronous call, which made the during-gesture
+  evidence t4 asks for impossible with documented tooling.
+- **`setShuffle`** exposes the same `shuffleQueue`/`disableShuffle` the settings
+  toggle calls. Shuffle was previously reachable only by tapping through the
+  settings sheet, and `setQueue` can only ever turn it *on*.
+- **t7's prompt said "one navigation transition"**, which reads naturally as
+  folder navigation — and `navigateVoid` never touches `PlaybackController`, so a
+  candidate could satisfy the wording while the playing track never moved. The
+  rubric always meant next/prev, so candidates were being penalised for our
+  ambiguity, not for gaming. Reworded to say track transition explicitly.
+- **t5 gets 2700s**, up from 1800s. It asks for more app-driving than any other
+  task in the suite.
+- The runtime gate's cold-start budget went from 30s to 120s: it failed under
+  load with `runtime_state_timeout:ready` and passed on retry with nothing
+  changed. And `drive.py` no longer defaults to the `android` target when
+  nothing indicates one, which made `preflight` stall ~30s probing adb on a
+  Linux-only host.
+- The skills no longer assume a particular agent harness — no literal tool
+  timeouts, no named monitor facility — and reach `.agents/skills` directly
+  rather than through the `.claude` symlink.
+
 ## 1.2.1 — 2026-08-10
 
 Found by running 1.2.0 as a shakedown with judges on a different model, told

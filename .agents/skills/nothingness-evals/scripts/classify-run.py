@@ -377,7 +377,15 @@ def main() -> None:
     authoritative = lifecycle_interventions(run / "artifacts" / "lifecycle.jsonl") if (run / "artifacts" / "lifecycle.jsonl").is_file() else {}
     delivered = delivered_interventions(interventions, authoritative) if arguments.validity == "valid" else set()
     completion = read_json(run / "artifacts" / "candidate-completion.json") if (run / "artifacts" / "candidate-completion.json").is_file() else None
-    if arguments.validity == "valid" and (not isinstance(completion, dict) or completion.get("timed_out") or not str(completion.get("reason", "")).startswith("judge_finish:")):
+    # `deadline_guard:` is the supervisor terminalizing a run just before its
+    # wall so it stays scoreable. It is as valid as a judge finish -- the
+    # candidate ran, its work is on disk, and the only thing it forfeits is
+    # `pass`, enforced below via judge_finish_phase. Without this a candidate
+    # that runs long produces no data point at all, which silently biases a
+    # leaderboard against slower models rather than losing runs at random.
+    completion_reason = str(completion.get("reason", "")) if isinstance(completion, dict) else ""
+    accepted_completion = completion_reason.startswith("judge_finish:") or completion_reason.startswith("deadline_guard:")
+    if arguments.validity == "valid" and (not isinstance(completion, dict) or completion.get("timed_out") or not accepted_completion):
         fail(2, "valid_candidate_completion_required")
     observations = []
     if (run / "judge-observations.jsonl").is_file():
