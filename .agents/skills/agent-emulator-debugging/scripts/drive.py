@@ -919,7 +919,16 @@ def _scan_run_log_markers() -> dict[str, Any]:
 
 
 def _desktop_launch_command(target: str) -> str:
-    """Copy-pasteable desktop launch line with isolated paths by default."""
+    """Copy-pasteable desktop launch line with isolated paths by default.
+
+    Deliberately does NOT override HOME. The app's own storage is isolated by
+    XDG_CONFIG_HOME/XDG_DATA_HOME, which is what path_provider actually reads;
+    HOME added nothing for that and broke the toolchain. Where flutter is a snap
+    its SDK lives under $HOME/snap/flutter, so a fresh HOME reads as a fresh
+    install and re-downloads ~1.4GB of SDK per session. Three agents following
+    this recipe at once filled a 3.9G /tmp twice and took out the Bash tool for
+    every session on the machine.
+    """
     tag_default = f"nothingness_{target}_debug"
     return (
         f'export DRIVE_SESSION_TAG="${{DRIVE_SESSION_TAG:-{tag_default}}}"; '
@@ -930,7 +939,7 @@ def _desktop_launch_command(target: str) -> str:
         'mkdir -p "$DRIVE_DESKTOP_HOME/.config" "$DRIVE_DESKTOP_HOME/.local/share"; '
         'if [ ! -p "$DRIVE_FLUTTER_FIFO" ]; then rm -f "$DRIVE_FLUTTER_FIFO"; mkfifo "$DRIVE_FLUTTER_FIFO"; fi; '
         'nohup sleep infinity > "$DRIVE_FLUTTER_FIFO" 2>/dev/null & '
-        'HOME="$DRIVE_DESKTOP_HOME" XDG_CONFIG_HOME="$DRIVE_DESKTOP_HOME/.config" '
+        'XDG_CONFIG_HOME="$DRIVE_DESKTOP_HOME/.config" '
         'XDG_DATA_HOME="$DRIVE_DESKTOP_HOME/.local/share" '
         f'nohup flutter run -d {target} --debug -t dev/main_debug.dart '
         '< "$DRIVE_FLUTTER_FIFO" > "$DRIVE_RUN_LOG" 2>&1 &'
