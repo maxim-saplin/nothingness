@@ -34,8 +34,8 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
      --trial 1 --campaign <campaign-id> --judge <who-you-are>
    ```
    It prints the `run_id` every later command needs. **Expect 2–5 minutes** — fixture export, git
-   baseline, network, proxy, container and workspace copy all happen before preflight, so give it a
-   Bash timeout of at least 10 minutes (`timeout: 600000`). It is not stuck. If pi's offline
+   baseline, network, proxy, container and workspace copy all happen before preflight, so give it your
+   harness's longest tool timeout (10 minutes or more). It is not stuck. If pi's offline
    registry lacks the exact provider/model/thinking triple, that is a real blocker: report it and
    stop.
 
@@ -47,11 +47,14 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
    Use `--show actions` (default). For a chatty run, `--max-lines 10`. It saves its cursor, so
    nothing has to be carried by hand into step 4.
 
-   **Run it with an explicit long timeout** — at least 15 minutes (`timeout: 900000` on the Bash
-   tool). A run takes 5-20 minutes and `observe` blocks for its whole duration; on the default
-   2-minute tool timeout it is silently moved to the background, your turn ends, and the candidate
-   is left running with nobody watching it. If it returns while the phase is still `running`, call
-   it again — it resumes from its cursor and will not duplicate the event chain.
+   **`observe` is a poll, not a wait.** It returns within about two minutes carrying
+   `"still_running": true` and the candidate's elapsed/budget, or sooner if the run reaches a
+   terminal phase. Run it in the **foreground**, read what it returns, then call it again — it
+   resumes from its cursor and will not duplicate the event chain. That loop is the supervision
+   model: each return is your chance to check the clock and finish the run before its deadline.
+   Never background it and never raise `--timeout-seconds` to span the whole run: a call that
+   outlives your control of the session leaves the candidate running with nobody able to act, which
+   has cost three trials.
 
 2. **Finish** once it settles.
    ```

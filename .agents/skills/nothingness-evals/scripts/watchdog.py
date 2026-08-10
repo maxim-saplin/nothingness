@@ -6,7 +6,8 @@ backgrounds `observe`), leaving the candidate live, burning budget, with no
 judge watching. Nothing notified anyone -- it was caught only because a human
 happened to look. Everything else in the loop resumes itself.
 
-One line per state change, so it works as a `Monitor` command:
+One line per state change on stdout, so any harness that can stream a
+long-running command will surface it -- or just run it in another terminal:
 
     uv run python .agents/skills/nothingness-evals/scripts/watchdog.py <campaign-id>
 

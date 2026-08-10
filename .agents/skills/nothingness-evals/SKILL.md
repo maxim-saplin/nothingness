@@ -44,13 +44,13 @@ uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/sui
 
 This returns a `dashboard_command` (`watch-eval.py <campaign-id>`). Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal. Do not wait until the end of the run to surface it.
 
-Then arm the watchdog as a `Monitor`, so a stalled trial reaches you instead of waiting to be noticed:
+Then start the watchdog, so a stalled trial reaches you instead of waiting to be noticed. It prints one line per state change on stdout, so run it however your harness streams a long-running command (a background/monitor facility if it has one, otherwise a second terminal you glance at):
 
 ```
 uv run python .agents/skills/nothingness-evals/scripts/watchdog.py <campaign-id>
 ```
 
-It prints one line per state change — a candidate stuck in `awaiting_judge`, a run near its deadline, or a container still up with no judge observation for ten minutes (a judge that ended its turn mid-trial, the one failure that does not self-heal) — and exits when every task is scored. Re-attach the same judge when it fires; do not take observation back yourself.
+It reports a candidate stuck in `awaiting_judge`, a run near its deadline, and a container still up with no judge attached — and exits when every task is scored. Re-attach the same judge when it fires; do not take observation back yourself.
 
 ## 3. Per-task loop — ask the campaign what's next, never a list you keep in your head
 
