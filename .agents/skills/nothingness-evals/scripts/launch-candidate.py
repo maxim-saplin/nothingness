@@ -8,6 +8,30 @@ import time
 from common import ROOT, command, command_or_fail, emit_json, fail, read_host_pi_config, read_json, run_dir, require_command, utc_now, validate_frozen_rubric, validate_frozen_task, validate_model_identity, validate_run_id, write_json
 
 
+def candidate_prompt(task: dict) -> str:
+    """Task prompt plus the facts about its own container the candidate cannot discover.
+
+    `media.container_path` was declared by every task and read by nothing, so
+    candidates were never told where the fixtures were mounted. Two of seven in
+    the first campaign hunted `.tmp` and the repo, never looked in `/opt`, and
+    failed the task on that alone -- which measures path-guessing, not skill.
+    The budget line is here for the same reason: a candidate that cannot see the
+    wall coming runs into it, and a run killed at the wall is unscoreable.
+    """
+    lines = []
+    media = task.get("media")
+    if isinstance(media, dict) and media.get("container_path"):
+        lines.append(f"Evaluator-supplied media is mounted read-only at {media['container_path']}.")
+        if media.get("required_fixture_count"):
+            lines.append(f"It holds exactly {media['required_fixture_count']} fixture files; use those rather than creating your own.")
+    budget = task.get("limits", {}).get("timeout_seconds")
+    if budget:
+        lines.append(f"You have {int(budget)} seconds of wall-clock budget. Finish your work and report before it runs out -- a session killed at the deadline cannot be scored at all.")
+    if not lines:
+        return task["prompt"]
+    return "\n".join(["Environment:", *(f"- {line}" for line in lines), "", "Task:", task["prompt"]])
+
+
 def main() -> None:
     require_command("docker")
     if len(sys.argv) != 2:
@@ -48,7 +72,7 @@ def main() -> None:
             "--provider", model["provider"],
             "--model", model["model"],
             "--thinking", model["thinking"],
-            "--prompt", task["prompt"],
+            "--prompt", candidate_prompt(task),
             "--timeout-seconds", str(task["limits"]["timeout_seconds"]),
             "--run-id", run_id,
         ],
@@ -65,7 +89,7 @@ def main() -> None:
         time.sleep(0.1)
     if not ready:
         fail(5, "candidate_control_not_ready")
-    result = {"ok": True, "run_id": run_id, "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": admission["identity_verified"], "timeout_seconds": task["limits"]["timeout_seconds"], "output_mode": "rpc-jsonl", "canonical_output": "/run/nothingness/candidate.jsonl", "lifecycle_output": "/run/nothingness/lifecycle.jsonl", "progress_output": "/run/nothingness/progress.json", "launched_at": utc_now()}
+    result = {"ok": True, "run_id": run_id, "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": admission["identity_verified"], "prompt_sent": candidate_prompt(task), "timeout_seconds": task["limits"]["timeout_seconds"], "output_mode": "rpc-jsonl", "canonical_output": "/run/nothingness/candidate.jsonl", "lifecycle_output": "/run/nothingness/lifecycle.jsonl", "progress_output": "/run/nothingness/progress.json", "launched_at": utc_now()}
     write_json(run / "launch.json", result)
     emit_json(result)
 

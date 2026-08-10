@@ -12,6 +12,55 @@ given. A typo fix or a clearer error message does not need a bump.
 Results published under different versions are not directly comparable; say so
 rather than averaging them.
 
+## 1.2.0 — 2026-08-10
+
+Scores under 1.2.0 are not comparable with 1.1.0 and earlier: the candidate is
+now told things it previously had to guess, and two of the first campaign's
+seven tasks were lost to exactly that guessing.
+
+- **Candidates are told where the fixtures are.** Every task declared
+  `media.container_path`, and no script read it — the candidate received only
+  `task["prompt"]`. In the first campaign t1 and t7 both hunted `.tmp` and the
+  repo, never looked in `/opt`, and failed on that alone; t1's whole prompt was
+  nine words. `launch-candidate.py` now composes an environment preamble from
+  the task's own `media` and `limits` fields, and records the prompt actually
+  sent in `launch.json`. Tasks declaring neither are unchanged.
+- **Candidates are told their time budget**, in the same preamble. A run killed
+  at the deadline cannot be scored at all, and the model that hit the wall had
+  no way to see it coming. This reduces how often that happens; it does not fix
+  the underlying gap (below).
+- **One frozen judge brief**, `references/judge-brief.md`, passed verbatim to
+  every judge. Previously the manager learned the environment as it went and fed
+  each lesson to the *next* judge, so the last judge of a campaign knew ten
+  things the first did not. Uneven within a model; across models it silently
+  breaks the comparison, since the same task would be judged better-informed for
+  whichever model ran second.
+- **A watchdog for the one failure that does not self-heal.** `watchdog.py`
+  reports a candidate stuck in `awaiting_judge`, a run near its deadline, and a
+  container still up with no judge observation for ten minutes — a judge that
+  ended its turn mid-trial, which happened once and was caught only because a
+  human looked. Armed as a `Monitor` when the campaign is created.
+- **Corrected the drag guidance, which described harness HEAD rather than the
+  pinned fixture.** `hero-gesture-surface` does not exist at the fixture commit
+  and the subtree walk runs without `includeSelf`, so the documented anchor could
+  never resolve; `kind=touch` compounds it by returning a success payload while
+  moving nothing, which is how one candidate convinced itself a gesture worked.
+  Both skills and the t4 rubric now point at real X11 input via XTEST, which also
+  makes a genuine mid-gesture capture possible — the t4 rubric previously asserted
+  it was not. Rubric prose only; expectation tiers, evidence kinds and lenses are
+  unchanged, though the rubric hash moves. No score is invalidated: t4's only
+  result is `unassigned`.
+
+- **Judges are told to finish a candidate before its deadline rather than let it
+  be killed.** t4 of the first campaign was lost as `unassigned` — a
+  fully-evidenced `partial`, 45% of the campaign's spend, no data point — and
+  that was a procedure miss, not a harness limit. `finish` has no phase guard:
+  called mid-turn it completes the run with `timed_out: false` and a
+  `judge_finish:` reason, which classifies normally. Finishing outside
+  `awaiting_judge` only forecloses `pass`, which a candidate that never finished
+  should not get anyway. The watchdog's 90%-of-budget warning now says to do
+  exactly this.
+
 ## 1.1.0 — 2026-08-10
 
 - The judge owns its trial end to end (start, observe, score, publish, tear

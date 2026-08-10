@@ -126,5 +126,10 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
   from the log alone, but `drive.py restart` needs the fifo and otherwise reports no fifo found.
 - **Read the settings sheet with `getSemantics`, never `getWidgetTree`** — the tree blows past the
   128k cap with the sheet open and the rows fall off the end.
-- **Drag the hero with `key=hero-gesture-surface`** — any in-band key is a child of the detector and
-  falls through to synthetic pointers, which abort on Linux desktop.
+- **`dragByKey` cannot drive the hero, and a success reply does not mean it moved.** At the pinned
+  fixture the walk runs without `includeSelf`, so the anchor must be an *ancestor* of the
+  `GestureDetector` and the hero has none. `kind=mouse` aborts with a `mouse_tracker.dart`
+  assertion; `kind=touch` returns success while moving nothing. Use real X11 input via XTEST
+  (`libXtst` is in the image), which also lets you hold the button down for a true mid-gesture read.
+- **Docs describe harness HEAD; the app you are driving is the pinned fixture.** Before trusting any
+  widget key or driver behaviour named here, confirm it with `git show <fixture-commit>:<path>`.

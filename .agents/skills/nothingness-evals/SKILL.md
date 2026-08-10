@@ -44,6 +44,14 @@ uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/sui
 
 This returns a `dashboard_command` (`watch-eval.py <campaign-id>`). Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal. Do not wait until the end of the run to surface it.
 
+Then arm the watchdog as a `Monitor`, so a stalled trial reaches you instead of waiting to be noticed:
+
+```
+uv run python .agents/skills/nothingness-evals/scripts/watchdog.py <campaign-id>
+```
+
+It prints one line per state change — a candidate stuck in `awaiting_judge`, a run near its deadline, or a container still up with no judge observation for ten minutes (a judge that ended its turn mid-trial, the one failure that does not self-heal) — and exits when every task is scored. Re-attach the same judge when it fires; do not take observation back yourself.
+
 ## 3. Per-task loop — ask the campaign what's next, never a list you keep in your head
 
 **You do not run trials. Judges do.** Your job is to stand each one up, notice when one is stuck,
@@ -72,11 +80,14 @@ For each task `next` hands you:
    read anyone else's. It refuses if the harness has uncommitted changes, because a worktree is
    pinned to HEAD and would silently run the old code.
 
-2. **Spawn a judge subagent** on the `nothingness-eval-judge` skill. Give it exactly: the
-   `suite_path`, the `task_id`, the `campaign_id`, the rubric path, its working directory
-   (`sandbox`), and `NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment` — it must export that on
-   every harness command or it will look for its run inside its own worktree, where nothing
-   creates one.
+2. **Spawn a judge subagent** on the `nothingness-eval-judge` skill. Give it the assignment block —
+   `suite_path`, `task_id`, `campaign_id`, rubric path, its working directory (`sandbox`), and
+   `NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment` — **plus
+   [`references/judge-brief.md`](references/judge-brief.md) verbatim, every time, unchanged.**
+
+   Passing that file verbatim is not a nicety: judges that learn the environment at different rates
+   are not scoring under the same conditions, and across models that silently breaks the comparison.
+   Learned something new? Edit the brief, do not paste it into one judge's prompt.
 
    The judge **starts its own trial**, observes it, scores it, publishes into its sandbox and
    cleans up its container. Expect `start` to take 2–5 minutes before the candidate is even live.
@@ -134,7 +145,7 @@ $/point beside the score. Never hand-edit between its markers.
 - **A trial that fails before launch gets a fresh `-attempt-NN` directory, and the failed one still belongs in the campaign.** `judge-run.py start --campaign` registers each attempt itself, and `campaign.py add-run` is idempotent, so re-registering a known run is a no-op rather than the `duplicate_run_id` error it used to be. `campaign.py next` counts a task done only when one of its runs has a scored `result.json`, so a dead attempt is offered again automatically.
 - **Expect `judge-run.py start` to take minutes, not seconds.** `prepare-run.py` alone (fixture export, git baseline, `chmod -R`, network, proxy, container, workspace copy) runs 2-5 minutes before preflight even begins, so a shell with a 5-minute timeout will appear to hang. It is not stuck.
 - **Read the settings sheet with `getSemantics`, never `getWidgetTree`.** With the sheet open the widget tree is ~280,000 characters against a 128,000 cap, and the rows render last, so they fall past the cutoff entirely. Semantics is a few KB and gives each row as `"label\nvalue"` with `indexInParent` and a rect — consecutive indices with abutting y-ranges is what proves adjacency, and it covers rows scrolled out of view. Both dumps accept `lines=` / `skipLines=` / `maxChars=` for paging, and both report `totalLines`/`totalChars` so you can tell when you are being truncated. Note `drive.py tree N` passes N as a LINE count, not a tree depth.
-- **Drag the hero with `key=hero-gesture-surface`.** That key is on the gesture surface itself. `dragByKey` resolves a handler by walking the keyed element and its descendants, so anchoring on `hero-song` or any other in-band key can never reach the detector (they are its children) and falls through to synthetic pointers, which abort on Linux desktop with a `mouse_tracker.dart` assertion and move nothing. Confirm the reply reads `"mode": "descendant-callback"`.
+- **`dragByKey` cannot drive the hero on the pinned fixture, and it lies about it.** At the fixture commit `_invokeDragInSubtree` calls `_walkSubtree` *without* `includeSelf`, so the anchor must be an **ancestor** of the `GestureDetector` — and the hero has no such key (`hero-gesture-surface` exists only at harness HEAD; the fixture has `hero-tap-ring`, `hero-swipe-flash`, `hero-seek-hud`, all inside the detector). `kind=mouse` aborts with a `mouse_tracker.dart` assertion; **`kind=touch` returns a success payload while moving nothing**. Never accept that payload as proof of movement. Use real X11 input via XTEST (`libXtst` is in the image) — it also lets you hold the button down and capture a true mid-gesture instant. Anything in these docs that describes app widget keys is describing HEAD; verify against the fixture commit with `git show <fixture>:<path>` before trusting it.
 - **Do not use `drive.py window` / `setSetting phoneFrame` to force list overflow.** It swaps the widget type at the app-shell slot and rebuilds everything below. The ten-fixture folder already overflows at the default window size, which is enough for any "scrolled out of view" scenario.
 - **`decide` scores; it does not publish.** The results store has one writer. The judge runs `decide` (verdicts and validity), then `publish` into its own sandbox; the manager's `finalize` merges those into `evals/results/<model>-<thinking>-<YYYYMMDD>/<task>/trial-N/` and rebuilds the reports and index. The dated directory means a re-run of the same model lands beside the old one instead of needing `--force` to overwrite committed results.
 - **`judge-events.py` returns its own `observation_id` — cite that, don't go digging in `judge-observations.jsonl` for it.** It pages 2500 events by default; keep calling with `--after <next_sequence>` until `next_sequence` stops advancing.
