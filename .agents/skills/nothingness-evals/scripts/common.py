@@ -427,6 +427,28 @@ def validate_image_matches_sources(labels: dict[str, Any], root: Path = ROOT) ->
     raise AssertionError("unreachable")
 
 
+CHANGELOG_PATH = ROOT / "evals" / "CHANGELOG.md"
+VERSION_HEADING = re.compile(r"^##\s+(\d+\.\d+\.\d+)\b")
+
+
+def eval_version() -> str:
+    """The harness version, read from the topmost heading in the changelog.
+
+    Deliberately not a `VERSION` file: two places to edit is one place to
+    forget, and a version nobody can trace to a change is worse than none. The
+    changelog IS the source, so bumping the number and describing the change are
+    the same edit. Recorded into every run at prepare time, so a published
+    result says what it was produced by long after the tree has moved on."""
+    if not CHANGELOG_PATH.is_file():
+        fail(2, f"eval_changelog_missing:{CHANGELOG_PATH.relative_to(ROOT)} -- the harness version is read from its topmost '## <x.y.z>' heading")
+    for line in CHANGELOG_PATH.read_text(encoding="utf-8").splitlines():
+        match = VERSION_HEADING.match(line)
+        if match:
+            return match.group(1)
+    fail(2, f"eval_version_not_found:{CHANGELOG_PATH.relative_to(ROOT)} -- add a '## <x.y.z> — <date>' heading at the top of the entries")
+    raise AssertionError("unreachable")
+
+
 def gate_fingerprint(image_id: str, fixture: str, script: Path) -> str:
     """What a gate pass is actually a statement about: this image, this fixture
     commit, and this gate's own code. Docker image ids are content-addressed, so

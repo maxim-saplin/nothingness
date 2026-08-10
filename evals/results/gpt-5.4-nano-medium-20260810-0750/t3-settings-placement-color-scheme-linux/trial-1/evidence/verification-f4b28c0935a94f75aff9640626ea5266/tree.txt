@@ -1,0 +1,81 @@
+[root]
+└View(state: _ViewState#4ed83)
+ └RawView
+  └_RawViewInternal-[_DeprecatedRawViewKey FlutterView#0ca40](renderObject: _ReusableRenderView#20bb6)
+   └_ViewScope
+    └_PipelineOwnerScope
+     └_MediaQueryFromView(state: _MediaQueryFromViewState#c8d34)
+      └MediaQuery(MediaQueryData(size: Size(1278.0, 720.0), devicePixelRatio: 1.0, textScaler: SystemTextScaler (no scaling), platformBrightness: Brightness.light, padding: EdgeInsets.zero, viewPadding: EdgeInsets.zero, viewInsets: EdgeInsets.zero, systemGestureInsets: EdgeInsets.zero, alwaysUse24HourFormat: true, accessibleNavigation: false, highContrast: false, onOffSwitchLabels: false, disableAnimations: false, invertColors: false, boldText: false, navigationMode: traditional, gestureSettings: DeviceGestureSettings(touchSlop: null), displayFeatures: [], supportsShowingSystemContextMenu: false, lineHeightScaleFactorOverride: null, letterSpacingOverride: null, wordSpacingOverride: null, paragraphSpacingOverride: null, displayCornerRadii: null))
+       └FocusTraversalGroup(policy: ReadingOrderTraversalPolicy#0b515, state: _FocusTraversalGroupState#ff656)
+        └Focus(debugLabel: "FocusTraversalGroup", focusNode: _FocusTraversalGroupNode#0b86b(FocusTraversalGroup [IN FOCUS PATH]), state: _FocusState#c2967)
+         └_FocusInheritedScope
+          └_FocusScopeWithExternalFocusNode(debugLabel: "View Scope", focusNode: FocusScopeNode#e500d(View Scope [IN FOCUS PATH]), dependencies: [_FocusInheritedScope], state: _FocusScopeState#63b2e)
+           └_FocusInheritedScope
+            └_BootstrapApp(useState<PlaybackController?>: Instance of 'PlaybackController', useEffect)
+             └NothingApp(state: _NothingAppState#faf25)
+              └ChangeNotifierProvider<PlaybackController>(value: Instance of 'PlaybackController', listening to value)
+               └_InheritedProviderScope<PlaybackController?>(listening to value)
+                └_ThemeListener(useValueListenable: ThemeId.void_, useValueListenable: ThemeVariant.system, useValueListenable: OperatingMode.own)
+                 └MaterialApp(state: _MaterialAppState#48767)
+                  └ScrollConfiguration(behavior: MaterialScrollBehavior)
+                   └HeroControllerScope
+                    └WidgetsApp-[GlobalObjectKey _MaterialAppState#48767](state: _WidgetsAppState#806e4)
+                     └RootRestorationScope(state: _RootRestorationScopeState#46f67)
+                      └UnmanagedRestorationScope
+                       └RestorationScope(dependencies: [UnmanagedRestorationScope], state: _RestorationScopeState#ce15e)
+                        └UnmanagedRestorationScope
+                         └SharedAppData(state: _SharedAppDataState#1bdb4)
+                          └_SharedAppModel
+                           └NotificationListener<NavigationNotification>
+                            └Shortcuts(shortcuts: <Default WidgetsApp Shortcuts>, state: _ShortcutsState#cffb1)
+                             └Focus(debugLabel: "Shortcuts: <Default WidgetsApp Shortcuts>", dependencies: [_FocusInheritedScope], state: _FocusState#a5793)
+                              └_FocusInheritedScope
+                               └Semantics(container: false, properties: SemanticsProperties, renderObject: RenderSemanticsAnnotations#420c3)
+                                └DefaultTextEditingShortcuts
+                                 └Shortcuts(shortcuts: <Default Text Editing Shortcuts>, state: _ShortcutsState#859d2)
+                                  └Focus(debugLabel: "Shortcuts: <Default Text Editing Shortcuts>", dependencies: [_FocusInheritedScope], state: _FocusState#f2f3e)
+                                   └_FocusInheritedScope
+                                    └Semantics(container: false, properties: SemanticsProperties, renderObject: RenderSemanticsAnnotations#00ed1)
+                                     └Actions(dispatcher: null, actions: {DoNothingIntent: DoNothingAction#88acb, DoNothingAndStopPropagationIntent: DoNothingAction#681fa, RequestFocusIntent: RequestFocusAction#49924, NextFocusIntent: NextFocusAction#91461, PreviousFocusIntent: PreviousFocusAction#ed318, DirectionalFocusIntent: DirectionalFocusAction#16d17, ScrollIntent: _OverridableContextAction<ScrollIntent>#090a9(defaultAction: ScrollAction#72c85), PrioritizedIntents: PrioritizedAction#b0ee9, VoidCallbackIntent: VoidCallbackAction#1b4b1}, state: _ActionsState#896e0)
+                                      └_ActionsScope
+                                       └FocusTraversalGroup(policy: ReadingOrderTraversalPolicy#e5ee6, state: _FocusTraversalGroupState#60d4a)
+                                        └Focus(debugLabel: "FocusTraversalGroup", focusNode: _FocusTraversalGroupNode#62909(FocusTraversalGroup [IN FOCUS PATH]), dependencies: [_FocusInheritedScope], state: _FocusState#3e368)
+                                         └_FocusInheritedScope
+                                          └TapRegionSurface(renderObject: RenderTapRegionSurface#8e99d)
+                                           └ShortcutRegistrar(state: _ShortcutRegistrarState#da824)
+                                            └_ShortcutRegistrarScope
+                                             └Shortcuts(manager: ShortcutManager#b2fce(shortcuts: {}), shortcuts: <Shortcut Registrar>, state: _ShortcutsState#2117e)
+                                              └Focus(debugLabel: "Shortcuts: <Shortcut Registrar>", dependencies: [_FocusInheritedScope], state: _FocusState#b1a9b)
+                                               └_FocusInheritedScope
+                                                └Semantics(container: false, properties: SemanticsProperties, renderObject: RenderSemanticsAnnotations#a976d)
+                                                 └ListenableBuilder(listenable: LocalizationsResolver, state: _AnimatedState#42191)
+                                                  └Localizations(locale: en_US, delegates: [DefaultMaterialLocalizations.delegate(en_US), DefaultCupertinoLocalizations.delegate(en_US), DefaultWidgetsLocalizations.delegate(en_US)], state: _LocalizationsState#04464)
+                                                   └Semantics(container: false, properties: SemanticsProperties, textDirection: ltr, renderObject: RenderSemanticsAnnotations#7a384)
+                                                    └_LocalizationsScope-[GlobalKey#1f81c]
+                                                     └Directionality(textDirection: ltr)
+                                                      └Title(state: _TitleState#714a1(title: "Nothingness", color: Color(alpha: 1.0000, red: 0.4039, green: 0.3137, blue: 0.6431, colorSpace: ColorSpace.sRGB)))
+                                                       └Focus(dependencies: [_FocusInheritedScope], state: _FocusState#f1961)
+                                                        └_FocusInheritedScope
+                                                         └Semantics(container: false, properties: SemanticsProperties, renderObject: RenderSemanticsAnnotations#680e7)
+                                                          └ValueListenableBuilder<bool>(state: _ValueListenableBuilderState<bool>#b332d)
+                                                           └DefaultTextStyle(debugLabel: fallback style; consider putting your text in a Material, inherit: true, color: Color(alpha: 0.8157, red: 1.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB), family: monospace, size: 48.0, weight: 900, decoration: double Color(alpha: 1.0000, red: 1.0000, green: 1.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB) TextDecoration.underline, softWrap: wrapping at box width, overflow: clip)
+                                                            └Builder(dependencies: [MediaQuery])
+                                                             └AnimatedTheme(duration: 200ms, state: _AnimatedThemeState#348d0(ticker inactive, ThemeDataTween(ThemeData#27b12 → ThemeData#8deef)))
+                                                              └Theme(ThemeData#8deef, dependencies: [MediaQuery])
+                                                               └_InheritedTheme
+                                                                └CupertinoTheme(brightness: light, primaryColor: Color(alpha: 1.0000, red: 0.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB), scaffoldBackgroundColor: Color(alpha: 1.0000, red: 1.0000, green: 1.0000, blue: 1.0000, colorSpace: ColorSpace.sRGB), actionTextStyle: TextStyle(inherit: false, color: Color(alpha: 1.0000, red: 0.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB), family: CupertinoSystemText, size: 17.0, letterSpacing: -0.4, decoration: TextDecoration.none), actionSmallTextStyle: TextStyle(inherit: false, color: Color(alpha: 1.0000, red: 0.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB), family: CupertinoSystemText, size: 15.0, letterSpacing: -0.2, decoration: TextDecoration.none), navActionTextStyle: TextStyle(inherit: false, color: Color(alpha: 1.0000, red: 0.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB), family: CupertinoSystemText, size: 17.0, letterSpacing: -0.4, decoration: TextDecoration.none))
+                                                                 └InheritedCupertinoTheme
+                                                                  └IconTheme(color: Color(alpha: 1.0000, red: 0.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB))
+                                                                   └IconTheme(color: Color(alpha: 0.8667, red: 0.0000, green: 0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB))
+                                                                    └DefaultSelectionStyle
+                                                                     └ScaffoldMessenger(dependencies: [MediaQuery], state: ScaffoldMessengerState#722ae)
+                                                                      └_ScaffoldMessengerScope
+                                                                       └DefaultSelectionStyle
+                                                                        └Builder
+                                                                         └ValueListenableBuilder<Size?>(state: _ValueListenableBuilderState<Size?>#93d38)
+                                                                          └PhoneFrame
+                                                                           └ValueListenableBuilder<bool>(dependencies: [_ViewScope], state: _ValueListenableBuilderState<bool>#0fbdb)
+                                                                            └RepaintBoundary-[GlobalKey#4cfea screenshotBoundary](renderObject: RenderRepaintBoundary#1b3eb)
+                                                                             └FocusScope(debugLabel: "Navigator Scope", AUTOFOCUS, dependencies: [_FocusInheritedScope], state: _FocusScopeState#60f81)
+                                                                              └Semantics(container: false, properties: SemanticsProperties, renderObject: RenderSemanticsAnnotations#61a79)
+... (1936 more lines)

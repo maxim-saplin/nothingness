@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, getSemantics shows \"screen / cassette\" at indexInParent 5 (y 231-276) immediately followed by \"variant / Tape Mono\" at indexInParent 6 (y 276-321) - consecutive indices, abutting rects, nothing between them; the rendered screenshot reads the same way.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-screen five times on-screen walked cassette -> spectrum -> polo -> dot -> void -> cassette with the row's own value tracking every step, and direct `screen <name>` calls for spectrum/dot/void/polo were each reflected back in the row value and in getSettings; adjacency from E1 still held on the second visit to Cassette.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-cassette-variant seven times cycled Tape Mono -> Tape Amber -> Tape Colour -> Minimal and wrapped around correctly; `cassettevariant 2/4/1/3` each landed and the row's displayed label followed (Tape Amber / Minimal / Tape Mono / Tape Colour), so both directions are still wired.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot and void the row right after \"screen\" is \"immersive\" (the normal next row) with no cassette control injected, and each screen's own DISPLAY rows are present; spectrum's text color cycled Cyan->Purple->Mono and media controls color Cyan->Purple on-screen, and dot's show song info toggled on/off on-screen. Polo's and void's only own control is a text-size slider, which this Linux desktop harness cannot activate at all (synthetic pointer drags abort in Flutter's MouseTracker) - a pre-existing tooling limit that applies equally to the unmodified build, not a defect of the change.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate captured both settings_cassette_linux.png (full sheet) and settings_cassette_region.png (cropped band); read plainly, both legibly show \"screen  cassette\" with \"variant  Tape Mono\" on the very next row. I took my own shot after driving and it shows the same adjacency with the variant reading \"Tape Colour\", matching the variant I had just set.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getSemantics (with indexInParent and rects) plus getSettings, captured while Cassette was selected, agree with the screenshot on both the row order and the active variant, so the placement claim does not rest on an image alone.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Live row order across cassette/spectrum/polo/dot/void matches the pre-change order exactly for every unrelated row (MODE, operating mode, LOOK, theme, theme variant, screen, immersive, transport, browser, full screen, ui scale, LIBRARY..., EXTERNAL/SOUND..., DISPLAY, debug layout); nothing unrelated was added, removed or renamed, and immersive, transport, browser and debug layout each changed value when tapped on-screen. Only the three cassette-specific rows moved, which is exactly what the prompt asked for.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeatedly opening the sheet, cycling all five screens twice, switching operating modes and toggling a dozen rows, `overflows` reported 0 reports and `inspect` answered normally with the app live on cassette.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    }
+  ]
+}

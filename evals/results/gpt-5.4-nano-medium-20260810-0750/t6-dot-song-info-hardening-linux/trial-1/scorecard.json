@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After `drive.py clearpref *` + hot restart the Dot hero shows the pulsing dot alone: probeText for both `hero-artist` and `hero-song` returns 'no widget found', and the captured screenshot shows no overlay.",
+      "evidence_ref": "verification-d0d54cbf0c0a42449f62865deef7821b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping the real settings row `void-settings-dot-show-song-info` turned the overlay on; after a hot restart (no re-toggle) `hero-artist` probes back as rendered text and the screenshot shows the overlay, so the preference genuinely persists.",
+      "evidence_ref": "verification-771b369620894577bd2882559fb786cf"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Toggling the same row back off and restarting leaves the overlay gone: `hero-artist` probes as 'no widget found' both before and after the restart, and the screenshot shows the bare dot.",
+      "evidence_ref": "verification-ff2129f45d5a44beb99b204d3454bbdf"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own reproduction at 100% with a 65-char artist and 68-char title (played through the library browser so both fields resolve): artist wraps to 2 lines with an ellipsis, song to 2 lines with an ellipsis, all glyphs whole and inside the hero, and the dot sits entirely below the text with a clear gap - no pixel of the overlay touches the dot.",
+      "evidence_ref": "verification-5aa0497580e34a148bfd548e1724166f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Same track at 150% (settings row itself reads 'text size 150%'; probeText confirms 45.0px artist / 22.5px song): four ellipsized lines still fully inside the hero and the dot still entirely below them with a visible gap. Reverting dot_hero.dart to the pinned baseline and hot-reloading reproduced the original defect - the dot swallowing the middle of the text - so this is a real fix.",
+      "evidence_ref": "verification-161a0d77c5a84df291f59ed1902c47a1"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "The candidate's `dot_text_normal_fixed.png` is a genuine 100% capture of the live app (its event stream shows a real `drive.py shoot`) and it agrees with my clean reproduction, but the track it used resolves to an EMPTY artist and one long title, so it renders a single heading and never exercises the two-heading artist+song case the rubric asks for and its own reserved-space formula was written against.",
+      "evidence_ref": "verification-5aa0497580e34a148bfd548e1724166f"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "`dot_text_max_fixed.png` is likewise a real 150% capture that agrees with my clean reproduction, but with the same empty-artist metadata; it also shows the overlay text visually colliding with the top-right idle hint, which the write-up does not mention. My own 150% reproduction with a genuinely long artist and title is clean.",
+      "evidence_ref": "verification-161a0d77c5a84df291f59ed1902c47a1"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "probeText at both scales returns the full 65-char artist and 68-char title with non-zero font sizes (30.0/15.0 at 100%, 45.0/22.5 at 150%), independently corroborating the screenshots. The candidate itself ran no structural read - this corroboration is mine.",
+      "evidence_ref": "verification-cd8a888fe6014cc88949c37bccdec8ff"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "'Aha' / 'Take On Me' renders cleanly at both 100% and 150% - one artist line, one song line, no clipping, no dot overlap. Against the pinned baseline the same short-metadata case at 150% was itself broken (the dot covered the text), so the fix introduces no regression for ordinary metadata; it only leaves more whitespace above the dot.",
+      "evidence_ref": "verification-0dbc70eabbf54b0f8b502b7ab3bbb9e1"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Three rounds of toggling the option off/on and switching between the long- and short-metadata tracks left `drive.py overflows` at zero reports, and the runtime answers normally at the end. One app crash did occur, but only on a hot restart performed while audio was playing ('Callback invoked after it has been deleted' inside libflutter_linux_gtk) - a native hot-restart interaction unrelated to a pure Flutter layout change; pausing first made the same sequence clean.",
+      "evidence_ref": "verification-c774024e512e4d5887d6d59b52fe72e7"
+    }
+  ]
+}

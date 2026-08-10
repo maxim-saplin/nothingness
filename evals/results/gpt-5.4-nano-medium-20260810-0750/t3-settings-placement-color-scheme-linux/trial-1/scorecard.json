@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen=cassette the semantics sheet shows 'screen | cassette' at indexInParent 5 (y 231-276) immediately followed by 'color scheme | Tape - Mono' at indexInParent 6 (y 276-321); consecutive index, abutting y-ranges, no header or gap between them.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The row's label line reads exactly 'color scheme' (lowercase, matching the sheet's register) and exactly one such row exists anywhere on the sheet; the only remaining 'variant' row is the pre-existing theme variant (value 'system', key void-settings-variant), not a leftover cassette row.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Six on-screen taps of void-settings-screen walked the full cycle spectrum -> polo -> dot -> void -> cassette -> spectrum with the row's own displayed value and ext.nothingness.getSettings.screenType agreeing at every step; the E1 adjacency reappeared intact on the return visit to cassette.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Four on-screen taps of the 'color scheme' row advanced its value Tape-Mono -> Tape-Amber -> Tape-Colour -> Minimal -> Tape-Mono (full wrap), and separate direct calls drive.py cassettevariant 2/3/1 were each reflected back in the same row's displayed value.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot and void the row after 'screen' is 'immersive' and zero 'color scheme' rows exist anywhere on the sheet; spectrum's text color and media controls color and dot's show song info all changed value on on-screen tap. Polo's and void's only screen-specific control is a text-size slider, which cannot be activated on Linux desktop (synthetic drags abort in Flutter MouseTracker) in this build or the unmodified one - a limit on checking, not an observed defect.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate captured /workspace/.tmp/agent_shots/cassette_settings.png this session: full settings sheet, 'screen  cassette' with 'color scheme  Tape - Mono' legibly on the next line. Its own final message instead linked a cropped derivative that slices the color scheme row mid-glyph, but the compliant full-frame shot is in the deliverables and my independent capture reproduces it.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "ext.nothingness.getSemantics (row order, exact label text, current value) and ext.nothingness.getSettings (screenType=cassette) were captured alongside the screenshot in the same verification observation and agree with it on all three points.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Full-sheet semantics dumps for cassette vs a non-cassette screen (own mode, and again in background mode) differ only by the inserted 'color scheme' row - every unrelated row keeps its relative order and no row was added, removed or renamed; immersive, transport, browser, theme variant, smart folders and cassette haptics each changed value on on-screen tap. The 'theme' row not changing is pre-existing: ThemeId has a single value.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getOverflowReports returned count 0 both before and after ~30 sheet opens, screen switches, variant cycles and row taps, and drive.py inspect answered normally at the end with the app still live.",
+      "evidence_ref": "verification-f4b28c0935a94f75aff9640626ea5266"
+    }
+  ]
+}

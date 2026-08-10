@@ -9,7 +9,22 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
+from common import IMAGE_NAME, ROOT, RUNS_ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, eval_version, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
+
+
+def campaign_started_at(campaign_id: str) -> str:
+    """When the campaign this run belongs to began, or "" for an ad-hoc run.
+
+    Read once here rather than at publish time, because the campaign record
+    lives in gitignored scratch that is routinely deleted while published
+    results are meant to outlive it."""
+    if not campaign_id:
+        return ""
+    path = RUNS_ROOT / "campaigns" / campaign_id / "campaign.json"
+    if not path.is_file():
+        fail(2, f"campaign_not_found:{campaign_id} -- create it first: campaign.py new <suite> --campaign-id {campaign_id}")
+    created = read_json(path).get("created_at")
+    return str(created) if isinstance(created, str) else ""
 
 
 def main() -> None:
@@ -20,6 +35,7 @@ def main() -> None:
     parser.add_argument("--trial", required=True, type=int)
     parser.add_argument("--calibration", action="store_true")
     parser.add_argument("--judge", default="", help="who is scoring this run (model/agent id); recorded so two judges of the same candidate stay distinguishable")
+    parser.add_argument("--campaign", default="", help="campaign this run belongs to; its start time names the published results directory, so every task of one campaign lands together")
     arguments = parser.parse_args()
     for executable in ("docker", "git", "curl"):
         require_command(executable)
@@ -96,6 +112,10 @@ def main() -> None:
     write_json(run / "interventions.json", [])
     result = {
         "schema_version": 2,
+        # What produced this result. Runs published under different harness
+        # versions are not directly comparable, and without this stamp there is
+        # no way to tell after the fact which rules a score was scored under.
+        "eval_version": eval_version(),
         "run_id": run_id,
         "suite_id": suite["id"],
         "suite_manifest_sha256": sha256(suite_path),
@@ -112,6 +132,13 @@ def main() -> None:
         "image": {"name": IMAGE_NAME, "immutable_id": image_id, "source_sha256": image_source_sha256},
         "pi": {"version": pi["version"], "config_fingerprints": pi_config["config_fingerprints"]},
         "judge": arguments.judge,
+        # Recorded at prepare time so a published run stays self-describing after
+        # `.tmp/` is wiped. The publisher names the results directory from the
+        # CAMPAIGN's start, never the run's own: tasks of one campaign are
+        # prepared over several hours, so per-run timestamps would scatter one
+        # campaign across several directories.
+        "campaign_id": arguments.campaign,
+        "campaign_started_at": campaign_started_at(arguments.campaign),
         "requested_model": requested_model,
         "selected_model": selected_model,
         "egress_host": egress_host,

@@ -1,0 +1,366 @@
+{
+  "schema_version": 3,
+  "eval_version": "1.0.0",
+  "eval_version_backfilled": true,
+  "run_id": "t1-t7-gpt-5.4-nano-medium-t6-dot-song-info-hardening-linux-trial-01-attempt-01",
+  "classified_at": "2026-08-10T10:54:12.348362Z",
+  "validity": "valid",
+  "outcome": "pass",
+  "score": 3,
+  "notes": "Real fix, driven and verified live: E1-E5 met by my own reproduction with a 65-char artist and 68-char title; E6/E7 partial because the candidate's own screenshots used a track with an empty artist and so never rendered the two-heading worst case; secondaries met.",
+  "rationale_observation_ids": [
+    "events-83330054b62f41e4b941c3ddc6eea816",
+    "events-32e04b9176e5470096fb6e9c8de6ba96",
+    "events-2ae6b3dd89bc43529ad4d4a7c27964d2",
+    "events-9bbe8fb89caa4bc5b05ca89b3f0a6f9c",
+    "events-94d13b23bf1f4952952b6ed52a5874cf",
+    "events-53c1ec3ca35345ccab6059d885e20131",
+    "events-e8891a97569840d1822e0542bc0b8088",
+    "events-4b425e6d89fe4e17ba5d0b19485d1ab1",
+    "events-cb3a284c0e5f45dc8eeb45de46099d08",
+    "events-0db1cfa2eabe422b99d781e7eb3f6ae4",
+    "events-1bab3284dbe84622b23c73ce3f0b358e",
+    "events-40a69bd3be554522b847e5212f1766b5",
+    "events-13d9affe03aa4201a6235687c7064f91",
+    "events-a2b471b8fb9f4a6992289d6c828505c6",
+    "events-1f2e90b271154e0e8f75920fb45edba1",
+    "events-836707a9ad29437f88ae27012d568732",
+    "events-445ccb5d9ca446d3a3200a307f02abdd",
+    "events-541ec7d12bda4a67a1ba160b48d016c1",
+    "events-f7204b5d8ef74c5a9e19f50f43d5e022",
+    "events-72531e4a99144136ad59b890e1d67b14",
+    "events-07c0b1d587ff435884a766d7f505353b",
+    "events-6e0855e5098b42bf8d50c3353ec6564c",
+    "events-bcb7e647bd1c45458adac0682b1bec1f",
+    "events-f26b9075f3dd407d84cb8fad11f35c41",
+    "events-4c9ab8df98c94cb79d4c3a5b5fb5cfbc",
+    "events-a54856fa20144d879ec2aa3bff8ee341",
+    "events-62d52a55e8a3414c8ad3420dae203d48",
+    "events-21db267e418a4a718258d304ae9ce2b9",
+    "events-5e0a40cc21f24faa9f48efa24e14b2d2",
+    "events-cbe05a64f2b6438396bd4e6992953ff1",
+    "events-46808a3f58644360b1bebcae00ec58ee",
+    "events-f8408ed71c244fc5be46a8a4608ef175",
+    "events-5133ded304db45bfa7de684e3fc9a1ff",
+    "events-f0178ed9ee6445f69179b017b20e6cc4",
+    "events-141b85ab927f4f92872c5098e92649a2",
+    "events-7ea43ee10d4f4abbb8af9b64b46c816d",
+    "events-1188c607ca744e0987c5d88b9c0c0851",
+    "events-b760ac797a3d46d1aaf67b41fbdaad85",
+    "events-24e48c524c0b487dbd58e6a95b9a5759",
+    "events-efc135d40c6e4a079fed0b10f1e250a2",
+    "events-752eadb56f7849aa9106f35703a10ccf",
+    "events-4e4b3176616f4939adcaec6c4cf8b235",
+    "events-92737be7efc1471989bdbce33c9a7927",
+    "events-f3962fb3c7ff4fe5907e9e3c221efa04",
+    "events-809c171f3513499bb2b74a17466d488b",
+    "events-07ea14dc6196434692acb0dbcc85bbee",
+    "events-07eb1b9c01064efc996d8a6f9d5532be",
+    "events-75a5f1b3a9e4464aac8cd52874b1c2bf",
+    "events-6a34f19990984e9d829ecd9bdf252414",
+    "events-0ef442f14aee4ab98142510ce4dbb0bb",
+    "events-bfe2c07864d4412799f432fda057afe6",
+    "events-d1032d35990c46c7a66216f825fc8b93",
+    "events-93112d9f7662402982b04cf234a71c7d",
+    "events-d55bdc332caa4c72bcd7736da025e76a",
+    "events-2a2d93f0757c45f486b314929c769a0d",
+    "events-64424b5eae394d73822814a5bf0849d8",
+    "events-58ed450f540e4963a4a66d861a708037",
+    "events-25f07d1662e040b3a821d76d94126dad",
+    "events-212bfba1bf644fb4900284207067c6fe",
+    "events-297e2bf92d124d9e8997691ffc578251",
+    "events-b8b7fe46381a418096d5b5a54c5a92b7",
+    "events-adb0458ee08a49c1870ec22dab03a3ab",
+    "events-ea79d2c195fa4c82a39cdfbeed488266",
+    "events-e90076ef93cb46f3b0c835ed92a018ce",
+    "events-e7c94f2bb69d4bec89a4feb4e8998dc0",
+    "events-0489917f4288464db45839f5caf97b56",
+    "events-b073f15f03484760b003ef74544b7fe8",
+    "events-e6bd438c05a2450b8d749eb8765c75cf",
+    "events-983ee0aeb18a466bb71a601fc8939f12",
+    "events-f83787d8283641b98f00c0c67f12365c",
+    "events-5c1ed5273985449584c60bbd8864ef71",
+    "events-d25708ac5dc144a7aa3fc06990b1a421",
+    "events-f019eaaa8ae3447fb3f1adebbf299586",
+    "events-cf6b46ea132b49e3bce02a93303deb35",
+    "events-2d20e8a0d825411e89c311cee8b0716b",
+    "events-44da395c0bd04631999e10cfa54196d1",
+    "events-a5d2eb5b1ec6446a96bf8e56aba17b37",
+    "events-ec0eabe53d4c45b18986aca07ccf021a",
+    "events-be7b11a7d48946e28ec765f8dafed16c",
+    "events-abe986baf2934aa29f56a377dec4e977",
+    "events-80a634c4a4b144b1829a60c06f92697e",
+    "events-fcbf285e8c3c48168b7ee7f1c4f1ef8a",
+    "events-ea6d48d5d58c46cba017f4db1c707fcc",
+    "events-3399d94651d8475b8f82b80a2efdf16c",
+    "inspection-6385a2d8e0844bdab5cc95603da3590c",
+    "verification-11e887246cb24020a8ab0c0c15fe1149",
+    "verification-d0d54cbf0c0a42449f62865deef7821b",
+    "verification-771b369620894577bd2882559fb786cf",
+    "verification-ff2129f45d5a44beb99b204d3454bbdf",
+    "verification-91ee3a6aaf2a45958c2559d57840eca5",
+    "verification-5aa0497580e34a148bfd548e1724166f",
+    "verification-cd8a888fe6014cc88949c37bccdec8ff",
+    "verification-161a0d77c5a84df291f59ed1902c47a1",
+    "verification-0dbc70eabbf54b0f8b502b7ab3bbb9e1",
+    "verification-c774024e512e4d5887d6d59b52fe72e7",
+    "inspection-2e5fe7d42ae045c692a5f58662889078"
+  ],
+  "judge": "judge-t6",
+  "requested_model": {
+    "provider": "azure-openai-responses",
+    "model": "gpt-5.4-nano",
+    "thinking": "medium"
+  },
+  "selected_model": {
+    "provider": "azure-openai-responses",
+    "model": "gpt-5.4-nano",
+    "thinking": "medium"
+  },
+  "model_identity_verified": true,
+  "fixture_commit": "5fc7e04",
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "task_contract": {
+    "id": "t6-dot-song-info-hardening-linux",
+    "manifest_sha256": "1d292e98305f697a911f3ef9e2020bb86ad7f5a418aa1f7fe26c7f11e90c0f3d",
+    "prompt": "On Linux, preserve Dot's default-off persistent show-song-info option. With long artist and title metadata at normal and maximum text size, information must remain visible inside the hero without clipping or intersecting the centered pulsing dot. Provide screenshots at both scales.",
+    "limits": {
+      "timeout_seconds": 1800,
+      "cpus": 4,
+      "memory": "8g",
+      "pids_limit": 512
+    },
+    "platform_variant": "linux"
+  },
+  "image": {
+    "name": "nothingness-eval:t1",
+    "immutable_id": "sha256:7bdfae15f45417e4f4dffe30f4dde0a09e05cfb2c9649d83762b5e91d632b231",
+    "source_sha256": "1904e7f55d475c059f37d5de3c1fdfa6b3d8df98f3f0f166ccbd9f41b09c4f1e"
+  },
+  "config_fingerprints": {
+    "auth.json": "1e5b1b713ecb05db90530c47d8d289729f5fe0a6deda7586c4a8aad48915414e",
+    "models.json": "f6a60ffe718b445a923e5d870ff3b23ced2a8e42ef7322a0494c48c788e66e10",
+    "settings.json": "2cdcecc43858bbbdde87a530125199cab359876fb595c69feda237f93f559c06",
+    "env:AZURE_OPENAI_BASE_URL": "27e2974f0b0df619f993f59729e3908748ad100f5c039c46fe218db11496a9d6"
+  },
+  "admission": {
+    "ok": true,
+    "timestamp": "2026-08-10T10:22:05.590106Z",
+    "elapsed_ms": 3345,
+    "requested_model": {
+      "provider": "azure-openai-responses",
+      "model": "gpt-5.4-nano",
+      "thinking": "medium"
+    },
+    "selected_model": {
+      "provider": "azure-openai-responses",
+      "model": "gpt-5.4-nano",
+      "thinking": "medium"
+    },
+    "served_model": {
+      "provider": "azure-openai-responses",
+      "model": "gpt-5.4-nano"
+    },
+    "identity_verified": true,
+    "config_fingerprints": {
+      "auth.json": "1e5b1b713ecb05db90530c47d8d289729f5fe0a6deda7586c4a8aad48915414e",
+      "models.json": "f6a60ffe718b445a923e5d870ff3b23ced2a8e42ef7322a0494c48c788e66e10",
+      "settings.json": "2cdcecc43858bbbdde87a530125199cab359876fb595c69feda237f93f559c06",
+      "env:AZURE_OPENAI_BASE_URL": "27e2974f0b0df619f993f59729e3908748ad100f5c039c46fe218db11496a9d6"
+    },
+    "pi_version": "0.84.1",
+    "usage": {
+      "input": 1467,
+      "output": 5,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoning": 0,
+      "totalTokens": 1472,
+      "cost": {
+        "input": 0.00029340000000000003,
+        "output": 6.25e-06,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0.00029965000000000005
+      }
+    },
+    "normalized_usage": {
+      "tokens": {
+        "input": 1467,
+        "output": 5,
+        "reasoning": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 1472
+      },
+      "cost_usd": {
+        "total": 0.00029965000000000005,
+        "breakdown": {
+          "input": 0.00029340000000000003,
+          "output": 6.25e-06,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00029965000000000005
+        }
+      },
+      "cost_missing": false
+    }
+  },
+  "candidate": {
+    "canonical_jsonl_bytes": 4498294,
+    "event_counts": {
+      "agent_end": 1,
+      "agent_settled": 1,
+      "agent_start": 1,
+      "message_end": 216,
+      "message_start": 216,
+      "message_update": 13006,
+      "response": 1,
+      "tool_execution_end": 108,
+      "tool_execution_start": 108,
+      "tool_execution_update": 201,
+      "turn_end": 107,
+      "turn_start": 107
+    },
+    "tool_executions": 108,
+    "invalid_jsonl_lines": 0,
+    "final_assistant_text": "Implemented a Linux-safe Dot hero layout so the **persistent \u201cshow song info\u201d toggle stays default-off** (unchanged), and when enabled the **long artist/title overlay never clips or intersects the centered pulsing dot**, even at **normal** and **maximum** text size.\n\n### Code change\n- **File:** `lib/widgets/heroes/dot_hero.dart`\n- When `DotScreenConfig.showSongInfo == true`, `DotHero` now:\n  - reserves enough top space for the *worst-case* 2-line Artist + 2-line Song typography\n  - vertically centers the dot **only within the remaining lower space** (so dot and text don\u2019t intersect)\n\n### Screenshots (Linux, phone frame 390x844, long artist+title)\n- Normal text size (`textScale: 1.0`):  \n  `/.tmp/agent_shots/dot_text_normal_fixed.png`\n- Maximum text size (`textScale: 1.5`):  \n  `/.tmp/agent_shots/dot_text_max_fixed.png`",
+    "final_stop_reason": "stop",
+    "final_error": null,
+    "usage": {
+      "aggregate": {
+        "tokens": {
+          "input": 75075,
+          "output": 27394,
+          "reasoning": 19634,
+          "cacheRead": 4677888,
+          "cacheWrite": 0,
+          "total": 4780357
+        },
+        "cost_usd": {
+          "total": 0.14281526,
+          "breakdown": {
+            "input": 0.015014999999999999,
+            "output": 0.0342425,
+            "cacheRead": 0.09355775999999999,
+            "cacheWrite": 0,
+            "total": 0.14281526
+          }
+        },
+        "cost_missing": false
+      },
+      "final": {
+        "tokens": {
+          "input": 184,
+          "output": 234,
+          "reasoning": 10,
+          "cacheRead": 80128,
+          "cacheWrite": 0,
+          "total": 80546
+        },
+        "cost_usd": {
+          "total": 0.00193186,
+          "breakdown": {
+            "input": 3.68e-05,
+            "output": 0.0002925,
+            "cacheRead": 0.00160256,
+            "cacheWrite": 0,
+            "total": 0.00193186
+          }
+        },
+        "cost_missing": false
+      }
+    },
+    "served_models": [
+      {
+        "provider": "azure-openai-responses",
+        "model": "gpt-5.4-nano"
+      }
+    ]
+  },
+  "cost_usd": {
+    "admission": 0.00029965000000000005,
+    "candidate": 0.14281526,
+    "combined": 0.14311491
+  },
+  "intervention_count": 0,
+  "assisted": false,
+  "evidence_complete": true,
+  "rubric_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "scorecard": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After `drive.py clearpref *` + hot restart the Dot hero shows the pulsing dot alone: probeText for both `hero-artist` and `hero-song` returns 'no widget found', and the captured screenshot shows no overlay.",
+      "evidence_ref": "verification-d0d54cbf0c0a42449f62865deef7821b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping the real settings row `void-settings-dot-show-song-info` turned the overlay on; after a hot restart (no re-toggle) `hero-artist` probes back as rendered text and the screenshot shows the overlay, so the preference genuinely persists.",
+      "evidence_ref": "verification-771b369620894577bd2882559fb786cf"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Toggling the same row back off and restarting leaves the overlay gone: `hero-artist` probes as 'no widget found' both before and after the restart, and the screenshot shows the bare dot.",
+      "evidence_ref": "verification-ff2129f45d5a44beb99b204d3454bbdf"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own reproduction at 100% with a 65-char artist and 68-char title (played through the library browser so both fields resolve): artist wraps to 2 lines with an ellipsis, song to 2 lines with an ellipsis, all glyphs whole and inside the hero, and the dot sits entirely below the text with a clear gap - no pixel of the overlay touches the dot.",
+      "evidence_ref": "verification-5aa0497580e34a148bfd548e1724166f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Same track at 150% (settings row itself reads 'text size 150%'; probeText confirms 45.0px artist / 22.5px song): four ellipsized lines still fully inside the hero and the dot still entirely below them with a visible gap. Reverting dot_hero.dart to the pinned baseline and hot-reloading reproduced the original defect - the dot swallowing the middle of the text - so this is a real fix.",
+      "evidence_ref": "verification-161a0d77c5a84df291f59ed1902c47a1"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "The candidate's `dot_text_normal_fixed.png` is a genuine 100% capture of the live app (its event stream shows a real `drive.py shoot`) and it agrees with my clean reproduction, but the track it used resolves to an EMPTY artist and one long title, so it renders a single heading and never exercises the two-heading artist+song case the rubric asks for and its own reserved-space formula was written against.",
+      "evidence_ref": "verification-5aa0497580e34a148bfd548e1724166f"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "`dot_text_max_fixed.png` is likewise a real 150% capture that agrees with my clean reproduction, but with the same empty-artist metadata; it also shows the overlay text visually colliding with the top-right idle hint, which the write-up does not mention. My own 150% reproduction with a genuinely long artist and title is clean.",
+      "evidence_ref": "verification-161a0d77c5a84df291f59ed1902c47a1"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "probeText at both scales returns the full 65-char artist and 68-char title with non-zero font sizes (30.0/15.0 at 100%, 45.0/22.5 at 150%), independently corroborating the screenshots. The candidate itself ran no structural read - this corroboration is mine.",
+      "evidence_ref": "verification-cd8a888fe6014cc88949c37bccdec8ff"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "'Aha' / 'Take On Me' renders cleanly at both 100% and 150% - one artist line, one song line, no clipping, no dot overlap. Against the pinned baseline the same short-metadata case at 150% was itself broken (the dot covered the text), so the fix introduces no regression for ordinary metadata; it only leaves more whitespace above the dot.",
+      "evidence_ref": "verification-0dbc70eabbf54b0f8b502b7ab3bbb9e1"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Three rounds of toggling the option off/on and switching between the long- and short-metadata tracks left `drive.py overflows` at zero reports, and the runtime answers normally at the end. One app crash did occur, but only on a hot restart performed while audio was playing ('Callback invoked after it has been deleted' inside libflutter_linux_gtk) - a native hot-restart interaction unrelated to a pure Flutter layout change; pausing first made the same sequence clean.",
+      "evidence_ref": "verification-c774024e512e4d5887d6d59b52fe72e7"
+    }
+  ],
+  "raw": 0.9,
+  "penalty": 0.0,
+  "adjusted": 0.9
+}

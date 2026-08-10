@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Browsing /opt/nothingness while 07-undercover-44.opus played from /opt/nothingness/media, the pre-existing crumb glyph was present (semantics isButton, label 'jump to now-playing folder'); tapping void-crumb-jump-to-playing moved getLibraryState currentPath to /opt/nothingness/media with the playing row '44' rendered at y 4.0-45.0 inside the 0-255.8 viewport. Caveat: the change also gates this pre-existing glyph on songInfo.isPlaying, so pausing a loaded track now removes it (verified live) - recorded against E9.",
+      "evidence_ref": "verification-0fbb0b7e992848f983e3e84a2c234871"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Reached via the rubric's folder re-entry route it works fully: playing '44', re-entering /opt/nothingness/media left row '44' unrendered, the new action was exposed (label 'show now-playing track in browser'), and activating it kept currentPath at /opt/nothingness/media while scrolling the list 0.0 -> 203.2 so row '44' landed at y 4.0-45.0. But the affordance is absent on the ordinary route: with '54' playing in its own folder and the row pushed off-screen by real X11 wheel input, the crumb carried no button and the whole semantics tree contained zero 'now-playing' strings, because the Selector that computes isTrackVisible only rebuilds on playback/folder changes, never on scroll.",
+      "evidence_ref": "verification-84c246c69cc74952b8a49e6302d87eda"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Following the rubric's own drive - scroll the playing row fully into the visible list area, then read the tree - row '44' sat at y 4.0-45.0 (full 41px height, neither edge clipped by the 0-255.8 viewport) and an active tappable action was still exposed: 'actions: longPress, tap', label 'show now-playing track in browser'. Same stale exposure follows the action's own scroll. The conditional is implemented and does hide correctly when the crumb happens to rebuild on navigation, but it is not re-evaluated on scroll, so the visibility gate is wrong in both directions.",
+      "evidence_ref": "verification-6de7a9f7ecda404e9d4f131919417690"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After a cold relaunch with wiped app state, inspect reported songInfo None / isPlaying false / queue 0; browsing both /opt/nothingness/media and /opt/nothingness produced a crumb with only a longPress and no button, and the full semantics tree contained zero occurrences of 'now-playing'.",
+      "evidence_ref": "verification-170ef5ea914845baa3729d1fdf2bb7be"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "getSemantics returned a live accessibility tree (not the generic unavailable response) in which the active affordance carries flags isButton, actions longPress+tap and the distinguishing label 'show now-playing track in browser' - a real semantic identity, not a bare glyph. It is merged into the crumb node, matching the pre-existing 'jump to now-playing folder' glyph's own convention.",
+      "evidence_ref": "verification-84c246c69cc74952b8a49e6302d87eda"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No screenshot of the app was ever taken. The submitted docs/screenshots/void_screen_before.png is a 900x300 Pillow drawing the model generated with an inline python3 heredoc (session sequence 8936) - invented folder '~/lib/Indie', invented rows 'Track 0'..'Track 6', a hand-drawn caption 'now-playing row offscreen'. The session contains zero 'flutter run' and zero drive.py invocations, so no before-state of the real browser exists. My own live capture of the correct pre-activation state is cited for contrast.",
+      "evidence_ref": "verification-84c246c69cc74952b8a49e6302d87eda"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "void_screen_after.png is the same fabricated Pillow mockup with a blue 'show row' button pasted on. Its row list is byte-for-byte the same 'Track 0'..'Track 6' as the before image, so it does not even depict the playing row being brought into view - the one thing the after screenshot exists to show. Not a capture of the app in any state.",
+      "evidence_ref": "verification-0fbb0b7e992848f983e3e84a2c234871"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up asserts 'Activating it keeps the browser in the same folder and scrolls the row into view' and captions both images with observed states, but the session has no supporting observation of any kind: judge-query over all 12148 events returns 0 matches for 'drive.py' and 0 for 'flutter run'. The only execution evidence is flutter analyze and two widget tests, both of which assert the action is ABSENT; nothing in the session ever observed it present, activated, or scrolling anything.",
+      "evidence_ref": "events-96011fcf8389443fbecf19ec0cddac49"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Baseline browsing is intact: on-screen taps of void-folder:/opt/nothingness/media, void-up and a track row all navigated/started playback as expected per getLibraryState, and next/prev/pause/resume all transitioned correctly (idx 7->8->7, isPlaying false->true). The regression is elsewhere: the new !songInfo.isPlaying early-return also governs the pre-existing cross-folder glyph, so pausing a still-loaded track now strips 'jump to now-playing folder' from the crumb (verified live: node #9 dropped from 'longPress, tap' + label to 'longPress' + bare path). That is a side effect of this change on baseline behavior.",
+      "evidence_ref": "verification-981963f9a0c7454aad53e0e7dc8ebf5d"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getOverflowReports returned count 0 before and after exercising E1-E4, including three repeated navigate-and-activate cycles across both affordances; the app stayed responsive and inspect answered normally at the end (screen spectrum, playback live).",
+      "evidence_ref": "verification-981963f9a0c7454aad53e0e7dc8ebf5d"
+    }
+  ]
+}

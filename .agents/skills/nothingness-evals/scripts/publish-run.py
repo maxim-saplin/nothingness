@@ -38,23 +38,31 @@ PLAIN_FILES = ("result.json", "run.json", "interventions.json", "judge-observati
 GZIP_THRESHOLD_BYTES = 256 * 1024
 
 
-def run_slug(result: dict, prepared_at: str) -> str:
-    """`<model>-<thinking>-<YYYYMMDD>` — what a human navigating the tree
+def run_slug(result: dict, started_at: str) -> str:
+    """`<model>-<thinking>-<YYYYMMDD>-<HHMM>` — what a human navigating the tree
     actually looks for.
 
-    A run is a run: the same model re-run tomorrow, or judged by someone else,
-    is a separate result and must land beside the old one rather than on top of
-    it. Keying on model and thinking alone made the second run collide with the
-    first and demand `--force` to overwrite committed results. The date comes
-    from the run's own `prepared_at`, so the folder name is a fact about the run
-    rather than about when someone got around to publishing it."""
+    A run is a run: the same model run again is a separate result that must land
+    beside the old one, never on top of it. Model and thinking alone made the
+    second run collide with the first. Adding the date fixed that across days
+    but not within one — and three runs in a day is the normal way to look at
+    variability by hand. Same-day repeats either failed to publish or, when
+    scratch had been cleared and the run id repeated exactly, silently
+    overwrote the earlier run's results.
+
+    The time is the CAMPAIGN's start, not the run's own: a seven-task campaign
+    prepares its tasks over several hours, so per-run timestamps would scatter
+    one campaign across seven directories. It falls back to the run's own
+    `prepared_at` for an ad-hoc run outside any campaign."""
     model = result.get("selected_model") or result.get("requested_model") or {}
     name = str(model.get("model") or "unknown-model")
     thinking = str(model.get("thinking") or "").strip()
     if thinking and thinking != "off":
         name = f"{name}-{thinking}"
-    day = str(prepared_at)[:10].replace("-", "") or "unknown-date"
-    return f"{name}-{day}".replace("/", "-").replace(" ", "-")
+    stamp = str(started_at)
+    day = stamp[:10].replace("-", "") or "unknown-date"
+    minute = stamp[11:16].replace(":", "")
+    return f"{name}-{day}{f'-{minute}' if minute else ''}".replace("/", "-").replace(" ", "-")
 
 
 def copy_file(source: Path, destination: Path) -> dict:
@@ -91,6 +99,19 @@ def occupant_run_id(destination: Path) -> str | None:
     return None
 
 
+def occupant_campaign_id(destination: Path) -> str:
+    """Which campaign owns it. Run ids repeat verbatim when scratch is cleared
+    between campaigns, so the run id alone cannot tell a refresh from a
+    different run about to overwrite an earlier one."""
+    manifest = destination / "manifest.json"
+    if manifest.is_file():
+        try:
+            return str(read_json(manifest).get("campaign_id") or "")
+        except Exception:
+            return ""
+    return ""
+
+
 def publish(run_id: str, scorecard: Path | None, force: bool) -> dict:
     run = run_dir(run_id)
     result_path = run / "result.json"
@@ -99,13 +120,20 @@ def publish(run_id: str, scorecard: Path | None, force: bool) -> dict:
     result = read_json(result_path)
     metadata = read_json(run / "run.json") if (run / "run.json").is_file() else {}
     trial = metadata.get("trial", 1)
-    destination = RESULTS_ROOT / run_slug(result, str(metadata.get("prepared_at") or "")) / str(result.get("task_id") or "unknown-task") / f"trial-{trial}"
-    # Dated slots make same-run republishing the only way two runs collide, so a
-    # collision is a refresh rather than the data loss `--force` used to guard.
+    started_at = str(metadata.get("campaign_started_at") or metadata.get("prepared_at") or "")
+    destination = RESULTS_ROOT / run_slug(result, started_at) / str(result.get("task_id") or "unknown-task") / f"trial-{trial}"
+    # Timestamped slots make same-run republishing the only way two runs collide,
+    # so a collision is a refresh rather than the data loss `--force` used to
+    # guard. The occupant check still stands: a run id can repeat exactly when
+    # scratch is cleared between campaigns, and without this an unrelated run
+    # would take the slot silently.
     if destination.exists():
         occupant = occupant_run_id(destination)
-        if occupant is not None and occupant != run_id and not force:
-            fail(2, f"results_slot_occupied_by:{occupant}")
+        occupant_campaign = occupant_campaign_id(destination)
+        campaign = str(metadata.get("campaign_id") or "")
+        foreign = occupant is not None and (occupant != run_id or (campaign and occupant_campaign and occupant_campaign != campaign))
+        if foreign and not force:
+            fail(2, f"results_slot_occupied_by:{occupant}{f' (campaign {occupant_campaign})' if occupant_campaign else ''} -- publish this run under its own campaign, or pass --force to replace what is there")
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
 

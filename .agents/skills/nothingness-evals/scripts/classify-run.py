@@ -434,6 +434,10 @@ def main() -> None:
     validate_classification(arguments.validity, outcome, score)
     result = {
         "schema_version": 3,
+        # Carried from `run.json` rather than re-read from the working tree: the
+        # version that scored a run is the one it was prepared under, even if the
+        # harness moved on mid-campaign.
+        "eval_version": metadata.get("eval_version") or None,
         "run_id": arguments.run_id,
         "classified_at": utc_now(),
         "validity": arguments.validity,

@@ -1,0 +1,300 @@
+{
+  "schema_version": 3,
+  "eval_version": "1.0.0",
+  "eval_version_backfilled": true,
+  "run_id": "t1-t7-gpt-5.4-nano-medium-t2-settings-placement-linux-trial-01-attempt-01",
+  "classified_at": "2026-08-10T08:18:59.451405Z",
+  "validity": "valid",
+  "outcome": "pass",
+  "score": 3,
+  "notes": "Placement, both halves of the preserved behavior, scoping to Cassette and the required screenshot all settled by driving the live Linux build myself: semantics show screen(5)/variant(6) adjacent with abutting rects, on-screen taps cycle both controls fully, non-cassette screens are untouched, and no overflows appeared.",
+  "rationale_observation_ids": [
+    "events-7cb16409d7aa40f0a3b28829273f1c80",
+    "events-b88f72a87b2b43c292ada0374efed7f2",
+    "events-889fbe3775f34c5b83e51378d2f89317",
+    "events-a2f54d7bf8734e43bf3417246161de8d",
+    "events-804bd23f0d3244279f61ef1568662498",
+    "events-ea87aaceb4b744b78f812666626847df",
+    "events-f31181025d794de1abc6cfe06fc974c8",
+    "events-f2f0aa24bfe24192b1ea90758635c216",
+    "events-24b61c04c5214839afe208823c7b6fb7",
+    "events-02a20e2f0cf249e791e2e34ed6c0a7f3",
+    "events-e113a273e8db4409b77431b32b4b6e62",
+    "events-2b320d5781b84570a321c1f9fcee78b8",
+    "events-383a6bacf7ca41bcb4b909f1b4e6c9b3",
+    "events-13c68bb4b4d84008a935cd3bfb60408a",
+    "events-3547b5385a6e4c0f966f5409928cf222",
+    "events-d251987c47f24e0ca94681a84857e4d7",
+    "events-1561f65061334c1ea814d1315ba56a09",
+    "events-1b85218eb3394711b160183514833c96",
+    "events-4be85759aabf4eae80eb7cd97106a927",
+    "events-7fca05fde59e4206bcfaef1af30b35a7",
+    "events-532625ab3ac84610aaa76a4a88c22731",
+    "events-22ca7df683bc47fc8730cb4f5f95de5f",
+    "events-002b02e8d0104fcd919a8b4fee5bde39",
+    "events-4e33329a7c2a4434b15b6b7a21eab774",
+    "events-4d0d566a5093459a89a85a2063833371",
+    "events-9abaa2f74e8246c7aa6cdb422ba4de46",
+    "events-0f85442b1bf94518a1a019a52fe94abe",
+    "events-c35e41a242ff4487b26f4a1624d03ee4",
+    "events-96a0d955c0f64b11b933eef50f5e20e2",
+    "events-d14d311385874aa7900bcd0200cb6cdf",
+    "events-b42f066cedeb417db919250990173ef1",
+    "events-9d71d091e9c94a199da93941d91e7d81",
+    "events-6bb564a390ea4f43984bc3703158fd0e",
+    "events-87bec13c7944486bab00e8d3fe3c0db0",
+    "events-ab54af84d7344f09a8c973f1b10894ba",
+    "events-65fdb387ff5347b8a163bb259bb88f8a",
+    "events-c5771ca3d6b14a9a91bea66174616df8",
+    "events-cc93ffb34bdf4c928aad5a367fe3d959",
+    "events-fb2fc9d6a2ed4a73938b0300956502cc",
+    "events-e37ddd02b6f141feab087995991b5c1f",
+    "events-923c0c05d4f04b2f9d9411bf12cc9c49",
+    "inspection-629031f20dd642fba3d066d78a0178e8",
+    "verification-07d24bb2d2e74d50ba5b570008fa7e33",
+    "verification-5494bda66b15493e8065fcf94176de54"
+  ],
+  "judge": "judge-t2",
+  "requested_model": {
+    "provider": "azure-openai-responses",
+    "model": "gpt-5.4-nano",
+    "thinking": "medium"
+  },
+  "selected_model": {
+    "provider": "azure-openai-responses",
+    "model": "gpt-5.4-nano",
+    "thinking": "medium"
+  },
+  "model_identity_verified": true,
+  "fixture_commit": "5fc7e04",
+  "task_id": "t2-settings-placement-linux",
+  "task_contract": {
+    "id": "t2-settings-placement-linux",
+    "manifest_sha256": "83ac920737f2f994732ca483e56af621e87d514a8c44e2da24ea918e952af134",
+    "prompt": "On Linux, update Settings so that, when the selected screen is Cassette, its cassette variant controls appear immediately below the screen setting. Preserve the existing behavior of the controls. Provide a screenshot showing the relevant Settings region with Cassette selected.",
+    "limits": {
+      "timeout_seconds": 1800,
+      "cpus": 4,
+      "memory": "8g",
+      "pids_limit": 512
+    },
+    "platform_variant": "linux"
+  },
+  "image": {
+    "name": "nothingness-eval:t1",
+    "immutable_id": "sha256:7bdfae15f45417e4f4dffe30f4dde0a09e05cfb2c9649d83762b5e91d632b231",
+    "source_sha256": "1904e7f55d475c059f37d5de3c1fdfa6b3d8df98f3f0f166ccbd9f41b09c4f1e"
+  },
+  "config_fingerprints": {
+    "auth.json": "1e5b1b713ecb05db90530c47d8d289729f5fe0a6deda7586c4a8aad48915414e",
+    "models.json": "f6a60ffe718b445a923e5d870ff3b23ced2a8e42ef7322a0494c48c788e66e10",
+    "settings.json": "2cdcecc43858bbbdde87a530125199cab359876fb595c69feda237f93f559c06",
+    "env:AZURE_OPENAI_BASE_URL": "27e2974f0b0df619f993f59729e3908748ad100f5c039c46fe218db11496a9d6"
+  },
+  "admission": {
+    "ok": true,
+    "timestamp": "2026-08-10T08:01:29.274719Z",
+    "elapsed_ms": 2957,
+    "requested_model": {
+      "provider": "azure-openai-responses",
+      "model": "gpt-5.4-nano",
+      "thinking": "medium"
+    },
+    "selected_model": {
+      "provider": "azure-openai-responses",
+      "model": "gpt-5.4-nano",
+      "thinking": "medium"
+    },
+    "served_model": {
+      "provider": "azure-openai-responses",
+      "model": "gpt-5.4-nano"
+    },
+    "identity_verified": true,
+    "config_fingerprints": {
+      "auth.json": "1e5b1b713ecb05db90530c47d8d289729f5fe0a6deda7586c4a8aad48915414e",
+      "models.json": "f6a60ffe718b445a923e5d870ff3b23ced2a8e42ef7322a0494c48c788e66e10",
+      "settings.json": "2cdcecc43858bbbdde87a530125199cab359876fb595c69feda237f93f559c06",
+      "env:AZURE_OPENAI_BASE_URL": "27e2974f0b0df619f993f59729e3908748ad100f5c039c46fe218db11496a9d6"
+    },
+    "pi_version": "0.84.1",
+    "usage": {
+      "input": 1467,
+      "output": 5,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoning": 0,
+      "totalTokens": 1472,
+      "cost": {
+        "input": 0.00029340000000000003,
+        "output": 6.25e-06,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0.00029965000000000005
+      }
+    },
+    "normalized_usage": {
+      "tokens": {
+        "input": 1467,
+        "output": 5,
+        "reasoning": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 1472
+      },
+      "cost_usd": {
+        "total": 0.00029965000000000005,
+        "breakdown": {
+          "input": 0.00029340000000000003,
+          "output": 6.25e-06,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00029965000000000005
+        }
+      },
+      "cost_missing": false
+    }
+  },
+  "candidate": {
+    "canonical_jsonl_bytes": 1791752,
+    "event_counts": {
+      "agent_end": 1,
+      "agent_settled": 1,
+      "agent_start": 1,
+      "message_end": 90,
+      "message_start": 90,
+      "message_update": 5620,
+      "response": 1,
+      "tool_execution_end": 44,
+      "tool_execution_start": 44,
+      "tool_execution_update": 72,
+      "turn_end": 45,
+      "turn_start": 45
+    },
+    "tool_executions": 44,
+    "invalid_jsonl_lines": 0,
+    "final_assistant_text": "Implemented the Linux-only layout tweak in:\n\n- **`lib/widgets/void_settings_sheet.dart`**\n  - When **Platform.isLinux** and the active screen config is **`CassetteScreenConfig`**, the cassette controls returned by `displayRows(cfg)` are inserted **immediately after** the **`screen`** row in the LOOK group.\n  - The same cassette controls are **skipped** later in the **DISPLAY** group to avoid duplication.\n  - Control behavior is preserved because the exact existing specs (`_Cycle` variant, cassette text size, haptics) are reused\u2014only their placement changes.\n\n### Screenshot (Cassette selected)\nCropped to the relevant Settings region:\n\n![Cassette settings region](/workspace/.tmp/agent_shots/settings_cassette_region.png)",
+    "final_stop_reason": "stop",
+    "final_error": null,
+    "usage": {
+      "aggregate": {
+        "tokens": {
+          "input": 69565,
+          "output": 10217,
+          "reasoning": 7076,
+          "cacheRead": 965120,
+          "cacheWrite": 0,
+          "total": 1044902
+        },
+        "cost_usd": {
+          "total": 0.045986650000000004,
+          "breakdown": {
+            "input": 0.013912999999999997,
+            "output": 0.012771250000000001,
+            "cacheRead": 0.019302399999999997,
+            "cacheWrite": 0,
+            "total": 0.045986650000000004
+          }
+        },
+        "cost_missing": false
+      },
+      "final": {
+        "tokens": {
+          "input": 301,
+          "output": 336,
+          "reasoning": 168,
+          "cacheRead": 35328,
+          "cacheWrite": 0,
+          "total": 35965
+        },
+        "cost_usd": {
+          "total": 0.00118676,
+          "breakdown": {
+            "input": 6.0200000000000006e-05,
+            "output": 0.00042,
+            "cacheRead": 0.0007065600000000001,
+            "cacheWrite": 0,
+            "total": 0.00118676
+          }
+        },
+        "cost_missing": false
+      }
+    },
+    "served_models": [
+      {
+        "provider": "azure-openai-responses",
+        "model": "gpt-5.4-nano"
+      }
+    ]
+  },
+  "cost_usd": {
+    "admission": 0.00029965000000000005,
+    "candidate": 0.045986650000000004,
+    "combined": 0.0462863
+  },
+  "intervention_count": 0,
+  "assisted": false,
+  "evidence_complete": true,
+  "rubric_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "scorecard": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, getSemantics shows \"screen / cassette\" at indexInParent 5 (y 231-276) immediately followed by \"variant / Tape Mono\" at indexInParent 6 (y 276-321) - consecutive indices, abutting rects, nothing between them; the rendered screenshot reads the same way.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-screen five times on-screen walked cassette -> spectrum -> polo -> dot -> void -> cassette with the row's own value tracking every step, and direct `screen <name>` calls for spectrum/dot/void/polo were each reflected back in the row value and in getSettings; adjacency from E1 still held on the second visit to Cassette.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-cassette-variant seven times cycled Tape Mono -> Tape Amber -> Tape Colour -> Minimal and wrapped around correctly; `cassettevariant 2/4/1/3` each landed and the row's displayed label followed (Tape Amber / Minimal / Tape Mono / Tape Colour), so both directions are still wired.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot and void the row right after \"screen\" is \"immersive\" (the normal next row) with no cassette control injected, and each screen's own DISPLAY rows are present; spectrum's text color cycled Cyan->Purple->Mono and media controls color Cyan->Purple on-screen, and dot's show song info toggled on/off on-screen. Polo's and void's only own control is a text-size slider, which this Linux desktop harness cannot activate at all (synthetic pointer drags abort in Flutter's MouseTracker) - a pre-existing tooling limit that applies equally to the unmodified build, not a defect of the change.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate captured both settings_cassette_linux.png (full sheet) and settings_cassette_region.png (cropped band); read plainly, both legibly show \"screen  cassette\" with \"variant  Tape Mono\" on the very next row. I took my own shot after driving and it shows the same adjacency with the variant reading \"Tape Colour\", matching the variant I had just set.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getSemantics (with indexInParent and rects) plus getSettings, captured while Cassette was selected, agree with the screenshot on both the row order and the active variant, so the placement claim does not rest on an image alone.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Live row order across cassette/spectrum/polo/dot/void matches the pre-change order exactly for every unrelated row (MODE, operating mode, LOOK, theme, theme variant, screen, immersive, transport, browser, full screen, ui scale, LIBRARY..., EXTERNAL/SOUND..., DISPLAY, debug layout); nothing unrelated was added, removed or renamed, and immersive, transport, browser and debug layout each changed value when tapped on-screen. Only the three cassette-specific rows moved, which is exactly what the prompt asked for.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeatedly opening the sheet, cycling all five screens twice, switching operating modes and toggling a dozen rows, `overflows` reported 0 reports and `inspect` answered normally with the app live on cassette.",
+      "evidence_ref": "verification-5494bda66b15493e8065fcf94176de54"
+    }
+  ],
+  "raw": 1.0,
+  "penalty": 0.0,
+  "adjusted": 1.0
+}

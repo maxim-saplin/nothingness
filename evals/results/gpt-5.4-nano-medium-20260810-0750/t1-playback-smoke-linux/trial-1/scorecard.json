@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "97ecd5f68c04f58824e8d2f38456e44e9202bb845d600975f95af06c78883917",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The app was never launched or driven: all 14 bash calls were read-only exploration (ls/grep/find/sed), zero drive.py or flutter invocations, and the post-run container process snapshot holds only Xvfb/openbox/x11vnc/websockify/pulseaudio/adb with no Dart VM service to attach to.",
+      "evidence_ref": "verification-334d106b58fb4bcb81be7118ffb5f2ca"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No play, pause or resume call was ever issued and no inspect snapshot exists, so no playing-state transition was observed; the post-run runtime capture reports no live app in the container.",
+      "evidence_ref": "verification-334d106b58fb4bcb81be7118ffb5f2ca"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No queue was ever loaded and no next/prev call was issued, so no track index or path change was observed; the runtime lens is unavailable because the app never ran.",
+      "evidence_ref": "verification-334d106b58fb4bcb81be7118ffb5f2ca"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No seek was issued and no position was ever read, so no fast-forward was observed; the candidate only wrote a `seek 00:00:01` line into an unexecuted replay script.",
+      "evidence_ref": "verification-334d106b58fb4bcb81be7118ffb5f2ca"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report makes no behavioral claim about the app at all — it only describes the file it wrote and explicitly warns that the WAV paths still need editing — so there is no unbacked assertion of a transition that never happened.",
+      "evidence_ref": "events-96bb16415bed4a46a95a6f11be4898a5"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The tracked-file diff is empty (candidate.diff is 0 bytes); the only workspace change is one new untracked, unwired replay script at tool/regression/playback_smoke_linux.txt, which alters no app runtime behavior or setting.",
+      "evidence_ref": "inspection-5fade25968ce4b1dadd2ce15828d1275"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate hit a real dead end — the fixture tones it grepped for under .tmp/ did not exist and it never found the mounted fixtures — and instead of recovering by launching the app and using the real media, it handed back a script with placeholder paths for someone else to fix; no runtime trail exists to check against because no session was ever started.",
+      "evidence_ref": "verification-334d106b58fb4bcb81be7118ffb5f2ca"
+    }
+  ]
+}

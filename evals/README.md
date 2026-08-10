@@ -1,21 +1,66 @@
 # Nothingness Evaluator
 
-This is a benchmark for coding agents. A candidate agent gets a real feature
-request against Nothingness — this ~15k-LOC Flutter media controller app —
-and works it in an isolated Linux container. A judge agent then decides
-whether the app actually does the thing, by driving it and looking at it.
-Operational steps are in
-[the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md).
+A benchmark for coding agents. A candidate agent gets a real feature request against
+Nothingness — this ~15k-LOC Flutter media controller app — and works it in an isolated Linux
+container with no network beyond its model provider. A judge agent then decides whether the
+app actually does the thing, **by driving it and looking at it**, not by reading the
+candidate's write-up.
 
-Status: the harness (container, proxy, judge tooling) has completed one full
-seven-task campaign — see "Current Results" below. Only one model has been
-run end to end so far; nothing here should be read as a broad comparison.
+## Results
+
+<!-- BEGIN GENERATED LEADERBOARD -->
+| Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Attempts per task | Score | Tokens (in/out) | Cost | $/point | Report |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | Opus 5 High | $50.56 | 1 | **11/18** | 742k / 167k | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |
+
+`Cost` and `$/point` are the model under test. `Orchestrator/Judge cost` is what it cost to *conduct* the run — agent sessions outside the measured containers, so the harness cannot see it. Record it per run with `leaderboard.py --set <run-dir> "<who>" <cost>`; everything else is read from the run artifacts. Regenerate with `leaderboard.py --write`; do not hand-edit between the markers.
+<!-- END GENERATED LEADERBOARD -->
+
+One row per run, generated from the published `result.json` files. A model re-run tomorrow, or
+judged by someone else, is a separate row — nothing overwrites. Every number in it, and in each
+linked report, is read from run artifacts; none is typed by hand. **Do not summarise scores
+here** — a hand-written recap of the last campaign sat in this file for weeks quoting three
+task scores and a total cost that no longer matched anything on disk.
+
+The `Eval` column is the harness version each run was produced under, from
+[CHANGELOG.md](CHANGELOG.md) — bump it there whenever a change could move a score or change
+what a number means. **Results under different versions are not directly comparable.** Every
+run since versioning existed is stamped at prepare time; the first campaign predates it and
+carries a backfilled `1.0.0`, flagged as such in its own `result.json`.
+
+Only one model has been run end to end so far. Nothing here supports a broad comparison yet.
+
+## How a campaign runs
+
+The user names a model; nothing else is asked of them.
+
+1. **Host check, then two zero-credential gates.** `check-host.py` verifies the host in one
+   pass. `verify-offline-baseline.py` proves the image builds the app offline against a clean
+   fixture; `verify-runtime-baseline.py` launches the real Linux app and proves play, pause,
+   skip, seek, spectrum, screenshot and zero overflows. Both record what they proved against
+   the image id, fixture commit and their own code, so an unchanged image re-verifies in about
+   a second instead of ten minutes.
+2. **A campaign is created**, and the user gets a dashboard command (`watch-eval.py`) before
+   the first task starts.
+3. **`campaign.py next` drives the loop.** It returns the next task with no scored run, plus
+   the full brief for it. A task counts as done only when it has a `result.json`, so an attempt
+   that died before scoring is offered again and an interrupted campaign resumes exactly.
+4. **One judge owns each trial, end to end** — it starts the trial, watches it live, scores it
+   against the rubric, writes its own account, publishes, and tears down its container. It
+   works in a git worktree with `evals/results/` deleted, so it can write a result without
+   being able to read anyone else's.
+5. **The manager supervises and aggregates.** It stands each judge up and steps in only when
+   one is blocked. It never scores. `finalize` merges the judges' published runs, regenerates
+   each report from the judge's own notes, and rebuilds the table above.
+
+Operational detail is in [the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md)
+and [the judge skill](../.agents/skills/nothingness-eval-judge/SKILL.md).
 
 ## Setup
 
 The harness needs, on the host (not in the candidate container):
 
-- `docker` (daemon running), `git`, `tar`, `uv`, `pi` on `PATH`. Pi's install
+- `docker` (daemon running), `git`, `tar`, `uv`, `ffmpeg`, `pi` on `PATH`. Pi's install
   method doesn't matter — npm global, pnpm, bun, or a bundled artifact all
   work; set `PI_ARTIFACT` if none is found automatically.
 - `~/.pi/agent/auth.json`, `models.json`, and `settings.json` all present,
@@ -45,78 +90,10 @@ over stdin to a short-lived bootstrap process at launch. noVNC, used to
 observe the running app, is published from the candidate on `127.0.0.1`
 only, never exposed beyond the host.
 
-## The deterministic/agentic split
-
-The agent orchestrates; scripts are its hands; the dashboard is a dumb
-renderer. Nothing that requires judgment is scripted, and nothing
-deterministic is left to agent narration.
-
-| Deterministic CLI (no judgment) | Agent (no scripts) |
-| --- | --- |
-| Build/verify image; offline + runtime baselines | Read the pi event stream, understand what's happening |
-| Fixture export, container/network/proxy, app-data reset | Drive the app, look at it, decide if the feature works |
-| Launch candidate with the frozen prompt | Decide whether to intervene, which class, what to say |
-| Stream events; dump runtime/git/process state | Decide valid vs. infrastructure-invalid |
-| Deliver an intervention **and record it verbatim** | Assign outcome and score; write the rationale |
-| Capture screenshots/semantics on demand | Decide a run is terminal vs. merely stuck |
-| Store the agent's decision, schema-validated | Decide whether to retry a task or move on |
-| Cleanup + prove absence; token/cost accounting | Decide the campaign is done |
-| Write campaign progress; render dashboard; render report | |
-
-**Honesty rule:** progress is a side effect of deterministic calls, never
-agent narration. The one exception is a `current_activity` string the judge
-sets explicitly, because "the judge is thinking" is real information only it
-has.
-
-## Guiding principles
-
-These exist to prevent a specific failure this repo already had: hundreds of
-lines of scoring machinery built and "frozen" against runs that never
-happened.
-
-1. **A run that never ran is worth nothing.** Nothing is "frozen" or
-   "release-ready" until a real scored run exercised it. The unit of done is
-   a `result.json` with real cost on it.
-2. **The judge has eyes, not schemas.** Verification means an agent driving
-   the actual app and looking at it. If a judge can't tell whether it worked
-   by using the app, the *task* is badly written — fix the task, don't add
-   an assertion.
-3. **Measure behavior, never implementation.** A check that fails a
-   correct-but-different implementation is broken. The
-   `settings_contract_oracle.py:65` hardcoding
-   `key: "void-settings-cassette-variant"` is the anti-pattern in one line
-   (see below; the oracle layer has since been deleted).
-4. **Tasks are real asks in the user's voice.** Terse, like you'd actually
-   type. Ambiguous where real life is ambiguous — coping with that is part
-   of what's measured.
-5. **Assisted is a result, not a rescue.** Interventions allowed, classed,
-   recorded. An assisted pass is never reported as unassisted.
-6. **Smallest thing that produces a number.** Add machinery only after a
-   real run proves it's needed.
-
-## Why oracles were rejected
-
-An earlier design tried to make scoring deterministic with frozen JSON
-"oracle" contracts and Python that replayed a candidate's recorded actions
-against them — around 416 lines across three oracle scripts. It never
-worked as a verification system: the oracles consumed an evidence schema no
-collection code emitted, were invoked by nothing in the run pipeline, and
-were unit-tested only against handwritten fixtures standing in for real
-runs. One of them, `settings_contract_oracle.py:65`, hardcoded a check for
-`action == {"type": "tap_by_key", "key": "void-settings-cassette-variant", ...}`.
-That check passes only if the candidate happens to name a specific widget
-key. A candidate that builds the identical user-visible feature with a
-different key, a different widget tree, or a different settings-page layout
-fails it. That is the anti-pattern this benchmark exists to avoid: an oracle
-measures *how* a candidate implemented something, never *whether* the
-feature works.
-
-The replacement has no oracle layer. Verification means a judge agent
-driving the running app — tapping, seeking, taking a screenshot, reading the
-semantics tree — and forming a verdict against a prose expectation. If that
-verdict can be disputed, the fix is a better-written expectation or a better
-observation, never a script that inspects the diff or replays a recorded
-action.
+Neither side can look up the answer. The fixture commit carries no rubrics,
+suites, published results or evaluator skill — a gate asserts this, so the
+candidate cannot read the rubric it is graded against. The judge's worktree
+carries the rubrics but no results, so it cannot anchor on another run's score.
 
 ## Scoring rubric
 
@@ -177,72 +154,69 @@ Documented, un-patched limitations of this model live in
 [`references/scoring.md`](../.agents/skills/nothingness-evals/references/scoring.md)
 § Known limitations.
 
-## Gate results — T1, both models, 2026-07-31
+## The deterministic/agentic split
 
-| Model | Score | Outcome | `adjusted` | Assisted | Cost | Tool calls |
-| --- | --- | --- | --- | --- | --- | --- |
-| `gpt-5.4-nano` | 2 | `partial` | 0.7857 | no | $0.0524 | 61 |
-| `gpt-5.4-mini` | 2 | `partial` | 0.7857 | no | $0.1831 | 42 |
+The agent orchestrates; scripts are its hands; the dashboard is a dumb
+renderer. Nothing that requires judgment is scripted, and nothing
+deterministic is left to agent narration.
 
-Both failed the same `required` skip expectation identically. The judge
-proved skip works in both containers, which isolates the failure to
-candidate diligence, not the environment. T1 currently has a low ceiling —
-no model has passed it yet.
-
-## Lessons from the first live run
-
-A throwaway live trial surfaced four defects that three rounds of
-adversarial QA had missed entirely, because each only exists once a real
-container and a real candidate are involved:
-
-| Defect | One-line summary |
+| Deterministic CLI (no judgment) | Agent (no scripts) |
 | --- | --- |
-| Stale image | Container ran old candidate code and reported the resulting failure as a provider/admission problem, not a build bug. |
-| `judge-verify.py` blind to a non-default log path | `flutter run` logging somewhere other than the assumed default left every capture reporting "unavailable" while the app was alive and drivable. |
-| `judge-inspect.py` — same defect | Made a scored run unclassifiable outright, since a cited inspection with `runtime: true` is required. |
-| T4 rubric cited uncitable evidence | Required expectations told the judge to use "the candidate's own screenshot", but the pipeline only ever produces fresh judge-captured evidence — there is no such artifact to cite. |
+| Build/verify image; offline + runtime baselines | Read the pi event stream, understand what's happening |
+| Fixture export, container/network/proxy, app-data reset | Drive the app, look at it, decide if the feature works |
+| Launch candidate with the frozen prompt | Decide whether to intervene, which class, what to say |
+| Stream events; dump runtime/git/process state | Decide valid vs. infrastructure-invalid |
+| Deliver an intervention **and record it verbatim** | Assign outcome and score; write the rationale |
+| Capture screenshots/semantics on demand | Decide a run is terminal vs. merely stuck |
+| Store the agent's decision, schema-validated | Decide whether to retry a failed attempt |
+| Track which tasks still have no scored run | |
+| Cleanup + prove absence; token/cost accounting | |
+| Write campaign progress; render dashboard; render report | |
 
-**Lesson:** run a throwaway live trial before any scored campaign starts.
-Adversarial review of scoring logic finds real defects, but every defect
-that would have stopped a campaign came from running the thing once — it is
-the cheapest QA available.
+**Honesty rule:** progress is a side effect of deterministic calls, never
+agent narration. The one exception is a `current_activity` string the judge
+sets explicitly, because "the judge is thinking" is real information only it
+has.
 
-## Operator flow
+## Guiding principles
 
-The user names a model for a session. The judge agent runs the task suite in
-sequence against that model, driving each trial through preparation,
-candidate work, verification, and decision. A compact CLI dashboard
-(`watch-eval.py`) shows live progress — model, task, elapsed time, tokens,
-cost, latest activity — for the user to observe without interfering. Output
-is a consolidated report per model once real scored results exist.
+These exist to prevent a specific failure this repo already had: hundreds of
+lines of scoring machinery built and "frozen" against runs that never
+happened.
+
+1. **A run that never ran is worth nothing.** Nothing is "frozen" or
+   "release-ready" until a real scored run exercised it. The unit of done is
+   a `result.json` with real cost on it.
+2. **The judge has eyes, not schemas.** Verification means an agent driving
+   the actual app and looking at it. If a judge can't tell whether it worked
+   by using the app, the *task* is badly written — fix the task, don't add
+   an assertion.
+3. **Measure behavior, never implementation.** A check that fails a
+   correct-but-different implementation is broken. The now-deleted oracle
+   layer hardcoding `key: "void-settings-cassette-variant"` was the
+   anti-pattern in one line.
+4. **Tasks are real asks in the user's voice.** Terse, like you'd actually
+   type. Ambiguous where real life is ambiguous — coping with that is part
+   of what's measured.
+5. **Assisted is a result, not a rescue.** Interventions allowed, classed,
+   recorded. An assisted pass is never reported as unassisted.
+6. **Smallest thing that produces a number.** Add machinery only after a
+   real run proves it's needed.
 
 ## Where things live
 
-Working artifacts for an in-progress run live under `.tmp/evals/<run-id>/`.
-Consolidated, reviewed results belong in [results/](results/), one directory
-per model. Superseded material — the oracle-based design, prior campaign
-attempts, the macOS field test this benchmark's bands are aligned to — is in
+Working artifacts for an in-progress run live under `.tmp/evals/<run-id>/`
+and are gitignored. Published results live in [results/](results/), one
+directory per run, named `<model>-<thinking>-<YYYYMMDD>-<HHMM>` from the
+campaign's start time, so the tree is navigable without opening anything and
+three runs of one model in a day sit side by side instead of overwriting each
+other. Each holds the per-run report plus, per task, the verdict, scorecard,
+judge notes, candidate diff and cited evidence.
+
+The harness version lives in [CHANGELOG.md](CHANGELOG.md) and nowhere else —
+its topmost `## <x.y.z>` heading is parsed, stamped into every run at prepare
+time, and shown per run in the index. There is no `VERSION` file to fall out of
+sync, and a bump cannot happen without an entry describing it.
+Superseded material — the oracle-based design, prior campaign attempts, the
+macOS field test this benchmark's bands are aligned to — is in
 [archive/](archive/).
-
-## Current Results
-
-Cross-model comparison, generated from the published `result.json` files by
-`leaderboard.py --write`. Do not hand-edit between the markers — rerun it after
-any campaign, and add each model's own report under `results/<model>/README.md`.
-
-<!-- BEGIN GENERATED LEADERBOARD -->
-_No published results yet._
-<!-- END GENERATED LEADERBOARD -->
-
-### Per-model notes
-
-- [GPT-5.4 Nano, medium reasoning](results/gpt-5.4-nano-medium/README.md):
-  the first full T1-T7 campaign, one trial per task, fully unassisted (zero
-  interventions delivered across all seven runs). Scores: T1 `0` (fail),
-  T2 `3` (pass), T3 `3` (pass), T4 `2` (partial), T5 `2` (partial), T6 `3`
-  (pass), T7 `1` (partial) — total cost $0.6996. The pattern is consistent
-  across the campaign: this model passes code-change tasks (T2, T3, T6) and
-  fails or partials the tasks that require it to actually drive the live
-  app (T1, T7 never launched the app at all; T4 and T5 launched it but each
-  had a required expectation the judge's own live drive falsified). No
-  other model has been run through the full suite yet.

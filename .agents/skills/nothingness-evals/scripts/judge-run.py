@@ -51,6 +51,8 @@ def start(arguments: argparse.Namespace) -> None:
         prepare_arguments.append("--calibration")
     if arguments.judge:
         prepare_arguments.extend(("--judge", arguments.judge))
+    if arguments.campaign:
+        prepare_arguments.extend(("--campaign", arguments.campaign))
     prepared = invoke("prepare-run.py", *prepare_arguments)
     try:
         preflight = invoke("preflight.py", run_id)

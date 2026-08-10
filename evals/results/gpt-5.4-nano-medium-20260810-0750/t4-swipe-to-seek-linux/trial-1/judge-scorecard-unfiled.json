@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "1527845482bad50e9d48220bd11423a6d1669dd65f92e65559d3875386f0f39f",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No during-gesture capture exists anywhere in the candidate's own event trail: every swipe it ran was a single atomic `dragByKey ... kind=touch` call (seq 25216-25224), and its 'during' shot was taken 0.05s after that call returned; the resulting PNG shows the bottom line still reading the folder path '~' with the transport paused, and no tool result in the entire 25,928-event session ever contains a target/duration readout (regex for 'M:SS / M:SS' over all tool outputs: 0 hits).",
+      "evidence_ref": "events-b385e1cf4f55471c9f61eeb7c17d73c0"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Across five of my own real X11 mouse swipes (dx -900..+900 px, both directions, held and fast) plus idle, no centered time readout and no full-height vertical line ever appeared: the release-instant screenshot is clean, `hero-seek-hud` is absent from every depth-200 widget tree I read, the seek HUD is compiled out on Linux (`if (seeking.value && !isLinux)`), and my own held mid-gesture screenshots show only the bottom-line readout with a bare hero.",
+      "evidence_ref": "verification-0f6a1689033a48bf93865df57799d60b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After every swipe the bottom line returned to the pre-swipe folder path: 1.5s and 2s after release, and again 3s later with no further input, the crumb semantics read '~ / jump to now-playing folder / ⊙' exactly as it did before the gesture, with no residual target/duration/progress text.",
+      "evidence_ref": "verification-f48d7421cfc344e4bf47c080f19a1490"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate produced zero during-gesture captures with a legible target value, so there is no second data point to compare — all 21 of its screenshots are byte-identical (md5 641dfd96...), and every swipe it drove used the same atomic `dragByKey dx=180`; it also swapped the supplied 10-track opus fixture for two zero-byte files it created at /tmp/nothingness_seek/, whose duration is 0, so even a working gesture would have shown the '--:-- / --:--' placeholder rather than live values.",
+      "evidence_ref": "events-b385e1cf4f55471c9f61eeb7c17d73c0"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Releasing commits a real seek to the last-shown target: pre-swipe runtime position 69,952 ms, the held mid-gesture bottom line read '3:17 / 7:00 47%' (197,000 ms), and the runtime capture 2s after release read 200,971 ms — the target plus the ~2s of playback since commit, well inside ±2s; two further swipes (-350 px: 2:44 -> shown 0:55 -> measured 57,161 ms; +500 px: 1:12 -> shown 3:49 -> measured 231,064 ms) match in direction and are proportional to swipe magnitude (~312 ms/px in both).",
+      "evidence_ref": "verification-f48d7421cfc344e4bf47c080f19a1490"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The deliverable `seek_linux_during_final.png` is traceable to seq 25216-25224, where it was produced by one atomic `dragByKey` followed by `sleep 0.05; shoot` — no incremental updates, no elapsed time inside a gesture — and it is byte-identical to the post-gesture deliverable taken 0.4s later; opened, it shows a paused transport, a fabricated `track2.mp3`, and the bottom line still on the folder path, so the artifact disproves the claim it was attached to support.",
+      "evidence_ref": "events-b385e1cf4f55471c9f61eeb7c17d73c0"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "My own post-gesture screenshot from this session (2s after release) is correct and on-point — bottom line back to '~' with the ⊙ glyph, no seek readout, no center indicator — but the candidate's submitted post-gesture deliverable is a byte-identical duplicate of its during-gesture screenshot (same md5), which the rubric names as a falsifier, and it depicts a paused fabricated fixture rather than a genuinely later settled capture.",
+      "evidence_ref": "verification-f48d7421cfc344e4bf47c080f19a1490"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same settled moment has structural corroboration independent of the image: the ledger observation's semantics dump reads '~ / jump to now-playing folder / ⊙' and its `inspect` payload shows position 200,971 ms with zero overflow reports, both agreeing with the post-gesture screenshot.",
+      "evidence_ref": "verification-f48d7421cfc344e4bf47c080f19a1490"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Real on-screen clicks on the hero's three tap zones still do their jobs (right third -> next, index 0 to 1; left third -> previous, back to 0; middle -> pause then play), and a real vertical drag up on the same surface still expands the swipe-up browser (collapsed '↑ swipe to browse' before, expanded browser with grabber after, and the hero's recognizer set drops vertical drag once expanded, exactly as the unchanged `acceptVertical` logic dictates).",
+      "evidence_ref": "verification-84bf506ebfa94d72b0478b264fad6bf4"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Two bursts of varied swipes (dx 60-900 px, 3-40 steps, 4-50 ms per step, both directions) left overflow reports at 0 before and after, zero 'EXCEPTION CAUGHT'/'Failed assertion'/'RenderFlex overflowed' lines in the Flutter run log, the bottom line correctly reverted, and the app answered `getPlaybackState` normally at the end.",
+      "evidence_ref": "verification-a01c6b71db8745b1bf8589e7e078521a"
+    }
+  ]
+}

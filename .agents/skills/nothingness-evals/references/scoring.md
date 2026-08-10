@@ -46,11 +46,19 @@ Hard rule: **any unmet `required` expectation caps the score at 2**, regardless 
 
 ## Model identity
 
-`result.json`'s `model_identity_verified` is a real derived fact, not an asserted one, and it is `true` only when two independent pieces of evidence both agree the requested provider/model were actually served: pi's admission probe response (`admission.json["identity_verified"]`, from the `provider`/`model` fields pi's own assistant message carries — confirmed against a real captured transcript) and, separately, the actual candidate session's own transcript (`summary.json["model_identity_verified"]`, derived from every `turn_end` message pi emitted during the real run, via `summarize-run.py`). A mismatch on either is infrastructure-invalid: preflight hard-fails outright on an admission mismatch, and `classify-run.py` refuses to classify a run `valid` if the candidate transcript itself didn't independently confirm it — a session that crashed before completing a single turn is correctly *unverified*, not vacuously verified. This covers `provider` and `model` only. `thinking` is a request-time parameter with no analogous confirmation anywhere in pi's event stream — it is carried through from the request, never independently checked, and is not part of what `identity_verified`/`model_identity_verified` claims. `consolidate.py` treats a `false` value the same as an invalid run: it will not include it in a cohort.
+`result.json`'s `model_identity_verified` is a real derived fact, not an asserted one, and it is `true` only when two independent pieces of evidence both agree the requested provider/model were actually served: pi's admission probe response (`admission.json["identity_verified"]`, from the `provider`/`model` fields pi's own assistant message carries — confirmed against a real captured transcript) and, separately, the actual candidate session's own transcript (`summary.json["model_identity_verified"]`, derived from every `turn_end` message pi emitted during the real run, via `summarize-run.py`). A mismatch on either is infrastructure-invalid: preflight hard-fails outright on an admission mismatch, and `classify-run.py` refuses to classify a run `valid` if the candidate transcript itself didn't independently confirm it — a session that crashed before completing a single turn is correctly *unverified*, not vacuously verified. This covers `provider` and `model` only. `thinking` is a request-time parameter with no analogous confirmation anywhere in pi's event stream — it is carried through from the request, never independently checked, and is not part of what `identity_verified`/`model_identity_verified` claims.
 
-## What consolidate.py does with this
+## Repeated runs are not aggregated
 
-`consolidate.py` accepts exactly three distinct, numbered, non-calibration valid trials with identical frozen task, image, requested and selected model identities, and configuration fingerprints, all on the `result.json` schema version it currently understands (`schema_version: 3` as of this scoring model). It computes `pass_rate`/`partial_rate`/`fail_rate`/`assisted_rate` over the cohort and never migrates an older schema — a result it doesn't recognize is rejected outright rather than silently producing a zero rate over fields that no longer exist.
+A run is one run. There is no automated multi-trial sampling, no pass-rate over a cohort, and no
+variance or confidence interval anywhere — `consolidate.py`, which computed median/range/rates
+across three trials, was deleted rather than left as machinery nothing called.
+
+Variability is real, and the way to see it is to run the same model again: each campaign publishes
+its own dated results directory and its own row in the index, and comparing rows is a human
+judgment call. Three samples of an integer 0–3 band cannot support an interval anyone should quote,
+and conducting a campaign costs far more than the model under test — so sampling is a deliberate
+spend, not something the harness should do on its own.
 
 ## Known limitations
 
