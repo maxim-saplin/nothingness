@@ -20,19 +20,41 @@ import subprocess
 import sys
 import time
 
+from datetime import UTC, datetime
+
 from common import RUNS_ROOT, container_name, emit_json, fail, read_json
 
 CAMPAIGNS_ROOT = RUNS_ROOT / "campaigns"
 STALL_SECONDS = 600.0
+# `start` legitimately spends 2-5 minutes in prepare/preflight before the
+# candidate exists, so this has to clear that without sitting on a real stall.
+PREPARE_STALL_SECONDS = 480.0
 POLL_SECONDS = 30.0
 
 
-def container_is_up(run_id: str) -> bool:
+def container_uptime(run_id: str) -> float | None:
+    """Seconds since this run's container started, or None if it is not running.
+
+    Uptime, not the run directory's mtime: prepare writes files continuously, so
+    the directory never looks old and a stall there was invisible.
+    """
     result = subprocess.run(
-        ["docker", "ps", "--filter", f"name=^{container_name(run_id)}$", "--format", "{{.Names}}"],
+        ["docker", "inspect", "-f", "{{.State.Running}} {{.State.StartedAt}}", container_name(run_id)],
         capture_output=True, text=True, check=False,
     )
-    return bool(result.stdout.strip())
+    parts = result.stdout.split()
+    if result.returncode or len(parts) != 2 or parts[0] != "true":
+        return None
+    started = parts[1].replace("Z", "+00:00")
+    # Docker reports nanoseconds; datetime handles at most microseconds.
+    if "." in started:
+        head, _, tail = started.partition(".")
+        fraction, sign, offset = tail.partition("+")
+        started = f"{head}.{fraction[:6]}{sign}{offset}" if sign else f"{head}.{fraction[:6]}"
+    try:
+        return (datetime.now(UTC) - datetime.fromisoformat(started)).total_seconds()
+    except ValueError:
+        return None
 
 
 def maybe_json(path) -> dict | None:
@@ -84,10 +106,21 @@ def main() -> None:
         unscored = [r for t in pending for r in runs_by_task.get(t, []) if not (RUNS_ROOT / r / "result.json").is_file()]
         live_any = False
         for run in unscored:
-            progress = maybe_json(RUNS_ROOT / run / "artifacts" / "progress.json")
-            if progress is None or not container_is_up(run):
+            uptime = container_uptime(run)
+            if uptime is None:
                 continue
             live_any = True
+            progress = maybe_json(RUNS_ROOT / run / "artifacts" / "progress.json")
+            if progress is None:
+                # No progress.json means the candidate has not been launched yet:
+                # we are inside `start`'s prepare/preflight, which runs 2-5
+                # minutes and is *the* phase where judges lose their turn to a
+                # short Bash timeout. Skipping the run here left the watchdog
+                # blind exactly when it was most needed -- a judge dropped out
+                # mid-prepare and the container sat up for 13 minutes unnoticed.
+                if uptime > PREPARE_STALL_SECONDS:
+                    say(f"{run}:prepare", f"STUCK-IN-START {run}: container up but no candidate launched after {PREPARE_STALL_SECONDS / 60:.0f} min -- judge likely ended its turn inside judge-run.py start; re-attach it")
+                continue
             phase = str(progress.get("phase", "unknown"))
             elapsed = float(progress.get("elapsed_seconds") or 0)
             budget = float(progress.get("timeout_seconds") or 0)
