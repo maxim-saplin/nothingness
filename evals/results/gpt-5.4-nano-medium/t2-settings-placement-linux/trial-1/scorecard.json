@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen=cassette, judge-driven semantics (indexInParent 5 'screen/cassette', rect y231-276) is immediately followed by indexInParent 6 'variant/Tape.Mono' (rect y276-321, abutting, no gap); the screenshot shows the same two rows adjacent and legible. Reconfirmed on a second visit to cassette after cycling through all other screens.",
+      "evidence_ref": "verification-7b828665b92447f3931637e1cfd8b4db"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps on the 'screen' row cycled cassette->spectrum->polo->dot->void->cassette (5/5 steps, full wraparound), each step's displayed value tracking the tap; separately, direct `drive.py screen <name>` calls for polo/dot/cassette were each reflected in the row's own displayed value moments later. Both directions connected.",
+      "evidence_ref": "verification-b9f198666fcf48788d6c8e4fed1b9ece"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen tap on the cassette-variant row advanced Tape.Mono->Tape.Amber via a real descendant-callback (not a synthetic fallback tap); separately, `drive.py cassettevariant 3/4/1` each landed and were reflected in the row's own displayed value (Tape.Colour, Minimal, Tape.Mono) moments later. Both directions connected.",
+      "evidence_ref": "verification-b9f198666fcf48788d6c8e4fed1b9ece"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum/polo/dot/void, the row immediately after 'screen' is always 'immersive' (never a cassette control). Each screen's own settings still work: spectrum/polo's shared SOUND-cluster control (decay speed, bar count) tapped on-screen and changed live; dot's own 'show song info' toggle tapped on-screen and flipped off->on. Void's own text-size slider was located (unlike unreachable further rows) though a raw coordinate tap landed on its existing value, inconclusive rather than falsifying for that one control.",
+      "evidence_ref": "verification-b9f198666fcf48788d6c8e4fed1b9ece"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Judge-captured screenshot (drive.py shoot via judge-verify) with screen=cassette shows the settings sheet, 'screen: cassette' and the very next row 'variant: Tape . Mono' both fully in frame and legible -- not the candidate's own screenshot, an independent judge capture.",
+      "evidence_ref": "verification-7b828665b92447f3931637e1cfd8b4db"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Independent structural dumps corroborate the screenshot on both axes: the judge's own semantics dump shows the same row order/adjacency, and a separate widget-tree read of the sheet's KeyedSubtrees shows the identical key order (...-variant, -screen, -cassette-variant, -cassette-text-size, -cassette-haptics, -immersive...).",
+      "evidence_ref": "verification-7b828665b92447f3931637e1cfd8b4db"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across cassette/spectrum/polo/dot/void semantics reads, the pairwise order of every unrelated row (mode, theme, variant(theme), screen, immersive, transport, browser, full screen, ui scale, library rows) is identical in every screen state; only the cassette cluster is injected/removed. No unrelated row was added, removed, renamed, or reordered, and mode/theme/transport/browser rows retain their own tap-cycle behavior observed across the run.",
+      "evidence_ref": "verification-b9f198666fcf48788d6c8e4fed1b9ece"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "`drive.py overflows` returned zero reports after opening/closing settings and cycling every screen type repeatedly; the judge's own final runtime capture (inspect.json) shows a live, error-free router/library/playback state with screen correctly settled back on cassette.",
+      "evidence_ref": "verification-b9f198666fcf48788d6c8e4fed1b9ece"
+    }
+  ]
+}

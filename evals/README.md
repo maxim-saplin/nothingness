@@ -7,9 +7,9 @@ whether the app actually does the thing, by driving it and looking at it.
 Operational steps are in
 [the evaluator skill](../.agents/skills/nothingness-evals/SKILL.md).
 
-Status: the harness (container, proxy, judge tooling) has been proven by one
-scored trial. No multi-task campaign has been run yet. Nothing here should be
-read as validated or finished — see "Current Results" below.
+Status: the harness (container, proxy, judge tooling) has completed one full
+seven-task campaign — see "Current Results" below. Only one model has been
+run end to end so far; nothing here should be read as a broad comparison.
 
 ## Setup
 
@@ -226,8 +226,13 @@ attempts, the macOS field test this benchmark's bands are aligned to — is in
 
 ## Current Results
 
-- [GPT-5.4 Nano](results/gpt-5.4-nano/README.md): one real, valid trial — T1,
-  candidate failure, score `0` — from a 3-trial reliability cohort that
-  predates this rewrite and is not part of any campaign. It is the one
-  scored run that proved the container/proxy/judge plumbing works, not a
-  campaign result. No seven-task campaign has run for any model yet.
+- [GPT-5.4 Nano, medium reasoning](results/gpt-5.4-nano-medium/README.md):
+  the first full T1-T7 campaign, one trial per task, fully unassisted (zero
+  interventions delivered across all seven runs). Scores: T1 `0` (fail),
+  T2 `3` (pass), T3 `3` (pass), T4 `2` (partial), T5 `2` (partial), T6 `3`
+  (pass), T7 `1` (partial) — total cost $0.6996. The pattern is consistent
+  across the campaign: this model passes code-change tasks (T2, T3, T6) and
+  fails or partials the tasks that require it to actually drive the live
+  app (T1, T7 never launched the app at all; T4 and T5 launched it but each
+  had a required expectation the judge's own live drive falsified). No
+  other model has been run through the full suite yet.

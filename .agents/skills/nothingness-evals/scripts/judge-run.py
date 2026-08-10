@@ -11,6 +11,7 @@ from common import ROOT, SCRIPT_DIR, command, emit_json, fail, load_suite, read_
 # Phases where the candidate has stopped and is waiting on the judge.
 TERMINAL_PHASES = ("awaiting_judge", "completed", "timed_out", "failed")
 PROGRESS_IN_CONTAINER = "/run/nothingness/progress.json"
+OBSERVE_CURSOR_FILE = "observe-cursor.json"
 OBSERVE_DEFAULT_TIMEOUT = 2700
 OBSERVE_POLL_INTERVAL = 5.0
 
@@ -199,7 +200,11 @@ def observe(arguments: argparse.Namespace) -> None:
                     header = f"[{phase} {progress.get('elapsed_seconds')}s tools={progress.get('tool_calls')} retries={progress.get('retries')} cost={progress.get('cost_usd')} seq={cursor}]"
                     print("\n".join([header, *event_digest(events, arguments.show, arguments.max_lines)]), file=sys.stderr, flush=True)
             if phase in TERMINAL_PHASES:
-                emit_json({"ok": True, "action": "observe", "run_id": arguments.run_id, "phase": phase, "elapsed_seconds": progress.get("elapsed_seconds"), "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"), "event_sequence": cursor, "event_observation_ids": observation_ids, "next": "judge-control.py finish, then judge-run.py evidence"})
+                # Persist the hand-off instead of asking a judge to copy a number
+                # between two commands: a cursor read off the streaming digest
+                # rather than this result is how a chain ends up non-contiguous.
+                write_json(run / OBSERVE_CURSOR_FILE, {"event_sequence": cursor, "event_observation_ids": observation_ids})
+                emit_json({"ok": True, "action": "observe", "run_id": arguments.run_id, "phase": phase, "elapsed_seconds": progress.get("elapsed_seconds"), "tool_calls": progress.get("tool_calls"), "cost_usd": progress.get("cost_usd"), "event_sequence": cursor, "event_observation_ids": observation_ids, "next": "judge-control.py finish, then judge-run.py evidence (cursor is saved; no flags needed)"})
                 return
         time.sleep(arguments.poll_seconds)
     fail(4, f"observe_timed_out:phase={phase} -- candidate still running after {arguments.timeout_seconds}s; raise --timeout-seconds or terminalize the run")
@@ -216,8 +221,9 @@ def evidence(arguments: argparse.Namespace) -> None:
     prints the exact flags to pass."""
     run = run_dir(arguments.run_id)
     progress = live_progress(run, read_json(run / "run.json")) or {}
-    cursor = arguments.after
-    observation_ids = list(arguments.event_observation_id)
+    saved = read_json(run / OBSERVE_CURSOR_FILE) if (run / OBSERVE_CURSOR_FILE).is_file() else {}
+    cursor = arguments.after if arguments.after else (saved.get("event_sequence") or 0)
+    observation_ids = list(arguments.event_observation_id) or list(saved.get("event_observation_ids") or [])
     sequence = progress.get("event_sequence") if isinstance(progress, dict) else None
     if not isinstance(sequence, int) or sequence > cursor:
         batch = invoke("judge-events.py", arguments.run_id, "--after", str(cursor))
