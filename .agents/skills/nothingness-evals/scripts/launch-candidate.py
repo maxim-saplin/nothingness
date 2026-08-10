@@ -64,6 +64,12 @@ def main() -> None:
     if pi_config["config_fingerprints"] != metadata["pi"]["config_fingerprints"]:
         fail(4, "pi_config_changed_since_admission")
     task = metadata["task_contract"]
+    # The frozen contract carries only id/prompt/limits/platform_variant, so the
+    # briefing below cannot be built from it -- `media` lives in the manifest and
+    # nowhere else. Reading the manifest is safe precisely here: `validate_frozen_task`
+    # above pinned this file byte-for-byte against `manifest_sha256`, so what we
+    # read is provably what was frozen before the candidate existed.
+    task_manifest = read_json(task_path)
     command_or_fail(
         [
             "docker", "exec", "-i", metadata["container"],
@@ -72,7 +78,7 @@ def main() -> None:
             "--provider", model["provider"],
             "--model", model["model"],
             "--thinking", model["thinking"],
-            "--prompt", candidate_prompt(task),
+            "--prompt", candidate_prompt(task_manifest),
             "--timeout-seconds", str(task["limits"]["timeout_seconds"]),
             "--run-id", run_id,
         ],
@@ -89,7 +95,7 @@ def main() -> None:
         time.sleep(0.1)
     if not ready:
         fail(5, "candidate_control_not_ready")
-    result = {"ok": True, "run_id": run_id, "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": admission["identity_verified"], "prompt_sent": candidate_prompt(task), "timeout_seconds": task["limits"]["timeout_seconds"], "output_mode": "rpc-jsonl", "canonical_output": "/run/nothingness/candidate.jsonl", "lifecycle_output": "/run/nothingness/lifecycle.jsonl", "progress_output": "/run/nothingness/progress.json", "launched_at": utc_now()}
+    result = {"ok": True, "run_id": run_id, "requested_model": metadata["requested_model"], "selected_model": model, "identity_verified": admission["identity_verified"], "prompt_sent": candidate_prompt(task_manifest), "timeout_seconds": task["limits"]["timeout_seconds"], "output_mode": "rpc-jsonl", "canonical_output": "/run/nothingness/candidate.jsonl", "lifecycle_output": "/run/nothingness/lifecycle.jsonl", "progress_output": "/run/nothingness/progress.json", "launched_at": utc_now()}
     write_json(run / "launch.json", result)
     emit_json(result)
 
