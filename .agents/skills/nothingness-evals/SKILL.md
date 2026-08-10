@@ -86,7 +86,13 @@ Run every task in the suite, in suite order, without pausing between tasks to as
    ```
 9. Move to the next task in the suite. Do not ask whether to proceed.
 
-When every task in the suite is done, build the consolidated report from the real `result.json` files and write it to `evals/results/<model>/README.md`, next to the per-trial directories `decide` published. Give it the shape of `evals/archive/local-model-field-test/report.md` — Environment, Tasks, Results table, cost/token economics, Takeaways — and refresh the "Current Results" section of `evals/README.md` so the top-level index is not stale. A campaign that leaves nothing in `git status` has not been reported.
+When every task in the suite is done, regenerate the cross-model table — it is derived from the published results, never hand-written, and it is what makes a second model comparable to the first:
+
+```
+uv run python .agents/skills/nothingness-evals/scripts/leaderboard.py --write
+```
+
+Then build the consolidated report from the real `result.json` files and write it to `evals/results/<model>/README.md`, next to the per-trial directories `decide` published. Give it the shape of `evals/archive/local-model-field-test/report.md` — Environment, Tasks, Results table, cost/token economics, Takeaways — and refresh the "Current Results" section of `evals/README.md` so the top-level index is not stale. A campaign that leaves nothing in `git status` has not been reported.
 
 Do not stop mid-suite to ask about strategy, re-runs, or scope changes — if a task's result looks wrong, record it as-is with an honest note; do not silently discard or re-run without a documented reason (a genuine infrastructure failure, not a disappointing score).
 
