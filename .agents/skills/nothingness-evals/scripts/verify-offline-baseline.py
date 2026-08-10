@@ -8,7 +8,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, require_command
+from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, gate_fingerprint, passed_gate, record_gate_pass, require_command
 
 
 FIXTURE = "5fc7e04"
@@ -62,12 +62,22 @@ def baseline_checks(name: str, arch: str) -> tuple[tuple[str, list[str]], ...]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify the evaluator substrate without credentials, network, or a model call.")
     parser.add_argument("--build-image", action="store_true")
+    parser.add_argument("--force", action="store_true", help="re-verify even if this exact image/fixture/gate already passed")
     arguments = parser.parse_args()
     for executable in ("docker", "git", "tar"):
         require_command(executable)
     active = command(["docker", "ps", "--filter", "label=nothingness.eval=true", "--format", "{{.Names}}"], stdout=subprocess.PIPE)
     if active.stdout.strip():
         fail(2, "evaluator_container_already_running")
+    # Checked before `--build-image` runs, not after: when the image is already
+    # current there is nothing to build, and invoking the builder just to learn
+    # that is most of what made this gate feel expensive on a no-op run.
+    existing = command(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_NAME], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if existing.returncode == 0 and not arguments.force:
+        previous = passed_gate("offline-baseline", gate_fingerprint(existing.stdout.strip(), FIXTURE, Path(__file__)))
+        if previous is not None:
+            emit_json({**previous["result"], "skipped": "unchanged_since_last_pass", "previously_passed_at": previous["passed_at"], "reverify_with": "--force"})
+            return
     if arguments.build_image:
         command_or_fail_chained([sys.executable, str(Path(__file__).with_name("build-image.py"))], 3, "image_build_failed", stdout=subprocess.PIPE)
     image_id = command_or_fail(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_NAME], 3, "image_not_available", stdout=subprocess.PIPE).stdout.strip()
@@ -99,7 +109,9 @@ def main() -> None:
         command(["docker", "rm", "-f", name], stdout=os.devnull, stderr=os.devnull)
     if command(["docker", "container", "inspect", name], stdout=os.devnull, stderr=os.devnull).returncode == 0:
         fail(4, "baseline_container_cleanup_failed")
-    emit_json({"ok": True, "network": "none", "credentials": "not_loaded", "candidate": "not_launched", "fixture_commit": FIXTURE, "image": {"name": IMAGE_NAME, "immutable_id": image_id}, "checks": checks, "cleanup": "passed"})
+    result = {"ok": True, "network": "none", "credentials": "not_loaded", "candidate": "not_launched", "fixture_commit": FIXTURE, "image": {"name": IMAGE_NAME, "immutable_id": image_id}, "checks": checks, "cleanup": "passed"}
+    record_gate_pass("offline-baseline", gate_fingerprint(image_id, FIXTURE, Path(__file__)), result)
+    emit_json(result)
 
 
 if __name__ == "__main__":

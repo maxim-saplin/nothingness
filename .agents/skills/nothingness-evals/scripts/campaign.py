@@ -52,6 +52,10 @@ def new_campaign(arguments: argparse.Namespace) -> None:
         "schema_version": 1,
         "campaign_id": arguments.campaign_id,
         "suite_id": suite["id"],
+        # Recorded so `next` can hand a judge everything it needs to start its
+        # own trial, rather than the caller having to carry the suite path along
+        # by hand for seven tasks in a row.
+        "suite_path": str(suite_path.relative_to(ROOT)) if suite_path.is_relative_to(ROOT) else str(suite_path),
         "suite_manifest_sha256": sha256(suite_path),
         "model": suite["requested_model"],
         "tasks": task_ids,
@@ -81,9 +85,13 @@ def add_run(arguments: argparse.Namespace) -> None:
     if arguments.task_id not in campaign["tasks"]:
         fail(2, "unknown_task_id")
     task_runs = campaign["runs"].setdefault(arguments.task_id, [])
-    if arguments.run_id in task_runs:
-        fail(2, "duplicate_run_id")
-    task_runs.append(arguments.run_id)
+    # Idempotent. `judge-run.py start --campaign` registers the run itself, but
+    # the skill also told people to call this after every start -- so the second
+    # call failed with `duplicate_run_id` on a run that was correctly recorded,
+    # which reads as a real error. Registering a fact that is already true is
+    # not a failure.
+    if arguments.run_id not in task_runs:
+        task_runs.append(arguments.run_id)
     campaign["updated_at"] = utc_now()
     write_json(campaign_path(arguments.campaign_id), campaign)
     emit_json(
@@ -94,6 +102,55 @@ def add_run(arguments: argparse.Namespace) -> None:
             "task_id": arguments.task_id,
             "run_id": arguments.run_id,
             "task_runs": task_runs,
+        }
+    )
+
+
+def next_task(arguments: argparse.Namespace) -> None:
+    """The next task with no scored run, and the brief to hand a judge for it.
+
+    The per-task loop used to live only as a numbered list in the manager's
+    skill, so "run all seven tasks" depended on an agent working through prose
+    without losing its place -- and it did lose its place. Driving the loop off
+    campaign state instead makes stopping early visible (`remaining` is not
+    zero) and makes resuming exact: a campaign interrupted after task 3 comes
+    back at task 4 with no bookkeeping.
+
+    A task counts as done when one of its runs has a `result.json` -- the file
+    `decide` writes. Attempts that died before scoring leave no result, so they
+    are correctly retried rather than silently counted."""
+    validate_run_id(arguments.campaign_id)
+    campaign = load_campaign(arguments.campaign_id)
+    pending = []
+    for task_id in campaign["tasks"]:
+        runs = campaign["runs"].get(task_id) or []
+        if not any((RUNS_ROOT / run_id / "result.json").is_file() for run_id in runs):
+            pending.append((task_id, runs))
+    if not pending:
+        emit_json({"ok": True, "action": "next", "campaign_id": arguments.campaign_id, "done": True, "remaining": 0, "next_step": "judge-run.py finalize --from-sandbox <each judge sandbox>"})
+        return
+    task_id, previous = pending[0]
+    sandbox = f".tmp/judge-{arguments.campaign_id}-{task_id}"
+    suite = campaign.get("suite_path") or ""
+    scripts = SCRIPT_DIR.relative_to(ROOT)
+    emit_json(
+        {
+            "ok": True,
+            "action": "next",
+            "campaign_id": arguments.campaign_id,
+            "done": False,
+            "task_id": task_id,
+            "trial": 1,
+            "previous_attempts": previous,
+            "remaining": len(pending),
+            "suite_path": suite,
+            "rubric_path": f"evals/tasks/rubrics/{task_id}.md",
+            "sandbox": sandbox,
+            # Everything the manager needs to stand up one judge, in order.
+            "create_sandbox_command": f"uv run python {scripts}/judge-sandbox.py create {sandbox}",
+            "judge_working_directory": sandbox,
+            "judge_environment": {"NOTHINGNESS_EVAL_RUNS_ROOT": str(RUNS_ROOT)},
+            "judge_start_command": f"uv run python {scripts}/judge-run.py start {suite} {task_id} --trial 1 --campaign {arguments.campaign_id} --judge <who-you-are>",
         }
     )
 
@@ -125,11 +182,14 @@ def main() -> None:
     add_run_parser.add_argument("task_id")
     add_run_parser.add_argument("run_id")
 
+    next_parser = subparsers.add_parser("next")
+    next_parser.add_argument("campaign_id")
+
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("campaign_id")
 
     arguments = parser.parse_args()
-    {"new": new_campaign, "add-run": add_run, "status": status}[arguments.action](arguments)
+    {"new": new_campaign, "add-run": add_run, "next": next_task, "status": status}[arguments.action](arguments)
 
 
 if __name__ == "__main__":

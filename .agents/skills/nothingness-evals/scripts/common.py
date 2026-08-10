@@ -24,7 +24,13 @@ ROOT = Path(
         text=True,
     ).stdout.strip()
 )
-RUNS_ROOT = ROOT / ".tmp" / "evals"
+# A judge is sandboxed in a git worktree so it cannot read `evals/results`, but
+# the run it is scoring lives in the manager's tree -- `ROOT` alone would send it
+# looking in `<worktree>/.tmp/evals/`, which no script ever creates, so its very
+# first `observe` would fail. The manager points it here explicitly; the results
+# tree stays `ROOT`-derived, so the isolation that matters is untouched.
+RUNS_ROOT = Path(os.environ["NOTHINGNESS_EVAL_RUNS_ROOT"]).resolve() if os.environ.get("NOTHINGNESS_EVAL_RUNS_ROOT") else ROOT / ".tmp" / "evals"
+GATE_STAMPS = RUNS_ROOT / "gate-stamps"
 IMAGE_NAME = os.environ.get("NOTHINGNESS_EVAL_IMAGE", "nothingness-eval:t1")
 # The files `build-image.py` actually bakes into the image (see its Dockerfile
 # COPY list) -- everything the candidate/proxy/entrypoint run as code, plus
@@ -419,6 +425,44 @@ def validate_image_matches_sources(labels: dict[str, Any], root: Path = ROOT) ->
     files = ",".join(differing) if differing else "unknown (image predates source verification)"
     fail(4, f"image_stale_vs_sources:{files} -- rebuild with: verify-offline-baseline.py --build-image")
     raise AssertionError("unreachable")
+
+
+def gate_fingerprint(image_id: str, fixture: str, script: Path) -> str:
+    """What a gate pass is actually a statement about: this image, this fixture
+    commit, and this gate's own code. Docker image ids are content-addressed, so
+    any rebuild moves the first; nothing else a gate proves can change without
+    one of the three changing too."""
+    digest = hashlib.sha256()
+    for part in (image_id, fixture, sha256(script), sha256(SCRIPT_DIR / "common.py")):
+        digest.update(f"{part}\n".encode())
+    return digest.hexdigest()
+
+
+def passed_gate(gate: str, fingerprint: str) -> dict[str, Any] | None:
+    """The previous pass for this exact fingerprint, or None.
+
+    The two gates cost a container Linux release build and a full debug launch
+    plus drive sequence -- together about ten minutes. They were re-proving the
+    same unchanged image on every single eval, which was the largest chunk of
+    dead time between "eval <model>" and the first task actually starting. A
+    gate is a statement about an image, not about a wall clock: when the
+    fingerprint matches, the proof still holds and re-running it buys nothing.
+    """
+    stamp = GATE_STAMPS / f"{gate}.json"
+    if not stamp.is_file():
+        return None
+    try:
+        recorded = read_json(stamp)
+    except Exception:
+        return None
+    if not isinstance(recorded, dict) or recorded.get("fingerprint") != fingerprint:
+        return None
+    return recorded
+
+
+def record_gate_pass(gate: str, fingerprint: str, result: dict[str, Any]) -> None:
+    GATE_STAMPS.mkdir(parents=True, exist_ok=True)
+    write_json(GATE_STAMPS / f"{gate}.json", {"gate": gate, "fingerprint": fingerprint, "passed_at": utc_now(), "result": result})
 
 
 def validate_frozen_suite(metadata: dict[str, Any], root: Path = ROOT) -> None:

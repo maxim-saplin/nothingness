@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from common import ROOT, SCRIPT_DIR, command, emit_json, fail, load_suite, read_json, run_dir, utc_now, validate_run_id, write_json
+from common import ROOT, RUNS_ROOT, SCRIPT_DIR, command, emit_json, fail, load_suite, read_json, run_dir, utc_now, validate_run_id, write_json
 
 # Phases where the candidate has stopped and is waiting on the judge.
 TERMINAL_PHASES = ("awaiting_judge", "completed", "timed_out", "failed")
@@ -34,7 +34,10 @@ def start(arguments: argparse.Namespace) -> None:
     suite = load_suite(suite_path)
     trial_tag = "calibration" if arguments.calibration else f"trial-{arguments.trial:02d}"
     prefix = f"{suite['id']}-{arguments.task_id}-{trial_tag}-attempt-"
-    existing = [path.name for path in (ROOT / ".tmp" / "evals").glob(f"{prefix}*") if path.is_dir()]
+    # RUNS_ROOT, not ROOT-derived: a judge starts its own trial from inside a
+    # sandbox worktree, where the ROOT-relative path is an empty directory that
+    # nothing creates -- so every attempt would number itself 01 and collide.
+    existing = [path.name for path in RUNS_ROOT.glob(f"{prefix}*") if path.is_dir()]
     attempts = []
     for name in existing:
         try:
@@ -280,18 +283,24 @@ def finalize(arguments: argparse.Namespace) -> None:
     class of bug where a campaign is "finished" but the index still says
     otherwise because someone forgot a step."""
     merged = []
-    sandbox = Path(arguments.from_sandbox).expanduser().resolve() if arguments.from_sandbox else None
-    if sandbox is not None:
+    current = command(["git", "-C", str(ROOT), "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+    # One sandbox per judge, so a whole suite arrives as several -- accept a list
+    # (and shell globs, e.g. `--from-sandbox .tmp/judge-*`) rather than making
+    # the caller run finalize once per task and hope they remember all of them.
+    for given in arguments.from_sandbox:
+        sandbox = Path(given).expanduser().resolve()
+        if not (sandbox / ".git").exists():
+            fail(2, f"judge_sandbox_not_found:{given} -- create it: judge-sandbox.py create {given}")
         # A worktree is pinned to the commit it was created at, so a sandbox made
         # before a harness change silently runs stale scripts -- which is how a
         # judge published a run without the notes.md its own skill told it to
         # write. Refuse rather than merge results produced by unknown code.
         head = command(["git", "-C", str(sandbox), "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
-        current = command(["git", "-C", str(ROOT), "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
         if head and current and head != current:
-            fail(2, f"judge_sandbox_stale:{head[:7]}_vs_{current[:7]} -- recreate it: git worktree remove --force {arguments.from_sandbox} && git worktree add {arguments.from_sandbox} HEAD")
-    source_root = sandbox / "evals" / "results" if sandbox else None
-    if source_root and source_root.is_dir():
+            fail(2, f"judge_sandbox_stale:{head[:7]}_vs_{current[:7]} -- recreate it: judge-sandbox.py remove {given} && judge-sandbox.py create {given}")
+        source_root = sandbox / "evals" / "results"
+        if not source_root.is_dir():
+            continue
         destination_root = ROOT / "evals" / "results"
         for run_directory in sorted(source_root.iterdir()):
             if not run_directory.is_dir():
@@ -352,7 +361,7 @@ def main() -> None:
     publish_parser.add_argument("--scorecard")
     publish_parser.add_argument("--force", action="store_true")
     finalize_parser = subparsers.add_parser("finalize", allow_abbrev=False)
-    finalize_parser.add_argument("--from-sandbox", default="", help="judge worktree whose evals/results should be merged in first")
+    finalize_parser.add_argument("--from-sandbox", action="append", default=[], help="judge worktree whose evals/results should be merged in first; repeatable, and accepts a shell glob")
     finalize_parser.add_argument("--run-directory", action="append", default=[], help="results directory name to (re)report, e.g. gpt-5.4-nano-medium-20260810")
     cleanup_parser = subparsers.add_parser("cleanup", allow_abbrev=False)
     cleanup_parser.add_argument("run_id")

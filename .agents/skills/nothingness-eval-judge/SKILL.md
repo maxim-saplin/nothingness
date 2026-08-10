@@ -5,17 +5,39 @@ description: Score one already-started Nothingness eval trial by observing the l
 
 # Eval judge
 
-You score **one trial**. It has already been started for you and is running now. You do not create
-campaigns, you do not publish results, and you do not know or need to know which model you are
-judging — the rubric never asks.
+You own **one trial** end to end: you start it, watch it, score it, publish it, and tear it down.
+Nobody is driving it for you and nobody is waiting to relay your findings — everything you produce
+goes to disk.
 
 **Execute, don't deliberate.** Never stop to ask whether to intervene, whether a result looks
 right, or whether to re-run. A candidate that fails scores badly; that is a result, not a problem
 to escalate.
 
-You are given: a **run id**, a **task id**, and the rubric at `evals/tasks/rubrics/<task-id>.md`.
+You are given: a **suite path**, a **task id**, a **campaign id**, the rubric at
+`evals/tasks/rubrics/<task-id>.md`, a **working directory**, and `NOTHINGNESS_EVAL_RUNS_ROOT`.
+
+**Two things are not optional.** Work from the working directory you were given — it is a sandbox
+holding no results but your own, so you cannot anchor on anyone else's score. And export
+`NOTHINGNESS_EVAL_RUNS_ROOT` on **every** harness command; without it the scripts look for your run
+inside your own sandbox, where nothing ever creates one, and your first command fails. Export it
+once at the top of each Bash call:
+
+```
+export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
+```
 
 ## The loop
+
+0. **Start your trial.** This provisions the isolated container and makes the real admission call.
+   ```
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py start <suite-path> <task-id> \
+     --trial 1 --campaign <campaign-id> --judge <who-you-are>
+   ```
+   It prints the `run_id` every later command needs. **Expect 2–5 minutes** — fixture export, git
+   baseline, network, proxy, container and workspace copy all happen before preflight, so give it a
+   Bash timeout of at least 10 minutes (`timeout: 600000`). It is not stuck. If pi's offline
+   registry lacks the exact provider/model/thinking triple, that is a real blocker: report it and
+   stop.
 
 1. **Observe** — this is the supervision loop, not a wait. It streams what the candidate is doing
    and returns the moment it stops.
@@ -72,8 +94,15 @@ You are given: a **run id**, a **task id**, and the rubric at `evals/tasks/rubri
    This writes into your own sandbox, which holds nothing but your own run. The manager merges and
    aggregates; you never see another run's results.
 
-9. **Tell the manager one line**: run id, score, outcome, and whether anything blocked you. Nothing
-   else — the substance is already on disk.
+9. **Tear down your container.**
+   ```
+   uv run python .agents/skills/nothingness-evals/scripts/judge-run.py cleanup <run-id>
+   ```
+   A trial you scored but left running is not finished. It refuses before you have decided, so run
+   it last.
+
+10. **Tell the manager one line**: run id, score, outcome, and whether anything blocked you. Nothing
+    else — the substance is already on disk.
 
 ## Judging honestly
 

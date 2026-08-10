@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import contextlib
 import json
 import os
@@ -9,11 +10,16 @@ import time
 import uuid
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, emit_json, fail, require_command, write_json
+from common import IMAGE_NAME, ROOT, command, command_or_fail, emit_json, fail, gate_fingerprint, passed_gate, record_gate_pass, require_command, write_json
 
 
 FIXTURE = "5fc7e04"
-DESKTOP_READY_POLLS = 480
+# 300s, not 120s. The comment below has always said this budget exists for the
+# cold first launch after an image build -- but 120s was not enough for one, so
+# the gate failed on exactly the run it was written to survive, and the fix for
+# a too-short wait was re-running the whole ten-minute gate. Polling stops the
+# moment the desktop reports ready, so a warm launch pays none of this.
+DESKTOP_READY_POLLS = 1200
 DESKTOP_READY_INTERVAL = 0.25
 DRIVER = "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py"
 TRACKS = tuple(f"/opt/nothingness/media/0{index}-undercover-{48 + index}.opus" for index in range(1, 4))
@@ -60,12 +66,21 @@ def wait_for_state(name: str, label: str, predicate: object, timeout: float = 30
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Prove the real Linux app plays, seeks and renders, with no credentials and no network.")
+    parser.add_argument("--force", action="store_true", help="re-verify even if this exact image/fixture/gate already passed")
+    arguments = parser.parse_args()
     for executable in ("docker", "git", "tar"):
         require_command(executable)
     active = command(["docker", "ps", "--filter", "label=nothingness.eval=true", "--format", "{{.Names}}"], stdout=subprocess.PIPE)
     if active.stdout.strip():
         fail(2, "evaluator_container_already_running")
     image_id = command_or_fail(["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_NAME], 3, "image_not_available", stdout=subprocess.PIPE).stdout.strip()
+    fingerprint = gate_fingerprint(image_id, FIXTURE, Path(__file__))
+    if not arguments.force:
+        previous = passed_gate("runtime-baseline", fingerprint)
+        if previous is not None:
+            emit_json({**previous["result"], "skipped": "unchanged_since_last_pass", "previously_passed_at": previous["passed_at"], "reverify_with": "--force"})
+            return
     name = f"nothingness-eval-runtime-{uuid.uuid4().hex[:12]}"
     artifacts = ROOT / ".tmp" / "evals" / name
     artifacts.mkdir(parents=True)
@@ -132,6 +147,7 @@ echo $! > /tmp/flutter_pid
         fail(4, "runtime_container_cleanup_failed")
     result = {"ok": True, "network": "none", "credentials": "not_loaded", "candidate": "not_launched", "fixture_commit": FIXTURE, "image": {"name": IMAGE_NAME, "immutable_id": image_id}, "tracks": TRACKS, "states": states, "artifacts": str(artifacts.relative_to(ROOT)), "cleanup": "passed"}
     write_json(artifacts / "result.json", result)
+    record_gate_pass("runtime-baseline", fingerprint, result)
     emit_json(result)
 
 
