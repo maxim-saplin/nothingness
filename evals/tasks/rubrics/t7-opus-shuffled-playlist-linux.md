@@ -1,7 +1,7 @@
 # Expectations bundle — T7 · Opus shuffled playlist (Linux)
 
 - **Task id:** `t7-opus-shuffled-playlist-linux`
-- **Prompt (verbatim):** "On Linux, queue the evaluator-supplied ten immutable Opus fixtures exactly once, enable shuffle, play valid supplied media, and perform one navigation transition. The current media before and after must remain within the supplied fixture set."
+- **Prompt (verbatim):** "On Linux, queue the evaluator-supplied ten immutable Opus fixtures exactly once, enable shuffle, play valid supplied media, and advance playback by exactly one track transition (next or previous). The current media before and after that transition must remain within the supplied fixture set. Browsing folders is not a track transition."
 - **Fixture:** `evals/assets/opus/manifest.json` — exactly 10 Opus tracks mounted at `/opt/nothingness/media` in the candidate's container. "Immutable" means these are the evaluator's fixed fixture set — nothing about the ten files themselves is expected to be modified or replaced.
 - **Evidence this task's manifest already requires:** `inventory`, `queue`, `playing`, `next_action`, `post_navigation`.
 - **Scoring:** per `evals/README.md` § Scoring rubric. Judge gives one verdict per expectation below — `met` (credit 1.0), `partial` (0.5), `unmet` (0.0) — each with a one-line justification and a reference to the `judge-verify.py` observation that supports it. **Any `unmet` expectation tagged `required` caps the run at `partial`, regardless of the aggregate score.**

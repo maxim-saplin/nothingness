@@ -4,11 +4,12 @@ import argparse
 import contextlib
 import io
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
 
-from common import IMAGE_NAME, PROVIDER_ENV_KEYS, command, derive_provider_egress_host, emit_json, fail, load_suite, pi_package_roots, read_host_pi_config, require_command, resolve_pi, validate_image_matches_sources, validate_pi_model
+from common import IMAGE_NAME, PROVIDER_ENV_KEYS, ROOT, command, derive_provider_egress_host, emit_json, fail, load_suite, pi_package_roots, read_host_pi_config, require_command, resolve_pi, validate_image_matches_sources, validate_pi_model
 
 
 # Every check below is either a `common.py` helper that calls `fail()` (raises
@@ -69,6 +70,31 @@ def check_model_available(pi: dict[str, str], requested: dict[str, str]) -> dict
     return dict(requested)
 
 
+
+def check_rubric_prompts(suite: dict[str, Any]) -> dict[str, Any]:
+    """Each rubric quotes its task's prompt "verbatim" for the judge to read.
+
+    Nothing kept the two in step, so rewording a task left the rubric quoting
+    text no candidate was ever given -- and a judge trusting the quote over the
+    live task file would settle expectations against the wrong prompt. Caught
+    once for real, on t7.
+    """
+    stale = []
+    for entry in suite["tasks"]:
+        task_id = entry["id"]
+        task_path = ROOT / "evals" / "tasks" / f"{task_id}.json"
+        rubric_path = ROOT / "evals" / "tasks" / "rubrics" / f"{task_id}.md"
+        if not task_path.is_file() or not rubric_path.is_file():
+            continue
+        prompt = json.loads(task_path.read_text()).get("prompt", "")
+        found = re.search(r'\*\*Prompt \(verbatim\):\*\*\s*"([^"]*)"', rubric_path.read_text())
+        if found and found.group(1).strip() != str(prompt).strip():
+            stale.append(task_id)
+    if stale:
+        fail(2, f"rubric_prompt_quote_stale:{','.join(stale)} -- update the quote to match the task file's prompt")
+    return {"checked": len(suite["tasks"]), "stale": []}
+
+
 def check_image() -> dict[str, Any]:
     inspect = command(["docker", "image", "inspect", IMAGE_NAME], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     if inspect.returncode:
@@ -126,9 +152,11 @@ def main() -> None:
                 checks["model_available"] = run(lambda: check_model_available(pi_result, suite["requested_model"]))
             else:
                 checks["model_available"] = {"status": "skip", "detail": "skipped: pi not resolved (see 'pi_resolve')"}
+            checks["rubric_prompts"] = run(lambda: check_rubric_prompts(suite))
         else:
             checks["provider_env"] = {"status": "skip", "detail": "skipped: suite failed to load (see 'suite')"}
             checks["model_available"] = {"status": "skip", "detail": "skipped: suite failed to load (see 'suite')"}
+            checks["rubric_prompts"] = {"status": "skip", "detail": "skipped: suite failed to load (see 'suite')"}
     else:
         for name in ("suite", "provider_env", "model_available"):
             checks[name] = {"status": "skip", "detail": "no --suite given"}
