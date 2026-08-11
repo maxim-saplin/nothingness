@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With `drive.py clearpref '*'` + restart and the long-metadata track playing, the Dot hero shows the pulsing dot alone (diameter 230 device px) and no artist/title overlay; the settings row read 'show song info / off'.",
+      "evidence_ref": "verification-ddfdb22c096847d4914fbb50c3c7a4d1"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After tapping void-settings-dot-show-song-info on and a full process relaunch (kill + fresh `flutter run`, not a hot restart), the overlay renders again without re-toggling and the settings row reads 'show song info / on'.",
+      "evidence_ref": "verification-5af5892acdc74c7cb5904770a6797858"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Toggling the option back off and relaunching the process leaves the hero with no overlay and the dot restored to full size (dot-circle 173.1x173.1 logical), so persistence is a genuine round trip.",
+      "evidence_ref": "verification-23a29664180545b0b7787d4ef68a3968"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "At 100% with an 82-char artist and 79-char title the overlay is fully inside the hero (ink ends at y=141 of a 230 px band, artist legibly ellipsized) and does not overlap the dot -- but only because the candidate's change collapses the dot to BoxConstraints(w=0.0,h=0.0) whenever the option is on, so the 'no overlap with the pulsing dot' condition holds vacuously: there is no dot on screen at all.",
+      "evidence_ref": "verification-8ab73a38ed174d05b357828c8414658c"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% the song title's second line ('Seventeen Reprise') is cut mid-glyph at the hero's own bottom bound -- ink runs to y=229 and stops flat at the 230 px hero band edge, descenders sliced off, not a legible ellipsis; the clipping the task exists to fix is still present (the change only shrank the dot, it never constrained the text block).",
+      "evidence_ref": "verification-d8a94b8bdb1041d39fb5e5a25c1c265c"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate screenshot exists among the deliverables: .tmp/agent_shots was empty, no untracked files, and the event stream shows the candidate ran only `drive.py preflight` and `drive.py inspect` -- it never called shoot. My own 100% reproduction (cited) is clean apart from the missing dot.",
+      "evidence_ref": "verification-8ab73a38ed174d05b357828c8414658c"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate max-scale screenshot exists either (no shoot call in the whole run), and my own 150% reproduction disproves the claim it would have had to support: the title's last line is clipped at the hero bound.",
+      "evidence_ref": "verification-d8a94b8bdb1041d39fb5e5a25c1c265c"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "`drive.py probe` at both scales shows the overlay genuinely rendering: hero-artist fontSize 30 / 848x70 and hero-song 15 / 713x18 at 100%, hero-artist 45 / 848x106 and hero-song 22.5 / 848x54 at 150%, with the full strings resolved; the captured widget trees at both scales corroborate.",
+      "evidence_ref": "verification-9946595baf6a4a5d8596b46d6731efe8"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Ordinary metadata ('undercover' / '49') renders cleanly with no clipping at either scale, but the common case now has no pulsing dot at all -- the dot is 0x0 at 100% and 150% for short metadata too, a layout regression the fix introduced for every enabled-option case, not just long metadata.",
+      "evidence_ref": "verification-b0babd0cdb374b3ab643243a87e99b1a"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No overflow or error entries throughout: `drive.py overflows` reported count 0 before, during and after toggling the option twice, switching scales and switching tracks; the app answered inspect normally at the end (only ALSA/JACK container audio noise in the run log).",
+      "evidence_ref": "verification-076c1c9019b34d68b5e828b344e80da0"
+    }
+  ]
+}

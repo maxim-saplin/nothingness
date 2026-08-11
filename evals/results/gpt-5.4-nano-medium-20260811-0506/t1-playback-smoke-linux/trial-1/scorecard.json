@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate launched the real Linux build (flutter run -d linux --debug -t dev/main_debug.dart) and drove it through ext.nothingness.* (setQueue/resume/pause/next/seek/inspect/overflows/screen/shoot/settings); I confirmed the same session live myself -- drive.py contract lists 31 registered extensions and a fresh inspect answers right now.",
+      "evidence_ref": "verification-fbe3a10bc0a94bec99f474e9128b3669"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate's own three inspects bracket the transition correctly (isPlaying true at index 0, then false after pause, then true after resume); I reproduced it live against the same running app with labelled captures e2-playing (true, pos 1728), e2-paused (false, pos 4138) and e2-resumed (true, pos 5952).",
+      "evidence_ref": "verification-d138b97d351c4d1ca92374a307f76b3f"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate built a real 10-track queue via setQueue (shuffle false, queueLength 10) and next advanced currentIndex 0->1 with the path changing 01-undercover-49.opus -> 02-undercover-50.opus in its own post-call inspect; I reproduced forward skips live (e3-pre-skip index 0 / 01-undercover-49 -> e3-post-skip index 1 / 02-undercover-50, and a second next to index 2).",
+      "evidence_ref": "verification-7e0de07582ce46229280093a2471ba99"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The only post-seek state read in the candidate's session shows position 288 ms against its own 30000 ms target (pre-seek was 53 ms), so the fast-forward never took effect -- yet the report states the transport actions succeeded, with no reconciliation. This is not an app defect: I verified seek works on this very build, moving 32170 ms -> 71311 ms against a 70000 ms target while playing (cited capture) and 84501 ms -> 30042 ms in a direct drive.py pair, and the candidate's exact pause/resume/seek sequence landed at 30042 ms in 3 of 3 reproductions. The candidate captured the disconfirming read and did not look at it.",
+      "evidence_ref": "verification-2309f12eb49b4695ae9dff8014126a63"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Most of the report is traceable -- the launch command, the replay invocation and 'overflows reported 0' all match real tool results -- but the blanket claim that the 'playback transport actions succeeded' covers a seek whose only in-session observation shows position at 288 ms rather than the 30 s target, so that part is asserted from the seek call's ok:true reply rather than from the state read the candidate itself took. The report also cites no observed values at all (no positions, indices or track names), which is what let the contradiction pass unnoticed.",
+      "evidence_ref": "events-6004162302504a5e9d8d7c661789f55d"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The workspace diff is not empty: tool/regression/smoke.txt is modified (13 insertions, 1 deletion) where the task asked only to drive and smoke-test. The change is confined to a regression replay script and has no effect on app runtime behaviour -- my live re-check of play/pause/skip/seek behaved exactly as an unmodified build would, and the known GeneratedPluginRegistrant.swift / generated_plugins.cmake regenerations did not occur at all this run -- but it is still a tracked source file touched beyond the one regeneration the rubric permits.",
+      "evidence_ref": "inspection-438df9832bd74d1ca1f209dab3b6de3e"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Two real faults occurred and both were noticed and fixed before anything was reported done: a 20-attempt inspect poll failed with 'could not find Dart VM service URI' (the build was still compiling), after which the candidate tailed the run log and retried until inspect answered; and its first replay exited code 1 on 'error: No escaped character' because it had used backslash line continuations, which drive.py replay does not support -- it read the file back, removed them, and re-ran the whole script successfully. No crash or hang appears in the run log (only expected ALSA 'no such device' noise, there being no audio device in the container) and overflows is 0. The session answering me now is the same continuous one, not a relaunch: it free-ran from the candidate's track 02 onward to track 03 at 73 s before I touched anything.",
+      "evidence_ref": "verification-794b77d0a2c141d990938fe04bd4591d"
+    }
+  ]
+}

@@ -12,6 +12,66 @@ given. A typo fix or a clearer error message does not need a bump.
 Results published under different versions are not directly comparable; say so
 rather than averaging them.
 
+## 1.4.0 — 2026-08-11
+
+Judge-brief only; no rubric, band, or candidate-facing change. Bumped anyway
+because two of these facts prevented false `unmet` verdicts against working
+implementations, so a judge that has them can score the same trial differently
+from one that does not. Scores under 1.4.0 remain comparable with 1.3.0 for
+the candidate's own behaviour, but a 1.3.0 result may carry a verdict a
+better-equipped judge would not have reached.
+
+Two reporting fixes, display-only — no score, band, or stored artifact changes:
+
+- **`assisted` is shown per task again.** It has always been a per-task boolean
+  in every `result.json`, and `scoring.md` requires it beside the outcome rather
+  than inside it — "an assisted pass is reported as `pass` **and**
+  `assisted: true`, never laundered into a plain pass". But neither `report.py`
+  nor `leaderboard.py` read the field. `report.py` instead summed a *different*
+  field, `intervention_count`, across the whole run into one word in the header,
+  so an assisted task rendered in the table as a bare `pass` with its 0.05
+  penalty already folded silently into `adjusted`. Both now carry an `Assisted`
+  column, read from each task's own field.
+- **`report.py --write` no longer destroys prose.** It rebuilt the README from
+  scratch and overwrote unconditionally, so regenerating a run to refresh its
+  numbers silently deleted every filled `<!-- judge: ... -->` section. It now
+  reads the existing README back and keeps the intro, interventions and
+  surprises prose, reporting what it preserved. It takes the *last* match of a
+  section heading, because an embedded `notes.md` can carry the same heading —
+  two of the three existing runs do.
+
+All of the below were found by judges during the gpt-5.4-nano medium campaign
+of 2026-08-11 and are recorded in `references/judge-brief.md`.
+
+- **`seek` is a no-op while paused.** It acks with the requested `positionMs`
+  while the reported position does not move. Two of seven judges hit it; one
+  nearly failed a correct swipe-to-seek implementation, because a paused seek
+  reading unchanged is indistinguishable from a gesture that redraws but never
+  seeks. The single highest-value line added.
+- **Absence-of-affordance reads need `isPlaying`/`songInfo` in the same
+  bundle.** One judge's "affordance absent" probe was really a fixture track
+  that had ended mid-probe.
+- **`observe`'s `elapsed_seconds` tracks the last event, not wall clock.** It
+  freezes during a hung candidate tool call — 323s reported when ~11 minutes
+  had passed. Documented for now; the number itself is still wrong.
+- **`publish` resolves its destination from the invoked script's repo root, not
+  cwd**, so a judge running the top-level script from its sandbox publishes
+  into the shared results tree. Two judges did exactly that in one campaign.
+  Documented for now; the one-writer invariant is still unenforced.
+- **A key on the `GestureDetector` does not rescue `dragByKey`.** The previous
+  wording explained the no-op via the missing `includeSelf` ancestor walk,
+  which implied a better-placed key would work. It does not.
+- **Sliders are reachable after all** — not by synthetic pointers, but by XTEST
+  wheel plus a real click. The old blanket "cannot be activated at all" was
+  costing coverage.
+- Also: `SoLoudInvalidParameterException` on clamped seeks is pre-existing;
+  `settings open` returns before the sheet paints and `shoot` catches the prior
+  frame; `getSemantics` is the better default lens and needs its full
+  `ext.nothingness.` name; `setQueue` starts playback itself; `playTrackByPath`
+  does not sync `currentIndex`; `decide_flags` can include a zero-length events
+  batch; `judge_control_unavailable` from `finish` means already-terminated;
+  concrete XTEST geometry and a long-metadata staging recipe.
+
 ## 1.3.0 — 2026-08-10
 
 Scores under 1.3.0 are not comparable with 1.2.x: t7's prompt was reworded,

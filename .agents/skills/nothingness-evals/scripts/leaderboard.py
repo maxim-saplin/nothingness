@@ -87,7 +87,7 @@ def render(results: list[dict[str, Any]]) -> list[str]:
     for item in results:
         runs.setdefault(item["_run_dir"], []).append(item)
 
-    columns = ("Model", "Thinking", "Date", "Eval", "Orchestrator/Judge", "Orchestrator/Judge cost", "Attempts per task", "Score", "Tokens (in/out)", "Cost", "$/point", "Report")
+    columns = ("Model", "Thinking", "Date", "Eval", "Orchestrator/Judge", "Orchestrator/Judge cost", "Attempts per task", "Score", "Assisted", "Tokens (in/out)", "Cost", "$/point", "Report")
     lines = [f"| {' | '.join(columns)} |", f"|{'|'.join([' --- '] * len(columns))}|"]
     for name in sorted(runs, reverse=True):
         items = runs[name]
@@ -103,14 +103,21 @@ def render(results: list[dict[str, Any]]) -> list[str]:
         # One row is one campaign, so a mixed set of versions inside it means the
         # harness changed mid-run -- worth showing rather than picking one.
         versions = sorted({str(item.get("eval_version") or "") for item in items} - {""})
+        # A score says nothing without this: an assisted 15/21 and an unassisted one
+        # are not the same result, and `assisted` is per task, never in the outcome.
+        helped = [item for item in items if item.get("assisted")]
+        interventions = sum(item.get("intervention_count") or 0 for item in items)
         lines.append(
             f"| `{model.get('model', '?')}` | {model.get('thinking', '?')} | {date} | {', '.join(versions) or '–'} | {who} "
             f"| {f'${conducted:.2f}' if isinstance(conducted, (int, float)) else '–'} | {attempts_per_task(items)} "
-            f"| **{score}/{len(scored) * 3}** | {tokens['input'] / 1000:.0f}k / {tokens['output'] / 1000:.0f}k "
+            f"| **{score}/{len(scored) * 3}** | {'no' if not helped else f'**{interventions}** on {len(helped)}/{len(items)} tasks'} "
+            f"| {tokens['input'] / 1000:.0f}k / {tokens['output'] / 1000:.0f}k "
             f"| ${spend:.4f} | {f'${spend / score:.4f}' if score else '–'} | [detail](results/{name}/README.md) |"
         )
     lines += [
         "",
+        "`Assisted` counts delivered judge interventions and how many tasks got one — each costs 0.05 off that task's "
+        "`raw` score, capped at 3 per task, and it is never folded into the outcome name. "
         "`Cost` and `$/point` are the model under test. `Orchestrator/Judge cost` is what it cost to *conduct* the run — "
         "agent sessions outside the measured containers, so the harness cannot see it. Record it per run with "
         "`leaderboard.py --set <run-dir> \"<who>\" <cost>`; everything else is read from the run artifacts. "

@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The session contains no capture taken while a gesture was in flight. Its only drag was one atomic `ext.nothingness.dragByKey key=hero-gesture-surface dx=180 kind=touch` call (the kind=mouse attempt threw the mouse_tracker assertion), and the `seek_during` screenshot was a separate bash invocation roughly 9 seconds later prefixed `sleep 0.15` - no incremental pointer updates, no mid-gesture tree/getPlaybackState read anywhere. The resulting deliverable shows the bottom line as `/opt/nothingness/media`, the folder path unchanged, with no target, duration or progress; I independently confirmed kind=touch drags move nothing (four dragByKey reproductions left position advancing only by natural playback, seekPreview null throughout). The feature itself does work - my own held X11 drag showed `4:10 / 7:00 - 60%` in that row - but the candidate never captured it.",
+      "evidence_ref": "events-4ab75f14c3c34ff490bfb63fff5a83c6"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Across four `dragByKey` reproductions (dx=+240, -240, +600, -600, each followed immediately by my own capture) plus three real held X11 drags read mid-gesture, no centered time readout and no full-height vertical line appears anywhere over the hero: zero `hero-seek-hud` nodes in every tree, and the diff deletes the `_SeekHud` class and its `seekHudKey` outright. The candidate's own during-gesture screenshot likewise shows no center indicator.",
+      "evidence_ref": "verification-dc0fe99ae3e943329c319b02799ef9d0"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release the crumb reverts cleanly: the settled capture taken more than two seconds after a released X11 swipe shows `Text(\"/opt/nothingness/media\")` back in the bottom line and the VoidScreen seek-preview hook state back to `null`, with no residual readout. The implementation clears on a 450 ms timer from onSeekEnd; I re-observed the reverted state in every post-release capture I took.",
+      "evidence_ref": "verification-cc6f73c46de9483db215f7817559795a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "There is no second data point, and in fact no first one: the session performed exactly one drag call in total, captured no structured state during it, and neither deliverable screenshot carries a legible target value (both show the folder path). Nothing in the event trail lets the live-tracking claim be checked. For the record my own reproductions do track correctly - rightward from 92.3s targeted 195.0s, leftward from 220.3s targeted 117.5s, both proportional to the distance dragged - but that is judge-side evidence, which this expectation explicitly excludes.",
+      "evidence_ref": "events-fdfabc0f5e4d422c92c93e3b7edbfa43"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Releasing still commits the seek to the last-shown target. With playback running, position was 92272 ms before the gesture; the crumb showed target 195024 ms mid-drag; the runtime capture after release reads 197157 ms - the target plus the ~2.1 s of playback that elapsed between release and the capture. The leftward direction commits too (220261 ms start, target 117508 ms, post-release position consistent with 117508 ms plus elapsed playback).",
+      "evidence_ref": "verification-f3a591045c9a4d1ba0d8710cfb3e070f"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The `seek_during.png` deliverable traces to a standalone `sleep 0.15; drive.py shoot seek_during --pixel-ratio 1.0` bash call issued about 9 seconds after the atomic drag call had already returned - a different process, after release, with no drag-start/drag-end instrumentation or incremental updates around it. The image confirms it: the bottom line reads `/opt/nothingness/media`, contradicting the claim it was attached to support, and it differs from the post-gesture shot in only 510 of 920160 pixels (a hairline advancing), so the two are effectively the same settled frame.",
+      "evidence_ref": "events-4ab75f14c3c34ff490bfb63fff5a83c6"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own screenshot taken after a released X11 swipe and a settle shows the bottom line back to its normal `/opt/nothingness/media` display, with no seek readout and no center indicator anywhere. The candidate's submitted `seek_post.png` is a genuine capture and agrees on the settled state - its defect is that its during-gesture sibling is a near-duplicate of it, which is E6's problem, not E7's.",
+      "evidence_ref": "verification-27a131755dc1486f8606eaabec9f8b31"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled moment has independent structural backing, not just an image: the same post-settle capture's widget tree carries `Text(\"/opt/nothingness/media\")` in the crumb row and the seek-preview hook state as `null`, and its runtime lens reports the app playing normally - all consistent with the post-gesture screenshot.",
+      "evidence_ref": "verification-cc6f73c46de9483db215f7817559795a"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "All three hero tap zones still fire, tapped as real on-screen clicks (the zones are x-thirds of one detector, so there are no per-zone keys): left third restarted the current track (position 21898 ms to 3306 ms, the documented >3 s previous() behaviour), centre third toggled isPlaying true to false, right third advanced currentIndex 8 to 9 and the title 53 to 54. Vertical drag also still works - after switching the browser to swipe-up mode, an upward X11 drag on the same surface expanded the browser from the collapsed 'swipe to browse' state.",
+      "evidence_ref": "verification-559d9b2ace7a4242850794375b478484"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "A burst of ten swipes varying direction, magnitude and speed left the overflow report count at 0, unchanged from before the burst, and the app kept answering normally (still playing, position advancing). The run log does show SoLoudInvalidParameterException on seeks that clamp to 0 or past the end, but that is the pre-existing seek path, not this change: a plain `drive.py seek 0` with no gesture involved reproduces it on demand.",
+      "evidence_ref": "verification-73d7f7471a1847e98154ff422c786a25"
+    }
+  ]
+}

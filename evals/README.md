@@ -9,12 +9,13 @@ candidate's write-up.
 ## Results
 
 <!-- BEGIN GENERATED LEADERBOARD -->
-| Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Attempts per task | Score | Tokens (in/out) | Cost | $/point | Report |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gpt-5.4-nano` | medium | 2026-08-10 | 1.3.0 | unrecorded | – | 2–4 | **14/21** | 377k / 117k | $0.4537 | $0.0324 | [detail](results/gpt-5.4-nano-medium-20260810-2027/README.md) |
-| `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | Opus 5 High | $50.56 | 1 | **11/18** | 742k / 167k | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |
+| Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Attempts per task | Score | Assisted | Tokens (in/out) | Cost | $/point | Report |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | medium | 2026-08-11 | 1.3.0 | claude.opus-5-high | $57.18 | 3–5 | **15/21** | no | 488k / 126k | $0.6164 | $0.0411 | [detail](results/gpt-5.4-nano-medium-20260811-0506/README.md) |
+| `gpt-5.4-nano` | medium | 2026-08-10 | 1.3.0 | unrecorded | – | 2–4 | **14/21** | no | 377k / 117k | $0.4537 | $0.0324 | [detail](results/gpt-5.4-nano-medium-20260810-2027/README.md) |
+| `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | claude.opus-5-high | $50.56 | 1 | **11/18** | no | 742k / 167k | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |
 
-`Cost` and `$/point` are the model under test. `Orchestrator/Judge cost` is what it cost to *conduct* the run — agent sessions outside the measured containers, so the harness cannot see it. Record it per run with `leaderboard.py --set <run-dir> "<who>" <cost>`; everything else is read from the run artifacts. Regenerate with `leaderboard.py --write`; do not hand-edit between the markers.
+`Assisted` counts delivered judge interventions and how many tasks got one — each costs 0.05 off that task's `raw` score, capped at 3 per task, and it is never folded into the outcome name. `Cost` and `$/point` are the model under test. `Orchestrator/Judge cost` is what it cost to *conduct* the run — agent sessions outside the measured containers, so the harness cannot see it. Record it per run with `leaderboard.py --set <run-dir> "<who>" <cost>`; everything else is read from the run artifacts. Regenerate with `leaderboard.py --write`; do not hand-edit between the markers.
 <!-- END GENERATED LEADERBOARD -->
 
 One row per run, generated from the published `result.json` files. A model re-run tomorrow, or

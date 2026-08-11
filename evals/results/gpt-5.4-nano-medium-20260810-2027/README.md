@@ -11,16 +11,16 @@ this model writes largely correct code and then fails to prove it. Every one of 
 was capped by an evidence expectation, not a broken implementation — except t6, whose implementation
 really is broken, and only a judge driving the live app found that out.
 
-| Task | Score | Outcome | In | Out | Reasoning | Cache | Cost | $/point |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `t1-playback-smoke-linux` | 3 | pass | 29.1k | 6.9k | 3.2k | 742.9k | $0.0296 | $0.0099 |
-| `t2-settings-placement-linux` | 3 | pass | 71.0k | 14.5k | 9.7k | 1733.4k | $0.0673 | $0.0224 |
-| `t3-settings-placement-color-scheme-linux` | 2 | partial | 34.2k | 11.4k | 7.7k | 1138.2k | $0.0439 | $0.0220 |
-| `t4-swipe-to-seek-linux` | 2 | partial | 62.6k | 28.3k | 19.9k | 3119.6k | $0.1106 | $0.0553 |
-| `t5-jump-to-now-playing-linux` | 2 | partial | 94.6k | 27.5k | 21.6k | 3033.3k | $0.1141 | $0.0570 |
-| `t6-dot-song-info-hardening-linux` | 1 | partial | 39.2k | 17.4k | 13.4k | 918.5k | $0.0483 | $0.0483 |
-| `t7-opus-shuffled-playlist-linux` | 1 | partial | 46.5k | 10.8k | 8.4k | 839.4k | $0.0399 | $0.0399 |
-| **Total** | **14/21** | | 377.2k | 116.9k | 83.8k | 11525.4k | **$0.4537** | **$0.0324** |
+| Task | Score | Outcome | Assisted | In | Out | Reasoning | Cache | Cost | $/point |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `t1-playback-smoke-linux` | 3 | pass | no | 29.1k | 6.9k | 3.2k | 742.9k | $0.0296 | $0.0099 |
+| `t2-settings-placement-linux` | 3 | pass | no | 71.0k | 14.5k | 9.7k | 1733.4k | $0.0673 | $0.0224 |
+| `t3-settings-placement-color-scheme-linux` | 2 | partial | no | 34.2k | 11.4k | 7.7k | 1138.2k | $0.0439 | $0.0220 |
+| `t4-swipe-to-seek-linux` | 2 | partial | no | 62.6k | 28.3k | 19.9k | 3119.6k | $0.1106 | $0.0553 |
+| `t5-jump-to-now-playing-linux` | 2 | partial | no | 94.6k | 27.5k | 21.6k | 3033.3k | $0.1141 | $0.0570 |
+| `t6-dot-song-info-hardening-linux` | 1 | partial | no | 39.2k | 17.4k | 13.4k | 918.5k | $0.0483 | $0.0483 |
+| `t7-opus-shuffled-playlist-linux` | 1 | partial | no | 46.5k | 10.8k | 8.4k | 839.4k | $0.0399 | $0.0399 |
+| **Total** | **14/21** | | no | 377.2k | 116.9k | 83.8k | 11525.4k | **$0.4537** | **$0.0324** |
 
 ## What happened
 

@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen=cassette the sheet's semantics dump shows 'screen | cassette' at indexInParent 5 (y 231-276) immediately followed by 'color scheme | Tape · Mono' at indexInParent 6 (y 276-321) — consecutive indices, abutting y-ranges, no header or gap between; the screenshot in the same capture reads the same way.",
+      "evidence_ref": "verification-5b80fc595da94f65a2d8374a450a4121"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The row's label is exactly 'color scheme', lowercase, on its own semantics label line with 'Tape · Mono' as the value; scrolling the whole 22-row sheet found exactly one such row and no leftover cassette 'variant' row (the 'variant | system' row at index 4 is the pre-existing app-wide theme variant the rubric itself names).",
+      "evidence_ref": "verification-5b80fc595da94f65a2d8374a450a4121"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Five on-screen taps of void-settings-screen advanced spectrum → polo → dot → void → cassette, full circle, with the row's own displayed value matching getSettings at every step; direct 'drive.py screen <name>' calls for all five types were likewise reflected back in the row's value.",
+      "evidence_ref": "verification-b38943d232894e07a48360b28170c678"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Four taps of the renamed row cycled Tape · Mono → Tape · Amber → Tape · Colour → Minimal → Tape · Mono, and 'drive.py cassettevariant 2/3/1/2' each landed with the row's displayed value tracking it; the variant-3 capture independently shows 'color scheme | Tape · Colour' still seated under 'screen'.",
+      "evidence_ref": "verification-f6a21afc116b4dad9b581d01e151c1df"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot and void the row after 'screen' is that screen's own 'immersive' row, and a full-scroll scan of each sheet found no 'color scheme' label anywhere; spectrum's 'text color' (Cyan→Purple), 'media controls color' (Cyan→Purple) and dot's 'show song info' (off→on) all changed on-screen when tapped. Polo's and void's only own control is a text-size slider, which synthetic pointers cannot activate — a judge-side limitation, not a candidate defect.",
+      "evidence_ref": "verification-b38943d232894e07a48360b28170c678"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate produced no usable screenshot: it never launched the app (no 'flutter run' or drive.py invocation anywhere in the event stream) and instead wrote a flutter_test harness whose boundary.toImage() hung in flutter_tester, hitting flutter's 10-minute per-test timeout twice; its only artifact, /workspace/.tmp/cassette_settings_region.png, is 0 bytes. The screenshot lens cited here is my own capture, taken after I launched the app myself.",
+      "evidence_ref": "verification-5b80fc595da94f65a2d8374a450a4121"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same capture carries semantics.json, settings.json ('screenType': 'cassette') and a 170KB widget tree alongside the screenshot; the semantics row order, the exact 'color scheme' label text and the 'Tape · Mono' value all agree with the image.",
+      "evidence_ref": "verification-5b80fc595da94f65a2d8374a450a4121"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Every unrelated row keeps its baseline pairwise order across all five screens (MODE/operating mode, LOOK/theme/variant/screen, immersive, transport, browser, full screen, ui scale, LIBRARY rows, DISPLAY/debug layout, ABOUT/help/version) with none added, removed or renamed; transport (bottom→top), browser (fixed→swipe up) and immersive (off→on) all responded to on-screen taps. Cassette's own 'text size' and 'haptics' did move up with the variant row, which is the prompt's own 'its cassette variant controls' clause rather than an unrelated reorder. 'theme' cycles to itself because ThemeId has exactly one value in this fixture — pre-existing, not a regression.",
+      "evidence_ref": "verification-f6a21afc116b4dad9b581d01e151c1df"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "drive.py overflows reported count 0 both before and after the exercise, the flutter run log holds zero exceptions/assertions after all the screen switching, variant cycling and two open/close cycles of the sheet, and this final runtime capture answered normally (overflows count 0, app still live and responsive).",
+      "evidence_ref": "verification-ba4864b1c358444aaa09a7e4c7ffbd0b"
+    }
+  ]
+}

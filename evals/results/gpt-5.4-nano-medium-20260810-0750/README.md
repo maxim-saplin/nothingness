@@ -4,16 +4,16 @@
 
 <!-- judge: one paragraph — what was run and the single most important thing it showed. -->
 
-| Task | Score | Outcome | In | Out | Reasoning | Cache | Cost | $/point |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `t1-playback-smoke-linux` | 0 | fail | 74.8k | 8.0k | 6.1k | 1010.7k | $0.0455 | – |
-| `t2-settings-placement-linux` | 3 | pass | 69.6k | 10.2k | 7.1k | 965.1k | $0.0463 | $0.0154 |
-| `t3-settings-placement-color-scheme-linux` | 3 | pass | 42.6k | 12.7k | 8.4k | 1503.0k | $0.0545 | $0.0182 |
-| `t4-swipe-to-seek-linux` | – | unassigned | 301.1k | 62.0k | 45.8k | 13113.9k | $0.4002 | – |
-| `t5-jump-to-now-playing-linux` | 1 | partial | 102.2k | 24.4k | 17.9k | 2545.7k | $0.1022 | $0.1022 |
-| `t6-dot-song-info-hardening-linux` | 3 | pass | 75.1k | 27.4k | 19.6k | 4677.9k | $0.1431 | $0.0477 |
-| `t7-opus-shuffled-playlist-linux` | 1 | partial | 76.7k | 22.2k | 15.6k | 2328.8k | $0.0900 | $0.0900 |
-| **Total** | **11/18** | | 742.1k | 166.9k | 120.5k | 26145.0k | **$0.8818** | **$0.0802** |
+| Task | Score | Outcome | Assisted | In | Out | Reasoning | Cache | Cost | $/point |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `t1-playback-smoke-linux` | 0 | fail | no | 74.8k | 8.0k | 6.1k | 1010.7k | $0.0455 | – |
+| `t2-settings-placement-linux` | 3 | pass | no | 69.6k | 10.2k | 7.1k | 965.1k | $0.0463 | $0.0154 |
+| `t3-settings-placement-color-scheme-linux` | 3 | pass | no | 42.6k | 12.7k | 8.4k | 1503.0k | $0.0545 | $0.0182 |
+| `t4-swipe-to-seek-linux` | – | unassigned | no | 301.1k | 62.0k | 45.8k | 13113.9k | $0.4002 | – |
+| `t5-jump-to-now-playing-linux` | 1 | partial | no | 102.2k | 24.4k | 17.9k | 2545.7k | $0.1022 | $0.1022 |
+| `t6-dot-song-info-hardening-linux` | 3 | pass | no | 75.1k | 27.4k | 19.6k | 4677.9k | $0.1431 | $0.0477 |
+| `t7-opus-shuffled-playlist-linux` | 1 | partial | no | 76.7k | 22.2k | 15.6k | 2328.8k | $0.0900 | $0.0900 |
+| **Total** | **11/18** | | no | 742.1k | 166.9k | 120.5k | 26145.0k | **$0.8818** | **$0.0802** |
 
 ## What happened
 

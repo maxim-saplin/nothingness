@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I re-ran setQueue with the ten mounted fixture paths and my own runtime capture reads queueLength 10 with all ten fixture paths present exactly once, no duplicates, nothing foreign, and isNotFound false on every entry; the candidate's own state dump showed the same.",
+      "evidence_ref": "verification-7761904a3cc849b2a8c4036a86e75b3c"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I drove the real on-screen control both ways myself: tapping void-settings-status-shuffle in the open settings sheet took shuffle true->false, and a second tap took it false->true with the queue genuinely re-permuted, so the flag is caused by the toggle and not by any side channel.",
+      "evidence_ref": "verification-49fd97a169b4425a968a0b98bda0e83a"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Immediately before my transition the runtime capture reads isPlaying true on /opt/nothingness/media/05-undercover-53.opus with isNotFound false and a live position, i.e. genuinely playing a resolvable in-set fixture.",
+      "evidence_ref": "verification-d24a8e232bec449e8e6b53800ac3b030"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "One drive.py next moved the current track from 05-undercover-53.opus (index 5) to 06-undercover-54.opus (index 6) with isPlaying true and isNotFound false, both endpoints in the fixture set; the candidate's own single next likewise moved 01-undercover-49.opus -> 09-undercover-46.opus (index 6 -> 7).",
+      "evidence_ref": "verification-714fffddd86e408aa6d13a7875db0943"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Scanning the whole session record, every distinct \"path\" value in every playback-state dump is one of the ten fixtures, and the session made exactly one setQueue (built from ls /opt/nothingness/media/*.opus), one next, zero prev and zero play calls; the only non-fixture audio filenames anywhere are quoted from docs the candidate read, never queued or made current.",
+      "evidence_ref": "events-7f87c0ccf8ce4e6488075ba27f315667"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Every specific claim in the final report - 10 tracks with no duplicates, shuffle true, before 01-undercover-49.opus, after 09-undercover-46.opus, and the replay script it wrote - traces to a getPlaybackState read taken in the session, and the candidate additionally re-asserted queue identity and the transition in an inline Python check.",
+      "evidence_ref": "events-6622cd30b16b42859a831a3328b2e5b8"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The inspection's git lens shows an empty diff_stat with no tracked-file changes at all (not even the tolerated GeneratedPluginRegistrant.swift regeneration); the sole workspace addition is one untracked non-functional artifact, tool/regression/opus_fixtures_shuffle_next.txt, a drive.py replay note that alters no app code or setting, and queue/shuffle/play/next all behaved exactly as a stock build in my re-derivation.",
+      "evidence_ref": "inspection-cd9e8f6d0b8642e99762a979008de10b"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No crash or hang existed to recover from: overflows count 0, and the run log has no lost-connection, exception or segfault traces; the app I verified is the candidate's own continuing session (my first capture found it still playing 09-undercover-46.opus at 249s, the track its final next selected). Its three tool-level failures - two no-match greps and one heredoc that ate stdin from the state pipe - were each noticed and re-run rather than narrated over.",
+      "evidence_ref": "verification-c21fef32f7ff44c3a89d973333c3cfc6"
+    }
+  ]
+}

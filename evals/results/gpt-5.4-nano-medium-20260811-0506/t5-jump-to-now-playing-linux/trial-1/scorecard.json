@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With 10-undercover-47.opus playing and the browser at /opt/nothingness (a different folder), the crumb exposed the jump action; tapping it left the browser at /opt/nothingness/media with the row for 47 fully inside the list viewport (rect y 103.4-144.4 of 0-255.8), and the action then correctly disappeared.",
+      "evidence_ref": "verification-42c225a3078b4e568b18eaee5028ba46"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Works on the folder-reset route: with 47 playing and the media folder freshly loaded (scroll 0, row 47 off-screen) the action was present, and activating it kept currentPath identical at /opt/nothingness/media while scrolling 47 fully into view. But the visibility predicate is only re-evaluated when the crumb rebuilds, so after a real X11 wheel scroll pushed row 47 back off-screen in the same correct folder (47 still playing, position 7.4s, visible rows 49-54 + '..') the action was absent from the semantics tree entirely - E2's own falsifier, on the most natural path a user reaches that state.",
+      "evidence_ref": "verification-fc162a7d500c4c26904a915f3d2cbe2a"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "With 47 playing (position 67.2s) in its own correct folder and its row scrolled to rect y 29.8-70.8, fully inside the viewport 0-255.8 with neither edge clipped (confirmed on the screenshot), the crumb still exposed an active affordance: semantics node #9 carried 'scroll to now-playing track / (.)' with actions tap and flags isButton, and tapping it genuinely fired, re-centring the list from scroll offset 106.0 to 183.6. Same root cause as E2's gap - the predicate is never re-read on scroll, so it goes stale in both directions.",
+      "evidence_ref": "verification-f115caac44224c81a05e00730a7e13b8"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With songInfo null and nothing playing, the semantics tree and the widget tree contained zero 'jump'/'now-playing' hits at /opt/nothingness/media, and the same at /opt/nothingness (verification-4c78bb010b6f41bc9b9f1d6147719716) - no active jump affordance anywhere in either folder.",
+      "evidence_ref": "verification-820b0ccb681d4ba4921db69de26c926d"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "getSemantics is genuinely available on this build (full tree returned, not the generic unavailable response) and the active affordance appears as a node with actions longPress+tap, flags isButton, and the label 'scroll to now-playing track' plus the (.) glyph - the candidate also updated the label from the old 'jump to now-playing folder' to match the new scroll behaviour. Caveat: the label is merged into the crumb's own semantics node alongside the path text rather than being a standalone node.",
+      "evidence_ref": "verification-f6ac441d5ddd49bc97fec9c3dab4f9b4"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's before_out_of_view2.png is a real drive.py shoot capture (1278x720, recorded in the event stream) showing 01-undercover-49.opus playing at /opt/nothingness/media with rows 50-54 + '..' visible and only a ~6px sliver of the playing row 49 at the list's top edge, action present. My live reproduction of that exact pre-activation state matches it pixel-for-pixel (row 49 rect 0.0-5.8 of a 41px row).",
+      "evidence_ref": "verification-77846ae9996540fc943a3bccfacaa35f"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's after_in_view2.png shows row 49 fully visible and highlighted with the crumb path unchanged at /opt/nothingness/media and the action gone; my live reproduction of the same tap lands identically (49 at rect y 107.4-148.4, currentPath unchanged), so the after screenshot is genuine and on-point.",
+      "evidence_ref": "verification-83497a5d7fe14e85958dea85608a9f88"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The write-up's same-folder claims are backed by its own before/after screenshots, but two specific claims have no supporting observation anywhere in the session: that the action appears 'only when a track is actively playing' (it never reached a no-track state) and that it appears when 'the playing track's parent folder differs' (it never browsed a different folder while playing). It also never read getLibraryState or the semantics/widget tree after activating, resting the 'keeps the browser in the same folder' claim solely on the crumb text visible in its screenshot.",
+      "evidence_ref": "events-e394937aadd043cfbb7fe0df8b96b65f"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Real on-screen taps still navigate: tapping the void-up row moved /opt/nothingness/media -> /opt/nothingness (verification-13100ba3dffe41c2a3f38866ec10f323) and tapping the void-folder row moved back (verification-333a8c1ee05241d1a67b3c509a62d273). An on-screen track-row tap started playback with a 10-track queue at index 5, and next/prev/pause/resume all behaved - prev holding position when >3s into a track matches the fixture's own _onPrevious restart rule, and it stepped back correctly when re-tested under 3s.",
+      "evidence_ref": "verification-00803661f89442ed8da36de661ddea8b"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "drive.py overflows reported count 0 both before and after exercising E1-E4's scenarios, the app answered every extension call normally to the end, and the flutter run log holds no framework exceptions - only container noise (EGL/DRI3, ALSA has no card) and a benign SoLoud fileAlreadyLoaded from replaying the same fixture.",
+      "evidence_ref": "verification-00803661f89442ed8da36de661ddea8b"
+    }
+  ]
+}

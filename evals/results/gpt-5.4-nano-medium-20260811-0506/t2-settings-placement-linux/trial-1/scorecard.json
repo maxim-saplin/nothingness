@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen=cassette the semantics dump shows indexInParent 5 'screen/cassette' (y231-276) immediately followed by indexInParent 6 'variant/Tape · Mono' (y276-321) with abutting rects and nothing between them; the screenshot in the same capture shows the same order rendered.",
+      "evidence_ref": "verification-b11c91fe32004993b80b15c2ae07fb7b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Five on-screen taps of void-settings-screen advanced cassette->spectrum->polo->dot->void->cassette, the row's own value tracking each step and closing the cycle; separately drive.py screen <name> for all five was reflected back in the row's value and in getSettings, and the E1 adjacency held again on the second visit to cassette.",
+      "evidence_ref": "verification-71c0d1e39a07431192304f1180b704a2"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-cassette-variant in its new position cycled Mono->Amber->Colour->Minimal->Mono with the row's value tracking each tap; drive.py cassettevariant 3/1/4/2 moved it the other way with the row's value matching each time, and closing the sheet showed the cassette screen itself render the amber tape artwork for v2 vs the minimal layout for v4, so the change is real and not just a label.",
+      "evidence_ref": "verification-71284a9ebeb449159a39b9cbab863e97"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot and void the row right after 'screen' is 'immersive' (the pre-change next row) with no cassette control injected; each of those screens' own controls still respond on-screen (spectrum bar count 24->8->12, polo bar style solid->glow, dot show song info off->on, void debug layout off->on).",
+      "evidence_ref": "verification-d2a3bf9392b442e2bf4f7f26c3173196"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Both PNGs the candidate produced and presented (cassette_settings_top.png and the cassette_settings_region.png crop it embedded in its answer) show the cassette playback screen -- tape artwork, transport buttons, 'empty' -- not the settings sheet; no settings row is visible in either, so the adjacency they are captioned as proving cannot be read off them. It chained 'settings open && shoot' in 0.27s with no delay, so the raster predated the sheet's first frame, then cropped that same wrong image. My own capture of the same state at the same resolution shows the sheet plainly, so the miss is the candidate's, not the harness's.",
+      "evidence_ref": "verification-21665390e71341febac29a79355fd395"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same capture's semantics and settings lenses corroborate the screenshot independently: getSemantics gives the consecutive indexInParent 5/6 with abutting y-ranges and the variant value, and getSettings confirms screenType=cassette while the dump was taken.",
+      "evidence_ref": "verification-b11c91fe32004993b80b15c2ae07fb7b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Full row order across cassette and the other four screens matches the pre-change source order for every unrelated row, with the cassette variant row inserted after 'screen' as the only difference and no row added, removed or renamed; immersive, transport, browser, prefer-filename, smart-folders, theme variant, debug layout and the spectrum SOUND rows all changed their displayed value when tapped on-screen.",
+      "evidence_ref": "verification-7d09e5f58733418f99aa68ed5212c5b8"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getOverflowReports was count 0 both before and after roughly 40 sheet opens, screen switches and row activations, and the runtime lens at the end shows the app still answering normally with overflows count 0.",
+      "evidence_ref": "verification-21665390e71341febac29a79355fd395"
+    }
+  ]
+}
