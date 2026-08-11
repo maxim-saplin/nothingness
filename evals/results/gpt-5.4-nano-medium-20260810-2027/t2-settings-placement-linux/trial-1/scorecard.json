@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen cycled to cassette, my own getSemantics dump shows node indexInParent:5 label 'screen\\ncassette' immediately followed by indexInParent:6 label 'variant\\nTape · Mono' with abutting y-ranges (231-276, 276-321); no group header or other row between them. The candidate's own screenshot agrees.",
+      "evidence_ref": "verification-1dc314578f2b47e9924af6c76a16b125"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-screen on-screen advanced the full cycle cassette->spectrum->polo->dot->void->cassette with the row's own displayed value tracking each step; a direct screen=dot call also landed and the row updated to 'dot' -- both directions wired.",
+      "evidence_ref": "verification-8a11814204e44f44a4eebf824bb755c1"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-cassette-variant advanced v1('Tape · Mono')->v2('Tape · Amber'); a direct cassetteVariant=4 call separately landed on v4('Minimal') and the row's displayed label updated to match in both cases -- on-screen tap and direct call both move the variant and both are reflected in the label.",
+      "evidence_ref": "verification-0b44312f1f5c4bcbbfcb5dddecfad9c7"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, void and dot, getSemantics shows the row right after 'screen' is that screen's own next row (immersive, or dot's next row) -- never the cassette-variant selector. Tapping dot's own 'show song info' row on-screen flipped it off->on, confirming the reshuffle didn't disconnect other screens' controls.",
+      "evidence_ref": "verification-49c5baaa788345868d1dc978c8d20b64"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Opened the candidate's actual deliverable artifacts/agent-shots/cassette_settings.png directly: it genuinely shows the settings sheet open, 'screen' row reading 'cassette', and the very next row reading 'variant: Tape · Mono', both fully legible in frame -- not the closed player screen, not a mismatched state.",
+      "evidence_ref": "verification-1dc314578f2b47e9924af6c76a16b125"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Beyond the screenshot, my own getSemantics/getSettings dump independently corroborates both the row ordering (screen at index 5, variant at index 6, abutting rects) and the variant value ('Tape · Mono'/screenType 'cassette'), agreeing with the screenshot.",
+      "evidence_ref": "verification-1dc314578f2b47e9924af6c76a16b125"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across cassette/spectrum/polo/void/dot captures the unrelated rows (MODE, operating mode, LOOK, theme, theme-variant, immersive, transport, browser, full screen, ui scale, LIBRARY, prefer-filename, smart folders, DISPLAY...) keep the same pairwise order every time, with only the cassette-variant row appearing/disappearing around 'screen'. Tapping the unrelated 'immersive' and 'prefer filename over tags' rows on-screen still flips their displayed values (off->on and true->false respectively).",
+      "evidence_ref": "verification-e80a5fd6487a4702805129b7de9c3996"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "drive.py overflows returned an empty report (count 0) before and after this entire exercise of opening/closing settings, cycling all five screens, and repeatedly toggling controls; a final inspect call answered normally with the app still live and responsive.",
+      "evidence_ref": "verification-cddc49542b944a518c758abe797c0f6b"
+    }
+  ]
+}

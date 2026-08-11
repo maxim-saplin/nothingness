@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Divergent-folder case works: jump action present while browsing the parent with the track playing in the child folder; after activation the browser is in the track's parent folder with its row centered on screen.",
+      "evidence_ref": "verification-5c492b079de6481fa04285391062dc70"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Same-folder, row scrolled off-screen: jump action present before activation; after activation the folder path is unchanged and the row is now visible, using a fresh track to rule out a stale-Selector confound.",
+      "evidence_ref": "verification-1db0335640b84b5c8761d78fa0562496"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The same capture that closes out E2 shows the row fully unclipped and centered while the action is still exposed with tap+longPress and a real label -- the visibility check is only recomputed on track-change/folder-nav, never on scroll, so it stays active once shown; confirmed persisting after scrolling away and back with no other trigger.",
+      "evidence_ref": "verification-1db0335640b84b5c8761d78fa0562496"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Reached genuine idle (songInfo null) by letting a track finish; no jump action exposed in either the media folder or the parent folder.",
+      "evidence_ref": "verification-712447e684a64bb492238da0ed5c55ef"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "getSemantics returns a real tree on this build (not the generic-unavailable response); the action's node carries a distinguishing label ('jump to now-playing folder'), not a bare glyph.",
+      "evidence_ref": "verification-5c492b079de6481fa04285391062dc70"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate's before_now_playing_offscreen_v3.png genuinely shows the playing track's row absent from the visible region (rows 50-54/.. only); dimensions and rendering match my own live captures of the equivalent staged state, ruling out fabrication.",
+      "evidence_ref": "verification-e156faba599844f6a69b4e41fee3eeab"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Candidate's after_now_playing_visible_v3.png is visually identical to its own before screenshot -- the playing row is still absent, contradicting the write-up's caption. I reproduced the same before-state live and, waiting for the scroll animation to settle before shooting, the row did become visible -- so the mechanism can work, but the candidate's own submitted after-evidence does not demonstrate it.",
+      "evidence_ref": "verification-1db0335640b84b5c8761d78fa0562496"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up's caption 'row scrolled into view; browser stays in the same folder' for after_now_playing_visible_v3.png is directly contradicted by that same image (see E7) -- an actively falsified claim, not merely an unbacked one.",
+      "evidence_ref": "events-2297fe2de2bb40ec9629e4119030a41e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen taps of a folder row and the up-affordance navigated correctly (verified via getLibraryState); with a real multi-track queue, next/prev/pause/resume all transitioned playback as expected. A single-track play (queueLength 0) makes next/prev clear songInfo, but that's pre-existing queue behavior unrelated to the diff, which touches only the crumb glyph and VoidBrowserController.",
+      "evidence_ref": "verification-557352da1a4347f99ed61fd8a89d685a"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "drive.py overflows reported zero entries throughout; verification runtime lens shows the app fully responsive with correct playback/queue state (confirmed also via judge-inspect.py --runtime --git --processes: no overflow reports, process still alive).",
+      "evidence_ref": "verification-557352da1a4347f99ed61fd8a89d685a"
+    }
+  ]
+}

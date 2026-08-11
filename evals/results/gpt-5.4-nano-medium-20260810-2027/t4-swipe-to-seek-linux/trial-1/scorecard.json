@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate held a real gesture (dragByKeyHold dx=220, 7/16 steps) for ~7s before releasing (endDrag ~8s after the screenshot), then shot during_seek.png while still held -- a genuine mid-gesture instant, not an atomic call. Opening that PNG directly shows the bottom crumb line reading '0:04 / 1:23  5%' in place of the folder path -- all three required fields (target position, duration, progress) present and non-placeholder.",
+      "evidence_ref": "events-f6c6ae99d87b45d08af8b11c1a64c912"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own fresh reproductions -- release-instant dragByKey swipes (touch and mouse, both directions, magnitudes up to 800px) and a held mid-gesture capture -- never show a centered time readout or vertical line over the hero; only the bottom crumb line changes. The candidate's own during_seek.png corroborates this (no center overlay).",
+      "evidence_ref": "verification-8a9ee65def234b83b6b40b6f78e9b603"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After releasing a swipe and waiting ~2.5s with no further input, the bottom line reverted exactly to the pre-swipe folder path '/opt/nothingness/media', matching the baseline capture with no residual readout.",
+      "evidence_ref": "verification-d6cef8363c5f4c6ea4efcf8d48b39f9e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate performed exactly one dragByKeyHold gesture (dx=220 touch) in the whole session and captured exactly one during-gesture screenshot from it; no second capture at a different dx/direction exists anywhere in its own event trail to compare against, so live-tracking-vs-placeholder cannot be established from the candidate's own evidence.",
+      "evidence_ref": "events-083b1c62c9784a36b6b1becc026617d4"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Runtime capture immediately before a +350px rightward touch swipe showed position 7114ms; the release-instant capture immediately after showed 55125ms -- clearly forward, in the swipe's direction, proportionate to its magnitude. (Note for the record: leftward/negative-dx swipes reproducibly failed to move the target backward at all in this build, tested up to -800px from multiple starting positions -- but this exact seekAccumDx/primaryDelta math is byte-identical to the pinned fixture's pre-existing code and untouched by the candidate's diff, so it predates this change and isn't attributable to it. Direction chosen for this expectation avoids that confound.)",
+      "evidence_ref": "verification-8a9ee65def234b83b6b40b6f78e9b603"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The during_seek.png capture (call at elapsed 764.0s) sits between the dragByKeyHold call (757.4s, held open) and the endDrag release (772.0s) -- real elapsed time on both sides, not an atomic call -- and the surrounding session shows no contradiction of the bottom-line/no-center-indicator claim.",
+      "evidence_ref": "events-f6c6ae99d87b45d08af8b11c1a64c912"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own post-gesture capture (release + ~2.5s settle) shows the bottom line back to '/opt/nothingness/media' with no seek readout and no center indicator. The candidate's own post_seek.png shows '~' plus a jump glyph rather than a literal path -- because the candidate staged playback via playTrackByPath (bypassing the browser, so library.currentPath was null throughout its session) rather than navigating the library -- but that is still the correct reverted placeholder for a null currentPath, not the seek readout; it is not a duplicate of during_seek.png and not the old center indicator.",
+      "evidence_ref": "verification-d6cef8363c5f4c6ea4efcf8d48b39f9e"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "At the same settled capture, inspect.json's library.currentPath ('/opt/nothingness/media') agrees exactly with the screenshot's visible bottom-line text.",
+      "evidence_ref": "verification-d6cef8363c5f4c6ea4efcf8d48b39f9e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Real on-screen X11 clicks at the hero surface's outer thirds: right-third tap advanced currentIndex (0->1, later 2->3); left-third tap reset the current track's position toward 0 (restart-current-track semantics); center tap toggled isPlaying false/true. A real vertical X11 drag on the same surface produced no crash and no state change, consistent with browser-presentation not being in swipe-reveal mode here and with the candidate's diff never touching vertical-drag wiring.",
+      "evidence_ref": "verification-c0775bd836a048a8a81a809c7c7154ae"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflow report count stayed at 0 before and after a burst of 5+ varied-magnitude/direction touch swipes (plus all earlier E2/E5/E9 swipes), and the app answered a fresh inspect normally afterward (still playing, index advanced correctly). The only errors observed all session were mouse_tracker.dart assertions from the harness's frozen dragByKey with kind=mouse -- a known, pre-existing tool-level issue unrelated to this change (it also occurs with the candidate's own dx=220 rightward test path never touched) and never a genuine app crash.",
+      "evidence_ref": "verification-c0775bd836a048a8a81a809c7c7154ae"
+    }
+  ]
+}

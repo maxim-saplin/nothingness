@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate drove the real live Linux build via ext.nothingness.* (setQueue/inspect/pause/resume/next/seek/overflows, all seen in the event stream); I independently confirmed the same session live (preflight extension_count=31, fresh inspect answering).",
+      "evidence_ref": "verification-a50f4a14abe54e01a688695b280eb439"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate's own session shows isPlaying false then true around pause/resume; I independently reproduced pause->inspect(false)->resume->inspect(true) live just now against the same running app.",
+      "evidence_ref": "verification-53be023d65fb4a09ad167df2b2e4b2d9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate built a real 10-track queue with setQueue then called next, advancing currentIndex 0->1 (01-undercover-49 -> 02-undercover-50); I independently issued next twice more against the live queue and confirmed index+path changed each time in the forward direction.",
+      "evidence_ref": "verification-c82424d7da18489db66f035279cd6aac"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate's own post-seek inspect landed 4.7s past its 50000ms target only because ~9s of real tool-call latency elapsed before that inspect fired (playback kept running); I re-verified seek with tight back-to-back calls three times (40000->40416, 70000->70277, 50000->51354), all within ~1.4s and clearly forward, confirming the seek itself is accurate.",
+      "evidence_ref": "verification-158424e1198848e5a03979f96b3c752e"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Every specific number in the final report (isPlaying true, currentIndex 1, track 02-undercover-50.opus, position 73008/84720, overflows 0) matches a raw inspect/overflows tool result the candidate itself read just before reporting; no claim was unbacked.",
+      "evidence_ref": "events-74f82d61fc57410181ec17dc490d8d66"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Workspace git status and diff --stat are both completely empty (no diff at all, not even the known GeneratedPluginRegistrant.swift regeneration) and runtime behavior throughout matched an unmodified build.",
+      "evidence_ref": "inspection-a313a925281443399b3bc7359a6a00b4"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No app crash/hang appears anywhere in the run log or overflow trail (grep for exception/crash/fatal found nothing); the only errors were the candidate's own shell mistakes (encoding-mangled ls flag, `python` vs `python3`), which it corrected and did not paper over -- the session I re-attached to is the same continuous one, not a silent relaunch.",
+      "evidence_ref": "verification-a50f4a14abe54e01a688695b280eb439"
+    }
+  ]
+}

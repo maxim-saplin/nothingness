@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On Linux with screen=cassette, semantics shows 'screen\\ncassette' at indexInParent 5 immediately followed by 'color scheme\\nTape · Mono' at indexInParent 6, adjoining rects (231-276, 276-321), nothing between. I reproduced this myself live (screen cassette -> getSemantics) and it held on a second visit after cycling away and back.",
+      "evidence_ref": "verification-6bd35e8720a9469d9c13fe03b5a6af9c"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The row's label reads exactly 'color scheme' (lowercase, matching 'theme'/'variant' register). I scanned the full sheet live and counted exactly one 'color scheme' occurrence and no leftover 'variant'-labeled cassette row; source (lib/widgets/void_settings_sheet.dart in the container) confirms the two render paths (Linux-top vs non-Linux-bottom) are mutually exclusive on the same key, so no duplicate is possible by construction.",
+      "evidence_ref": "verification-6bd35e8720a9469d9c13fe03b5a6af9c"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I tapped void-settings-screen on-screen five times live and it cycled cassette -> spectrum -> polo -> dot -> void -> cassette, each step reflected in getSettings/getSemantics; the color-scheme row adjacency held again once back on cassette, so the reorder survives revisiting.",
+      "evidence_ref": "verification-1e52fe23b2164b5aa437c56ac7e7a2c9"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps of void-settings-cassette-variant advanced the row's own label Tape·Mono -> Tape·Amber -> Tape·Colour -> Minimal live; separately, drive.py cassettevariant 1/2/3 also updated the same row's displayed value each time. Both paths move the same state and are reflected in the row's own text, so the rename did not disconnect the handler.",
+      "evidence_ref": "verification-7049139f5dc14b50b3ee1d6c8abc0197"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot and void I switched screens live and read getSemantics: in every case the row right after 'screen' is 'immersive' (that screen's own next row), never a cassette control or a 'color scheme' label, and none of the four dumps contain the string 'color scheme' at all. I also tapped 'immersive' on-screen and confirmed it flipped state, showing the neighboring row still functions normally.",
+      "evidence_ref": "verification-929b39128cd041fdbef8afde233d68ed"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The only screenshot artifact the candidate produced (artifacts/agent-shots/cassette_settings_region.png) shows the closed cassette PLAYER screen (artwork, transport bar, empty library) with the settings sheet not open at all -- no 'screen' row, no 'color scheme' row anywhere in frame. This is exactly the known failure mode: the candidate's own write-up claims the screenshot shows the settings region, but the image itself shows a different screen entirely.",
+      "evidence_ref": "verification-6bd35e8720a9469d9c13fe03b5a6af9c"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Beyond any screenshot, I captured my own fresh getSemantics/getSettings/tree dump live (screen=cassette) which independently corroborates the row order (screen then color scheme, indexInParent 5 then 6) and the exact label/value text -- so the placement and rename claims rest on structural data, not a single image.",
+      "evidence_ref": "verification-c022e344dc8d4302bb397e1bc6544fbb"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "I tapped two unrelated rows live -- 'immersive' (toggled true->false) and 'transport' (cycled to 'top') -- and both changed their own displayed value on a fresh read; the full sheet order (MODE/operating mode, LOOK/theme/variant/screen/[color scheme]/immersive/transport/browser/full screen/ui scale, LIBRARY/..., DISPLAY/..., haptics) matched the expected structure with nothing else reordered, added, or renamed.",
+      "evidence_ref": "verification-c022e344dc8d4302bb397e1bc6544fbb"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "overflows count stayed at 0 throughout my entire live exercise (before, during, and after cycling screens, tapping the renamed control, and toggling unrelated rows), and drive.py inspect answered normally at the end -- the app never destabilized.",
+      "evidence_ref": "verification-c022e344dc8d4302bb397e1bc6544fbb"
+    }
+  ]
+}

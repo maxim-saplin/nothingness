@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "c8ae614423a83eb4d00b7f65fb44271ce713f788609aefc43e279eae35965eeb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the Linux build (confirmed via judge-query --tool bash: every bash call was ls/grep/read of source, plus one 'flutter analyze' -- no flutter run, no drive.py invocation, ever). The judge launched a fresh instance from the exact workspace the candidate's session left behind and captured its state before touching anything: queueLength 0, queue []. No setQueue call ever reached a live app, so there are zero fixtures queued, let alone the required ten.",
+      "evidence_ref": "verification-2910c535565e4711b46392d9f6289acd"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Same root cause as E1: no app was ever running in the candidate's session, so shuffle was never enabled through the on-screen toggle or any other route -- the judge's pre-touch capture reads shuffle: false. The candidate instead edited dev/agent_service.dart to add a shuffle= query param to the setQueue extension and wrote (but never ran) a script that would pass shuffle=true through that new param -- a side channel it invented, not the real settings-sheet toggle, and never executed either way.",
+      "evidence_ref": "verification-2910c535565e4711b46392d9f6289acd"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No app was ever running, so nothing was ever playing. isPlaying: false, songInfo: null in the judge's pre-touch capture. The write-up's 'Calls play' / 'Captures getPlaybackState (before)' lines describe what the unexecuted script would do, not an observed state.",
+      "evidence_ref": "verification-2910c535565e4711b46392d9f6289acd"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No app was ever running, so no navigation transition was ever performed -- there was no E3 state to transition from. The write-up's 'Calls next (exactly one track transition)' line is the script's intended step, never actually run.",
+      "evidence_ref": "verification-2910c535565e4711b46392d9f6289acd"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Vacuously satisfied: since queueing, shuffling, playing, and navigating never happened at all this session (E1-E4), no foreign track could have entered the queue or become current either -- there is no violation to find because nothing was ever loaded.",
+      "evidence_ref": "events-87eb9006fa694d5a82230656679daf2f"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report does not assert any of queue/shuffle/playback/transition as an observed fact -- it frames all six steps as the 'Behavior' of the new regression script file, and its only claimed validation is 'flutter analyze (no issues found)', which is exactly what the session's own tool_execution_start/end events show it ran. No claim lacks a backing observation because no runtime claim is made.",
+      "evidence_ref": "events-87eb9006fa694d5a82230656679daf2f"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The workspace diff is not confined to the exempted GeneratedPluginRegistrant.swift regeneration (which doesn't even appear here): dev/agent_service.dart was modified to add a shuffle parameter to ext.nothingness.setQueue -- functional debug-harness source, not a non-functional artifact -- plus a new untracked file tool/regression/shuffle_opus_fixture_one_transition.txt. This task asked only to drive pre-existing capabilities; the candidate mistakenly believed shuffle needed new code and changed the harness to add it, which this task didn't ask for.",
+      "evidence_ref": "inspection-f0364091c6d646f9aa9e372dc25043e2"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No crash/hang trail exists anywhere in the session because the app was never launched, so there was nothing to recover from and no broken step was ever reported as passed. Separately, a live instance of the exact same (uncompiled-by-the-session) workspace launches cleanly and answers drive.py normally, confirming nothing about the workspace itself is broken.",
+      "evidence_ref": "verification-2910c535565e4711b46392d9f6289acd"
+    }
+  ]
+}

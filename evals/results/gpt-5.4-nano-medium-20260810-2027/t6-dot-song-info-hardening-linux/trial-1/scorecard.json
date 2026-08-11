@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh state (empty queue, no track, no prior toggle) shows the pulsing dot alone with no artist/title overlay at all -- default-off preserved.",
+      "evidence_ref": "verification-b066cee8cef441849f8ae41020d20514"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The showSongInfo boolean does persist across restart (hero-artist/hero-song nodes exist in the tree only when true), but the rendered result is a live Flutter ErrorWidget crash (\"Invalid argument(s): 0.0\"), not a working overlay -- toggle state and actual rendered overlay disagree, which is E2's own falsification clause.",
+      "evidence_ref": "verification-751f0727f0b84c03851050f9c25401de"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After disabling the option and restarting, the Dot hero shows the dot alone, no overlay, no error -- the off state round-trips cleanly (this path skips the buggy radius clamp entirely).",
+      "evidence_ref": "verification-8e71a90fcb8a41579bd3443f6a50f888"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% text size with the long-metadata track (artist 80 chars, title 99 chars) playing and the option on, the screenshot shows a red Flutter error screen (\"Invalid argument(s): 0.0\") overlapping the title text; the dot itself never renders because the fix's own radius clamp throws when the reserved-title-height exceeds half the hero height.",
+      "evidence_ref": "verification-68da4c6981bb4d9d812c7b19e2404da8"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% text size, same setup: the screenshot shows the identical crash/ErrorWidget overlapping the title -- this is the exact regression scenario the task exists to fix, and it is not fixed.",
+      "evidence_ref": "verification-69606e88272e4af7aa40dc18893b8df4"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate screenshot exists among the deliverables at all: agent_shots=0 in collect.json, zero PNGs anywhere under artifacts/, and the candidate's own transcript contains zero invocations of drive.py or drive.py shoot (it never launched the live app; its only artifact is a synthetic flutter_test golden render). My own fresh reproduction at 100% also shows the crash.",
+      "evidence_ref": "verification-68da4c6981bb4d9d812c7b19e2404da8"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Same as E6: no candidate max-scale screenshot deliverable exists anywhere, and my own fresh reproduction just now (right before deciding) at 150% still shows the same ErrorWidget crash live in the container.",
+      "evidence_ref": "verification-d2c75ef126c44d94a7074615f06d819f"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural reads at both scales (tree dumps) show the hero-artist/hero-song Text nodes with real non-empty resolved text and non-zero font sizes (45.0/22.5 at 150%, matching values at 100%) -- the text layer itself is genuinely rendering; it is the dot's own AnimatedBuilder subtree that throws and gets replaced by an ErrorWidget alongside it.",
+      "evidence_ref": "verification-c115b46116454fbaa3f6d159ba251d69"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Playing an ordinary short-metadata fixture track (\"undercover\") with the option on reproduces the identical ErrorWidget crash -- the fix broke the common case, not just the long-metadata edge case; scored per this expectation's own falsification ceiling for a layout regression introduced by the fix.",
+      "evidence_ref": "verification-efffea030c0040babcc503f5639be9f6"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The container's live flutter run log shows \"Another exception was thrown: Invalid argument(s): 0.0\" repeating continuously (still reproducing at decide time) every time showSongInfo is on, tied directly to this feature's new radius-clamp code; the app stays responsive to driving overall, but new error entries tied to this area are unambiguous.",
+      "evidence_ref": "verification-96078bf9c3174a31aecc171c66208478"
+    }
+  ]
+}
