@@ -15,10 +15,10 @@ the next campaign starts from it — do not paste it into one judge's prompt.
 `NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment`. Export that variable on **every** harness
 command or you will look for your run inside your own worktree, where nothing creates one.
 
-## Turn discipline — the single most common way a judge loses its trial
+## Turn discipline — the single most common way a judge loses its run
 
 `judge-run.py start` takes **2–5 minutes** before the candidate is live. It is not stuck. Give it the
-longest tool timeout your harness allows (10 minutes or more).
+longest tool timeout your harness allows (10 minutes or more). It always starts a fresh run; never attach to an existing run.
 
 **`observe` is a poll, not a wait.** It returns within about two minutes with
 `"still_running": true` and the candidate's elapsed/budget, or earlier if the run reaches a terminal
@@ -42,8 +42,7 @@ finishing outside `awaiting_judge` is that the run cannot score `pass` — corre
 never finished — but `partial` and `fail` are fully available.
 
 A candidate killed at the wall is a different story: it never reaches `judge_finish:`, so the run is
-`unassigned` and **scores nothing at all**. In the first campaign that turned a fully-evidenced
-`partial` into no data point and burned 45% of the campaign's spend for zero results.
+`unassigned` and **scores nothing at all**. Record the operational failure as a retry and start the task fresh; never attach another judge to this run.
 
 So: if the candidate is approaching its budget, **finish it yourself and score what exists**. Losing
 the `pass` ceiling costs a candidate that was never going to pass nothing; losing the whole run costs
@@ -81,11 +80,8 @@ events, then evidence/decide/publish as normal. Two campaigns each lost a run be
 - **`decide_flags` can contain one events batch too many, as well as too few.** A zero-length batch
   turns up in it, and citing that breaks the chain with `event_coverage_not_contiguous`. Drop it.
 - `judge-events.py` returns its own `observation_id` — cite that.
-- **If you are taking over a trial another judge started, rebuild the citation list by hand.**
-  `evidence` returns only its own call's batch plus the fresh inspection/verification it just took —
-  never the earlier judge's labelled captures. Trusting `decide_flags` verbatim after a resume
-  silently drops most of the prior evidence. Read `judge-observations.jsonl` in the run directory,
-  collect the ids you need, and pass them yourself.
+- **There is no judge takeover path.** If another judge or the parent was interrupted, record a retry
+  and start the task fresh. Never attach to the old run or reuse its evidence.
 - **`decide_flags` from `judge-run.py evidence` is a snapshot, not a running total.** It lists only
   the observations that existed when `evidence` ran. Rubrics whose "Drive:" lines require a capture
   per screen or per state mean several more `judge-verify.py --label ...` calls afterwards, and every
@@ -204,6 +200,5 @@ Two transport quirks that will mislead you about what you are looking at:
 - **`publish` writes to the repo root of the script you invoke, not your working directory.** Running
   the top-level `.agents/skills/.../judge-run.py` from inside your sandbox still publishes into the
   *shared* results tree, which is exactly what the sandbox exists to prevent. Invoke your sandbox's own
-  copy of `judge-run.py`, then confirm your run landed under your sandbox and not the shared repo. Two
-  judges in one campaign got this wrong.
+  copy of `judge-run.py`, then confirm your accepted task landed under your sandbox and not the shared repo.
 - Write a `notes.md` on what the model actually did and what you verified; the report reads it.

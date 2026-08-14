@@ -9,18 +9,17 @@ candidate's write-up.
 ## Results
 
 <!-- BEGIN GENERATED LEADERBOARD -->
-| Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Attempts per task | Score | Assisted | Tokens (in/out) | Cost | $/point | Report |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gpt-5.4-nano` | medium | 2026-08-11 | 1.3.0 | claude.opus-5-high | $57.18 | 3–5 | **15/21** | no | 488k / 126k | $0.6164 | $0.0411 | [detail](results/gpt-5.4-nano-medium-20260811-0506/README.md) |
-| `gpt-5.4-nano` | medium | 2026-08-10 | 1.3.0 | unrecorded | – | 2–4 | **14/21** | no | 377k / 117k | $0.4537 | $0.0324 | [detail](results/gpt-5.4-nano-medium-20260810-2027/README.md) |
-| `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | claude.opus-5-high | $50.56 | 1 | **11/18** | no | 742k / 167k | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |
+| Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Retries | Score | Assisted | Tokens (in/out) | Accepted task cost | Campaign cost | $/point | Report |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | medium | 2026-08-11 | 1.3.0 | claude.opus-5-high | $57.18 | – | **15/21** | no | 488k / 126k | $0.6164 | $0.6164 | $0.0411 | [detail](results/gpt-5.4-nano-medium-20260811-0506/README.md) |
+| `gpt-5.4-nano` | medium | 2026-08-10 | 1.3.0 | unrecorded | – | – | **14/21** | no | 377k / 117k | $0.4537 | $0.4537 | $0.0324 | [detail](results/gpt-5.4-nano-medium-20260810-2027/README.md) |
+| `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | claude.opus-5-high | $50.56 | – | **11/18** | no | 742k / 167k | $0.8818 | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |
 
-`Assisted` counts delivered judge interventions and how many tasks got one — each costs 0.05 off that task's `raw` score, capped at 3 per task, and it is never folded into the outcome name. `Cost` and `$/point` are the model under test. `Orchestrator/Judge cost` is what it cost to *conduct* the run — agent sessions outside the measured containers, so the harness cannot see it. Record it per run with `leaderboard.py --set <run-dir> "<who>" <cost>`; everything else is read from the run artifacts. Regenerate with `leaderboard.py --write`; do not hand-edit between the markers.
+`Retries` counts fresh task restarts in the current campaign. `Accepted task cost` uses only the accepted run for each completed task. `Campaign cost` includes accepted runs and retry spend. `Orchestrator/Judge cost` is supplied separately because those agent sessions are outside the measured containers. Regenerate with `leaderboard.py --write`; do not hand-edit between the markers.
 <!-- END GENERATED LEADERBOARD -->
 
-One row per run, generated from the published `result.json` files. A model re-run tomorrow, or
-judged by someone else, is a separate row — nothing overwrites. Every number in it, and in each
-linked report, is read from run artifacts; none is typed by hand. **Do not summarise scores
+One row per campaign, generated from the published `result.json` files and campaign manifest. Every
+number in it, and in each linked report, is read from run artifacts; none is typed by hand. **Do not summarise scores
 here** — a hand-written recap of the last campaign sat in this file for weeks quoting three
 task scores and a total cost that no longer matched anything on disk.
 
@@ -44,10 +43,10 @@ The user names a model; nothing else is asked of them.
    a second instead of ten minutes.
 2. **A campaign is created**, and the user gets a dashboard command (`watch-eval.py`) before
    the first task starts.
-3. **`campaign.py next` drives the loop.** It returns the next task with no scored run, plus
-   the full brief for it. A task counts as done only when it has a `result.json`, so an attempt
-   that died before scoring is offered again and an interrupted campaign resumes exactly.
-4. **One judge owns each trial, end to end** — it starts the trial, watches it live, scores it
+3. **`campaign.py next` drives the loop.** It returns the next task with no accepted run, plus
+   the full brief for it. A judge failure records a retry and starts the task fresh; the second
+   failed retry aborts the campaign instead of continuing with contaminated state.
+4. **One judge owns each run, end to end** — it starts a fresh task run, watches it live, scores it
    against the rubric, writes its own account, publishes, and tears down its container. It
    works in a git worktree with `evals/results/` deleted, so it can write a result without
    being able to read anyone else's.
@@ -79,7 +78,7 @@ failure in one pass with a fix for each, and costs nothing.
 
 ## Isolation model
 
-Each trial runs in a container built from a pinned image. Preparation exports
+Each task run uses a container built from a pinned image. Preparation exports
 the app fixture at commit `5fc7e04` and initializes a one-commit Git
 baseline — the candidate never sees repository history. The candidate
 container has all Linux capabilities dropped and `no-new-privileges`, and
@@ -170,7 +169,7 @@ deterministic is left to agent narration.
 | Stream events; dump runtime/git/process state | Decide valid vs. infrastructure-invalid |
 | Deliver an intervention **and record it verbatim** | Assign outcome and score; write the rationale |
 | Capture screenshots/semantics on demand | Decide a run is terminal vs. merely stuck |
-| Store the agent's decision, schema-validated | Decide whether to retry a failed attempt |
+| Store the agent's decision, schema-validated | Record a retry after an operational failure |
 | Track which tasks still have no scored run | |
 | Cleanup + prove absence; token/cost accounting | |
 | Write campaign progress; render dashboard; render report | |
@@ -219,6 +218,6 @@ The harness version lives in [CHANGELOG.md](CHANGELOG.md) and nowhere else —
 its topmost `## <x.y.z>` heading is parsed, stamped into every run at prepare
 time, and shown per run in the index. There is no `VERSION` file to fall out of
 sync, and a bump cannot happen without an entry describing it.
-Superseded material — the oracle-based design, prior campaign attempts, the
+Superseded material — the oracle-based design, prior campaign records, the
 macOS field test this benchmark's bands are aligned to — is in
 [archive/](archive/).

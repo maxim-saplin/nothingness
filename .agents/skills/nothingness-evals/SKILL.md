@@ -36,7 +36,7 @@ Together they cost about ten minutes on a cold image and about a second afterwar
 
 ## 2. Create the campaign, then hand the user the dashboard — before any task starts
 
-Pick the suite matching the requested model (e.g. `evals/suites/t1-t7-gpt-5.4-mini-medium.json` for `gpt-5.4-mini`). Create the campaign first — a trial can only be recorded against a campaign that already exists:
+Pick the suite matching the requested model (e.g. `evals/suites/t1-t7-gpt-5.4-mini-medium.json` for `gpt-5.4-mini`). Create exactly one campaign for the requested provider/model/thinking triple:
 
 ```
 uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/suites/<suite>.json --campaign-id <id>
@@ -44,20 +44,19 @@ uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/sui
 
 This returns a `dashboard_command` (`watch-eval.py <campaign-id>`). Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal. Do not wait until the end of the run to surface it.
 
-Then start the watchdog, so a stalled trial reaches you instead of waiting to be noticed. It prints one line per state change on stdout, so run it however your harness streams a long-running command (a background/monitor facility if it has one, otherwise a second terminal you glance at):
+Then start the watchdog, so an orphaned run reaches you instead of waiting to be noticed. It prints one line per state change on stdout, so run it however your harness streams a long-running command (a background/monitor facility if it has one, otherwise a second terminal you glance at):
 
 ```
 uv run python .agents/skills/nothingness-evals/scripts/watchdog.py <campaign-id>
 ```
 
-It reports a candidate stuck in `awaiting_judge`, a run near its deadline, and a container still up with no judge attached — and exits when every task is scored. Re-attach the same judge when it fires; do not take observation back yourself.
+It reports a candidate stuck in `awaiting_judge`, a run near its deadline, and a container still up with no judge attached. An orphan is discarded and recorded as a retry; no judge is re-attached. It exits when the campaign is complete or aborted.
 
 ## 3. Per-task loop — ask the campaign what's next, never a list you keep in your head
 
-**You do not run trials. Judges do.** Your job is to stand each one up, notice when one is stuck,
-and aggregate at the end. A judge that only watches a trial someone else started cannot retry its
-own failed start, cannot repair its own sandbox, and leaves a window where the candidate is running
-with nobody attached — all three happened.
+**You do not run tasks. Judges do.** Your job is to stand each fresh run up, notice when one is stuck,
+and aggregate at the end. A judge owns one fresh run only; it never attaches to a run left by another
+judge. If the judge or parent is interrupted, record a retry and restart the task from a clean container.
 
 Loop until `next` reports `"done": true`:
 
@@ -65,10 +64,10 @@ Loop until `next` reports `"done": true`:
 uv run python .agents/skills/nothingness-evals/scripts/campaign.py next <campaign-id>
 ```
 
-It returns the next unscored task and the whole brief for it: `task_id`, `suite_path`,
+It returns the next incomplete task and the whole brief for it: `task_id`, `retry`, `suite_path`,
 `rubric_path`, `sandbox`, `create_sandbox_command`, `judge_environment`. Never pick the next task
-yourself — a task counts as done only when it has a run with a scored `result.json`, so a trial
-that died before scoring is correctly offered again, and an interrupted campaign resumes exactly.
+yourself. A task is done only when it has one valid scored `result.json`; a failed run must be
+recorded with `campaign.py retry` before a fresh run can start.
 
 For each task `next` hands you:
 
@@ -89,7 +88,7 @@ For each task `next` hands you:
    are not scoring under the same conditions, and across models that silently breaks the comparison.
    Learned something new? Edit the brief, do not paste it into one judge's prompt.
 
-   The judge **starts its own trial**, observes it, scores it, publishes into its sandbox and
+   The judge **starts its own fresh run**, observes it, scores it, publishes into its sandbox and
    cleans up its container. Expect `start` to take 2–5 minutes before the candidate is even live.
 3. **Supervise, don't relay.** While the judge works, your only job is to notice it is stuck: a
    dead container, a judge repeating the same step, a run past its timeout. Step in then and only
@@ -97,14 +96,15 @@ For each task `next` hands you:
    because the judge stopped early; the cause is almost always a Bash timeout shorter than the run,
    which silently backgrounds `observe` and ends its turn. Tell it to use at least 15 minutes.
 
-**Never score a trial yourself.** If a judge fails outright, spawn another one — `next` will offer
-the same task again, because a dead attempt leaves no `result.json`.
+**Never score a run yourself.** If a judge or parent fails, do not attach another judge. Clean the
+failed run, record `campaign.py retry <campaign> <task> --run-id <run> --reason <reason>`, and let
+`next` allocate the fresh task run. Two failed retries abort the whole campaign.
 
 When `next` reports `"done": true`, merge and aggregate in one command — one `--from-sandbox` per
 judge, or a glob:
 
 ```
-uv run python .agents/skills/nothingness-evals/scripts/judge-run.py finalize --from-sandbox .tmp/judge-<campaign-id>-*
+uv run python .agents/skills/nothingness-evals/scripts/judge-run.py finalize --campaign <campaign-id> --from-sandbox .tmp/judge-<campaign-id>-*
 ```
 
 It copies every judge's published run into the results tree, regenerates each run's report (reading
@@ -122,18 +122,18 @@ not stored and readable is not finished** — scoring is not the deliverable, a 
 act on is.
 
 ```
-uv run python .agents/skills/nothingness-evals/scripts/report.py evals/results/<model>-<thinking>-<date> --write
+uv run python .agents/skills/nothingness-evals/scripts/report.py evals/results/<campaign> --write
 uv run python .agents/skills/nothingness-evals/scripts/leaderboard.py --write
 ```
 
-`report.py` fills in every number (scores, tokens, cost, $/point) and leaves `<!-- judge: ... -->`
-placeholders. Replace each with what the judges reported: one paragraph on the run, 1-2 plain
+`report.py` fills in every number (scores, tokens, accepted-task cost, campaign cost including retries,
+$/point) and leaves `<!-- judge: ... -->` placeholders. Replace each with what the judges reported: one paragraph on the run, 1-2 plain
 sentences per task on what the model actually did and what was verified, interventions in words,
 up to three genuine surprises. Do not restate the table in prose, do not describe the environment
 (it lives here), do not describe the tasks (they live in `evals/tasks/` and the rubrics).
 
-`leaderboard.py --write` regenerates the roll-up in this file — one row per run, with cost and
-$/point beside the score. Never hand-edit between its markers.
+`leaderboard.py --write` regenerates the roll-up in this file — one row per campaign, with retries,
+accepted-task cost, campaign cost, and $/point beside the score. Never hand-edit between its markers.
 
 
 ## Sharp edges (cost real time last night — read before you hit them)
@@ -142,12 +142,12 @@ $/point beside the score. Never hand-edit between its markers.
 - **`candidate awaiting judge` is a blocked candidate, not a working one.** It sits there burning its timeout until you call `judge-control.py finish`, and nothing notifies you. `judge-run.py observe` returns the moment that happens — and shows you the run as it goes, so you are not choosing between noticing the end and watching the middle.
 - **Prime dependencies before launching the app in the candidate container — `flutter run` has no `--offline` flag.** The recipe `drive.py preflight` prints ends in a bare `flutter run`, which resolves against pub.dev and dies on the egress allowlist with `Proxy failed to establish tunnel (403 destination denied)`. Run `flutter pub get --offline` first (the image is already primed), then `flutter run` unchanged. Passing `--offline` to `flutter run` fails with `Could not find an option named "--offline"`; every candidate session burned turns on this.
 - **Relaunching the app needs `DRIVE_FLUTTER_FIFO`, not just `DRIVE_RUN_LOG`.** Read-only calls (`inspect`, `tree`, `call`) discover a live session from the run log alone, but `drive.py restart` needs the input fifo and otherwise fails with ``no /tmp/flutter_input_... fifo; is `flutter run` running?`` — export both env vars together whenever you launch, or the write path breaks while reads keep working.
-- **A trial that fails before launch gets a fresh `-attempt-NN` directory, and the failed one still belongs in the campaign.** `judge-run.py start --campaign` registers each attempt itself, and `campaign.py add-run` is idempotent, so re-registering a known run is a no-op rather than the `duplicate_run_id` error it used to be. `campaign.py next` counts a task done only when one of its runs has a scored `result.json`, so a dead attempt is offered again automatically.
+- **A failed run is not resumed.** Clean it, record one minimal retry reason and cost, and start the task fresh. The campaign allows at most two retries per task; the second failed retry aborts the campaign.
 - **Expect `judge-run.py start` to take minutes, not seconds.** `prepare-run.py` alone (fixture export, git baseline, `chmod -R`, network, proxy, container, workspace copy) runs 2-5 minutes before preflight even begins, so a shell with a 5-minute timeout will appear to hang. It is not stuck.
 - **Read the settings sheet with `getSemantics`, never `getWidgetTree`.** With the sheet open the widget tree is ~280,000 characters against a 128,000 cap, and the rows render last, so they fall past the cutoff entirely. Semantics is a few KB and gives each row as `"label\nvalue"` with `indexInParent` and a rect — consecutive indices with abutting y-ranges is what proves adjacency, and it covers rows scrolled out of view. **Paging does not exist on the pinned fixture:** `getWidgetTree` there accepts only `depth` and hard-truncates at 128,000 chars from the top; `skipLines=`/`maxChars=` are silently ignored (they were added later, at harness HEAD). There is no way to reach the settings rows through the tree at all — `getSemantics` is the only path. Note `drive.py tree N` passes N as a LINE count, not a tree depth.
 - **`dragByKey` cannot drive the hero on the pinned fixture, and it lies about it.** At the fixture commit `_invokeDragInSubtree` calls `_walkSubtree` *without* `includeSelf`, so the anchor must be an **ancestor** of the `GestureDetector` — and the hero has no such key (`hero-gesture-surface` exists only at harness HEAD; the fixture has `hero-tap-ring`, `hero-swipe-flash`, `hero-seek-hud`, all inside the detector). `kind=mouse` aborts with a `mouse_tracker.dart` assertion; **`kind=touch` returns a success payload while moving nothing**. Never accept that payload as proof of movement. Use real X11 input via XTEST (`libXtst` is in the image) — it also lets you hold the button down and capture a true mid-gesture instant. Anything in these docs that describes app widget keys is describing HEAD; verify against the fixture commit with `git show <fixture>:<path>` before trusting it.
 - **Do not use `drive.py window` / `setSetting phoneFrame` to force list overflow.** It swaps the widget type at the app-shell slot and rebuilds everything below. The ten-fixture folder already overflows at the default window size, which is enough for any "scrolled out of view" scenario.
-- **`decide` scores; it does not publish.** The results store has one writer. The judge runs `decide` (verdicts and validity), then `publish` into its own sandbox; the manager's `finalize` merges those into `evals/results/<model>-<thinking>-<YYYYMMDD>/<task>/trial-N/` and rebuilds the reports and index. The dated directory means a re-run of the same model lands beside the old one instead of needing `--force` to overwrite committed results.
+- **`decide` scores; it does not publish.** The results store has one writer. The judge runs `decide` (verdicts and validity), then `publish` into its own sandbox; the manager's `finalize --campaign` completes the one campaign, copies accepted tasks into `evals/results/<campaign>/<task>/`, records campaign costs, and rebuilds the reports and index.
 - **`judge-events.py` returns its own `observation_id` — cite that, don't go digging in `judge-observations.jsonl` for it.** It pages 2500 events by default; keep calling with `--after <next_sequence>` until `next_sequence` stops advancing.
 - **Cite exactly one events observation per sequence range.** Two cited reads covering the same `after`→`next_sequence` span break the contiguity walk, and `decide` rejects it with `event_coverage_not_contiguous` naming the sequence it expected.
 - **`judge-control.py finish` appends events** — the terminal sequence moves after you call it. Page events again *after* finishing, or coverage validation at decide-time will fail for missing terminal coverage.

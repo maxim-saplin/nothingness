@@ -339,7 +339,7 @@ def load_suite(path: Path) -> dict[str, Any]:
     tasks = suite.get("tasks")
     if not isinstance(model, dict) or set(model) != {"provider", "model", "thinking"} or not all(isinstance(value, str) and value for value in model.values()):
         fail(2, "invalid_suite_model")
-    if not isinstance(tasks, list) or not tasks or not all(isinstance(item, dict) and isinstance(item.get("id"), str) and isinstance(item.get("valid_trials"), int) and item["valid_trials"] > 0 for item in tasks):
+    if not isinstance(tasks, list) or not tasks or not all(isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"] for item in tasks):
         fail(2, "invalid_suite_tasks")
     validate_run_id(suite["id"])
     return suite

@@ -32,9 +32,8 @@ def main() -> None:
     parser.add_argument("task_id")
     parser.add_argument("run_id")
     parser.add_argument("--suite", required=True, type=Path)
-    parser.add_argument("--trial", required=True, type=int)
-    parser.add_argument("--calibration", action="store_true")
-    parser.add_argument("--judge", default="", help="who is scoring this run (model/agent id); recorded so two judges of the same candidate stay distinguishable")
+    parser.add_argument("--retry", required=True, type=int, help="fresh task restart number: 0 for the first run, up to 2 for retries")
+    parser.add_argument("--judge", default="", help="who is scoring this run (model/agent id); recorded with the accepted task result")
     parser.add_argument("--campaign", default="", help="campaign this run belongs to; its start time names the published results directory, so every task of one campaign lands together")
     arguments = parser.parse_args()
     for executable in ("docker", "git", "curl"):
@@ -44,8 +43,8 @@ def main() -> None:
     suite_path = arguments.suite.resolve()
     suite = load_suite(suite_path)
     suite_task = next((item for item in suite["tasks"] if item["id"] == task_id), None)
-    if suite_task is None or arguments.trial < 1 or (not arguments.calibration and arguments.trial > suite_task["valid_trials"]):
-        fail(2, "invalid_suite_trial")
+    if suite_task is None or arguments.retry < 0 or arguments.retry > 2:
+        fail(2, "invalid_retry")
     if not run_id.startswith(f"{suite['id']}-"):
         fail(2, "run_id_suite_mismatch")
     task_path = ROOT / "evals" / "tasks" / f"{task_id}.json"
@@ -61,7 +60,7 @@ def main() -> None:
     # cannot be scored must not be launched — T3-T7 have no rubric yet
     # (WP7 writes them before the full campaign), so preparing a run for
     # those tasks correctly fails here rather than launching an unscoreable
-    # trial.
+    # run.
     rubric_path = ROOT / "evals" / "tasks" / "rubrics" / f"{task_id}.md"
     if not rubric_path.is_file():
         fail(2, f"rubric_not_found:{task_id}")
@@ -119,9 +118,8 @@ def main() -> None:
         "run_id": run_id,
         "suite_id": suite["id"],
         "suite_manifest_sha256": sha256(suite_path),
-        "trial": arguments.trial,
-        "calibration": arguments.calibration,
-        "planned_valid_trials": suite_task["valid_trials"],
+        "retry": arguments.retry,
+        "max_retries": 2,
         "task_id": task_id,
         "task_contract": {"id": task["id"], "manifest_sha256": hashlib.sha256(task_path.read_bytes()).hexdigest(), "prompt": task["prompt"], "limits": task["limits"], "platform_variant": task["platform_variant"]},
         "rubric_contract": {"manifest_sha256": rubric_sha256},

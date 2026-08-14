@@ -447,6 +447,7 @@ def main() -> None:
         # harness moved on mid-campaign.
         "eval_version": metadata.get("eval_version") or None,
         "run_id": arguments.run_id,
+        "retry": metadata.get("retry", 0),
         "classified_at": utc_now(),
         "validity": arguments.validity,
         "outcome": outcome,

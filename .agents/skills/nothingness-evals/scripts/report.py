@@ -42,6 +42,10 @@ def spend_of(result: dict[str, Any]) -> float:
     return (result.get("cost_usd") or {}).get("combined") or 0.0
 
 
+def money(value: object) -> str:
+    return "unknown" if not isinstance(value, (int, float)) else f"${value:.4f}"
+
+
 def per_point(spend: float, score: int | None) -> str:
     return f"${spend / score:.4f}" if score else "–"
 
@@ -81,7 +85,7 @@ def preserved_prose(path: Path) -> dict[str, str]:
 
 
 def build(directory: Path) -> list[str]:
-    paths = sorted(directory.glob("*/trial-*/result.json"))
+    paths = sorted(path for path in directory.rglob("result.json") if path.parent != directory)
     notes = {}
     for path in paths:
         note = path.with_name("notes.md")
@@ -94,7 +98,11 @@ def build(directory: Path) -> list[str]:
     model = first.get("selected_model") or first.get("requested_model") or {}
     scored = [item for item in results if item.get("validity") == "valid"]
     total_score = sum(item.get("score") or 0 for item in scored)
-    total_spend = sum(spend_of(item) for item in results)
+    accepted_task_cost = sum(spend_of(item) for item in results)
+    campaign_manifest = read_json(directory / "campaign.json") if (directory / "campaign.json").is_file() else {}
+    campaign_cost = ((campaign_manifest.get("costs") or {}).get("campaign_usd") if isinstance(campaign_manifest, dict) else None)
+    if not isinstance(campaign_cost, (int, float)):
+        campaign_cost = accepted_task_cost
     # Sum the billable axes separately: `total` folds in cacheRead, which here runs
     # 20x the real input and turns a $0.70 run into a headline "21M tokens".
     totals = {name: sum((usage_of(item).get(name) or 0) for item in results) for name in ("input", "output", "reasoning", "cacheRead")}
@@ -107,13 +115,14 @@ def build(directory: Path) -> list[str]:
         f"# {model.get('model', '?')} · {model.get('thinking', '?')} reasoning · {str(first.get('classified_at') or '')[:10]}",
         "",
         f"**{total_score}/{len(scored) * 3}** across {len(scored)} scored tasks · "
-        f"**${total_spend:.4f}** · {thousands(totals['input'])} in / {thousands(totals['output'])} out · "
+        f"campaign **{money(campaign_cost)}** incl. retries · accepted tasks **${accepted_task_cost:.4f}** · "
+        f"{thousands(totals['input'])} in / {thousands(totals['output'])} out · "
         f"{'unassisted' if interventions == 0 else f'{interventions} interventions across {len(assisted_tasks)} of {len(results)} tasks'} · "
         f"judge: {', '.join(judges)}",
         "",
         kept.get("intro") or "<!-- judge: one paragraph — what was run and the single most important thing it showed. -->",
         "",
-        "| Task | Score | Outcome | Assisted | In | Out | Reasoning | Cache | Cost | $/point |",
+        "| Task | Score | Outcome | Assisted | In | Out | Reasoning | Cache | Accepted task cost | $/point |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for item in results:
@@ -127,7 +136,9 @@ def build(directory: Path) -> list[str]:
     lines += [
         f"| **Total** | **{total_score}/{len(scored) * 3}** | | {'no' if not interventions else f'**{interventions}** over {len(assisted_tasks)} task(s)'} "
         f"| {thousands(totals['input'])} | {thousands(totals['output'])} "
-        f"| {thousands(totals['reasoning'])} | {thousands(totals['cacheRead'])} | **${total_spend:.4f}** | **{per_point(total_spend, total_score)}** |",
+        f"| {thousands(totals['reasoning'])} | {thousands(totals['cacheRead'])} | **${accepted_task_cost:.4f}** | **{per_point(accepted_task_cost, total_score)}** |",
+        "",
+        f"Campaign cost including retries: **{money(campaign_cost)}**. Accepted task cost: **${accepted_task_cost:.4f}**.",
         "",
         "## What happened",
         "",

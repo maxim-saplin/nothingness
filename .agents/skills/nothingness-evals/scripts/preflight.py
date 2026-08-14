@@ -147,10 +147,10 @@ def main() -> None:
     # connection but never answers (as a misconfigured proxy does) hangs curl on the
     # OS TCP timeout, so an unbounded call here turns a retry loop into a multi-minute
     # stall -- which is exactly how this failure first presented.
-    for attempt in range(NOVNC_READY_POLLS):
+    for poll in range(NOVNC_READY_POLLS):
         if command(["curl", "--fail", "--silent", "--connect-timeout", "2", "--max-time", "2", "--output", os.devnull, url]).returncode == 0:
             break
-        if attempt + 1 == NOVNC_READY_POLLS:
+        if poll + 1 == NOVNC_READY_POLLS:
             fail(4, "novnc_unreachable")
         time.sleep(NOVNC_READY_INTERVAL)
     allowed_host = metadata["egress_host"]

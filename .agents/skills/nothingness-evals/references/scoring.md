@@ -42,7 +42,7 @@ Hard rule: **any unmet `required` expectation caps the score at 2**, regardless 
 
 ## Assistance
 
-`assisted` is an independent boolean field, never folded into the outcome name — an assisted pass is reported as `pass` **and** `assisted: true`, never laundered into a plain pass. `intervention_count` records exactly how many interventions were delivered. `judge-control.py` enforces a hard cap of 3 delivered interventions per run: a 4th delivery attempt is refused (exit code 6); the judge must terminalize the run instead of continuing to steer. The cap check and the delivery it guards are serialized under an exclusive file lock across the whole read-check-append-write, so the cap holds even under two concurrent `judge-control.py` invocations — no delivery reaches the candidate without also being durably recorded.
+`assisted` is an independent boolean field, never folded into the outcome name — an assisted pass is reported as `pass` **and** `assisted: true`, never laundered into a plain pass. `intervention_count` records exactly how many interventions were delivered. `judge-control.py` enforces a hard cap of 3 delivered interventions per run: a 4th delivery is refused (exit code 6); the judge must terminalize the run instead of continuing to steer. The cap check and the delivery it guards are serialized under an exclusive file lock across the whole read-check-append-write, so the cap holds even under two concurrent `judge-control.py` invocations — no delivery reaches the candidate without also being durably recorded.
 
 ## Model identity
 
@@ -50,15 +50,13 @@ Hard rule: **any unmet `required` expectation caps the score at 2**, regardless 
 
 ## Repeated runs are not aggregated
 
-A run is one run. There is no automated multi-trial sampling, no pass-rate over a cohort, and no
-variance or confidence interval anywhere — `consolidate.py`, which computed median/range/rates
-across three trials, was deleted rather than left as machinery nothing called.
+A model has one campaign in the current protocol. Each task has one accepted run and at most
+two fresh retries after operational failure. Retries are not samples, are never averaged, and do
+not change accepted-task cost. If the second retry fails, the whole campaign is aborted.
 
-Variability is real, and the way to see it is to run the same model again: each campaign publishes
-its own dated results directory and its own row in the index, and comparing rows is a human
-judgment call. Three samples of an integer 0–3 band cannot support an interval anyone should quote,
-and conducting a campaign costs far more than the model under test — so sampling is a deliberate
-spend, not something the harness should do on its own.
+Campaign cost is the actual measured candidate/admission spend for accepted runs plus retries.
+Accepted-task cost is measured only from the accepted run for each task. Orchestrator/judge spend
+remains separate because it is outside the measured containers.
 
 ## Known limitations
 

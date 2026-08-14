@@ -5,10 +5,8 @@ including `candidate.jsonl`/`lifecycle.jsonl` that routinely run to hundreds of
 megabytes. It is gitignored, so a run that stops there leaves no trace in the
 repository and dies with the next `rm -rf .tmp`. That is what this script fixes.
 
-Every judged run is copied to `evals/results/<model>/<task-id>/trial-N/`, the
-layout `evals/README.md` already designates ("Consolidated, reviewed results
-belong in results/, one directory per model") and that the committed
-`gpt-5.4-nano` T1 trial already follows. Only durable evidence travels: the
+Every accepted task is copied to `evals/results/<campaign>/<task-id>/`.
+Only durable evidence travels: the
 verdict, the run contract, the judge's scorecard and observation ledger, the
 candidate diff, the cited event reads (gzipped, since they are the bulky part),
 and the judge's verification screenshots. The multi-hundred-megabyte raw session
@@ -119,9 +117,9 @@ def publish(run_id: str, scorecard: Path | None, force: bool) -> dict:
         fail(2, "judge_decision_required_before_publish")
     result = read_json(result_path)
     metadata = read_json(run / "run.json") if (run / "run.json").is_file() else {}
-    trial = metadata.get("trial", 1)
+    retry = metadata.get("retry", 0)
     started_at = str(metadata.get("campaign_started_at") or metadata.get("prepared_at") or "")
-    destination = RESULTS_ROOT / run_slug(result, started_at) / str(result.get("task_id") or "unknown-task") / f"trial-{trial}"
+    destination = RESULTS_ROOT / run_slug(result, started_at) / str(result.get("task_id") or "unknown-task")
     # Timestamped slots make same-run republishing the only way two runs collide,
     # so a collision is a refresh rather than the data loss `--force` used to
     # guard. The occupant check still stands: a run id can repeat exactly when
@@ -175,7 +173,7 @@ def publish(run_id: str, scorecard: Path | None, force: bool) -> dict:
     manifest = {
         "run_id": run_id,
         "task_id": result.get("task_id"),
-        "trial": trial,
+        "retry": retry,
         "validity": result.get("validity"),
         "outcome": result.get("outcome"),
         "score": result.get("score"),
@@ -189,7 +187,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("run_id")
     parser.add_argument("--scorecard", type=Path)
-    parser.add_argument("--force", action="store_true", help="overwrite results published by a different run at the same model/task/trial slot")
+    parser.add_argument("--force", action="store_true", help="overwrite results published by a different run at the same campaign/task slot")
     arguments = parser.parse_args()
     validate_run_id(arguments.run_id)
     emit_json({"ok": True, "action": "publish", "run_id": arguments.run_id, **publish(arguments.run_id, arguments.scorecard, arguments.force)})

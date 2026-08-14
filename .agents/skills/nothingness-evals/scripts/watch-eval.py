@@ -14,6 +14,8 @@ from common import RUNS_ROOT, command, fail, read_json, validate_run_id
 
 ACTIVE_PHASES = {"starting", "running", "retrying", "awaiting_judge"}
 CAMPAIGNS_ROOT = RUNS_ROOT / "campaigns"
+TASK_COLUMN = 42
+STATE_COLUMN = 19
 
 
 def duration(seconds: float | int | None) -> str:
@@ -29,6 +31,17 @@ def money(value: object) -> str:
 
 def integer(value: object) -> str:
     return f"{int(value):,}" if isinstance(value, (int, float)) else "unknown"
+
+
+def age(value: object) -> str:
+    if not isinstance(value, str):
+        return "unknown"
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return "unknown"
+    seconds = max(0, int((datetime.now(UTC) - moment).total_seconds()))
+    return f"{seconds}s ago" if seconds < 60 else f"{seconds // 60}m ago"
 
 
 def progress_for(run: Path, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -50,69 +63,46 @@ def progress_for(run: Path, metadata: dict[str, Any]) -> dict[str, Any]:
     return {"phase": "not_started", "elapsed_seconds": 0, "tool_calls": 0, "tokens": {}, "cost_usd": None, "last_activity": "waiting for candidate", "last_activity_at": metadata.get("prepared_at")}
 
 
-def age(value: object) -> str:
-    if not isinstance(value, str):
-        return "unknown"
-    try:
-        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return "unknown"
-    seconds = max(0, int((datetime.now(UTC) - moment).total_seconds()))
-    return f"{seconds}s ago" if seconds < 60 else f"{seconds // 60}m ago"
-
-
-def attempts(suite_id: str) -> list[dict[str, Any]]:
-    """Every run directory sharing suite_id, one row per attempt, in directory order.
-
-    This scans the whole runs root rather than trusting any single campaign's
-    bookkeeping, so live progress (including a docker exec into a still-running
-    container) is always read straight from disk/the container, never inferred.
-    """
-    values = []
-    if not RUNS_ROOT.is_dir():
-        return values
-    for directory in sorted(RUNS_ROOT.iterdir()):
-        metadata_path = directory / "run.json"
-        if not metadata_path.is_file():
-            continue
-        metadata = read_json(metadata_path)
-        if metadata.get("suite_id") != suite_id:
-            continue
-        progress = progress_for(directory, metadata)
-        result = read_json(directory / "result.json") if (directory / "result.json").is_file() else None
-        summary = read_json(directory / "summary.json") if (directory / "summary.json").is_file() else None
-        state = "RUNNING" if progress.get("phase") in ACTIVE_PHASES else "PENDING"
-        if isinstance(result, dict):
-            state = result.get("outcome") if result.get("validity") == "valid" else result.get("validity", "DONE")
-        candidate_cost = progress.get("cost_usd")
-        candidate_tokens = progress.get("tokens", {}).get("totalTokens") if isinstance(progress.get("tokens"), dict) else None
-        if isinstance(summary, dict):
-            candidate_cost = summary.get("cost_usd", {}).get("candidate")
-            candidate_tokens = summary.get("candidate", {}).get("usage", {}).get("aggregate", {}).get("tokens", {}).get("total")
-        admission = read_json(directory / "admission.json") if (directory / "admission.json").is_file() else None
-        admission_cost = admission.get("normalized_usage", {}).get("cost_usd", {}).get("total") if isinstance(admission, dict) else None
-        admission_tokens = admission.get("normalized_usage", {}).get("tokens", {}).get("total") if isinstance(admission, dict) else None
-        finished = (directory / "result.json").is_file() or (directory / "cleanup.json").is_file()
-        values.append(
-            {
-                "run_id": metadata["run_id"],
-                "task_id": metadata["task_id"],
-                "trial": metadata.get("trial"),
-                "calibration": metadata.get("calibration", False),
-                "state": state,
-                "phase": progress.get("phase"),
-                "elapsed": progress.get("elapsed_seconds"),
-                "timeout_seconds": progress.get("timeout_seconds"),
-                "tools": progress.get("tool_calls"),
-                "tokens": candidate_tokens + admission_tokens if isinstance(candidate_tokens, (int, float)) and isinstance(admission_tokens, (int, float)) else None,
-                "cost": candidate_cost + admission_cost if isinstance(candidate_cost, (int, float)) and isinstance(admission_cost, (int, float)) else None,
-                "activity": progress.get("last_activity"),
-                "activity_at": progress.get("last_activity_at"),
-                "valid": isinstance(result, dict) and result.get("validity") == "valid",
-                "finished": finished,
-            }
-        )
-    return values
+def run_row(run_id: str) -> dict[str, Any] | None:
+    run = RUNS_ROOT / run_id
+    metadata_path = run / "run.json"
+    if not metadata_path.is_file():
+        return None
+    metadata = read_json(metadata_path)
+    progress = progress_for(run, metadata)
+    result = read_json(run / "result.json") if (run / "result.json").is_file() else None
+    summary = read_json(run / "summary.json") if (run / "summary.json").is_file() else None
+    candidate_cost = progress.get("cost_usd")
+    candidate_tokens = progress.get("tokens", {}).get("totalTokens") if isinstance(progress.get("tokens"), dict) else None
+    if isinstance(summary, dict):
+        candidate_cost = summary.get("cost_usd", {}).get("candidate")
+        candidate_tokens = summary.get("candidate", {}).get("usage", {}).get("aggregate", {}).get("tokens", {}).get("total")
+    admission = read_json(run / "admission.json") if (run / "admission.json").is_file() else None
+    admission_cost = admission.get("normalized_usage", {}).get("cost_usd", {}).get("total") if isinstance(admission, dict) else None
+    admission_tokens = admission.get("normalized_usage", {}).get("tokens", {}).get("total") if isinstance(admission, dict) else None
+    total_cost = candidate_cost + admission_cost if isinstance(candidate_cost, (int, float)) and isinstance(admission_cost, (int, float)) else None
+    total_tokens = candidate_tokens + admission_tokens if isinstance(candidate_tokens, (int, float)) and isinstance(admission_tokens, (int, float)) else None
+    if isinstance(result, dict):
+        state = result.get("outcome") if result.get("validity") == "valid" else result.get("validity", "DONE")
+    elif progress.get("phase") in ACTIVE_PHASES:
+        state = "RUNNING"
+    else:
+        state = "PENDING"
+    return {
+        "run_id": run_id,
+        "retry": metadata.get("retry", 0),
+        "state": state,
+        "phase": progress.get("phase"),
+        "elapsed": progress.get("elapsed_seconds"),
+        "timeout_seconds": progress.get("timeout_seconds"),
+        "tools": progress.get("tool_calls"),
+        "tokens": total_tokens,
+        "cost": total_cost,
+        "activity": progress.get("last_activity"),
+        "activity_at": progress.get("last_activity_at"),
+        "valid": isinstance(result, dict) and result.get("validity") == "valid",
+        "finished": isinstance(result, dict) or (run / "cleanup.json").is_file(),
+    }
 
 
 def campaign_path(campaign_id: str) -> Path:
@@ -124,128 +114,122 @@ def load_campaign(campaign_id: str) -> dict[str, Any]:
     if not path.is_file():
         fail(3, "campaign_not_found")
     campaign = read_json(path)
-    if (
-        not isinstance(campaign, dict)
-        or not isinstance(campaign.get("suite_id"), str)
-        or not isinstance(campaign.get("model"), dict)
-        or not isinstance(campaign.get("tasks"), list)
-        or not isinstance(campaign.get("runs"), dict)
-    ):
+    if not isinstance(campaign, dict) or not isinstance(campaign.get("suite_id"), str) or not isinstance(campaign.get("model"), dict) or not isinstance(campaign.get("tasks"), list) or not isinstance(campaign.get("runs"), dict):
         fail(3, "invalid_campaign_state")
     return campaign
 
 
-def task_rows_by_id(campaign: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    """Map each campaign task to its own attempts, in the order campaign.py recorded them.
-
-    attempts() is suite-wide (it has no notion of "campaign"), so a second suite
-    run against the same task ids would otherwise bleed into this one. Filtering
-    down to the run ids campaign.json actually recorded keeps this campaign's
-    dashboard scoped to this campaign, while still reading live state the same
-    scanning way attempts() always has.
-    """
-    by_run_id = {row["run_id"]: row for row in attempts(campaign["suite_id"])}
-    grouped: dict[str, list[dict[str, Any]]] = {}
-    for task_id in campaign["tasks"]:
-        run_ids = campaign["runs"].get(task_id, [])
-        grouped[task_id] = [by_run_id[run_id] for run_id in run_ids if run_id in by_run_id]
-    return grouped
+def task_rows(campaign: dict[str, Any], task_id: str) -> list[dict[str, Any]]:
+    rows = []
+    for run_id in campaign["runs"].get(task_id, []):
+        if isinstance(run_id, str):
+            row = run_row(run_id)
+            if row is not None:
+                rows.append(row)
+    return rows
 
 
-TASK_COLUMN = 42
-STATE_COLUMN = 19
+def retry_count(campaign: dict[str, Any], task_id: str, rows: list[dict[str, Any]]) -> int:
+    values = [row.get("retry", 0) for row in rows if isinstance(row.get("retry"), int)]
+    run_retries = campaign.get("run_retries") or {}
+    values.extend(run_retries.get(run_id, 0) for run_id in campaign["runs"].get(task_id, []) if isinstance(run_retries.get(run_id, 0), int))
+    return max(values, default=0)
 
 
-def task_line(task_id: str, state: str, attempt_count: str, elapsed: str, tools: str, tokens: str, cost: str, last_activity: str) -> str:
-    return f"{task_id:<{TASK_COLUMN}} {state:<{STATE_COLUMN}} {attempt_count:>8} {elapsed:>8} {tools:>8} {tokens:>11} {cost:>10}  {last_activity}"
+def accepted_row(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return next((row for row in reversed(rows) if row.get("valid")), None)
+
+
+def known_retry_cost(campaign: dict[str, Any], task_id: str) -> float | None:
+    values = [item.get("cost_usd") for item in (campaign.get("retry_log") or {}).get(task_id, [])]
+    if any(value is None for value in values):
+        return None
+    return sum(value for value in values if isinstance(value, (int, float)))
+
+
+def task_line(task_id: str, state: str, retries: str, elapsed: str, tools: str, tokens: str, cost: str, last_activity: str) -> str:
+    return f"{task_id:<{TASK_COLUMN}} {state:<{STATE_COLUMN}} {retries:>8} {elapsed:>8} {tools:>8} {tokens:>11} {cost:>10}  {last_activity}"
 
 
 def render(campaign_id: str) -> tuple[str, bool]:
     campaign = load_campaign(campaign_id)
-    grouped = task_rows_by_id(campaign)
     model = campaign["model"]
     lines = [
         "NOTHINGNESS EVALUATION CAMPAIGN",
-        f"Campaign  {campaign_id}",
+        f"Campaign  {campaign_id}  [{campaign.get('status', 'unknown')}]",
         f"Model     {model.get('provider')} / {model.get('model')} / {model.get('thinking')}",
         f"Suite     {campaign['suite_id']}   {len(campaign['tasks'])} tasks",
     ]
-
     pending = 0
     in_progress = 0
     finished_count = 0
-    active_row: dict[str, Any] | None = None
-    # (task_id, state, attempt_count, elapsed, tools, tokens, cost, last_activity, started).
-    # attempt_count/elapsed/tools/tokens/cost stay real numbers here (0 for a task with zero
-    # attempts is a true zero) so campaign-wide totals below sum correctly; `started` decides
-    # whether the table renders those numbers or "-" for "nothing to report yet".
+    accepted_costs: list[float] = []
+    accepted_tokens: list[float] = []
     task_totals: list[tuple[str, str, int, float, object, object, object, str, bool]] = []
-
     for task_id in campaign["tasks"]:
-        rows = grouped[task_id]
-        if not rows:
-            pending += 1
-            task_totals.append((task_id, "not started", 0, 0, 0, 0, 0.0, "-", False))
-            continue
-        latest = rows[-1]
-        state = str(latest["state"])
-        elapsed = sum((row["elapsed"] or 0) for row in rows)
-        tools = sum((row["tools"] or 0) for row in rows if isinstance(row["tools"], (int, float)))
-        tokens_values = [row["tokens"] for row in rows]
-        tokens = sum(tokens_values) if all(isinstance(value, (int, float)) for value in tokens_values) else None
-        costs = [row["cost"] for row in rows]
-        cost = sum(costs) if all(isinstance(value, (int, float)) for value in costs) else None
-        last_activity = f"{age(latest['activity_at'])}: {latest['activity']}"
-        if latest["finished"]:
+        rows = task_rows(campaign, task_id)
+        accepted = accepted_row(rows)
+        retries = retry_count(campaign, task_id, rows)
+        latest = rows[-1] if rows else None
+        if accepted is not None:
             finished_count += 1
-        else:
+            state = str(accepted["state"])
+            elapsed, tools, tokens, cost = accepted.get("elapsed"), accepted.get("tools"), accepted.get("tokens"), accepted.get("cost")
+            if isinstance(cost, (int, float)):
+                accepted_costs.append(cost)
+            if isinstance(tokens, (int, float)):
+                accepted_tokens.append(tokens)
+            last_activity = f"{age(accepted.get('activity_at'))}: accepted run"
+            task_totals.append((task_id, state, retries, elapsed or 0, tools or 0, tokens, cost, last_activity, True))
+            continue
+        if latest is None:
+            pending += 1
+            task_totals.append((task_id, "not started", retries, 0, 0, 0, 0.0, "-", False))
+            continue
+        if latest["state"] == "RUNNING":
             in_progress += 1
-            if latest["state"] == "RUNNING":
-                active_row = latest
-        task_totals.append((task_id, state, len(rows), elapsed, tools, tokens, cost, last_activity, True))
-
-    campaign_tokens_values = [entry[5] for entry in task_totals]
-    campaign_tokens = sum(campaign_tokens_values) if all(isinstance(value, (int, float)) for value in campaign_tokens_values) else None
-    campaign_costs = [entry[6] for entry in task_totals]
-    campaign_cost = sum(campaign_costs) if all(isinstance(value, (int, float)) for value in campaign_costs) else None
-
-    lines.append(f"Progress  {finished_count}/{len(campaign['tasks'])} finished   {in_progress} in progress   {pending} not started")
-    lines.append(f"Totals    {integer(campaign_tokens)} tokens   {money(campaign_cost)}")
-    lines.append("")
-    lines.append(f"{'TASK':<{TASK_COLUMN}} {'STATE':<{STATE_COLUMN}} {'ATTEMPTS':>8} {'ELAPSED':>8} {'TOOLS':>8} {'TOKENS':>11} {'COST':>10}  LAST ACTIVITY")
-    for task_id, state, attempt_count, elapsed, tools, tokens, cost, last_activity, started in task_totals:
-        if started:
-            lines.append(task_line(task_id, state, integer(attempt_count), duration(elapsed), integer(tools), integer(tokens), money(cost), last_activity))
+            state = "RUNNING"
         else:
-            lines.append(task_line(task_id, state, "-", "-", "-", "-", "-", last_activity))
+            pending += 1
+            state = "RETRYING"
+        task_totals.append((task_id, state, retries, latest.get("elapsed") or 0, latest.get("tools") or 0, latest.get("tokens"), latest.get("cost"), f"{age(latest.get('activity_at'))}: {latest.get('activity')}", True))
 
+    accepted_total = sum(accepted_costs) if len(accepted_costs) == finished_count else None
+    accepted_tokens_total = sum(accepted_tokens) if len(accepted_tokens) == finished_count else None
+    recorded_campaign_cost = (campaign.get("costs") or {}).get("campaign_usd")
+    if isinstance(recorded_campaign_cost, (int, float)):
+        campaign_cost = recorded_campaign_cost
+    else:
+        retry_costs = [known_retry_cost(campaign, task_id) for task_id in campaign["tasks"]]
+        campaign_cost = accepted_total + sum(value for value in retry_costs if isinstance(value, (int, float))) if isinstance(accepted_total, (int, float)) and all(value is not None for value in retry_costs) else None
+    lines.append(f"Progress  {finished_count}/{len(campaign['tasks'])} finished   {in_progress} in progress   {pending} pending")
+    lines.append(f"Costs     campaign {money(campaign_cost)} incl. retries   accepted tasks {money(accepted_total)}")
+    lines.append(f"Accepted  {integer(accepted_tokens_total)} tokens")
     lines.append("")
-    if active_row is not None:
-        lines.append(f"Current task phase: {active_row.get('phase')}  timeout {duration(active_row.get('elapsed'))} / {duration(active_row.get('timeout_seconds'))}")
+    lines.append(f"{'TASK':<{TASK_COLUMN}} {'STATE':<{STATE_COLUMN}} {'RETRIES':>8} {'ELAPSED':>8} {'TOOLS':>8} {'TOKENS':>11} {'TASK COST':>10}  LAST ACTIVITY")
+    for task_id, state, retries, elapsed, tools, tokens, cost, last_activity, started in task_totals:
+        if started:
+            lines.append(task_line(task_id, state, str(retries), duration(elapsed), integer(tools), integer(tokens), money(cost), last_activity))
+        else:
+            lines.append(task_line(task_id, state, str(retries), "-", "-", "-", "-", last_activity))
+    lines.append("")
+    active = next((row for task_id in campaign["tasks"] for row in task_rows(campaign, task_id) if row.get("state") == "RUNNING"), None)
+    if active is not None:
+        lines.append(f"Current task phase: {active.get('phase')}  timeout {duration(active.get('elapsed'))} / {duration(active.get('timeout_seconds'))}")
     else:
         lines.append("Current task phase: none active")
-    lines.append("Candidate completion is judge-evaluated; active timeout is not presented as candidate percent done.")
-
-    finished = pending == 0 and in_progress == 0
+    lines.append("Retries are fresh task restarts; discarded runs are not included in task cost or accepted totals.")
+    finished = campaign.get("status") == "complete"
     return "\n".join(lines), finished
 
 
 def fit(line: str, width: int) -> str:
-    """Hard-truncate to the terminal width. A line that wraps costs the frame an
-    extra physical row, which is what actually pushes earlier rows up and turns an
-    in-place refresh back into a scrolling log."""
     if width <= 1 or len(line) <= width:
         return line
     return line[: width - 1] + "…"
 
 
 def frame(display: str, width: int, height: int) -> str:
-    """One redraw, cursor-homed rather than screen-cleared.
-
-    `\\033[2J` (clear whole screen) makes most terminals push the old contents into
-    scrollback every cycle, which reads as endless scroll. Homing with `\\033[H` and
-    erasing per line (`\\033[K`) overwrites the same rows in place instead; the
-    trailing `\\033[J` drops any leftover rows when a frame gets shorter."""
     rows = [fit(line, width) for line in display.split("\n")[: max(1, height - 1)]]
     return "\033[H" + "\033[K\n".join(rows) + "\033[K\033[J"
 
@@ -259,9 +243,6 @@ def main() -> None:
     validate_run_id(arguments.campaign_id)
     if not campaign_path(arguments.campaign_id).is_file():
         fail(3, "campaign_not_found")
-
-    # Only drive the terminal when there is one. Piping to a file or a log keeps the
-    # plain append-only behaviour, with no escape codes in the captured output.
     if arguments.once or not sys.stdout.isatty():
         while True:
             display, finished = render(arguments.campaign_id)
@@ -269,9 +250,6 @@ def main() -> None:
             if arguments.once or finished:
                 return
             time.sleep(max(0.2, arguments.refresh))
-
-    # Alternate screen keeps the watch out of scrollback entirely, so quitting leaves
-    # the shell exactly as it was found.
     sys.stdout.write("\033[?1049h\033[?25l")
     latest = ""
     try:
@@ -288,8 +266,6 @@ def main() -> None:
     finally:
         sys.stdout.write("\033[?25h\033[?1049l")
         sys.stdout.flush()
-    # Reprint on the real screen: the alternate buffer is discarded on exit, and the
-    # last frame is the part worth keeping.
     if latest:
         print(latest, flush=True)
 

@@ -1,11 +1,11 @@
 ---
 name: nothingness-eval-judge
-description: Score one already-started Nothingness eval trial by observing the live run and settling its rubric against evidence you gather yourself.
+description: Score one fresh Nothingness task run by observing the live app and settling its rubric against evidence you gather yourself.
 ---
 
 # Eval judge
 
-You own **one trial** end to end: you start it, watch it, score it, publish it, and tear it down.
+You own **one fresh task run** end to end: you start it, watch it, score it, publish it, and tear it down. Never attach to a run left by another judge.
 Nobody is driving it for you and nobody is waiting to relay your findings — everything you produce
 goes to disk.
 
@@ -28,10 +28,10 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
 
 ## The loop
 
-0. **Start your trial.** This provisions the isolated container and makes the real admission call.
+0. **Start your fresh run.** This provisions the isolated container and makes the real admission call.
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py start <suite-path> <task-id> \
-     --trial 1 --campaign <campaign-id> --judge <who-you-are>
+     --campaign <campaign-id> --judge <who-you-are>
    ```
    It prints the `run_id` every later command needs. **Expect 2–5 minutes** — fixture export, git
    baseline, network, proxy, container and workspace copy all happen before preflight, so give it your
@@ -54,7 +54,7 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
    model: each return is your chance to check the clock and finish the run before its deadline.
    Never background it and never raise `--timeout-seconds` to span the whole run: a call that
    outlives your control of the session leaves the candidate running with nobody able to act, which
-   has cost three trials.
+   has cost three runs.
 
 2. **Finish** once it settles.
    ```
@@ -101,7 +101,7 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
    ```
    uv run python .agents/skills/nothingness-evals/scripts/judge-run.py cleanup <run-id>
    ```
-   A trial you scored but left running is not finished. It refuses before you have decided, so run
+   A run you scored but left running is not finished. It refuses before you have decided, so run
    it last.
 
 10. **Tell the manager one line**: run id, score, outcome, and whether anything blocked you. Nothing

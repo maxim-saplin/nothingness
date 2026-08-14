@@ -50,8 +50,8 @@ def main(argv: list[str] | None = None) -> None:
     if arguments.action in {"steer", "follow-up"}:
         rpc_type = "steer" if arguments.action == "steer" else "follow_up"
         interventions_path = run / "interventions.json"
-        # The cap check and the append that records this delivery attempt must
-        # be atomic across concurrent `judge-control.py` processes, not just
+        # The cap check and the append that records this delivery must be
+        # atomic across concurrent `judge-control.py` processes, not just
         # within this one: an unlocked read-check-append-write here let two
         # concurrent `steer` calls both read a delivered count of 2, both pass
         # the `>= 3` check, and both actually reach the candidate (D5). Holding

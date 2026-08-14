@@ -1,17 +1,17 @@
-"""Detect trials that are running with nobody attached, and say so loudly.
+"""Detect runs that are active with nobody attached, and say so loudly.
 
 The one thing that broke unattended operation in the first campaign: a judge
-ended its turn mid-trial (a Bash timeout shorter than the run silently
+ended its turn mid-run (a Bash timeout shorter than the run silently
 backgrounds `observe`), leaving the candidate live, burning budget, with no
 judge watching. Nothing notified anyone -- it was caught only because a human
-happened to look. Everything else in the loop resumes itself.
+happened to look. An orphan is discarded and the task gets a fresh retry; no judge reattaches.
 
 One line per state change on stdout, so any harness that can stream a
 long-running command will surface it -- or just run it in another terminal:
 
     uv run python .agents/skills/nothingness-evals/scripts/watchdog.py <campaign-id>
 
-Exits when every task in the campaign has a scored result.
+Exits when the campaign is complete or aborted.
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def judge_attached(run_id: str) -> bool:
     `judge-observations.jsonl` was touched. That file is written when `observe`
     pages new events, not on a heartbeat, so a judge can be attached and correct
     while the log sits still for ten minutes -- which raised a false alarm on a
-    perfectly healthy trial and sent me chasing it.
+    perfectly healthy run and sent me chasing it.
     """
     result = subprocess.run(
         ["pgrep", "-f", f"judge-run.py observe {run_id}"],
@@ -99,7 +99,7 @@ def campaign_state(campaign_id: str) -> tuple[list[str], dict[str, list[str]]]:
 
     Both halves matter: a task with no runs yet is *pending*, not done. Deriving
     "done" from the run list alone reports a campaign complete the moment it is
-    created, before a single trial exists.
+    created, before a single run exists.
     """
     state_path = CAMPAIGNS_ROOT / campaign_id / "campaign.json"
     if not state_path.is_file():
@@ -128,6 +128,10 @@ def main() -> None:
 
     while True:
         tasks, runs_by_task = campaign_state(campaign_id)
+        campaign = read_json(CAMPAIGNS_ROOT / campaign_id / "campaign.json")
+        if campaign.get("status") in {"complete", "aborted"}:
+            emit_json({"ok": True, "campaign_id": campaign_id, "state": campaign["status"]})
+            return
         # A task is done only when one of its runs carries a scored result --
         # the same rule campaign.py next uses, so the two never disagree.
         pending = [t for t in tasks if not any((RUNS_ROOT / r / "result.json").is_file() for r in runs_by_task.get(t, []))]
@@ -147,7 +151,7 @@ def main() -> None:
                 # blind exactly when it was most needed -- a judge dropped out
                 # mid-prepare and the container sat up for 13 minutes unnoticed.
                 if uptime > PREPARE_STALL_SECONDS and not judge_attached(run):
-                    say(f"{run}:prepare", f"STUCK-IN-START {run}: container up but no candidate launched after {PREPARE_STALL_SECONDS / 60:.0f} min -- judge likely ended its turn inside judge-run.py start; re-attach it")
+                    say(f"{run}:prepare", f"STUCK-IN-START {run}: container up but no candidate launched after {PREPARE_STALL_SECONDS / 60:.0f} min -- judge likely ended its turn inside judge-run.py start; discard it and record a retry")
                 continue
             phase = str(progress.get("phase", "unknown"))
             elapsed = float(progress.get("elapsed_seconds") or 0)
@@ -156,7 +160,7 @@ def main() -> None:
             if phase == "awaiting_judge":
                 say(f"{run}:awaiting", f"BLOCKED {run}: candidate is awaiting_judge; it burns budget until a judge calls judge-control.py finish")
             elif budget and elapsed > budget * 0.9:
-                say(f"{run}:wall", f"NEAR-DEADLINE {run}: {elapsed:.0f}s of {budget:.0f}s used -- tell the judge to call judge-control.py finish NOW and score what exists; a run killed at the wall is unscoreable, while finishing early only forfeits the pass ceiling")
+                say(f"{run}:wall", f"NEAR-DEADLINE {run}: {elapsed:.0f}s of {budget:.0f}s used -- finish/clean it, record a retry, and start the task fresh; never attach another judge")
 
             # Only meaningful while the candidate can still burn budget. After
             # `judge_finish` the phase is `completed` and a silent judge is just
@@ -166,7 +170,7 @@ def main() -> None:
             if phase not in {"completed", "awaiting_judge"} and observations.is_file() and not judge_attached(run):
                 quiet = time.time() - observations.stat().st_mtime
                 if quiet > STALL_SECONDS:
-                    say(f"{run}:stall", f"UNATTENDED {run}: candidate still {phase} but no judge observation for over {STALL_SECONDS / 60:.0f} min -- judge likely ended its turn; re-attach it")
+                    say(f"{run}:stall", f"UNATTENDED {run}: candidate still {phase} but no judge observation for over {STALL_SECONDS / 60:.0f} min -- judge likely ended its turn; discard it and record a retry")
 
         if not pending:
             emit_json({"ok": True, "campaign_id": campaign_id, "state": "done", "detail": f"all {len(tasks)} task(s) have a scored result"})

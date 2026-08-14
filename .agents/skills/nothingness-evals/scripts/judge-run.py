@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from common import ROOT, RUNS_ROOT, SCRIPT_DIR, command, emit_json, fail, load_suite, read_json, run_dir, utc_now, validate_run_id, write_json
@@ -41,45 +42,39 @@ def invoke(name: str, *arguments: str) -> dict[str, object]:
 def start(arguments: argparse.Namespace) -> None:
     suite_path = arguments.suite.resolve()
     suite = load_suite(suite_path)
-    trial_tag = "calibration" if arguments.calibration else f"trial-{arguments.trial:02d}"
-    prefix = f"{suite['id']}-{arguments.task_id}-{trial_tag}-attempt-"
-    # RUNS_ROOT, not ROOT-derived: a judge starts its own trial from inside a
-    # sandbox worktree, where the ROOT-relative path is an empty directory that
-    # nothing creates -- so every attempt would number itself 01 and collide.
-    existing = [path.name for path in RUNS_ROOT.glob(f"{prefix}*") if path.is_dir()]
-    attempts = []
-    for name in existing:
-        try:
-            attempts.append(int(name.removeprefix(prefix)))
-        except ValueError:
-            continue
-    run_id = f"{prefix}{max(attempts, default=0) + 1:02d}"
+    run_id = f"{suite['id']}-{arguments.task_id}-run-{uuid.uuid4().hex[:12]}"
     validate_run_id(run_id)
-    prepare_arguments = [arguments.task_id, run_id, "--suite", str(suite_path), "--trial", str(arguments.trial)]
-    if arguments.calibration:
-        prepare_arguments.append("--calibration")
+    retry = 0
+    registered = False
+    if arguments.campaign:
+        registration = invoke("campaign.py", "add-run", arguments.campaign, arguments.task_id, run_id)
+        retry = int(registration["retry"])
+        registered = True
+    prepare_arguments = [arguments.task_id, run_id, "--suite", str(suite_path), "--retry", str(retry)]
     if arguments.judge:
         prepare_arguments.extend(("--judge", arguments.judge))
     if arguments.campaign:
         prepare_arguments.extend(("--campaign", arguments.campaign))
-    prepared = invoke("prepare-run.py", *prepare_arguments)
     try:
+        prepared = invoke("prepare-run.py", *prepare_arguments)
         preflight = invoke("preflight.py", run_id)
         launch = invoke("launch-candidate.py", run_id)
     except BaseException:
-        invoke("cleanup.py", run_id)
+        if (run_dir(run_id) / "run.json").is_file():
+            try:
+                invoke("cleanup.py", run_id)
+            except BaseException:
+                pass
+        elif run_dir(run_id).exists():
+            shutil.rmtree(run_dir(run_id), ignore_errors=True)
+        if registered:
+            try:
+                invoke("campaign.py", "retry", arguments.campaign, arguments.task_id, "--run-id", run_id, "--reason", "start_failed")
+            except BaseException:
+                pass
         raise
-    # `selected_model`/`identity_verified` come from preflight's output, not
-    # prepare's: prepare-run.py has not called pi yet at that point, so it has
-    # nothing genuine to report. preflight.py's admission probe is what
-    # actually discovers what pi served and derives whether it matches.
-    result = {"ok": True, "action": "start", "run_id": run_id, "suite_id": suite["id"], "task_id": arguments.task_id, "trial": arguments.trial, "calibration": arguments.calibration, "requested_model": preflight["requested_model"], "selected_model": preflight["selected_model"], "identity_verified": preflight["identity_verified"], "novnc_url": prepared["novnc_url"], "preflight": preflight["ok"], "launch": launch["ok"], "judge_events_command": f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/judge-events.py {run_id}", "started_at": utc_now()}
-    # Register with the campaign here rather than leaving it as a step someone
-    # must remember immediately after every start. Forgetting it leaves the
-    # dashboard reporting "not started" for a task that is actively running --
-    # which is exactly what it did, twice.
+    result = {"ok": True, "action": "start", "run_id": run_id, "suite_id": suite["id"], "task_id": arguments.task_id, "retry": retry, "requested_model": preflight["requested_model"], "selected_model": preflight["selected_model"], "identity_verified": preflight["identity_verified"], "novnc_url": prepared["novnc_url"], "preflight": preflight["ok"], "launch": launch["ok"], "judge_events_command": f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/judge-events.py {run_id}", "started_at": utc_now()}
     if arguments.campaign:
-        invoke("campaign.py", "add-run", arguments.campaign, arguments.task_id, run_id)
         result["campaign_id"] = arguments.campaign
     write_json(run_dir(run_id) / "judge-start.json", result)
     emit_json(result)
@@ -253,7 +248,7 @@ def observe(arguments: argparse.Namespace) -> None:
                 # Finish the run here rather than advise someone to. Three runs
                 # have now been lost this way: the candidate reaches its
                 # deadline, never enters `awaiting_judge`, and `classify-run.py`
-                # refuses to score a timed-out run at all, so a trial with real
+                # refuses to score a timed-out run at all, so a run with real
                 # work in it becomes no data point.
                 #
                 # Advising did not work. `observe` returns its warning to a
@@ -349,6 +344,8 @@ def finalize(arguments: argparse.Namespace) -> None:
     and aggregating are the manager's, and doing them in one command removes the
     class of bug where a campaign is "finished" but the index still says
     otherwise because someone forgot a step."""
+    campaign_summary = invoke("campaign.py", "complete", arguments.campaign)
+    campaign_manifest = read_json(RUNS_ROOT / "campaigns" / arguments.campaign / "campaign.json")
     merged = []
     current = command(["git", "-C", str(ROOT), "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
     # One sandbox per judge, so a whole suite arrives as several -- accept a list
@@ -379,10 +376,13 @@ def finalize(arguments: argparse.Namespace) -> None:
                 landing = target / item.relative_to(run_directory)
                 landing.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(item, landing)
+            target_campaign = target / "campaign.json"
+            if not target_campaign.exists():
+                write_json(target_campaign, campaign_manifest)
             merged.append(run_directory.name)
     reports = [invoke("report.py", str((ROOT / "evals" / "results" / name).relative_to(ROOT)), "--write") for name in sorted(set(merged) | set(arguments.run_directory))]
     board = invoke("leaderboard.py", "--write")
-    emit_json({"ok": True, "action": "finalize", "merged": merged, "reports": [item.get("wrote") for item in reports], "index": board.get("wrote")})
+    emit_json({"ok": True, "action": "finalize", "campaign": campaign_summary, "merged": merged, "reports": [item.get("wrote") for item in reports], "index": board.get("wrote")})
 
 
 def cleanup(arguments: argparse.Namespace) -> None:
@@ -399,8 +399,6 @@ def main() -> None:
     start_parser = subparsers.add_parser("start", allow_abbrev=False)
     start_parser.add_argument("suite", type=Path)
     start_parser.add_argument("task_id")
-    start_parser.add_argument("--trial", required=True, type=int)
-    start_parser.add_argument("--calibration", action="store_true")
     start_parser.add_argument("--judge", default="", help="who will score this run; recorded in run.json and result.json")
     start_parser.add_argument("--campaign", default="", help="campaign to record this run against, so the dashboard sees it without a second command")
     collect_parser = subparsers.add_parser("collect", allow_abbrev=False)
@@ -428,6 +426,7 @@ def main() -> None:
     publish_parser.add_argument("--scorecard")
     publish_parser.add_argument("--force", action="store_true")
     finalize_parser = subparsers.add_parser("finalize", allow_abbrev=False)
+    finalize_parser.add_argument("--campaign", required=True, help="campaign to complete and finalize")
     finalize_parser.add_argument("--from-sandbox", action="append", default=[], help="judge worktree whose evals/results should be merged in first; repeatable, and accepts a shell glob")
     finalize_parser.add_argument("--run-directory", action="append", default=[], help="results directory name to (re)report, e.g. gpt-5.4-nano-medium-20260810")
     cleanup_parser = subparsers.add_parser("cleanup", allow_abbrev=False)

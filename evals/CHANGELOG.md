@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.5.0 — 2026-08-14
+
+The current protocol has one campaign per model triple, one accepted run per task, and at most two fresh task retries. Active terminology no longer uses historical multi-sample labels. Failed retries record only a minimal reason and cost, are not published, and exhaust the whole campaign after the second retry. Campaign spend includes retry spend while accepted-task cost does not; dashboards and reports expose both values separately.
+
 The version of the **harness**, not of the app under test. It is the single
 source of truth: `common.eval_version()` parses the topmost `## <version>`
 heading below, records it into every run at prepare time, and the index table
