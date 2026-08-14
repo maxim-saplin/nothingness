@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.5.1 — 2026-08-14
+
+Retry records now capture zero spend for failures that never reached an admission call, so campaign cost remains a number when the harness knows no provider work occurred.
+
 ## 1.5.0 — 2026-08-14
 
 The current protocol has one campaign per model triple, one accepted run per task, and at most two fresh task retries. Active terminology no longer uses historical multi-sample labels. Failed retries record only a minimal reason and cost, are not published, and exhaust the whole campaign after the second retry. Campaign spend includes retry spend while accepted-task cost does not; dashboards and reports expose both values separately.

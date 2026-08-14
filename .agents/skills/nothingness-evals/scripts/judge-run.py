@@ -39,6 +39,21 @@ def invoke(name: str, *arguments: str) -> dict[str, object]:
     raise AssertionError("unreachable")
 
 
+def retry_cost(run_id: str) -> float | None:
+    run = run_dir(run_id)
+    summary = run / "summary.json"
+    if summary.is_file():
+        value = read_json(summary).get("cost_usd", {}).get("combined")
+        if isinstance(value, (int, float)):
+            return float(value)
+    admission = run / "admission.json"
+    if admission.is_file():
+        value = read_json(admission).get("normalized_usage", {}).get("cost_usd", {}).get("total")
+        if isinstance(value, (int, float)):
+            return float(value)
+    return 0.0 if run.exists() else None
+
+
 def start(arguments: argparse.Namespace) -> None:
     suite_path = arguments.suite.resolve()
     suite = load_suite(suite_path)
@@ -60,6 +75,7 @@ def start(arguments: argparse.Namespace) -> None:
         preflight = invoke("preflight.py", run_id)
         launch = invoke("launch-candidate.py", run_id)
     except BaseException:
+        failed_cost = retry_cost(run_id)
         if (run_dir(run_id) / "run.json").is_file():
             try:
                 invoke("cleanup.py", run_id)
@@ -69,7 +85,10 @@ def start(arguments: argparse.Namespace) -> None:
             shutil.rmtree(run_dir(run_id), ignore_errors=True)
         if registered:
             try:
-                invoke("campaign.py", "retry", arguments.campaign, arguments.task_id, "--run-id", run_id, "--reason", "start_failed")
+                retry_arguments = ["campaign.py", "retry", arguments.campaign, arguments.task_id, "--run-id", run_id, "--reason", "start_failed"]
+                if failed_cost is not None:
+                    retry_arguments.extend(("--cost-usd", str(failed_cost)))
+                invoke(*retry_arguments)
             except BaseException:
                 pass
         raise
