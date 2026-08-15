@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.6.0 — 2026-08-15
+
+Orchestrator metadata is now a required campaign artifact. Every campaign records the orchestrator name and uses `N/A` when its cost is not available; Pi-backed harnesses can use the new helper to discover parent and matching subagent usage before regenerating the leaderboard.
+
 ## 1.5.1 — 2026-08-14
 
 Retry records now capture zero spend for failures that never reached an admission call, so campaign cost remains a number when the harness knows no provider work occurred.

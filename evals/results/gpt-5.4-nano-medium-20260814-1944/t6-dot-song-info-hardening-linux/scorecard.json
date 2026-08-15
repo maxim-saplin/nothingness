@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never launched the app, and the judge found no live app or fresh-state verification; default-off behavior was not demonstrated.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No app session or settings interaction was performed, so persistence after enabling and restarting was not demonstrated.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No app session or settings interaction was performed, so persistence after disabling and restarting was not demonstrated.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No live app was available and no genuine normal-scale screenshot with long metadata was captured.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"No live app was available and no genuine maximum-scale screenshot with long metadata was captured.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate supplied no screenshots and the judge could not reproduce a live 100% long-metadata state.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate supplied no screenshots and the judge could not reproduce a live 150% long-metadata state.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"No live structural reads at either text scale were captured.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"No live short-metadata comparison at either scale was captured.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"The app was never launched, so runtime stability and absence of errors while exercising the change could not be verified.","evidence_ref":"verification-0a7c7f3b74a941d0baf63660c4dab56f"}
+  ]
+}

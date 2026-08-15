@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live Linux debug app answered ext.nothingness calls; independent verification and inspection captured a reachable VM with playback state and registered process.","evidence_ref":"verification-ecb90668d6ae4c059dc6e79a60f3525b"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Independent pause and resume calls produced isPlaying false then true; the resume-state verification captured the playing state.","evidence_ref":"verification-aa4e5614b6fb4c1383fcaa60b240e58c"},
+    {"id":"E3","tier":"required","verdict":"met","note":"With a three-track queue, next changed the active track from index 0 to index 1 and from 01-undercover-49.opus to 02-undercover-50.opus in the captured runtime state.","evidence_ref":"verification-14697f01f2534dcfbb61d8a78fd0e66b"},
+    {"id":"E4","tier":"required","verdict":"met","note":"While playing 02-undercover-50.opus at about 11.5s, seeking to 30s yielded about 31.7s in the captured runtime state, within tolerance and clearly forward.","evidence_ref":"verification-80fb47c4f81e401eb81b2862afc84356"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The candidate's play/pause, queue, next, seek, and final values are backed by concrete extension-call outputs and inspect reads in the contiguous session event stream.","evidence_ref":"events-48f57446a82440a993f7a03491b0d214"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"Independent runtime behavior was normal and the full inspection reported an empty git status and diff_stat; no source changes were present.","evidence_ref":"inspection-86d4999fe01e4d5e810883910ffbfaec"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The independent runtime verification remained responsive, reported no overflow reports, and process inspection showed the Linux app alive; no unresolved crash or hang was found.","evidence_ref":"verification-80fb47c4f81e401eb81b2862afc84356"}
+  ]
+}

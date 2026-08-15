@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With playback active and browsing /opt/nothingness, the accessible jump-to-now-playing-folder action was present; activation navigated to /opt/nothingness/media and the playing track was visible in the resulting browser state.",
+      "evidence_ref": "verification-d5462400085d4281b95f4ec0eed3f0a5"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "In /opt/nothingness/media, the playing 06-undercover-54 track was off-screen at scrollPosition 151.6 while the labeled track action was present; activating it kept currentPath unchanged and brought row 54 into the viewport at scrollPosition 0.0.",
+      "evidence_ref": "verification-fa84bfd0ec014c38b27f8bf59c666bd3"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "After the jump, row 54 was fully within the browser viewport (Rect y 143.8-184.8 at scrollPosition 0.0), but the semantics tree still exposed the active 'jump to now-playing track' action.",
+      "evidence_ref": "verification-fa84bfd0ec014c38b27f8bf59c666bd3"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A live verification captured isPlaying false and songInfo null, and its semantics tree contained no jump action label.",
+      "evidence_ref": "verification-c790fb3b1ceb47e69d39c820643a66d9"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active action was discoverable in the semantics tree with the distinguishing label 'jump to now-playing track' and tap action.",
+      "evidence_ref": "verification-eb94d26783c3481e84a0b2006e1493b3"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate captured a genuine before PNG with the browser collapsed and the playing track absent; the live pre-jump verification likewise shows the off-screen row and active action.",
+      "evidence_ref": "verification-eb94d26783c3481e84a0b2006e1493b3"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's genuine after PNG shows rows through 54 in the same /opt/nothingness/media folder; the live post-jump screenshot and semantics show row 54 visible after activation.",
+      "evidence_ref": "verification-fa84bfd0ec014c38b27f8bf59c666bd3"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The candidate's drive replay recorded playback, folder state, activation, and before/after screenshots, but it did not capture its claimed accessibility semantics or explicitly verify the same-folder scrolled case in its own session; those claims required the judge's live re-check.",
+      "evidence_ref": "events-4830941a98d64f2787e8ab4ccd8eee25"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "An actual on-screen folder-row tap navigated into /opt/nothingness/media, and pause/resume remained responsive; next/previous had no queued track to transition to, so the full playback-control sweep was not demonstrated.",
+      "evidence_ref": "verification-a5fc2506fccb4d8da7b793e96d9bbc16"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Repeated jump activations and live inspection left the app responsive; runtime overflow reports remained empty and no feature-attributable crash surfaced.",
+      "evidence_ref": "verification-a5fc2506fccb4d8da7b793e96d9bbc16"
+    }
+  ]
+}

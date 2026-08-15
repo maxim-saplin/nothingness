@@ -117,9 +117,30 @@ for s in .tmp/judge-<campaign-id>-*; do uv run python .agents/skills/nothingness
 Historically this was three commands to remember; forgetting one left a finished campaign whose
 index still said otherwise.
 
-When every task in the suite is done, produce the two documents. **A campaign whose results are
+When every task in the suite is done, produce the report, the orchestrator record, and the leaderboard. **A campaign whose results are
 not stored and readable is not finished** — scoring is not the deliverable, a result someone can
 act on is.
+
+First create `evals/results/<campaign>/orchestrator.json`, even when the orchestrator cost is not available:
+
+```
+cat > evals/results/<campaign>/orchestrator.json <<'JSON'
+{"orchestrator":"<model>-<reasoning_level>/pi","cost_usd":"N/A"}
+JSON
+```
+
+Use the `<model>-<reasoning_level>/pi` naming convention shown above, for example
+`gpt-5.6-luna-high/pi`. If the harness knows it is running under Pi and exposes the
+parent session, the optional helper can discover the parent and matching Pi subagent
+costs and replace `N/A` with the combined value:
+
+```
+uv run python .agents/skills/nothingness-evals/scripts/pi-orchestrator-cost.py evals/results/<campaign>
+```
+
+The helper uses `PI_SESSION_FILE`, `PI_MODEL`, and `PI_REASONING_LEVEL` by default. Pass
+`--session-file`, `--async-root`, or `--orchestrator` when the harness does not expose those
+environment values. If no helper is available, leave `N/A` for the user to fill manually.
 
 ```
 uv run python .agents/skills/nothingness-evals/scripts/report.py evals/results/<campaign> --write

@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The candidate event trail records dragByKey with shotStep=10 and the resulting seek_during.png capture; inspecting that artifact showed the bottom line 0:54 / 1:23 and 66%, with no center readout.","evidence_ref":"events-f7801ff42dc049558cacdac79199242d"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Fresh real X11 swipe capture showed the bottom feedback only and no centered time readout or tall vertical indicator; the settled capture also had none.","evidence_ref":"verification-761d6df0a7d6420dbec24144bdf5bdac"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and a settle window, the semantics reverted to the normal '~' folder crumb and contained no seek target or percentage.","evidence_ref":"verification-fa062b5b2e68435982fda368ec469221"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate session contains only one legible during-gesture capture (seek_during.png), so it does not provide the required second during-swipe data point with a different target.","evidence_ref":"events-f7801ff42dc049558cacdac79199242d"},
+    {"id":"E5","tier":"required","verdict":"met","note":"A fresh swipe displayed 0:54 / 3:14 at 28% during the gesture; after release, the paused runtime read was position 54815 ms on the 194255 ms track, within about 1 second of the shown target.","evidence_ref":"verification-fa062b5b2e68435982fda368ec469221"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The candidate's event trail records the shotStep=10 mid-gesture screenshot path and output dimensions from its custom frame-yielding drag capture, rather than only a post-release screenshot.","evidence_ref":"events-f7801ff42dc049558cacdac79199242d"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The fresh post-release screenshot showed the bottom crumb restored to '~', with no target/duration/progress text and no center indicator.","evidence_ref":"verification-fa062b5b2e68435982fda368ec469221"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The post-settle semantics and tree capture independently showed the normal '~' crumb, agreeing with the settled screenshot.","evidence_ref":"verification-fa062b5b2e68435982fda368ec469221"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Real on-screen taps exercised next (index advanced to 4), previous (two-stage previous returned to index 3), and pause/resume; a vertical hero drag left the fixed browser presentation unchanged.","evidence_ref":"verification-b57c27b6b0104782a4ecf5fcdfa6884e"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated real X11 swipe attempts and the final runtime capture left the app responsive with overflows count 0 and no runtime error reports.","evidence_ref":"verification-fa062b5b2e68435982fda368ec469221"}
+  ]
+}

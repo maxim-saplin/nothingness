@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics show screen at indexInParent 5 followed immediately by color scheme at indexInParent 6, with abutting y-ranges.",
+      "evidence_ref": "verification-17445fec572442d69c0c08d20b21a20d"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The single cassette variant row is labeled exactly lowercase color scheme; its value updates among Tape variants and no stale variant row is present in the cassette cluster.",
+      "evidence_ref": "verification-62c491e31cbb4822a108f45763ba6d12"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I activated the screen row through the complete spectrum-to-polo-to-dot-to-void-to-cassette-to-spectrum cycle and separately set screen values directly; the settings state and row values tracked the active screen.",
+      "evidence_ref": "verification-441b68dacc2b45aaa3a03f3c233d9df1"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The color scheme row activated on-screen from Tape Colour to Minimal, while direct cassettevariant calls changed the displayed value to Tape Amber and Tape Colour.",
+      "evidence_ref": "verification-62c491e31cbb4822a108f45763ba6d12"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent semantics captures for spectrum, polo, dot, and void show each screen's own post-screen controls and no color scheme row; spectrum text color and dot show-song-info controls also changed on-screen.",
+      "evidence_ref": "verification-49bf8d27da2a49babd47f41ce47e33a6"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine captured screenshot visibly shows the Settings sheet with screen=cassette and adjacent, legible screen and color scheme rows.",
+      "evidence_ref": "verification-17445fec572442d69c0c08d20b21a20d"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The Cassette semantics dump independently corroborates screen=cassette, exact color scheme label, adjacent indices, and the current variant value Tape · Mono.",
+      "evidence_ref": "verification-17445fec572442d69c0c08d20b21a20d"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across the Cassette and non-Cassette semantics captures, unrelated MODE/LOOK/app-wide groups remain in their existing order; representative spectrum and dot settings remained interactive and updated their displayed values.",
+      "evidence_ref": "verification-49bf8d27da2a49babd47f41ce47e33a6"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeatedly opening settings, switching all screen types, cycling controls, and scrolling, the app remained live; final runtime inspection reports zero overflow reports and no runtime error state.",
+      "evidence_ref": "verification-17445fec572442d69c0c08d20b21a20d"
+    }
+  ]
+}

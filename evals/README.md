@@ -11,6 +11,7 @@ candidate's write-up.
 <!-- BEGIN GENERATED LEADERBOARD -->
 | Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Retries | Score | Assisted | Tokens (in/out) | Accepted task cost | Campaign cost | $/point | Report |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | medium | 2026-08-14 | 1.5.1 | gpt-5.6-luna-high/pi | $1.25 | 0 | **16/21** | no | 513k / 139k | $0.5888 | $0.5888 | $0.0368 | [detail](results/gpt-5.4-nano-medium-20260814-1944/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-11 | 1.3.0 | claude.opus-5-high | $57.18 | – | **15/21** | no | 488k / 126k | $0.6164 | $0.6164 | $0.0411 | [detail](results/gpt-5.4-nano-medium-20260811-0506/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-10 | 1.3.0 | unrecorded | – | – | **14/21** | no | 377k / 117k | $0.4537 | $0.4537 | $0.0324 | [detail](results/gpt-5.4-nano-medium-20260810-2027/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | claude.opus-5-high | $50.56 | – | **11/18** | no | 742k / 167k | $0.8818 | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |

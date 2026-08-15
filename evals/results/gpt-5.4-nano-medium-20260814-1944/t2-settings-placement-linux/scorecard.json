@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics shows screen at indexInParent 5 immediately followed by variant at indexInParent 6 with abutting rects; the screenshot plainly shows the same adjacency.",
+      "evidence_ref": "verification-bf74c02a23b84226a7d2db6ad5e0ef41"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Repeated on-screen taps advanced screen through spectrum, polo, dot, void, and back to cassette; verification captures show each displayed screen value and the final return to cassette.",
+      "evidence_ref": "verification-6f83fd4f06754ef6931a7889f8dcbb76"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The cassette variant row changed from Tape · Mono after its own activation to Tape · Amber, and a direct cassettevariant call was followed by a fresh verified capture with the row still adjacent and updated.",
+      "evidence_ref": "verification-39617575ff5344be9e46ac76e98c1e22"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Spectrum, dot, and void captures show no cassette-only row and retain their own settings; the polo capture shows screen=polo but retains spectrum rows rather than exposing polo's own control, so the all-other-screens requirement is not fully demonstrated.",
+      "evidence_ref": "verification-6f83fd4f06754ef6931a7889f8dcbb76"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The verified PNG is a genuine settings-sheet screenshot with legible screen=cassette and the immediately adjacent variant row in frame.",
+      "evidence_ref": "verification-bf74c02a23b84226a7d2db6ad5e0ef41"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same Cassette verification bundle independently contains semantics/settings state agreeing with the screenshot, including screen=cassette, variant value, and consecutive row geometry.",
+      "evidence_ref": "verification-bf74c02a23b84226a7d2db6ad5e0ef41"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across the Cassette, spectrum, dot, and void captures, unrelated MODE/LOOK/LIBRARY rows remain in their original order; representative spectrum, dot, and void controls were activated and fresh captures reflected their changed values.",
+      "evidence_ref": "verification-04755245a0c44bc7aa57f1cea63858b0"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final runtime inspection remained responsive and reported zero overflow reports and no playback/library error.",
+      "evidence_ref": "verification-bf74c02a23b84226a7d2db6ad5e0ef41"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live runtime verification showed queueLength 10 and exactly the ten mounted fixture paths, each once, with no extras.","evidence_ref":"verification-f26eee1f16e241bd85e5b523adf2a708"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I opened settings, tapped the on-screen shuffle status control, and the subsequent runtime verification reported shuffle true.","evidence_ref":"verification-2e51fa4d1783448d950ba371df16a84e"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Before navigation, runtime verification showed isPlaying true, a supplied fixture as the current path, and isNotFound false.","evidence_ref":"verification-2e51fa4d1783448d950ba371df16a84e"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The live before/after reads changed currentIndex from 2 to 3 and current path from 01-undercover-49.opus to 10-undercover-47.opus; both were valid supplied fixtures.","evidence_ref":"verification-5e0f86559a4345af98c34bc6f0164c23"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate's test event stream and its successful output only show the ten supplied fixture paths for queueing and before/after playback; no foreign media appears.","evidence_ref":"events-ebfd3367746a4929ac1c9d330419c93c"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The candidate's passing integration test asserted queue size/set membership, shuffle, play state/index, and the one next transition, and printed the before/after paths used in its final report.","evidence_ref":"events-ebfd3367746a4929ac1c9d330419c93c"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"Runtime behavior was normal, but inspection found an unrequested untracked file integration_test/opus_shuffle_one_transition_test.dart; this is beyond the rubric's sole tolerated generated registrant change.","evidence_ref":"inspection-20cd08d494dc4c7fa90bc721ea28e68b"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The session had recoverable shell-tool misses (rg unavailable and an invalid ls option), which the candidate retried with grep/valid ls; the integration test then passed without an unresolved app fault.","evidence_ref":"verification-2e51fa4d1783448d950ba371df16a84e"}
+  ]
+}
