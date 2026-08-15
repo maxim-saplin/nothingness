@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.6.1 — 2026-08-15
+
+Intentional repeat campaigns are now supported with `campaign.py new --allow-repeat`, preserving the default duplicate-campaign guard while allowing model variability measurements on the same harness and suite.
+
 ## 1.6.0 — 2026-08-15
 
 Orchestrator metadata is now a required campaign artifact. Every campaign records the orchestrator name and uses `N/A` when its cost is not available; Pi-backed harnesses can use the new helper to discover parent and matching subagent usage before regenerating the leaderboard.

@@ -1,9 +1,10 @@
 """Render the cross-model table from published campaign results.
 
-Each model triple has one campaign in the current protocol. A campaign may use
-fresh task retries, but only one accepted result per task contributes to the
-score and accepted-task cost. Campaign cost includes accepted runs and retry
-spend when the campaign manifest records it.
+Each campaign is rendered as its own data point, so intentional repeat campaigns
+can expose variability for the same model triple. A campaign may use fresh task
+retries, but only one accepted result per task contributes to its score and
+accepted-task cost. Campaign cost includes accepted runs and retry spend when
+the campaign manifest records it.
 """
 
 from __future__ import annotations

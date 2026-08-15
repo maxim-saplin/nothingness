@@ -77,13 +77,14 @@ def new_campaign(arguments: argparse.Namespace) -> None:
         fail(2, "campaign_already_exists")
     suite_path = arguments.suite.resolve()
     suite = load_suite(suite_path)
-    for existing in CAMPAIGNS_ROOT.glob("*/campaign.json"):
-        try:
-            other = read_json(existing)
-        except SystemExit:
-            continue
-        if other.get("protocol_mode") == PROTOCOL_MODE and other.get("suite_id") == suite["id"]:
-            fail(2, f"campaign_already_exists_for_model:{suite['id']}")
+    if not arguments.allow_repeat:
+        for existing in CAMPAIGNS_ROOT.glob("*/campaign.json"):
+            try:
+                other = read_json(existing)
+            except SystemExit:
+                continue
+            if other.get("protocol_mode") == PROTOCOL_MODE and other.get("suite_id") == suite["id"]:
+                fail(2, f"campaign_already_exists_for_model:{suite['id']} -- pass --allow-repeat for an intentional variability attempt")
     task_ids = [task["id"] for task in suite["tasks"]]
     now = utc_now()
     campaign = {
@@ -280,6 +281,7 @@ def main() -> None:
     new_parser = subparsers.add_parser("new")
     new_parser.add_argument("suite", type=Path)
     new_parser.add_argument("--campaign-id", required=True, dest="campaign_id")
+    new_parser.add_argument("--allow-repeat", action="store_true", help="create another campaign for the same suite for an intentional variability attempt")
 
     add_run_parser = subparsers.add_parser("add-run")
     add_run_parser.add_argument("campaign_id")

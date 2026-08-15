@@ -36,11 +36,13 @@ Together they cost about ten minutes on a cold image and about a second afterwar
 
 ## 2. Create the campaign, then hand the user the dashboard — before any task starts
 
-Pick the suite matching the requested model (e.g. `evals/suites/t1-t7-gpt-5.4-mini-medium.json` for `gpt-5.4-mini`). Create exactly one campaign for the requested provider/model/thinking triple:
+Pick the suite matching the requested model (e.g. `evals/suites/t1-t7-gpt-5.4-mini-medium.json` for `gpt-5.4-mini`). Create exactly one campaign for the requested provider/model/thinking triple by default:
 
 ```
 uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/suites/<suite>.json --campaign-id <id>
 ```
+
+For an intentional variability attempt after a completed campaign, pass `--allow-repeat` and use a new campaign id. Keep each campaign's results separate; do not combine attempts into one campaign or silently replace an existing result.
 
 This returns a `dashboard_command` (`watch-eval.py <campaign-id>`). Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal. Do not wait until the end of the run to surface it.
 

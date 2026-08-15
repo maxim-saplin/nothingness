@@ -48,11 +48,13 @@ Hard rule: **any unmet `required` expectation caps the score at 2**, regardless 
 
 `result.json`'s `model_identity_verified` is a real derived fact, not an asserted one, and it is `true` only when two independent pieces of evidence both agree the requested provider/model were actually served: pi's admission probe response (`admission.json["identity_verified"]`, from the `provider`/`model` fields pi's own assistant message carries — confirmed against a real captured transcript) and, separately, the actual candidate session's own transcript (`summary.json["model_identity_verified"]`, derived from every `turn_end` message pi emitted during the real run, via `summarize-run.py`). A mismatch on either is infrastructure-invalid: preflight hard-fails outright on an admission mismatch, and `classify-run.py` refuses to classify a run `valid` if the candidate transcript itself didn't independently confirm it — a session that crashed before completing a single turn is correctly *unverified*, not vacuously verified. This covers `provider` and `model` only. `thinking` is a request-time parameter with no analogous confirmation anywhere in pi's event stream — it is carried through from the request, never independently checked, and is not part of what `identity_verified`/`model_identity_verified` claims.
 
-## Repeated runs are not aggregated
+## Repeated campaigns are separate samples
 
-A model has one campaign in the current protocol. Each task has one accepted run and at most
+A model has one campaign by default; intentional additional campaigns may be created with
+`campaign.py new --allow-repeat`. Each campaign still has one accepted run per task and at most
 two fresh retries after operational failure. Retries are not samples, are never averaged, and do
-not change accepted-task cost. If the second retry fails, the whole campaign is aborted.
+not change accepted-task cost. Repeated campaign scores remain separate published data points;
+compare them only when their harness version and suite manifest match.
 
 Campaign cost is the actual measured candidate/admission spend for accepted runs plus retries.
 Accepted-task cost is measured only from the accepted run for each task. Orchestrator/judge spend
