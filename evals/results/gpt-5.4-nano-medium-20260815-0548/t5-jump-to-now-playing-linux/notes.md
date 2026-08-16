@@ -1,0 +1,7 @@
+E1: I played track 54, browsed its parent’s parent, and activated the accessible jump action; the app navigated to /opt/nothingness/media and showed row 54. E2: With media already open and row 54 offscreen, the same action kept /opt/nothingness/media and scrolled row 54 into view.
+
+E3: In a post-jump capture, row 44 was fully within the visible list while the jump action was still exposed and tappable, so the visibility condition is wrong. E4: After hot restart, playback had isPlaying false and songInfo null, and no active jump action appeared in either the media folder or its parent.
+
+E5: The active action had a semantics node labeled “jump to now-playing track.” E6: The candidate’s specifically named feat44_before.png already showed row 44 visible and matched feat44_after.png, so it was not a valid before/offscreen screenshot. E7: The named after image showed row 44 visible in the media folder, consistent with the live post-jump state.
+
+E8: Candidate claims were backed by session inspect/library-state/semantics/screenshot/tap observations. E9: An actual folder-row tap navigated correctly and pause/resume responded, but direct-play next/previous checks did not establish normal queued transitions, so I awarded partial credit. E10: The app stayed responsive after repeated checks and the runtime capture reported no overflow/error reports.

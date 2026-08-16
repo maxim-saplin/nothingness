@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never launched the Linux app or captured a traceable mid-gesture state; its event trail contains source edits and a failed/hung widget test only.","evidence_ref":"events-7bedac4d1f8f47f6802742594f4164c3"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No live swipe reproduction or app screenshot was captured, so the absence of the centered indicator was not verified.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No running app state was available after a real swipe and settle window, so clearing back to the folder path was not verified.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The event trail has no candidate during-gesture captures for two distinct swipes or legible target values; static code edits do not establish live tracking.","evidence_ref":"events-7bedac4d1f8f47f6802742594f4164c3"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"No runtime position before and after an actual swipe was captured, so commit-to-target seeking is unverified.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate did not produce a traceable screenshot taken during a genuine in-flight gesture; its run stopped in a widget test failure/stall.","evidence_ref":"events-7bedac4d1f8f47f6802742594f4164c3"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No post-gesture screenshot from a launched app was captured and inspected for the restored folder line.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"There is no successful post-settle structural tree/playback capture corroborating a screenshot.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"The candidate never exercised the on-screen previous, play/pause, next, or vertical gesture behavior in a running app.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"No repeated live gesture burst, overflow check, or final runtime responsiveness check was performed; the candidate's targeted test itself failed after a prolonged stall.","evidence_ref":"verification-26a7f69e3d1f483580ae8dad685639b4"}
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate launched a live Linux VM-service session and issued concrete ext.nothingness preflight, inspect, queue, play, pause, resume, next, and seek calls; the judge verification also answered from the live app.",
+      "evidence_ref": "verification-0ab41fcf46604116a7c46624015640ec"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The session observed playback true after play, false after pause, and true after resume, with matching inspect outputs rather than relying on command success alone.",
+      "evidence_ref": "verification-0ab41fcf46604116a7c46624015640ec"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "A ten-track queue was loaded and next changed the observed currentIndex from 0 to 1 while playback continued, but the post-next read was jq-filtered and did not capture the active path needed to verify both index and path change.",
+      "evidence_ref": "verification-0ab41fcf46604116a7c46624015640ec"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Seek was issued while playing and the observed position advanced from 50389ms to 82794ms, but the requested target was 70389ms and the post-read was more than the rubric's ±2s tolerance away, despite clearly moving forward.",
+      "evidence_ref": "verification-0ab41fcf46604116a7c46624015640ec"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report's concrete play/pause, index, position, duration, seek, and overflow claims are backed by corresponding extension outputs in the candidate event trail.",
+      "evidence_ref": "events-2cd39237bde4440cb58fa5637d5300ff"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The collected git status and diff are empty, and the live smoke behavior showed no unrelated runtime or settings change.",
+      "evidence_ref": "inspection-f76bc8ed7080466c90b89c70fa5df1a2"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate encountered a tooling error from omitted DRIVE environment variables, recognized it, reran with the correct session variables, and completed against the answering app; no unresolved app crash, hang, or overflow remained.",
+      "evidence_ref": "verification-0ab41fcf46604116a7c46624015640ec"
+    }
+  ]
+}

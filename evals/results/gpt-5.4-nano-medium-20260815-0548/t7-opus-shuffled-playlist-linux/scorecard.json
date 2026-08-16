@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My independent live setQueue and runtime verification showed queueLength 10 and exactly the ten mounted fixture paths, each once, with no extras.",
+      "evidence_ref": "verification-7ff162f0afb343b9a5ebf4512d839e00"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings, tapped the on-screen void-settings-status-shuffle control off and then on, and the resulting runtime verification reported shuffle true.",
+      "evidence_ref": "verification-7ff162f0afb343b9a5ebf4512d839e00"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before my navigation, live runtime verification showed isPlaying true, current path /opt/nothingness/media/01-undercover-49.opus, and isNotFound false.",
+      "evidence_ref": "verification-7ff162f0afb343b9a5ebf4512d839e00"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My independent before/after reads changed currentIndex from 5 to 6 and current path from 01-undercover-49.opus to 07-undercover-44.opus after one next; both remained valid supplied fixtures.",
+      "evidence_ref": "verification-100de58f759d4d4a9b812f35c8145f38"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate event stream's queue, current-track, and transition outputs mention only the ten supplied /opt/nothingness/media fixture paths; no foreign media appears.",
+      "evidence_ref": "events-94a91fcacb8e4e66baac8f39e7813a45"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate was auto-finished by the deadline guard with no final assistant report (final_assistant_text is null), so there is no final report whose specific claims can be traced as required.",
+      "evidence_ref": "events-94a91fcacb8e4e66baac8f39e7813a45"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Post-run inspection found empty git status and diff, and the independent live behavior was the unmodified queue/shuffle/play/next behavior; no source changes were present.",
+      "evidence_ref": "inspection-78304eba9dd447c49e1ff464d4647379"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The app ultimately remained live and the candidate recovered initial launch failures, but the session also contained several shell/driver errors and a long timed-out build/tool call; recovery was not cleanly demonstrated for every fault before deadline termination.",
+      "evidence_ref": "verification-100de58f759d4d4a9b812f35c8145f38"
+    }
+  ]
+}

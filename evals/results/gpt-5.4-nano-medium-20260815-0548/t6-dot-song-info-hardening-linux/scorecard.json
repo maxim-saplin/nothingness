@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After wiping the desktop state and cold-launching a fresh app, the Dot hero showed only the pulsing dot and no artist/title overlay.",
+      "evidence_ref": "verification-767c01d2462b40cfac697653a7ccac6b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I persisted show-song-info on, hot-restarted the app, and verified the long-metadata overlay remained rendered while playing.",
+      "evidence_ref": "verification-36e7a1201be0446b85b97a20b2677d10"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I persisted the option off, restarted, and verified the long-metadata overlay was absent after the restart.",
+      "evidence_ref": "verification-b44b00f4fc954201a38105a0c31e916e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My 100% verification screenshot shows the deliberately long artist/title fully inside the hero, above and separate from the centered dot, with no clipped glyphs.",
+      "evidence_ref": "verification-36e7a1201be0446b85b97a20b2677d10"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My 150% verification screenshot shows the same long metadata scaled within the hero, still fully visible above the dot without overlap or edge clipping.",
+      "evidence_ref": "verification-b71785fcbead4850bce8f092c9d507ab"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Although my fresh 100% reproduction was on-point, the candidate's submitted dot_normal_after.png shows only short metadata (undercover / 47), not the required long-metadata track, so the required candidate screenshot evidence is not on-point.",
+      "evidence_ref": "verification-36e7a1201be0446b85b97a20b2677d10"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Although my fresh 150% reproduction was on-point, the candidate's submitted dot_max_after.png likewise shows only short metadata (undercover / 47), not the required long-metadata track, so the required candidate screenshot evidence is not on-point.",
+      "evidence_ref": "verification-b71785fcbead4850bce8f092c9d507ab"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The normal and maximum verification bundles structurally expose non-empty hero-artist and hero-song text with long resolved values; the maximum-scale bundle is cited here and the normal bundle is verification-36e7... .",
+      "evidence_ref": "verification-b71785fcbead4850bce8f092c9d507ab"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Fresh short-track checks at both 100% and 150% rendered ordinary undercover / 47 metadata cleanly without clipping, overlap, or an obvious layout regression; normal scale is captured here and maximum scale in verification-cc9e... .",
+      "evidence_ref": "verification-8b24896fcf4c41879a74f6973a25b91c"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After toggling the option, restarting, switching scales, and playing long and short tracks, the app remained live; the final runtime bundle reported zero overflow/error reports and playback was active.",
+      "evidence_ref": "verification-cc9eb35710934028879f1f826fa53b30"
+    }
+  ]
+}

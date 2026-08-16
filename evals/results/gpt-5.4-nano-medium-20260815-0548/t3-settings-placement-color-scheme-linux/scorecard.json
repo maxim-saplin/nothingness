@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"While Cassette was selected, the captured semantics and screenshot show the screen row immediately followed by color scheme with abutting row bounds.","evidence_ref":"verification-c39389cf2aa54b5287464168488bc267"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The Cassette sheet capture reads the row label exactly color scheme, with no stale variant row in the visible sheet.","evidence_ref":"verification-c39389cf2aa54b5287464168488bc267"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Direct screen selections reflected Spectrum, Polo, Dot, Void, and Cassette, and five repeated on-screen taps advanced through the cycle; the final Cassette capture still shows the synchronized screen value.","evidence_ref":"verification-81d26fe4bd674f5da0194b6607eb34d3"},
+    {"id":"E4","tier":"required","verdict":"met","note":"An on-screen tap changed color scheme from Tape Colour to Minimal, and direct cassettevariant calls produced updated row values including Tape Mono and Tape Amber while Cassette remained active.","evidence_ref":"verification-6edfa5b9f48843548be2b0209fa4b820"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Independent captures for Spectrum, Polo, Dot, and Void show no cassette-only color scheme row; on-screen representative controls changed Spectrum bar count, Dot show song info, and Void debug layout (additional state captures: verification-1173cb2bc93646e28aa8e2d0cbdf99e6, verification-75c06e26db3b434aae44516f9af0e8a0, verification-0f9414d85d634db699bfbd340742c99f).","evidence_ref":"verification-75c06e26db3b434aae44516f9af0e8a0"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine captured PNG visibly shows the Settings sheet, Cassette as the screen value, and the adjacent screen and color scheme rows legibly in one frame.","evidence_ref":"verification-c39389cf2aa54b5287464168488bc267"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The semantics capture independently corroborates screen = cassette, exact color scheme label, adjacent index and bounds, and the current variant value.","evidence_ref":"verification-c39389cf2aa54b5287464168488bc267"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settings captures preserve unrelated row order and values; representative unrelated controls were exercised successfully during Spectrum, Dot, and Void checks.","evidence_ref":"verification-6edfa5b9f48843548be2b0209fa4b820"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Repeated navigation, opening/closing, screen cycling, and variant cycling completed with the app responsive; final runtime inspection reported zero overflow reports and a live Cassette app.","evidence_ref":"verification-6edfa5b9f48843548be2b0209fa4b820"}
+  ]
+}

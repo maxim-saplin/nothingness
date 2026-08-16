@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With 06-undercover-54.opus playing, I browsed /opt/nothingness (different from the track parent), saw the accessible jump action, activated it, and verified navigation to /opt/nothingness/media with row 54 visible.","evidence_ref":"verification-7146d7bf2a3141ebb7bce678c7f67ea6"},
+    {"id":"E2","tier":"required","verdict":"met","note":"With the browser already at /opt/nothingness/media and track 54 playing while its row was offscreen, the action was present; activation kept currentPath unchanged and brought row 54 into the viewport.","evidence_ref":"verification-adaac7c8c8614ac1b3cb54da2195eb43"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"After jumping, track 44 was fully visible at the top of the list, but the active accessible jump action remained exposed in the same capture, so visibility is not correctly suppressing it.","evidence_ref":"verification-f78e44e6d735494caad2a5ea110462ba"},
+    {"id":"E4","tier":"required","verdict":"met","note":"After hot restart, inspect showed isPlaying false and songInfo null; semantics in both the media folder and its parent root showed no active jump action.","evidence_ref":"verification-397227d3cc544ef2be64d23ac636ca18"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active action appeared in the semantics tree as a tappable button labeled \"jump to now-playing track\", rather than as an unlabeled glyph.","evidence_ref":"verification-996f9b6124f04b23ac291e5e997f2d21"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate's named before screenshot feat44_before.png already shows row 44 visible and is visually identical to its after screenshot, so it does not establish a genuine pre-jump offscreen state.","evidence_ref":"verification-996f9b6124f04b23ac291e5e997f2d21"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The candidate's named after screenshot shows row 44 visible in /opt/nothingness/media, consistent with the post-jump state verified live.","evidence_ref":"verification-7146d7bf2a3141ebb7bce678c7f67ea6"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate's session contains concrete inspect, library-state, semantics, screenshot, and tap observations supporting its claims about the action and resulting browser state.","evidence_ref":"events-d7a6be4f4bf8461d9fae58f4ed774bb4"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"An actual on-screen folder-row tap navigated from /opt/nothingness to /opt/nothingness/media and pause/resume remained responsive, but the attempted next/previous checks with a direct-play track did not demonstrate normal queued transitions.","evidence_ref":"verification-f2274def10324748862885b3280b6170"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The app remained live and responsive after repeated jump tests, and the runtime capture reported no overflow/error reports.","evidence_ref":"verification-7146d7bf2a3141ebb7bce678c7f67ea6"}
+  ]
+}
