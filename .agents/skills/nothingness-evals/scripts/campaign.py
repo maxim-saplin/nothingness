@@ -9,6 +9,11 @@ from common import ROOT, RUNS_ROOT, SCRIPT_DIR, emit_json, fail, load_suite, rea
 CAMPAIGNS_ROOT = RUNS_ROOT / "campaigns"
 MAX_RETRIES = 2
 PROTOCOL_MODE = "single-campaign-retry-1.5"
+# Judge wall clock: prepare/start + the candidate's own budget + evidence/score.
+# A parent that times the judge at or below the candidate budget will kill it
+# mid-observe and force a billed retry — gpt-5.4-nano-medium-20260815-0548.
+JUDGE_PREPARE_SECONDS = 600
+JUDGE_SCORE_SECONDS = 1200
 
 
 def campaign_dir(campaign_id: str) -> Path:
@@ -68,6 +73,23 @@ def run_retry(campaign: dict[str, Any], run_id: str) -> int:
     retries = campaign.get("run_retries") or {}
     value = retries.get(run_id, 0)
     return value if isinstance(value, int) else 0
+
+
+def task_timeout_seconds(task_id: str) -> int:
+    path = ROOT / "evals" / "tasks" / f"{task_id}.json"
+    if not path.is_file():
+        fail(2, f"task_manifest_not_found:{task_id}")
+    limits = read_json(path).get("limits")
+    value = limits.get("timeout_seconds") if isinstance(limits, dict) else None
+    if not isinstance(value, int) or value <= 0:
+        fail(2, f"task_timeout_missing:{task_id}")
+    return value
+
+
+def judge_wall_seconds(timeout_seconds: int) -> int:
+    if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
+        fail(2, "task_timeout_invalid")
+    return JUDGE_PREPARE_SECONDS + timeout_seconds + JUDGE_SCORE_SECONDS
 
 
 def new_campaign(arguments: argparse.Namespace) -> None:
@@ -215,6 +237,8 @@ def next_task(arguments: argparse.Namespace) -> None:
     sandbox = f".tmp/judge-{arguments.campaign_id}-{task_id}-retry-{retry}"
     suite = campaign.get("suite_path") or ""
     scripts = SCRIPT_DIR.relative_to(ROOT)
+    timeout = task_timeout_seconds(task_id)
+    wall = judge_wall_seconds(timeout)
     emit_json(
         {
             "ok": True,
@@ -226,6 +250,8 @@ def next_task(arguments: argparse.Namespace) -> None:
             "remaining": len(pending),
             "suite_path": suite,
             "rubric_path": f"evals/tasks/rubrics/{task_id}.md",
+            "timeout_seconds": timeout,
+            "judge_wall_seconds": wall,
             "sandbox": sandbox,
             "create_sandbox_command": f"uv run python {scripts}/judge-sandbox.py create {sandbox}",
             "judge_working_directory": sandbox,

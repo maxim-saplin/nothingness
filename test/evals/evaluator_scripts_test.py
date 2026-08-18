@@ -52,7 +52,6 @@ usage = load_script("usage.py")
 classify = load_script("classify-run.py")
 common = load_script("common.py")
 build_image = load_script("build-image.py")
-consolidate = load_script("consolidate.py")
 cleanup = load_script("cleanup.py")
 preflight = load_script("preflight.py")
 offline_baseline = load_script("verify-offline-baseline.py")
@@ -386,37 +385,6 @@ class EvaluatorScriptsTest(unittest.TestCase):
             path.write_text(json.dumps(task | {"prompt": "after"}))
             with self.assertRaises(SystemExit):
                 common.validate_frozen_task(metadata, path)
-
-    def test_consolidation_rejects_duplicate_and_mixed_cohorts(self) -> None:
-        base = {"schema_version": 3, "run_id": "run-1", "validity": "valid", "model_identity_verified": True, "task_id": "t1", "fixture_commit": "fixture", "requested_model": {"provider": "p", "model": "m", "thinking": "medium"}, "selected_model": {"provider": "p", "model": "m", "thinking": "medium"}, "image": {"immutable_id": "image"}, "config_fingerprints": {"a": "b"}, "task_contract": {"prompt": "task"}, "score": 3, "outcome": "pass", "assisted": False}
-        with self.assertRaises(SystemExit):
-            consolidate.consolidate_results([base, base, base], 3)
-        mixed = [base, base | {"run_id": "run-2"}, base | {"run_id": "run-3", "selected_model": {"provider": "p", "model": "other", "thinking": "medium"}}]
-        with self.assertRaises(SystemExit):
-            consolidate.consolidate_results(mixed, 3)
-
-    def test_consolidation_rejects_unsupported_result_schema_version(self) -> None:
-        # The nano T1 result on disk is schema_version 2 (the T1-oracle era).
-        # WP3's classify-run.py emits schema_version 3. Mixing them must be a
-        # clear rejection, never a silent 0.0 rate computed over absent fields.
-        base = {"schema_version": 2, "run_id": "run-1", "validity": "valid", "model_identity_verified": True, "task_id": "t1", "fixture_commit": "fixture", "requested_model": {"provider": "p", "model": "m", "thinking": "medium"}, "selected_model": {"provider": "p", "model": "m", "thinking": "medium"}, "image": {"immutable_id": "image"}, "config_fingerprints": {"a": "b"}, "task_contract": {"prompt": "task"}, "score": 3, "outcome": "unassisted_pass"}
-        with self.assertRaises(SystemExit):
-            consolidate.consolidate_results([base, base | {"run_id": "run-2"}, base | {"run_id": "run-3"}], 3)
-
-    def test_consolidation_computes_pass_partial_fail_and_assisted_rates(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            results = []
-            for trial, (outcome, score, assisted) in enumerate((("pass", 3, False), ("partial", 2, True), ("fail", 0, False)), start=1):
-                run_id = f"run-{trial}"
-                common.write_json(root / run_id / "run.json", {"suite_id": "suite", "trial": trial, "calibration": False})
-                results.append({"schema_version": 3, "run_id": run_id, "validity": "valid", "model_identity_verified": True, "task_id": "t1", "fixture_commit": "fixture", "requested_model": {"provider": "p", "model": "m", "thinking": "medium"}, "selected_model": {"provider": "p", "model": "m", "thinking": "medium"}, "image": {"immutable_id": "image"}, "config_fingerprints": {"a": "b"}, "task_contract": {"prompt": "task"}, "score": score, "outcome": outcome, "assisted": assisted})
-            with patch.object(consolidate, "run_dir", side_effect=lambda run_id: root / run_id):
-                consolidated = consolidate.consolidate_results(results, 3)
-        self.assertEqual(consolidated["pass_rate"], 1 / 3)
-        self.assertEqual(consolidated["partial_rate"], 1 / 3)
-        self.assertEqual(consolidated["fail_rate"], 1 / 3)
-        self.assertEqual(consolidated["assisted_rate"], 1 / 3)
 
     def test_rpc_bridge_accounts_completed_turns_and_activity(self) -> None:
         totals = {name: 0.0 for name in ("input", "output", "reasoning", "cacheRead", "cacheWrite", "totalTokens", "cost")}
@@ -1629,6 +1597,36 @@ class EvaluatorScriptsTest(unittest.TestCase):
             self.assertEqual(state["runs"][task_ids[0]], ["run-1", "run-2"])
             self.assertEqual(state["runs"][task_ids[1]], [])
             self.assertEqual(state["model"], suite["requested_model"])
+
+    def test_judge_wall_seconds_is_prepare_plus_candidate_budget_plus_score(self) -> None:
+        self.assertEqual(campaign.judge_wall_seconds(1800), 3600)
+        self.assertEqual(campaign.judge_wall_seconds(2700), 4500)
+        self.assertEqual(campaign.judge_wall_seconds(1200), 3000)
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            campaign.judge_wall_seconds(0)
+
+    def test_campaign_next_prints_judge_wall_from_the_task_budget(self) -> None:
+        suite = {
+            "id": "suite-wall",
+            "requested_model": {"provider": "azure-openai-responses", "model": "gpt-5.4-nano", "thinking": "medium"},
+            "tasks": [{"id": "t4-swipe-to-seek-linux"}, {"id": "t7-opus-shuffled-playlist-linux"}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            suite_path = root / "suite.json"
+            suite_path.write_text(json.dumps(suite))
+            campaigns_root = root / "campaigns"
+            runs_root = root / "runs"
+            with patch.object(campaign, "CAMPAIGNS_ROOT", campaigns_root), patch.object(campaign, "RUNS_ROOT", runs_root), patch.object(campaign, "load_suite", return_value=suite):
+                with patch.object(sys, "argv", ["campaign.py", "new", str(suite_path), "--campaign-id", "camp-wall"]):
+                    campaign.main()
+                buffer = io.StringIO()
+                with contextlib.redirect_stdout(buffer), patch.object(sys, "argv", ["campaign.py", "next", "camp-wall"]):
+                    campaign.main()
+        payload = json.loads(buffer.getvalue())
+        self.assertEqual(payload["task_id"], "t4-swipe-to-seek-linux")
+        self.assertEqual(payload["timeout_seconds"], 1800)
+        self.assertEqual(payload["judge_wall_seconds"], 3600)
 
     def test_campaign_dashboard_renders_seven_task_rows_with_unknown_cost_and_no_percentage(self) -> None:
         task_ids = [f"t{n}-task-linux" for n in range(1, 8)]

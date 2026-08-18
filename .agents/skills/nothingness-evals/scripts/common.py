@@ -45,8 +45,8 @@ HOSTNAME_PATTERN = re.compile(
 )
 
 
-def emit_json(value: dict[str, Any], *, stream: Any = sys.stdout) -> None:
-    print(json.dumps(value, separators=(",", ":")), file=stream)
+def emit_json(value: dict[str, Any], *, stream: Any = None) -> None:
+    print(json.dumps(value, separators=(",", ":")), file=sys.stdout if stream is None else stream)
 
 
 # One-line fixes for reasons a human hits during setup, not mid-run. Keyed by

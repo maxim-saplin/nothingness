@@ -11,9 +11,10 @@ the next campaign starts from it — do not paste it into one judge's prompt.
 
 ## Assignment (the only part that varies)
 
-`suite_path`, `task_id`, `campaign_id`, `rubric_path`, the sandbox working directory, and
-`NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment`. Export that variable on **every** harness
-command or you will look for your run inside your own worktree, where nothing creates one.
+`suite_path`, `task_id`, `campaign_id`, `rubric_path`, the sandbox working directory,
+`NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment`, and `judge_wall_seconds` from `campaign.py next`.
+Export `NOTHINGNESS_EVAL_RUNS_ROOT` on **every** harness command or you will look for your run inside
+your own worktree, where nothing creates one.
 
 ## Turn discipline — the single most common way a judge loses its run
 
@@ -64,6 +65,12 @@ with `"deadline_warning": true` and a `next` that tells you to finish. When you 
 `observe` again hoping for `awaiting_judge` — call `judge-control.py finish` immediately, then page
 events, then evidence/decide/publish as normal. Two campaigns each lost a run because a judge sat in
 `observe` waiting for a handshake that the deadline arrived before.
+
+**Your session can die before the candidate's budget.** `judge_wall_seconds` is when the parent will
+kill you, not when the candidate expires. Track wall time from when *you* started `start`. If fewer
+than 15 minutes remain on that wall, `finish` immediately and score. Dying mid-observe is a billed
+retry; finishing early is a scored `fail`/`partial`. Prefer the latter. Never raise a single
+`observe --timeout-seconds` to span the remaining wall — keep polling.
 
 ## Evidence plumbing
 

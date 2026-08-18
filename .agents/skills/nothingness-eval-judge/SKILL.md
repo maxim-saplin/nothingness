@@ -14,7 +14,8 @@ right, or whether to re-run. A candidate that fails scores badly; that is a resu
 to escalate.
 
 You are given: a **suite path**, a **task id**, a **campaign id**, the rubric at
-`evals/tasks/rubrics/<task-id>.md`, a **working directory**, and `NOTHINGNESS_EVAL_RUNS_ROOT`.
+`evals/tasks/rubrics/<task-id>.md`, a **working directory**, `NOTHINGNESS_EVAL_RUNS_ROOT`,
+and **`judge_wall_seconds`** — when the parent will kill this session.
 
 **Two things are not optional.** Work from the working directory you were given — it is a sandbox
 holding no results but your own, so you cannot anchor on anyone else's score. And export
@@ -51,10 +52,11 @@ export NOTHINGNESS_EVAL_RUNS_ROOT=<the value you were given>
    `"still_running": true` and the candidate's elapsed/budget, or sooner if the run reaches a
    terminal phase. Run it in the **foreground**, read what it returns, then call it again — it
    resumes from its cursor and will not duplicate the event chain. That loop is the supervision
-   model: each return is your chance to check the clock and finish the run before its deadline.
-   Never background it and never raise `--timeout-seconds` to span the whole run: a call that
-   outlives your control of the session leaves the candidate running with nobody able to act, which
-   has cost three runs.
+   model: each return is your chance to check **two** clocks — the candidate's budget, and
+   `judge_wall_seconds` since you started. If fewer than 15 minutes remain on your wall, `finish`
+   now and score; dying mid-observe bills a retry. Never background it and never raise
+   `--timeout-seconds` to span the whole run: a call that outlives your control of the session
+   leaves the candidate running with nobody able to act, which has cost three runs.
 
 2. **Finish** once it settles.
    ```

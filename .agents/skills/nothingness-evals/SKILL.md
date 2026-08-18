@@ -67,9 +67,10 @@ uv run python .agents/skills/nothingness-evals/scripts/campaign.py next <campaig
 ```
 
 It returns the next incomplete task and the whole brief for it: `task_id`, `retry`, `suite_path`,
-`rubric_path`, `sandbox`, `create_sandbox_command`, `judge_environment`. Never pick the next task
-yourself. A task is done only when it has one valid scored `result.json`; a failed run must be
-recorded with `campaign.py retry` before a fresh run can start.
+`rubric_path`, `timeout_seconds`, `judge_wall_seconds`, `sandbox`, `create_sandbox_command`,
+`judge_environment`. Never pick the next task yourself. A task is done only when it has one valid
+scored `result.json`; a failed run must be recorded with `campaign.py retry` before a fresh run can
+start.
 
 For each task `next` hands you:
 
@@ -82,21 +83,33 @@ For each task `next` hands you:
    pinned to HEAD and would silently run the old code.
 
 2. **Spawn a judge subagent** on the `nothingness-eval-judge` skill. Give it the assignment block —
-   `suite_path`, `task_id`, `campaign_id`, rubric path, its working directory (`sandbox`), and
-   `NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment` — **plus
-   [`references/judge-brief.md`](references/judge-brief.md) verbatim, every time, unchanged.**
+   `suite_path`, `task_id`, `campaign_id`, rubric path, its working directory (`sandbox`),
+   `NOTHINGNESS_EVAL_RUNS_ROOT` from `judge_environment`, and **`judge_wall_seconds` from `next`** —
+   **plus [`references/judge-brief.md`](references/judge-brief.md) verbatim, every time, unchanged.**
 
    Passing that file verbatim is not a nicety: judges that learn the environment at different rates
    are not scoring under the same conditions, and across models that silently breaks the comparison.
    Learned something new? Edit the brief, do not paste it into one judge's prompt.
 
+   **`judge_wall_seconds` is the judge's session/tool timeout.** It is 10 minutes prepare + the
+   candidate's `timeout_seconds` + 20 minutes to evidence/decide/publish. Never spawn a judge whose
+   wall clock is ≤ the candidate budget. `gpt-5.4-nano-medium-20260815-0548` burned two t4 retries
+   and one t6 retry that way: judges died at 30 minutes against a 30-minute candidate, so scoring
+   never happened and the candidate was billed twice. If the harness hard-caps below
+   `judge_wall_seconds`, stop and tell the user — a short judge against a long candidate is an
+   infrastructure retry with the candidate already billed. Do not `Await`/block the judge under a
+   shorter cap; background it and watch `watchdog.py`.
+
    The judge **starts its own fresh run**, observes it, scores it, publishes into its sandbox and
    cleans up its container. Expect `start` to take 2–5 minutes before the candidate is even live.
 3. **Supervise, don't relay.** While the judge works, your only job is to notice it is stuck: a
-   dead container, a judge repeating the same step, a run past its timeout. Step in then and only
-   then. Do not ferry its findings — they are already on disk. Do not take observation back
-   because the judge stopped early; the cause is almost always a Bash timeout shorter than the run,
-   which silently backgrounds `observe` and ends its turn. Tell it to use at least 15 minutes.
+   dead container, a judge repeating the same step, a run past its timeout, or watchdog reporting a
+   container up with no judge attached. That last one is an orphan *now* — record the retry, do not
+   wait for a 30-minute parent timeout. Step in then and only then. Do not ferry its findings —
+   they are already on disk. Do not take observation back because the judge stopped early; the
+   cause is almost always a Bash timeout shorter than the run, which silently backgrounds `observe`
+   and ends its turn. Tell it to use at least 15 minutes for each `observe` call (that is not the
+   judge's wall clock — see `judge_wall_seconds` above).
 
 **Never score a run yourself.** If a judge or parent fails, do not attach another judge. Clean the
 failed run, record `campaign.py retry <campaign> <task> --run-id <run> --reason <reason>`, and let
@@ -166,6 +179,11 @@ accepted-task cost, campaign cost, and $/point beside the score. Never hand-edit
 - **Prime dependencies before launching the app in the candidate container — `flutter run` has no `--offline` flag.** The recipe `drive.py preflight` prints ends in a bare `flutter run`, which resolves against pub.dev and dies on the egress allowlist with `Proxy failed to establish tunnel (403 destination denied)`. Run `flutter pub get --offline` first (the image is already primed), then `flutter run` unchanged. Passing `--offline` to `flutter run` fails with `Could not find an option named "--offline"`; every candidate session burned turns on this.
 - **Relaunching the app needs `DRIVE_FLUTTER_FIFO`, not just `DRIVE_RUN_LOG`.** Read-only calls (`inspect`, `tree`, `call`) discover a live session from the run log alone, but `drive.py restart` needs the input fifo and otherwise fails with ``no /tmp/flutter_input_... fifo; is `flutter run` running?`` — export both env vars together whenever you launch, or the write path breaks while reads keep working.
 - **A failed run is not resumed.** Clean it, record one minimal retry reason and cost, and start the task fresh. The campaign allows at most two retries per task; the second failed retry aborts the campaign.
+- **A judge whose wall clock is ≤ the candidate budget will die mid-observe.** `campaign.py next`
+  prints `judge_wall_seconds` (10 min prepare + task `timeout_seconds` + 20 min score). That number
+  is the judge subagent timeout. A 30-minute parent against a 30-minute candidate billed two t4
+  retries and one t6 retry on `gpt-5.4-nano-medium-20260815-0548` before anyone scored. If the
+  harness cannot grant that wall, do not spawn.
 - **Expect `judge-run.py start` to take minutes, not seconds.** `prepare-run.py` alone (fixture export, git baseline, `chmod -R`, network, proxy, container, workspace copy) runs 2-5 minutes before preflight even begins, so a shell with a 5-minute timeout will appear to hang. It is not stuck.
 - **Read the settings sheet with `getSemantics`, never `getWidgetTree`.** With the sheet open the widget tree is ~280,000 characters against a 128,000 cap, and the rows render last, so they fall past the cutoff entirely. Semantics is a few KB and gives each row as `"label\nvalue"` with `indexInParent` and a rect — consecutive indices with abutting y-ranges is what proves adjacency, and it covers rows scrolled out of view. **Paging does not exist on the pinned fixture:** `getWidgetTree` there accepts only `depth` and hard-truncates at 128,000 chars from the top; `skipLines=`/`maxChars=` are silently ignored (they were added later, at harness HEAD). There is no way to reach the settings rows through the tree at all — `getSemantics` is the only path. Note `drive.py tree N` passes N as a LINE count, not a tree depth.
 - **`dragByKey` cannot drive the hero on the pinned fixture, and it lies about it.** At the fixture commit `_invokeDragInSubtree` calls `_walkSubtree` *without* `includeSelf`, so the anchor must be an **ancestor** of the `GestureDetector` — and the hero has no such key (`hero-gesture-surface` exists only at harness HEAD; the fixture has `hero-tap-ring`, `hero-swipe-flash`, `hero-seek-hud`, all inside the detector). `kind=mouse` aborts with a `mouse_tracker.dart` assertion; **`kind=touch` returns a success payload while moving nothing**. Never accept that payload as proof of movement. Use real X11 input via XTEST (`libXtst` is in the image) — it also lets you hold the button down and capture a true mid-gesture instant. Anything in these docs that describes app widget keys is describing HEAD; verify against the fixture commit with `git show <fixture>:<path>` before trusting it.
