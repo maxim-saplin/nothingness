@@ -75,7 +75,7 @@ proxy_spec.loader.exec_module(proxy)
 class EvaluatorScriptsTest(unittest.TestCase):
     def test_offline_baseline_has_no_network_credentials_or_candidate(self) -> None:
         run_command = offline_baseline.container_run_command("baseline")
-        checks = offline_baseline.baseline_checks("baseline")
+        checks = offline_baseline.baseline_checks("baseline", "arm64")
         flattened = "\n".join(" ".join(command) for _, command in checks)
         self.assertIn("--network", run_command)
         self.assertEqual(run_command[run_command.index("--network") + 1], "none")
@@ -84,6 +84,7 @@ class EvaluatorScriptsTest(unittest.TestCase):
         self.assertNotIn("auth.json", flattened)
         self.assertNotIn("AZURE_", flattened)
         self.assertIn("pi --version", flattened)
+        self.assertNotIn("--rm", run_command)
 
     def test_runtime_baseline_has_no_network_credentials_or_candidate(self) -> None:
         run_command = runtime_baseline.container_run_command("baseline")
@@ -99,6 +100,47 @@ class EvaluatorScriptsTest(unittest.TestCase):
         self.assertIn("drive.py pause", actions)
         self.assertIn("drive.py next", actions)
         self.assertIn("drive.py seek 0:30", actions)
+        self.assertNotIn("--rm", run_command)
+
+    def test_wait_for_desktop_ready_fails_fast_when_container_is_gone(self) -> None:
+        captured: list[str] = []
+
+        def capture_fail(code: int, reason: str) -> None:
+            captured.append(reason)
+            raise SystemExit(code)
+
+        def fake_command(args, **kwargs):
+            if args[:2] == ["docker", "inspect"]:
+                return subprocess.CompletedProcess(args, 1, "", "")
+            raise AssertionError(args)
+
+        with patch.object(common, "command", side_effect=fake_command), patch.object(common, "copy_container_runtime_logs"), patch.object(common, "fail", side_effect=capture_fail), self.assertRaises(SystemExit):
+            common.wait_for_desktop_ready("dead-container", polls=1200, interval=0.25, label="runtime_desktop_not_ready")
+        self.assertEqual(len(captured), 1)
+        self.assertIn("container_dead", captured[0])
+
+    def test_wait_for_desktop_ready_returns_when_health_is_ready(self) -> None:
+        def fake_command(args, **kwargs):
+            if args[:2] == ["docker", "inspect"]:
+                return subprocess.CompletedProcess(args, 0, "running 0 false", "")
+            if args[:4] == ["docker", "exec", "live-container", "cat"]:
+                return subprocess.CompletedProcess(args, 0, json.dumps({"status": "ready"}), "")
+            raise AssertionError(args)
+
+        with patch.object(common, "command", side_effect=fake_command):
+            payload = common.wait_for_desktop_ready("live-container", polls=3, interval=0.01)
+        self.assertEqual(payload["status"], "ready")
+
+    def test_entrypoint_keeps_retrying_desktop_until_sigterm(self) -> None:
+        entrypoint = (ROOT / "evals" / "image" / "entrypoint.py").read_text()
+        self.assertIn('"status": "starting"', entrypoint)
+        self.assertNotIn("for _ in range(30):", entrypoint)
+        self.assertIn("while not STOPPING:", entrypoint)
+
+    def test_preflight_does_not_reprove_image_level_flutter_work(self) -> None:
+        source = (SCRIPTS / "preflight.py").read_text()
+        self.assertNotIn("precache", source)
+        self.assertNotIn("mktemp -d", source)
 
     def test_collection_redacts_secrets_from_every_persisted_candidate_surface(self) -> None:
         dummy_key = "dummy-secret-key-123456"
@@ -1478,7 +1520,7 @@ class EvaluatorScriptsTest(unittest.TestCase):
             run_id = f"{suite_id}-{task_id}-calibration-attempt-01"
             run = common.run_dir(run_id)
             self.assertFalse(run.exists())
-            arguments = ["prepare-run.py", task_id, run_id, "--suite", str(suite_path), "--trial", "1", "--calibration"]
+            arguments = ["prepare-run.py", task_id, run_id, "--suite", str(suite_path), "--retry", "0"]
             with patch.object(common, "ROOT", fake_root), patch.object(prepare_run, "ROOT", fake_root), patch.object(sys, "argv", arguments):
                 with self.assertRaises(SystemExit) as context:
                     prepare_run.main()
@@ -1499,7 +1541,7 @@ class EvaluatorScriptsTest(unittest.TestCase):
         task_id = "t2-settings-placement-linux"
         suite_id = json.loads(suite_path.read_text())["id"]
         run_id = f"{suite_id}-{task_id}-calibration-attempt-99"
-        arguments = ["prepare-run.py", task_id, run_id, "--suite", str(suite_path), "--trial", "1", "--calibration"]
+        arguments = ["prepare-run.py", task_id, run_id, "--suite", str(suite_path), "--retry", "0"]
         with patch.object(prepare_run, "resolve_pi", side_effect=SystemExit(97)), patch.object(sys, "argv", arguments):
             with self.assertRaises(SystemExit) as context:
                 prepare_run.main()

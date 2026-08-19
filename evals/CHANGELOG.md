@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.7.2 — 2026-08-19
+
+Campaign start no longer races the desktop entrypoint against a slow `docker cp`. The entrypoint keeps retrying Xvfb/Pulse until SIGTERM instead of exiting at 30s; waiters fail fast when the container dies and copy `/run/nothingness/logs` on failure. Fixture seeding streams `git archive` into the container (tar pipe) and runs git init / `pub get` / primed baseline inside it, dropping the host-side checkout and `.git` copy. Preflight no longer re-runs `flutter precache` or a temp-dir `pub get` that prepare and the offline gate already proved. Baseline containers keep `--rm` off so failures leave logs. Ops only; scores remain comparable with 1.7.1.
+
 ## 1.7.1 — 2026-08-19
 
 `watch-eval.py` now shows the actual run phase (`PREPARING`, `RUNNING`, `AWAITING JUDGE`, `SCORING`) instead of labeling every unscored row `RETRYING`. Last activity follows the newer of candidate progress and judge artifacts, Live GUI stays up through scoring, and a non-TTY invocation prints one snapshot. A campaign also reserves one noVNC host port at `campaign.py new`, so every task and retry of that campaign binds the same `127.0.0.1` URL; refresh the tab between tasks. Display/ops only; scores remain comparable with 1.7.0.

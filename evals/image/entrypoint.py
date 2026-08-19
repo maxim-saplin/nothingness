@@ -50,6 +50,7 @@ def main() -> int:
     os.environ.update({"PULSE_SERVER": f"unix:{pulse_runtime}/native", "XDG_RUNTIME_DIR": str(RUNTIME), "DRIVE_RUN_LOG": str(RUNTIME / "drive" / "flutter_run.log"), "DRIVE_FLUTTER_FIFO": str(RUNTIME / "drive" / "flutter_input"), "DRIVE_WS_CACHE": str(RUNTIME / "drive" / "vm_ws.txt")})
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
+    write_health({"status": "starting", "display": os.environ["DISPLAY"]})
     xvfb = start(["Xvfb", os.environ["DISPLAY"], "-screen", "0", "1280x800x24", "-ac", "+extension", "GLX", "+render", "-noreset"], "xvfb.log")
     openbox = start(["openbox"], "openbox.log")
     x11vnc = start(["x11vnc", "-display", os.environ["DISPLAY"], "-forever", "-shared", "-nopw", "-rfbport", "5900"], "x11vnc.log")
@@ -58,17 +59,17 @@ def main() -> int:
         if subprocess.run(["pulseaudio", "--daemonize=yes", "--exit-idle-time=-1", f"--log-target=file:{RUNTIME / 'logs' / 'pulseaudio.log'}"], stdout=output, stderr=subprocess.STDOUT).returncode:
             write_health({"status": "failed", "reason": "desktop_startup_failed"}, sys.stderr)
             return 70
-    for _ in range(30):
-        if STOPPING:
-            return 0
+    # Keep retrying until Pulse answers or SIGTERM. A fixed 30s budget raced
+    # workspace copy on cold starts: the entrypoint exited, `--rm` deleted the
+    # container, and every outer waiter burned its full poll budget on a ghost.
+    while not STOPPING:
         if all(process.poll() is None for process in (xvfb, x11vnc, novnc)) and subprocess.run(["pactl", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             write_health({"status": "ready", "display": os.environ["DISPLAY"], "media": "/opt/nothingness/media", "workspace": "/workspace", "pids": {"xvfb": xvfb.pid, "openbox": openbox.pid, "x11vnc": x11vnc.pid, "novnc": novnc.pid}})
             while not STOPPING:
                 time.sleep(1)
             return 0
         time.sleep(1)
-    write_health({"status": "failed", "reason": "desktop_startup_failed"}, sys.stderr)
-    return 70
+    return 0
 
 
 if __name__ == "__main__":

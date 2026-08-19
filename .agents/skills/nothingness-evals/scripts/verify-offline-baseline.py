@@ -7,11 +7,10 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import uuid
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, gate_fingerprint, passed_gate, record_gate_pass, require_command, validate_image_matches_sources
+from common import IMAGE_NAME, ROOT, command, command_or_fail, command_or_fail_chained, emit_json, fail, gate_fingerprint, init_workspace_in_container, passed_gate, record_gate_pass, require_command, validate_image_matches_sources, WORKSPACE_PUB_ONLY_SCRIPT
 
 
 FIXTURE = "5fc7e04"
@@ -33,7 +32,7 @@ def container_arch(name: str) -> str:
 
 def container_run_command(name: str) -> list[str]:
     return [
-        "docker", "run", "-d", "--rm", "--name", name,
+        "docker", "run", "-d", "--name", name,
         "--label", "nothingness.eval.baseline=true",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true",
         "--network", "none", "--entrypoint", "sleep", IMAGE_NAME, "infinity",
@@ -57,7 +56,7 @@ def baseline_checks(name: str, arch: str) -> tuple[tuple[str, list[str]], ...]:
         ("fixture_has_no_eval_machinery", ["docker", "exec", name, "sh", "-c", "! ls -d /workspace/evals /workspace/.agents/skills/nothingness-evals /workspace/.claude/skills/nothingness-evals 2>/dev/null | grep -q ."]),
         ("media", ["docker", "exec", name, "python3", "-c", "import json; from pathlib import Path; root=Path('/opt/nothingness/media'); assert len(list(root.glob('*.opus'))) == 10; assert len(json.loads((root/'manifest.json').read_text())) == 10"]),
         ("workspace", ["docker", "exec", name, "sh", "-c", "touch /workspace/.baseline-write && rm /workspace/.baseline-write && test -z \"$(git -C /workspace status --porcelain)\""]),
-        ("pub", ["docker", "exec", name, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/nothingness-baseline-pub.log"]),
+        ("pub", ["docker", "exec", name, "sh", "-c", WORKSPACE_PUB_ONLY_SCRIPT]),
         ("linux_build", ["docker", "exec", name, "sh", "-c", f"cd /workspace && flutter build linux --no-pub >/tmp/nothingness-baseline-build.log && test -x build/linux/{arch}/release/bundle/nothingness"]),
     )
 
@@ -110,26 +109,16 @@ def main() -> None:
     checks: dict[str, str] = {}
     (ROOT / ".tmp").mkdir(exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(prefix="nothingness-eval-baseline.", dir=ROOT / ".tmp") as temporary:
-            seed = Path(temporary) / "workspace"
-            seed.mkdir()
-            archive = command_or_fail(["git", "archive", FIXTURE], 3, "fixture_archive_failed", stdout=subprocess.PIPE, text=False).stdout
-            command_or_fail(["tar", "-x", "-C", str(seed)], 3, "fixture_extract_failed", input=archive, text=False)
-            for git_arguments in (("init", "-q"), ("config", "user.name", "Nothingness Evaluator"), ("config", "user.email", "evaluator@invalid"), ("add", "-A"), ("commit", "-qm", "fixture baseline")):
-                command_or_fail(["git", *git_arguments], 3, "fixture_baseline_failed", cwd=seed)
-            command_or_fail(["chmod", "-R", "a+rwX", str(seed)], 3, "fixture_permissions_failed")
-            command_or_fail(container_run_command(name), 3, "baseline_container_start_failed", stdout=os.devnull)
-            command_or_fail(["docker", "cp", f"{seed}/.", f"{name}:/workspace"], 3, "baseline_workspace_copy_failed", stdout=os.devnull)
-            command_or_fail(["docker", "exec", name, "mkdir", "-p", "/run/nothingness/home"], 3, "baseline_home_setup_failed")
-            command_or_fail(["docker", "exec", name, "git", "config", "--global", "--add", "safe.directory", "/workspace"], 3, "baseline_git_trust_failed")
-            arch = container_arch(name)
-            for label, check in baseline_checks(name, arch):
-                output = command_or_fail(check, 4, f"baseline_check_failed:{label}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.strip()
-                # Only the version probes have meaningful stdout. Every other check
-                # is pass/fail, and echoing its first output line reports things like
-                # SoLoud's CMake banner as if it were the result -- which reads as a
-                # broken check to anyone who hasn't seen a build log here before.
-                checks[label] = (output.splitlines()[0] if output else "passed") if label in VERSION_CHECKS else "passed"
+        command_or_fail(container_run_command(name), 3, "baseline_container_start_failed", stdout=os.devnull)
+        init_workspace_in_container(name, FIXTURE, prime=False)
+        arch = container_arch(name)
+        for label, check in baseline_checks(name, arch):
+            output = command_or_fail(check, 4, f"baseline_check_failed:{label}", stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.strip()
+            # Only the version probes have meaningful stdout. Every other check
+            # is pass/fail, and echoing its first output line reports things like
+            # SoLoud's CMake banner as if it were the result -- which reads as a
+            # broken check to anyone who hasn't seen a build log here before.
+            checks[label] = (output.splitlines()[0] if output else "passed") if label in VERSION_CHECKS else "passed"
     finally:
         command(["docker", "rm", "-f", name], stdout=os.devnull, stderr=os.devnull)
     if command(["docker", "container", "inspect", name], stdout=os.devnull, stderr=os.devnull).returncode == 0:

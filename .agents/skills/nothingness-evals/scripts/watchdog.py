@@ -27,9 +27,9 @@ from common import RUNS_ROOT, container_name, emit_json, fail, read_json
 
 CAMPAIGNS_ROOT = RUNS_ROOT / "campaigns"
 STALL_SECONDS = 600.0
-# `start` legitimately spends 2-5 minutes in prepare/preflight before the
+# `start` legitimately spends one to three minutes in prepare/preflight before the
 # candidate exists, so this has to clear that without sitting on a real stall.
-PREPARE_STALL_SECONDS = 480.0
+PREPARE_STALL_SECONDS = 300.0
 POLL_SECONDS = 30.0
 
 

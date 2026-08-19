@@ -4,12 +4,11 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, RUNS_ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, eval_version, fail, format_novnc_url, host_port_in_use, load_suite, network_name, novnc_preferred_port, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
+from common import IMAGE_NAME, ROOT, RUNS_ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, eval_version, fail, format_novnc_url, host_port_in_use, init_workspace_in_container, load_suite, network_name, novnc_preferred_port, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
 
 
 def campaign_started_at(campaign_id: str) -> str:
@@ -108,7 +107,7 @@ def main() -> None:
     # loudly for free, instead of silently running old candidate.py code and
     # surfacing as a confusing admission failure three steps later.
     image_source_sha256 = validate_image_matches_sources(image_labels)
-    (run / "seed").mkdir(parents=True)
+    run.mkdir(parents=True)
     write_json(run / "interventions.json", [])
     result = {
         "schema_version": 2,
@@ -146,12 +145,6 @@ def main() -> None:
         "prepared_at": utc_now(),
     }
     write_json(run / "run.json", result)
-    archive = command_or_fail(["git", "archive", fixture], 3, "fixture_archive_failed", stdout=subprocess.PIPE, text=False).stdout
-    command_or_fail(["tar", "-x", "-C", str(run / "seed")], 3, "fixture_extract_failed", input=archive, text=False)
-    seed = run / "seed"
-    for arguments in (("init", "-q"), ("config", "user.name", "Nothingness Evaluator"), ("config", "user.email", "evaluator@invalid"), ("add", "-A"), ("commit", "-qm", "fixture baseline")):
-        command_or_fail(["git", *arguments], 3, "fixture_baseline_failed", cwd=seed)
-    command_or_fail(["chmod", "-R", "a+rwX", str(seed)], 3, "fixture_permissions_failed")
     if campaign_id:
         recorded = read_json(RUNS_ROOT / "campaigns" / campaign_id / "campaign.json").get("novnc_port")
         port = recorded if isinstance(recorded, int) else novnc_preferred_port(campaign_id)
@@ -176,22 +169,7 @@ def main() -> None:
     command_or_fail(["docker", "network", "connect", network, proxy], 3, "proxy_internal_attach_failed")
     docker_args = ["docker", "run", "-d", "--name", container, "--label", "nothingness.eval=true", "--label", f"nothingness.eval.run_id={run_id}", "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true", "--network", network, "--cpus", str(task["limits"]["cpus"]), "--memory", task["limits"]["memory"], "--pids-limit", str(task["limits"]["pids_limit"]), "-e", f"HTTP_PROXY=http://{proxy}:3128", "-e", f"HTTPS_PROXY=http://{proxy}:3128", "-e", "NO_PROXY=localhost,127.0.0.1"]
     command_or_fail([*docker_args, IMAGE_NAME], 3, "container_start_failed", stdout=os.devnull)
-    command_or_fail(["docker", "cp", f"{seed}/.", f"{container}:/workspace"], 3, "workspace_copy_failed")
-    command_or_fail(["docker", "exec", container, "git", "config", "--global", "--add", "safe.directory", "/workspace"], 3, "workspace_git_trust_failed")
-    # Resolve dependencies before the candidate ever sees the workspace. The
-    # container is offline by design, `drive.py preflight` hands out a launch
-    # recipe ending in a bare `flutter run`, and that command cannot work here --
-    # it resolves against pub.dev and dies on the egress allowlist. Leaving that
-    # in place tests whether a model can guess `--offline`, not whether it can
-    # drive the app. `.dart_tool/`, `build/` and `pubspec.lock` are all
-    # gitignored in the fixture, so priming leaves the candidate's diff clean.
-    command_or_fail(["docker", "exec", container, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/prepare-pub.log 2>&1"], 3, "workspace_pub_get_failed")
-    # Fold what pub get regenerated into the baseline, so the candidate starts from
-    # a clean tree. Flutter rewrites tracked files here (the linux plugin registrant
-    # and cmake, and the macos registrant), and leaving them uncommitted would both
-    # trip preflight's cleanliness check and charge the candidate for a diff it did
-    # not make -- which is exactly the exception the T1 rubric has had to carve out.
-    command_or_fail(["docker", "exec", container, "sh", "-c", "cd /workspace && git add -A && git commit -qm 'primed dependencies' --allow-empty"], 3, "workspace_baseline_commit_failed")
+    init_workspace_in_container(container, fixture)
     setup = "from pathlib import Path; Path('/run/nothingness/sessions').mkdir()"
     command_or_fail(["docker", "exec", container, "python3", "-c", setup], 3, "container_setup_failed")
     command_or_fail(["docker", "exec", container, "git", "-C", "/workspace", "status", "--porcelain"], 3, "container_setup_failed", stdout=os.devnull)

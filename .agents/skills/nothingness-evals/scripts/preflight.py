@@ -4,7 +4,7 @@ import os
 import sys
 import time
 
-from common import ROOT, command, emit_json, fail, read_host_pi_config, read_json, redact_text, run_dir, require_command, secret_values, utc_now, validate_frozen_rubric, validate_frozen_suite, validate_frozen_task, validate_run_id, write_json
+from common import ROOT, command, emit_json, fail, read_host_pi_config, read_json, redact_text, run_dir, require_command, secret_values, utc_now, validate_frozen_rubric, validate_frozen_suite, validate_frozen_task, validate_run_id, wait_for_desktop_ready, write_json
 from usage import normalized_usage
 
 
@@ -123,22 +123,7 @@ def main() -> None:
         security_ready = False
     if not security_ready:
         fail(4, "container_security_mismatch")
-    ready = False
-    health = None
-    for _ in range(60):
-        health = command(["docker", "exec", container, "cat", "/run/nothingness/health.json"], stdout=-1, stderr=os.devnull)
-        if health.returncode == 0:
-            try:
-                ready = read_json_value(health.stdout)["status"] == "ready"
-            except (ValueError, KeyError):
-                ready = False
-            if ready:
-                break
-        time.sleep(0.5)
-    if health is None or health.returncode:
-        fail(4, "health_missing")
-    if not ready:
-        fail(4, "desktop_not_ready")
+    wait_for_desktop_ready(container, polls=60, interval=0.5, label="desktop_not_ready")
     # noVNC binds its port slightly after the desktop reports healthy, so a single
     # probe here throws away the several minutes prepare-run.py already spent on
     # fixture export, container, network and proxy setup -- for a race that clears
@@ -188,8 +173,6 @@ assert not any((Path('/run/nothingness') / name).exists() for name in ('candidat
         # `.agents/skills` is canonical; `.claude` is only a symlink to it. Reach
         # for the real path so this keeps working if the symlink ever goes.
         ["docker", "exec", container, "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py", "preflight"],
-        ["docker", "exec", container, "flutter", "precache", "--linux"],
-        ["docker", "exec", container, "sh", "-c", "temporary=$(mktemp -d); trap 'rm -rf \"$temporary\"' EXIT; cp -a /workspace/. \"$temporary\"; cd \"$temporary\"; flutter pub get --offline >/dev/null"],
     )
     results = [command(check, stdout=-1, stderr=os.devnull) for check in checks]
     if any(result.returncode for result in results[:2]) or results[2].stdout.strip() or results[3].returncode == 0 or any(result.returncode for result in results[4:]):

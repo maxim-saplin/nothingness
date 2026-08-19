@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -663,6 +664,129 @@ def command_or_fail(args: list[str], code: int, reason: str, **kwargs: Any) -> s
     if result.returncode:
         fail(code, reason)
     return result
+
+
+DESKTOP_READY_DEFAULT_POLLS = 1200
+DESKTOP_READY_DEFAULT_INTERVAL = 0.25
+
+
+def container_runtime_state(container: str) -> dict[str, object] | None:
+    result = command(
+        ["docker", "inspect", "--format", "{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}}", container],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode:
+        return None
+    parts = result.stdout.strip().split()
+    if len(parts) != 3:
+        return None
+    return {"status": parts[0], "exit_code": int(parts[1]), "oom_killed": parts[2] == "true"}
+
+
+def copy_container_runtime_logs(container: str, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    command(["docker", "cp", f"{container}:/run/nothingness/logs/.", str(destination)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def wait_for_desktop_ready(
+    container: str,
+    *,
+    polls: int = DESKTOP_READY_DEFAULT_POLLS,
+    interval: float = DESKTOP_READY_DEFAULT_INTERVAL,
+    code: int = 4,
+    label: str = "desktop_not_ready",
+) -> dict[str, object]:
+    last_error = ""
+    for _ in range(polls):
+        state = container_runtime_state(container)
+        if state is None or state["status"] != "running":
+            detail = "gone" if state is None else f"status={state['status']} exit={state['exit_code']} oom={state['oom_killed']}"
+            logs = ROOT / ".tmp" / "evals" / f"desktop-failure-{container}"
+            copy_container_runtime_logs(container, logs)
+            fail(code, f"{label}:container_dead:{detail} logs={logs.relative_to(ROOT)}")
+        health = command(["docker", "exec", container, "cat", "/run/nothingness/health.json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if health.returncode == 0:
+            try:
+                payload = json.loads(health.stdout)
+            except json.JSONDecodeError:
+                last_error = f"unparsable_health_json:{health.stdout.strip()[:80]}"
+            else:
+                status = payload.get("status")
+                if status == "ready":
+                    return payload
+                if status == "failed":
+                    logs = ROOT / ".tmp" / "evals" / f"desktop-failure-{container}"
+                    copy_container_runtime_logs(container, logs)
+                    fail(code, f"{label}:health_failed:{payload.get('reason', 'unknown')} logs={logs.relative_to(ROOT)}")
+                last_error = f"status={status}"
+        else:
+            last_error = (health.stderr or "").strip().splitlines()[-1][:120] if (health.stderr or "").strip() else f"exec_exit={health.returncode}"
+        time.sleep(interval)
+    logs = ROOT / ".tmp" / "evals" / f"desktop-failure-{container}"
+    copy_container_runtime_logs(container, logs)
+    waited = round(polls * interval)
+    state = container_runtime_state(container)
+    container_detail = "gone" if state is None else f"status={state['status']} exit={state['exit_code']} oom={state['oom_killed']}"
+    fail(code, f"{label}:waited_{waited}s container={container_detail} last={last_error or 'no probe ever answered'} logs={logs.relative_to(ROOT)}")
+    raise AssertionError("unreachable")
+
+
+def copy_bytes_into_container(container: str, payload: bytes, dest: str = "/workspace") -> None:
+    extract = command(["docker", "exec", "-i", container, "tar", "-xf", "-", "-C", dest], input=payload, text=False)
+    if extract.returncode:
+        fail(3, "workspace_copy_failed")
+
+
+def copy_git_archive_into_container(container: str, commit: str, dest: str = "/workspace") -> None:
+    archive = command_or_fail(["git", "archive", commit], 3, "fixture_archive_failed", stdout=subprocess.PIPE, text=False).stdout
+    copy_bytes_into_container(container, archive, dest)
+
+
+def copy_tree_into_container(container: str, source: Path, dest: str = "/workspace") -> None:
+    tar = subprocess.Popen(["tar", "-C", str(source), "-cf", "-", "."], stdout=subprocess.PIPE)
+    assert tar.stdout is not None
+    extract = subprocess.run(["docker", "exec", "-i", container, "tar", "-xf", "-", "-C", dest], stdin=tar.stdout, check=False)
+    tar.stdout.close()
+    tar.wait()
+    if tar.returncode or extract.returncode:
+        fail(3, "workspace_copy_failed")
+
+
+WORKSPACE_BASELINE_SCRIPT = """set -eu
+cd /workspace
+git init -q
+git config user.name 'Nothingness Evaluator'
+git config user.email 'evaluator@invalid'
+git add -A
+git commit -qm 'fixture baseline'
+chmod -R a+rwX /workspace
+"""
+
+WORKSPACE_PRIME_SCRIPT = """set -eu
+cd /workspace
+flutter pub get --offline >/tmp/prepare-pub.log 2>&1
+git add -A
+git commit -qm 'primed dependencies' --allow-empty
+"""
+
+WORKSPACE_PUB_ONLY_SCRIPT = """set -eu
+cd /workspace
+flutter pub get --offline >/tmp/nothingness-baseline-pub.log
+"""
+
+
+def init_workspace_in_container(container: str, fixture: str, *, prime: bool = True) -> None:
+    command_or_fail(
+        ["docker", "exec", container, "mkdir", "-p", "/run/nothingness/home", "/run/nothingness/config", "/run/nothingness/data"],
+        3,
+        "workspace_home_setup_failed",
+    )
+    copy_git_archive_into_container(container, fixture)
+    command_or_fail(["docker", "exec", container, "git", "config", "--global", "--add", "safe.directory", "/workspace"], 3, "workspace_git_trust_failed")
+    command_or_fail(["docker", "exec", container, "sh", "-c", WORKSPACE_BASELINE_SCRIPT], 3, "fixture_baseline_failed")
+    if prime:
+        command_or_fail(["docker", "exec", container, "sh", "-c", WORKSPACE_PRIME_SCRIPT], 3, "workspace_pub_get_failed")
 
 
 NOVNC_PORT_MIN = 20000
