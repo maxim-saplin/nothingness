@@ -13,6 +13,7 @@ from typing import Any
 from common import RUNS_ROOT, command, fail, read_json, validate_run_id
 
 ACTIVE_PHASES = {"starting", "running", "retrying", "awaiting_judge"}
+IN_PROGRESS_STATES = {"PREPARING", "RUNNING", "AWAITING JUDGE", "SCORING"}
 CAMPAIGNS_ROOT = RUNS_ROOT / "campaigns"
 TASK_COLUMN = 42
 STATE_COLUMN = 19
@@ -42,6 +43,76 @@ def age(value: object) -> str:
         return "unknown"
     seconds = max(0, int((datetime.now(UTC) - moment).total_seconds()))
     return f"{seconds}s ago" if seconds < 60 else f"{seconds // 60}m ago"
+
+
+def iso_from_mtime(path: Path) -> str:
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def last_observation_kind(path: Path) -> str | None:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        kind = payload.get("kind")
+        return kind if isinstance(kind, str) and kind else None
+    return None
+
+
+def live_activity(run: Path, progress: dict[str, Any]) -> tuple[object, object]:
+    activity = progress.get("last_activity")
+    activity_at = progress.get("last_activity_at")
+    newest_at: str | None = None
+    newest_label: str | None = None
+    observations = run / "judge-observations.jsonl"
+    if observations.is_file():
+        newest_at = iso_from_mtime(observations)
+        kind = last_observation_kind(observations) or "observation"
+        newest_label = f"judge {kind}"
+    for name, label in (("scorecard.json", "judge scorecard"), ("notes.md", "judge notes")):
+        path = run / name
+        if not path.is_file():
+            continue
+        stamp = iso_from_mtime(path)
+        if newest_at is None or stamp >= newest_at:
+            newest_at = stamp
+            newest_label = label
+    if newest_at is None:
+        return activity, activity_at
+    if not isinstance(activity_at, str):
+        return newest_label, newest_at
+    try:
+        judge_time = datetime.fromisoformat(newest_at.replace("Z", "+00:00"))
+        candidate_time = datetime.fromisoformat(activity_at.replace("Z", "+00:00"))
+    except ValueError:
+        return newest_label, newest_at
+    if judge_time >= candidate_time:
+        return newest_label, newest_at
+    return activity, activity_at
+
+
+def display_state(progress: dict[str, Any], run: Path, result: dict[str, Any] | None) -> str:
+    if isinstance(result, dict):
+        return str(result.get("outcome") if result.get("validity") == "valid" else result.get("validity", "DONE"))
+    phase = str(progress.get("phase") or "not_started")
+    if phase in {"not_started", "starting"}:
+        return "PREPARING"
+    if phase in {"running", "retrying"}:
+        return "RUNNING"
+    if phase == "awaiting_judge":
+        return "AWAITING JUDGE"
+    if (run / "cleanup.json").is_file():
+        return "DISCARDED"
+    if phase in {"completed", "timed_out", "failed"}:
+        return "SCORING"
+    return "PREPARING"
 
 
 def progress_for(run: Path, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -82,24 +153,19 @@ def run_row(run_id: str) -> dict[str, Any] | None:
     admission_tokens = admission.get("normalized_usage", {}).get("tokens", {}).get("total") if isinstance(admission, dict) else None
     total_cost = candidate_cost + admission_cost if isinstance(candidate_cost, (int, float)) and isinstance(admission_cost, (int, float)) else None
     total_tokens = candidate_tokens + admission_tokens if isinstance(candidate_tokens, (int, float)) and isinstance(admission_tokens, (int, float)) else None
-    if isinstance(result, dict):
-        state = result.get("outcome") if result.get("validity") == "valid" else result.get("validity", "DONE")
-    elif progress.get("phase") in ACTIVE_PHASES:
-        state = "RUNNING"
-    else:
-        state = "PENDING"
+    activity, activity_at = live_activity(run, progress)
     return {
         "run_id": run_id,
         "retry": metadata.get("retry", 0),
-        "state": state,
+        "state": display_state(progress, run, result if isinstance(result, dict) else None),
         "phase": progress.get("phase"),
         "elapsed": progress.get("elapsed_seconds"),
         "timeout_seconds": progress.get("timeout_seconds"),
         "tools": progress.get("tool_calls"),
         "tokens": total_tokens,
         "cost": total_cost,
-        "activity": progress.get("last_activity"),
-        "activity_at": progress.get("last_activity_at"),
+        "activity": activity,
+        "activity_at": activity_at,
         "valid": isinstance(result, dict) and result.get("validity") == "valid",
         "finished": isinstance(result, dict) or (run / "cleanup.json").is_file(),
     }
@@ -194,12 +260,11 @@ def render(campaign_id: str) -> tuple[str, bool]:
             pending += 1
             task_totals.append((task_id, "not started", retries, 0, 0, 0, 0.0, "-", False))
             continue
-        if latest["state"] == "RUNNING":
+        state = str(latest["state"])
+        if state in IN_PROGRESS_STATES:
             in_progress += 1
-            state = "RUNNING"
         else:
             pending += 1
-            state = "RETRYING"
         task_totals.append((task_id, state, retries, latest.get("elapsed") or 0, latest.get("tools") or 0, latest.get("tokens"), latest.get("cost"), f"{age(latest.get('activity_at'))}: {latest.get('activity')}", True))
 
     accepted_total = sum(accepted_costs) if len(accepted_costs) == finished_count else None
@@ -221,14 +286,15 @@ def render(campaign_id: str) -> tuple[str, bool]:
         else:
             lines.append(task_line(task_id, state, str(retries), "-", "-", "-", "-", last_activity))
     lines.append("")
-    active = next((row for task_id in campaign["tasks"] for row in task_rows(campaign, task_id) if row.get("state") == "RUNNING"), None)
+    active = next((row for task_id in campaign["tasks"] for row in task_rows(campaign, task_id) if row.get("state") in IN_PROGRESS_STATES), None)
     if active is not None:
-        lines.append(f"Current task phase: {active.get('phase')}  timeout {duration(active.get('elapsed'))} / {duration(active.get('timeout_seconds'))}")
-        novnc = novnc_url_for_run(active["run_id"])
-        if novnc:
-            lines.append(f"Live GUI  {novnc}")
+        lines.append(f"Current task phase: {active.get('phase')} ({active.get('state')})  timeout {duration(active.get('elapsed'))} / {duration(active.get('timeout_seconds'))}")
     else:
         lines.append("Current task phase: none active")
+    recorded = campaign.get("novnc_url")
+    novnc = recorded if isinstance(recorded, str) and recorded else (novnc_url_for_run(active["run_id"]) if active is not None else None)
+    if novnc:
+        lines.append(f"Live GUI  {novnc}")
     lines.append("Retries are fresh task restarts; discarded runs are not included in task cost or accepted totals.")
     finished = campaign.get("status") == "complete"
     return "\n".join(lines), finished
@@ -248,19 +314,16 @@ def frame(display: str, width: int, height: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_id")
-    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--once", action="store_true", help="print one snapshot and exit (default when stdout is not a TTY)")
     parser.add_argument("--refresh", type=float, default=1.0)
     arguments = parser.parse_args()
     validate_run_id(arguments.campaign_id)
     if not campaign_path(arguments.campaign_id).is_file():
         fail(3, "campaign_not_found")
     if arguments.once or not sys.stdout.isatty():
-        while True:
-            display, finished = render(arguments.campaign_id)
-            print(display, flush=True)
-            if arguments.once or finished:
-                return
-            time.sleep(max(0.2, arguments.refresh))
+        display, _finished = render(arguments.campaign_id)
+        print(display, flush=True)
+        return
     sys.stdout.write("\033[?1049h\033[?25l")
     latest = ""
     try:

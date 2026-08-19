@@ -65,6 +65,8 @@ SETUP_REMEDIATION: dict[str, str] = {
     "requested_model_unavailable": "check available models: pi --offline --list-models <model>",
     "requested_thinking_unavailable": "pick a model/thinking combination pi actually supports: pi --offline --list-models <model>",
     "azure_provider_endpoint_missing": "set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_RESOURCE_NAME in ~/.pi/agent/auth.json or the environment",
+    "novnc_port_busy": "cleanup the previous task container (`judge-run.py cleanup <run-id>`) so the campaign port is free before starting the next run",
+    "novnc_port_exhausted": "free a published eval port in 20000-39999, or stop the leftover campaign container holding one",
     "unsupported_container_arch": "harness gap, not a misconfiguration: add this `uname -m` value to FLUTTER_ARCH in verify-offline-baseline.py",
 }
 
@@ -661,6 +663,33 @@ def command_or_fail(args: list[str], code: int, reason: str, **kwargs: Any) -> s
     if result.returncode:
         fail(code, reason)
     return result
+
+
+NOVNC_PORT_MIN = 20000
+NOVNC_PORT_SPAN = 20000
+
+
+def novnc_preferred_port(seed: str) -> int:
+    digest = int(hashlib.sha256(seed.encode("utf-8")).hexdigest()[:8], 16)
+    return NOVNC_PORT_MIN + digest % NOVNC_PORT_SPAN
+
+
+def format_novnc_url(port: int) -> str:
+    return f"http://127.0.0.1:{port}/vnc.html?autoconnect=true&resize=scale"
+
+
+def host_port_in_use(port: int) -> bool:
+    return command(["curl", "--silent", "--connect-timeout", "2", "--max-time", "2", "--output", os.devnull, f"http://127.0.0.1:{port}/"]).returncode == 0
+
+
+def allocate_campaign_novnc_port(campaign_id: str) -> int:
+    port = novnc_preferred_port(campaign_id)
+    ceiling = NOVNC_PORT_MIN + NOVNC_PORT_SPAN
+    while host_port_in_use(port):
+        port += 1
+        if port >= ceiling:
+            fail(3, "novnc_port_exhausted")
+    return port
 
 
 def command_or_fail_chained(args: list[str], code: int, reason: str, **kwargs: Any) -> subprocess.CompletedProcess[Any]:

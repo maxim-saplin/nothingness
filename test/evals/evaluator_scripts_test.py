@@ -1580,12 +1580,14 @@ class EvaluatorScriptsTest(unittest.TestCase):
             suite_path = root / "suite.json"
             suite_path.write_text(json.dumps(suite))
             campaigns_root = root / "campaigns"
-            with patch.object(campaign, "CAMPAIGNS_ROOT", campaigns_root), patch.object(campaign, "load_suite", return_value=suite):
+            with patch.object(common, "host_port_in_use", return_value=False), patch.object(campaign, "CAMPAIGNS_ROOT", campaigns_root), patch.object(campaign, "load_suite", return_value=suite):
                 with patch.object(sys, "argv", ["campaign.py", "new", str(suite_path), "--campaign-id", "camp-1"]):
                     campaign.main()
                 with self.assertRaises(SystemExit), patch.object(sys, "argv", ["campaign.py", "new", str(suite_path), "--campaign-id", "camp-1"]):
                     campaign.main()
                 with patch.object(sys, "argv", ["campaign.py", "add-run", "camp-1", task_ids[0], "run-1"]):
+                    campaign.main()
+                with patch.object(sys, "argv", ["campaign.py", "retry", "camp-1", task_ids[0], "--run-id", "run-1", "--reason", "test", "--cost-usd", "0"]):
                     campaign.main()
                 with patch.object(sys, "argv", ["campaign.py", "add-run", "camp-1", task_ids[0], "run-2"]):
                     campaign.main()
@@ -1600,6 +1602,8 @@ class EvaluatorScriptsTest(unittest.TestCase):
             self.assertEqual(state["runs"][task_ids[0]], ["run-1", "run-2"])
             self.assertEqual(state["runs"][task_ids[1]], [])
             self.assertEqual(state["model"], suite["requested_model"])
+            self.assertEqual(state["novnc_url"], common.format_novnc_url(state["novnc_port"]))
+            self.assertEqual(state["novnc_port"], common.novnc_preferred_port("camp-1"))
 
     def test_judge_wall_seconds_is_prepare_plus_candidate_budget_plus_score(self) -> None:
         self.assertEqual(campaign.judge_wall_seconds(1800), 3600)
@@ -1928,6 +1932,60 @@ class EvaluatorScriptsTest(unittest.TestCase):
             )
             with patch.object(watch, "RUNS_ROOT", runs_root), patch.object(watch, "CAMPAIGNS_ROOT", campaigns_root), patch.object(watch, "command", return_value=subprocess.CompletedProcess([], 1, "", "")):
                 display, finished = watch.render("camp-live")
+        self.assertIn(f"Live GUI  {novnc}", display)
+        self.assertFalse(finished)
+
+    def test_campaign_dashboard_keeps_campaign_novnc_url_when_no_task_is_active(self) -> None:
+        task_id = "t1-playback-smoke-linux"
+        novnc = "http://127.0.0.1:24888/vnc.html?autoconnect=true&resize=scale"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runs_root = root / "runs"
+            campaigns_root = root / "campaigns"
+            common.write_json(
+                campaigns_root / "camp-gui" / "campaign.json",
+                {"schema_version": 2, "campaign_id": "camp-gui", "suite_id": "suite-gui", "model": {"provider": "azure-openai-responses", "model": "gpt-5.4-nano", "thinking": "medium"}, "tasks": [task_id], "runs": {task_id: []}, "retry_log": {task_id: []}, "novnc_url": novnc, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"},
+            )
+            with patch.object(watch, "RUNS_ROOT", runs_root), patch.object(watch, "CAMPAIGNS_ROOT", campaigns_root), patch.object(watch, "command", return_value=subprocess.CompletedProcess([], 1, "", "")):
+                display, finished = watch.render("camp-gui")
+        self.assertIn(f"Live GUI  {novnc}", display)
+        self.assertIn("none active", display)
+        self.assertFalse(finished)
+
+    def test_novnc_preferred_port_is_stable_for_a_campaign_id(self) -> None:
+        self.assertEqual(common.novnc_preferred_port("camp-1"), common.novnc_preferred_port("camp-1"))
+        self.assertNotEqual(common.novnc_preferred_port("camp-1"), common.novnc_preferred_port("camp-2"))
+        self.assertTrue(20000 <= common.novnc_preferred_port("camp-1") < 40000)
+
+    def test_campaign_dashboard_uses_honest_phases_instead_of_retrying(self) -> None:
+        task_ids = [f"t{n}-task-linux" for n in range(1, 4)]
+        suite_id = "suite-honest"
+        novnc = "http://127.0.0.1:12345/vnc.html"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runs_root = root / "runs"
+            campaigns_root = root / "campaigns"
+            write_fixture_run(runs_root, "run-prep", suite_id, task_ids[0], run_metadata={"novnc_url": novnc})
+            write_fixture_run(
+                runs_root,
+                "run-score",
+                suite_id,
+                task_ids[1],
+                progress={"phase": "completed", "elapsed_seconds": 90, "timeout_seconds": 1200, "tool_calls": 6, "tokens": {"totalTokens": 400}, "cost_usd": 0.01, "last_activity": "judge_finish:done", "last_activity_at": "2026-01-01T00:02:00Z"},
+                run_metadata={"novnc_url": novnc},
+            )
+            (runs_root / "run-score" / "judge-observations.jsonl").write_text(json.dumps({"kind": "verification"}) + "\n")
+            common.write_json(
+                campaigns_root / "camp-honest" / "campaign.json",
+                {"schema_version": 1, "campaign_id": "camp-honest", "suite_id": suite_id, "model": {"provider": "azure-openai-responses", "model": "gpt-5.4-nano", "thinking": "medium"}, "tasks": task_ids, "runs": {task_ids[0]: ["run-prep"], task_ids[1]: ["run-score"], task_ids[2]: []}, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:02:00Z"},
+            )
+            with patch.object(watch, "RUNS_ROOT", runs_root), patch.object(watch, "CAMPAIGNS_ROOT", campaigns_root), patch.object(watch, "command", return_value=subprocess.CompletedProcess([], 1, "", "")):
+                display, finished = watch.render("camp-honest")
+        self.assertNotIn("RETRYING", display)
+        self.assertIn("PREPARING", display)
+        self.assertIn("SCORING", display)
+        self.assertIn("not started", display)
+        self.assertIn("judge verification", display)
         self.assertIn(f"Live GUI  {novnc}", display)
         self.assertFalse(finished)
 

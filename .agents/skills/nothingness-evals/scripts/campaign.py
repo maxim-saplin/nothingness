@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from common import ROOT, RUNS_ROOT, SCRIPT_DIR, emit_json, fail, load_suite, read_json, sha256, utc_now, validate_run_id, write_json
+from common import ROOT, RUNS_ROOT, SCRIPT_DIR, allocate_campaign_novnc_port, emit_json, fail, format_novnc_url, load_suite, read_json, sha256, utc_now, validate_run_id, write_json
 
 CAMPAIGNS_ROOT = RUNS_ROOT / "campaigns"
 MAX_RETRIES = 2
@@ -109,6 +109,8 @@ def new_campaign(arguments: argparse.Namespace) -> None:
                 fail(2, f"campaign_already_exists_for_model:{suite['id']} -- pass --allow-repeat for an intentional variability attempt")
     task_ids = [task["id"] for task in suite["tasks"]]
     now = utc_now()
+    novnc_port = allocate_campaign_novnc_port(arguments.campaign_id)
+    novnc_url = format_novnc_url(novnc_port)
     campaign = {
         "schema_version": 2,
         "protocol_mode": PROTOCOL_MODE,
@@ -124,6 +126,8 @@ def new_campaign(arguments: argparse.Namespace) -> None:
         "run_retries": {},
         "retry_log": {task_id: [] for task_id in task_ids},
         "costs": {"accepted_tasks_usd": None, "campaign_usd": None},
+        "novnc_port": novnc_port,
+        "novnc_url": novnc_url,
         "created_at": now,
         "updated_at": now,
     }
@@ -138,6 +142,7 @@ def new_campaign(arguments: argparse.Namespace) -> None:
             "model": suite["requested_model"],
             "tasks": task_ids,
             "max_retries_per_task": MAX_RETRIES,
+            "novnc_url": novnc_url,
             "dashboard_command": dashboard_command(arguments.campaign_id),
         }
     )

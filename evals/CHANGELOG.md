@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.7.1 — 2026-08-19
+
+`watch-eval.py` now shows the actual run phase (`PREPARING`, `RUNNING`, `AWAITING JUDGE`, `SCORING`) instead of labeling every unscored row `RETRYING`. Last activity follows the newer of candidate progress and judge artifacts, Live GUI stays up through scoring, and a non-TTY invocation prints one snapshot. A campaign also reserves one noVNC host port at `campaign.py new`, so every task and retry of that campaign binds the same `127.0.0.1` URL; refresh the tab between tasks. Display/ops only; scores remain comparable with 1.7.0.
+
 ## 1.7.0 — 2026-08-19
 
 The evaluator image is now Debian bookworm-slim with a pinned Linux-only Flutter SDK (3.47.0), pinned Node/uv/apt snapshots, and no Android or browser toolchain. noVNC is unchanged. Runtime baseline now launches through the same `/run/nothingness` home and drive paths as a real candidate, and the image ships `xdg-user-dirs` so Linux `path_provider` can resolve documents. Scores under 1.7.0 are not directly comparable with earlier campaigns if a candidate depended on floating `stable` behavior.

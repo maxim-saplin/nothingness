@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import IMAGE_NAME, ROOT, RUNS_ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, eval_version, fail, load_suite, network_name, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
+from common import IMAGE_NAME, ROOT, RUNS_ROOT, command, command_or_fail, command_or_fail_chained, container_name, derive_provider_egress_host, emit_json, eval_version, fail, format_novnc_url, host_port_in_use, load_suite, network_name, novnc_preferred_port, proxy_name, read_host_pi_config, read_json, resolve_pi, run_dir, require_command, sha256, task_scoring, utc_now, validate_image_matches_sources, validate_pi_model, validate_run_id, write_json
 
 
 def campaign_started_at(campaign_id: str) -> str:
@@ -39,6 +39,7 @@ def main() -> None:
     for executable in ("docker", "git", "curl"):
         require_command(executable)
     task_id, run_id = arguments.task_id, arguments.run_id
+    campaign_id = arguments.campaign
     validate_run_id(run_id)
     suite_path = arguments.suite.resolve()
     suite = load_suite(suite_path)
@@ -151,10 +152,15 @@ def main() -> None:
     for arguments in (("init", "-q"), ("config", "user.name", "Nothingness Evaluator"), ("config", "user.email", "evaluator@invalid"), ("add", "-A"), ("commit", "-qm", "fixture baseline")):
         command_or_fail(["git", *arguments], 3, "fixture_baseline_failed", cwd=seed)
     command_or_fail(["chmod", "-R", "a+rwX", str(seed)], 3, "fixture_permissions_failed")
-    checksum = command_or_fail(["cksum"], 3, "checksum_failed", input=run_id, stdout=subprocess.PIPE).stdout.split()[0]
-    port = 20000 + int(checksum) % 20000
-    while command(["curl", "--silent", "--connect-timeout", "2", "--max-time", "2", "--output", os.devnull, f"http://127.0.0.1:{port}/"]).returncode == 0:
-        port += 1
+    if campaign_id:
+        recorded = read_json(RUNS_ROOT / "campaigns" / campaign_id / "campaign.json").get("novnc_port")
+        port = recorded if isinstance(recorded, int) else novnc_preferred_port(campaign_id)
+        if host_port_in_use(port):
+            fail(3, f"novnc_port_busy:{port}")
+    else:
+        port = novnc_preferred_port(run_id)
+        while host_port_in_use(port):
+            port += 1
     command_or_fail(["docker", "network", "create", "--internal", "--label", "nothingness.eval=true", "--label", f"nothingness.eval.run_id={run_id}", network], 3, "network_create_failed", stdout=os.devnull)
     # Attach order is load-bearing, not stylistic. Docker wires a published port's
     # DNAT at creation time, to the address the container has on the network it is
@@ -189,7 +195,8 @@ def main() -> None:
     setup = "from pathlib import Path; Path('/run/nothingness/sessions').mkdir()"
     command_or_fail(["docker", "exec", container, "python3", "-c", setup], 3, "container_setup_failed")
     command_or_fail(["docker", "exec", container, "git", "-C", "/workspace", "status", "--porcelain"], 3, "container_setup_failed", stdout=os.devnull)
-    result["novnc_url"] = f"http://127.0.0.1:{port}/vnc.html?autoconnect=true&resize=scale"
+    result["novnc_url"] = format_novnc_url(port)
+    result["novnc_port"] = port
     write_json(run / "run.json", result)
     emit_json(result)
 

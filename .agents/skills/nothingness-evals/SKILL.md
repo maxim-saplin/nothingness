@@ -46,7 +46,7 @@ For an intentional variability attempt after a completed campaign, pass `--allow
 
 This returns a `dashboard_command` (`watch-eval.py <campaign-id>`). Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal. Do not wait until the end of the run to surface it.
 
-**noVNC is per task run, not per campaign** — there is no URL until a judge has called `judge-run.py start` and the container is up. Each `start` JSON carries `novnc_url`; print it to the user as a markdown link (`[live GUI](<novnc_url>)`) the moment it appears, and again whenever a fresh run starts (including retries). While a task is RUNNING, `watch-eval.py` repeats the same URL on its `Live GUI` line.
+**noVNC is one URL per campaign.** `campaign.py new` reserves a host port and returns `novnc_url`; every task (and retry) of that campaign binds the same `127.0.0.1` port. Print it once as a markdown link (`[live GUI](<novnc_url>)`) when the campaign is created — do not reprint a new URL per task. The page is dead between tasks until the next container is up; refresh after `start`. `watch-eval.py` repeats that same campaign URL on its `Live GUI` line.
 
 Then start the watchdog, so an orphaned run reaches you instead of waiting to be noticed. It prints one line per state change on stdout, so run it however your harness streams a long-running command (a background/monitor facility if it has one, otherwise a second terminal you glance at):
 
@@ -104,8 +104,8 @@ For each task `next` hands you:
 
    The judge **starts its own fresh run**, observes it, scores it, publishes into its sandbox and
    cleans up its container. Expect `start` to take 2–5 minutes before the candidate is even live.
-   The `start` JSON includes `novnc_url` — whoever sees it first (judge or you) must pass that
-   link to the user right away; do not wait for scoring or the next task.
+   The `start` JSON still carries `novnc_url`; it is the campaign URL, not a new one. If the user's
+   tab is stale from the previous task, tell them to refresh — do not paste a different link.
 3. **Supervise, don't relay.** While the judge works, your only job is to notice it is stuck: a
    dead container, a judge repeating the same step, a run past its timeout, or watchdog reporting a
    container up with no judge attached. That last one is an orphan *now* — record the retry, do not
