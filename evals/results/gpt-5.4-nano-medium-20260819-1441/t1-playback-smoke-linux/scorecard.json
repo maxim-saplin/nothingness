@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate launched flutter run -t dev/main_debug.dart, got live VM extensions, and issued drive.py play/pause/resume/setQueue/next/seek; judge preflight also saw a live Linux VM and inspect answered.",
+      "evidence_ref": "verification-3a55135b598c43a6bb946fa8e4422c35"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Judge replay: play left isPlaying true, pause set it false (pos ~2048ms on 01-undercover-49), resume set it true again; candidate session also observed false then true on inspect.",
+      "evidence_ref": "verification-bdab574ded154b1c9626b31a11d46684"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "setQueue of three fixtures then next moved currentIndex 0→1 and path 01-undercover-49.opus→02-undercover-50.opus; candidate session recorded the same index/path pair.",
+      "evidence_ref": "verification-d6ea88ad98a448cf967cf1cdf0b997d0"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While playing 02-undercover-50 from ~1216ms, seek 0:30 landed at 30416ms (within ±2s of 30000); candidate seek 1:00 moved 11114→62784 toward 60000.",
+      "evidence_ref": "verification-678e75b44c9e48dd98f1789811fff236"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final-report claims (isPlaying true/false, currentIndex 1, path 02-undercover-50.opus, seek positionMs 60000 then ~62784) all appear as extension outputs in the session trail.",
+      "evidence_ref": "events-035a71d45ee346ce9731de7bdd6d9fb6"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Workspace git status and diff are empty; live play/pause/skip/seek behaved like an unmodified build with no extra settings changes.",
+      "evidence_ref": "inspection-ee20f4c6edb24f8a8056d9f300ec7a08"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Session had only tooling faults (bad ls flag, python not found) which it recovered from; overflows count 0 and the same Linux app still answers inspect.",
+      "evidence_ref": "verification-678e75b44c9e48dd98f1789811fff236"
+    }
+  ]
+}

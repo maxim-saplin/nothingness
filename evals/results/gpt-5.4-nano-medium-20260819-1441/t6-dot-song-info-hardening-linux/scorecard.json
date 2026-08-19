@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearpref * and hot restart, Dot was playing a fixture with show-song-info still default-off: the hero showed only the pulsing circle, with no hero-artist/hero-song overlay.",
+      "evidence_ref": "verification-73873640904f423fb2bfee1e2eb36433"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I turned show song info on, restarted, then played a 62-character artist/title track without re-toggling; the overlay was still rendered.",
+      "evidence_ref": "verification-e7fa73012ced4184ad3bc04df3810be6"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I turned the option off (semantics read off), restarted, and replayed a fixture while playing: the large pulsing circle was back and hero-artist was absent.",
+      "evidence_ref": "verification-e82db9a108a54abd92811167b3ed8275"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "At 100% (hero-artist 30px / hero-song 15px) the long metadata overlay used ellipsis inside the hero and did not occupy the pulsing circle's region.",
+      "evidence_ref": "verification-cea736467166462e938de578adffa1d2"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "At 150% (hero-artist 45px / hero-song 22.5px) the same long metadata still wrapped with in-hero ellipsis and did not overlap the pulsing circle.",
+      "evidence_ref": "verification-9ee697b5a7a044659fcb3274624a7745"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh 100% long-metadata reproduction was on-point, but the candidate's dot_songinfo_text_normal.png is a Void browser empty-folder shot of 07-undercover-44.opus, not long metadata on Dot.",
+      "evidence_ref": "verification-cea736467166462e938de578adffa1d2"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh 150% long-metadata reproduction was on-point, but the candidate's dot_songinfo_text_max.png likewise shows the short 07-undercover-44.opus browser state, not the required max-scale long-metadata Dot overlay.",
+      "evidence_ref": "verification-9ee697b5a7a044659fcb3274624a7745"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Tree reads at both scales show non-empty hero-artist/hero-song with the long strings; 100% is 30/15px (verification-cea736...) and 150% is 45/22.5px here.",
+      "evidence_ref": "verification-6273a8b7cdfe4a77b0186464b8a1e992"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Ordinary undercover/49 overlay rendered cleanly at 100% (this capture) and 150% (verification-2c933e...) with no clipping or circle overlap.",
+      "evidence_ref": "verification-e1a770167c5740d1a81b948f39dd419c"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After toggles, restarts, scale changes, and long/short tracks the app stayed live; this bundle reports isPlaying true and overflows count 0.",
+      "evidence_ref": "verification-e82db9a108a54abd92811167b3ed8275"
+    }
+  ]
+}

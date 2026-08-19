@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, semantics show screen (index 5, y 231–276) immediately followed by the cassette-variant row (index 6, y 276–321); the judge screenshot shows the same two rows adjacent.",
+      "evidence_ref": "verification-c0402d2fe7514c65a3832966f06121de"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The cassette-variant row's label is still variant; color scheme is the displayed value of CassetteVariant.v3, not the row label, and a leftover variant-labeled row remains.",
+      "evidence_ref": "verification-c0402d2fe7514c65a3832966f06121de"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-screen cycled cassette→spectrum→polo→dot→void→cassette; drive.py screen polo/spectrum/void updated the row, and a second Cassette visit still seats the variant row under screen.",
+      "evidence_ref": "verification-7e918ce723654bdc917bd34af9da9617"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping void-settings-cassette-variant advanced color scheme (v3) to Minimal; cassettevariant 1/4/2 updated the same row to Tape · Mono, Minimal, and Tape · Amber.",
+      "evidence_ref": "verification-e0dc3ca9b6444b15b4c8daefa271d72f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On spectrum/polo/dot/void the row after screen is immersive, never a cassette control or color scheme label; tapping immersive and theme-variant still change those rows.",
+      "evidence_ref": "verification-7feac086c7be4164af826e78d31cfada"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate cassette_settings_cassette.png and the judge screenshot both show Settings with screen=cassette and the next variant row (value color scheme) in frame and legible; the cropped region2 shot cuts off before that row.",
+      "evidence_ref": "verification-c0402d2fe7514c65a3832966f06121de"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getSemantics, getSettings (screenType cassette), and the screenshot agree: screen cassette then variant with value color scheme, index 5 then 6.",
+      "evidence_ref": "verification-c0402d2fe7514c65a3832966f06121de"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Linux Cassette injects the whole displayRows (variant, text size, haptics) under screen, so those two extra rows now precede immersive/transport; theme-variant and immersive taps still work.",
+      "evidence_ref": "verification-c0402d2fe7514c65a3832966f06121de"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflows stayed at count 0 through settings open, screen hops, and variant cycling; inspect still returned a live router/playback payload at the end.",
+      "evidence_ref": "verification-7e918ce723654bdc917bd34af9da9617"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, semantics show screen (index 5, y 231–276) immediately followed by cassette variant Tape · Mono (index 6, y 276–321); the screenshot shows the same two rows adjacent.",
+      "evidence_ref": "verification-870c4014f2a0405b8b3b8666523813fb"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping the screen row cycled spectrum→polo→dot→void→cassette; drive.py screen also updates the row, and a second Cassette visit still seats the variant immediately under screen.",
+      "evidence_ref": "verification-3814b60be7114927bdb9b81bf64e74f7"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping the cassette-variant row advanced Tape · Mono to Tape · Amber; drive.py cassettevariant 2/3/1 updated the same row's displayed value to match.",
+      "evidence_ref": "verification-b042ca29f12c447c9ee6bb6b86c8f0e1"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On spectrum/polo/dot/void the row after screen is immersive, never a cassette control; spectrum bar-count and dot show-song-info still change when tapped.",
+      "evidence_ref": "verification-63dde2ad7ff741bdb02eb8a42852f179"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or wrote a settings screenshot; agent_shots stayed empty and flutter_evidence_exists is false after a hung sourced drive.py preflight.",
+      "evidence_ref": "verification-870c4014f2a0405b8b3b8666523813fb"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "getSemantics, getSettings, and the judge screenshot all agree: screen=cassette and the next row is variant Tape · Mono.",
+      "evidence_ref": "verification-870c4014f2a0405b8b3b8666523813fb"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Seating the whole cassette displayRows (variant plus text size and haptics) under screen moved those two extra rows ahead of immersive/transport; theme-variant and immersive taps still work.",
+      "evidence_ref": "verification-870c4014f2a0405b8b3b8666523813fb"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflow ring stayed empty through settings open and screen switches; inspect still answered with a live router and playback payload at the end.",
+      "evidence_ref": "verification-1a3e6556b7e64494b2297c29efce7558"
+    }
+  ]
+}

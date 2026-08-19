@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent live setQueue then runtime verification showed queueLength 10 and exactly the ten mounted fixture paths, each once, none foreign or not-found.",
+      "evidence_ref": "verification-4facb4e23f064deebc91e9622c3aca48"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings and tapped void-settings-status-shuffle off then on; the following runtime verification reported shuffle true.",
+      "evidence_ref": "verification-0c343851a8ed4679852989a57f188ebe"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before next, runtime verification showed isPlaying true, path /opt/nothingness/media/01-undercover-49.opus, and that queued entry isNotFound false.",
+      "evidence_ref": "verification-53ccea45b5e74d90ab3ffaa8d52814e0"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "One drive.py next changed currentIndex 8->9 and path 01-undercover-49.opus -> 02-undercover-50.opus; post-nav verification still in-set, isNotFound false, isPlaying true.",
+      "evidence_ref": "verification-94f45d28b5f64e909cc4947713e9777c"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate setQueue/inspect/next outputs mention only the ten /opt/nothingness/media fixture paths as queued or current; /sdcard examples appear only in docs text, never in queue or songInfo.",
+      "evidence_ref": "events-416cde3f45ad4b2f89691fe307890135"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final report claims (10-path setQueue, shuffle tap, before 01-undercover-49.opus idx 8, after 06-undercover-54.opus idx 9) match inspects at seq 6379 and 6759 and the shuffle tap at 6257.",
+      "evidence_ref": "events-9f270e225b8e44d0a0b8d7f2f1bf73e1"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Inspection git status and diff are empty; live queue/shuffle/play/next behaved as an unmodified build.",
+      "evidence_ref": "inspection-9b162609b23a47389d8eaae1ede8ec63"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Two tool errors (bad ls flag; default flutter_run.log missing VM URI) were recovered by using the tagged run log; overflows empty and the same nothingness process answered inspect.",
+      "evidence_ref": "verification-94f45d28b5f64e909cc4947713e9777c"
+    }
+  ]
+}

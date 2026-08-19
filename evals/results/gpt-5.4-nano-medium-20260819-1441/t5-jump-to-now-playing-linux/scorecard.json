@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Jump action was present while browsing /opt/nothingness with 10-undercover-47.opus playing; tapping void-crumb-jump-to-playing navigated to /opt/nothingness/media but the playing row stayed off-screen (visible rows were 01–06 only).",
+      "evidence_ref": "verification-6f7fa7d31db345daba8a699cfb87fc52"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "In the already-correct media folder with 10-undercover-47.opus off-screen, bring-into-view was exposed; tapping void-crumb-bring-playing-into-view left currentPath unchanged and the same 01–06 rows visible, so the action was inert.",
+      "evidence_ref": "verification-0181484a75014c10966e2a2f2d12ef66"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With 04-undercover-52.opus playing and fully highlighted mid-list in /opt/nothingness/media (rows 01–06 on screen), neither jump nor bring-into-view appeared in tree or semantics.",
+      "evidence_ref": "verification-ab92b63cdcec461face9955b53b89691"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After pause+hot restart, inspect showed isPlaying false and songInfo null; media folder and parent /opt/nothingness both had no jump/bring action in tree or semantics.",
+      "evidence_ref": "verification-1c4a829c513949b995643cb3c3f0147d"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "When active, the affordance is a labeled semantics button: 'jump to now-playing folder' (void-crumb-jump-to-playing) or 'bring now-playing track into view' (void-crumb-bring-playing-into-view).",
+      "evidence_ref": "verification-da7c76e062474b83b05bef5f4ee83e74"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate jump_before_scroll.png and live e1_pre both show the browser at /opt/nothingness with the playing track's row absent from the visible list.",
+      "evidence_ref": "verification-da7c76e062474b83b05bef5f4ee83e74"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Candidate after shots (jump_after_scroll, after_bring_action9) still show titles 50–54, not the playing row; live e1_post/e2_post likewise leave 10-undercover-47.opus off-screen.",
+      "evidence_ref": "verification-6f7fa7d31db345daba8a699cfb87fc52"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate never produced a write-up (final turn died on a provider capacity error); session events show real flutter run, drive.py, and screenshot captures, so there are no unbacked write-up claims.",
+      "evidence_ref": "events-9153899c07c64dcaabfe11e3950d59e7"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen tap of void-folder:/opt/nothingness/media changed currentPath to that folder; pause/resume flipped isPlaying. next/prev were no-ops because playTrackByPath left queueLength 0 (pre-existing).",
+      "evidence_ref": "verification-9dd9f734e50b42998a21ff06948812b7"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After jump/bring/nav/playback probes the app still answered inspect with overflows.count 0; a later relaunch likewise reported no overflow reports.",
+      "evidence_ref": "verification-78a5a20628dd4d27b42dad16801be275"
+    }
+  ]
+}

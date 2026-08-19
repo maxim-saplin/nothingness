@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Candidate's only during capture is one atomic dragByKey then shoot in a single replay (seq 18348); no incremental in-flight updates spanning elapsed time. The PNG shows leftover 0:20 / 1:23 · 25% after release, not a mid-gesture instant.",
+      "evidence_ref": "events-394b39e2532041988407f06359ef7dc7"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Held XTEST swipes both ways: trees have no hero-seek-hud, screenshots show only the bottom crumb readout (4:45 / 7:00 · 68% and 1:10 / 7:00 · 17%), no centered time or full-height line; candidate during shot also has no center HUD.",
+      "evidence_ref": "verification-152eb174fece46428ff3fa88666ac27e"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and ≥1s settle the crumb Text is ~ again, matching the pre-swipe folder line, with no residual target/duration/progress string.",
+      "evidence_ref": "verification-8198670b8dd44a7895e5b4b786d13676"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Event trail has only one candidate during capture (the same atomic replay); no second swipe with a different legible target value from the candidate's own instrumentation.",
+      "evidence_ref": "events-394b39e2532041988407f06359ef7dc7"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Playing 07-undercover-44.opus: runtime 131658ms pre-swipe vs 309273ms after a rightward hold-swipe (forward); a later leftward swipe from 180373ms landed at 110085ms (~1:10, matching the mid-gesture target).",
+      "evidence_ref": "verification-8198670b8dd44a7895e5b4b786d13676"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "swipe_seek_linux_during.png is shot in the same bash replay immediately after dragByKey returned (full press-move-release); surrounding events are not drag-start/update/end with real elapsed time.",
+      "evidence_ref": "events-394b39e2532041988407f06359ef7dc7"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Post-gesture screenshot shows the bottom line back to ~ with the jump glyph, no seek readout and no center indicator.",
+      "evidence_ref": "verification-8198670b8dd44a7895e5b4b786d13676"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same post-settle tree dump has Text(\"~\") / jump-to-now-playing folder and agrees with the post-gesture screenshot.",
+      "evidence_ref": "verification-8198670b8dd44a7895e5b4b786d13676"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen XTEST taps on the hero: left third previous (index 1→0), right third next (0→1), center pause then play. Hero vertical drag is only wired for swipeUp browser presentation; it stayed unwired as before.",
+      "evidence_ref": "verification-5356b4f200fe42df9a5b1c21755f110c"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflows stayed {count: 0} through a burst of five XTEST swipes of mixed dx/steps; inspect still answered with isPlaying true. A mouse-kind dragByKey assertion is the known fixture tracker bug, not new swipe-feedback errors.",
+      "evidence_ref": "verification-5356b4f200fe42df9a5b1c21755f110c"
+    }
+  ]
+}
