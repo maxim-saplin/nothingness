@@ -43,6 +43,7 @@ def main() -> int:
         directory.mkdir(parents=True, exist_ok=True)
     for directory in directories[:4]:
         directory.chmod(0o700)
+    subprocess.run(["xdg-user-dirs-update"], env=os.environ.copy(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     pulse_runtime = RUNTIME / "pulse"
     pulse_runtime.mkdir(exist_ok=True)
     pulse_runtime.chmod(0o700)

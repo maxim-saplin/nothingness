@@ -1,6 +1,6 @@
 # Architecture
 
-The image is built from a generated context containing only evaluator Docker files, the ten committed Opus files plus manifest, and an operator-supplied Pi artifact. It never receives repository source.
+The image is built from a generated context containing only evaluator Docker files, the ten committed Opus files plus manifest, and an operator-supplied Pi artifact. It never receives repository source. The base is Debian bookworm-slim with a pinned apt snapshot; Flutter 3.47.0 is cloned at a fixed revision into `/sdks/flutter` with Linux desktop precache only (no Android SDK, adb, or browser). Node, uv, and Python websockets are pinned; image labels record the Flutter version and revision.
 
 `prepare-run` exports fixture `5fc7e04`, initializes a one-commit Git baseline, creates a fresh internal Docker network, then creates a candidate container with all Linux capabilities dropped and `no-new-privileges`. The candidate joins only that network and receives non-secret `HTTP_PROXY`, `HTTPS_PROXY`, and localhost-only `NO_PROXY` settings. A second, equally restricted Python proxy sidecar joins the internal network and Docker bridge; it allows HTTPS CONNECT only to the hostname derived from the selected provider's `baseUrl` in host Pi configuration, rejects literal IPs and other ports, and does not log requests. noVNC is still published from the candidate on `127.0.0.1` only.
 

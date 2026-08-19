@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.7.0 — 2026-08-19
+
+The evaluator image is now Debian bookworm-slim with a pinned Linux-only Flutter SDK (3.47.0), pinned Node/uv/apt snapshots, and no Android or browser toolchain. noVNC is unchanged. Runtime baseline now launches through the same `/run/nothingness` home and drive paths as a real candidate, and the image ships `xdg-user-dirs` so Linux `path_provider` can resolve documents. Scores under 1.7.0 are not directly comparable with earlier campaigns if a candidate depended on floating `stable` behavior.
+
 ## 1.6.1 — 2026-08-15
 
 Intentional repeat campaigns are now supported with `campaign.py new --allow-repeat`, preserving the default duplicate-campaign guard while allowing model variability measurements on the same harness and suite.

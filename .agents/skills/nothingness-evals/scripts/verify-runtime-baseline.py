@@ -22,6 +22,16 @@ DESKTOP_READY_POLLS = 1200
 DESKTOP_READY_INTERVAL = 0.25
 DRIVER = "/workspace/.agents/skills/agent-emulator-debugging/scripts/drive.py"
 TRACKS = tuple(f"/opt/nothingness/media/0{index}-undercover-{48 + index}.opus" for index in range(1, 4))
+DRIVE_ENV = (
+    "-e", "DRIVE_TARGET=linux",
+    "-e", "DRIVE_RUN_LOG=/run/nothingness/drive/flutter_run.log",
+    "-e", "DRIVE_FLUTTER_FIFO=/run/nothingness/drive/flutter_input",
+    "-e", "DRIVE_WS_CACHE=/run/nothingness/drive/vm_ws.txt",
+)
+# Cold debug `flutter run` on arm64 after a fresh image build can exceed three
+# minutes before extensions answer; offline `flutter build linux` does not warm
+# this path because it is a separate disposable container.
+APP_READY_TIMEOUT = 360
 
 
 def container_run_command(name: str) -> list[str]:
@@ -34,7 +44,7 @@ def container_run_command(name: str) -> list[str]:
 
 
 def drive_command(name: str, *arguments: str) -> list[str]:
-    return ["docker", "exec", name, DRIVER, *arguments]
+    return ["docker", "exec", *DRIVE_ENV, name, DRIVER, *arguments]
 
 
 def drive(name: str, *arguments: str) -> dict[str, object]:
@@ -131,16 +141,14 @@ def main() -> None:
                 fail(4, f"runtime_desktop_not_ready:waited_{waited}s container={container} last={last_error or 'no probe ever answered'} -- if the container is gone or OOM-killed the desktop never started, so raising the wait will not help; check host memory and `docker logs`")
             command_or_fail(["docker", "exec", name, "sh", "-c", "cd /workspace && flutter pub get --offline >/tmp/runtime-pub.log"], 4, "runtime_pub_failed")
             launch = """set -eu
-home=/tmp/nothingness-runtime-baseline
-mkdir -p "$home/.config" "$home/.local/share"
-rm -f /tmp/flutter_input /tmp/flutter_run.log /tmp/drive_vm_ws.txt
-mkfifo /tmp/flutter_input
-nohup sh -c 'sleep infinity' > /tmp/flutter_input 2>/dev/null &
-nohup env HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" flutter run -d linux --no-pub --debug -t dev/main_debug.dart < /tmp/flutter_input > /tmp/flutter_run.log 2>&1 &
+rm -f /run/nothingness/drive/flutter_input /run/nothingness/drive/flutter_run.log /run/nothingness/drive/vm_ws.txt
+mkfifo /run/nothingness/drive/flutter_input
+nohup sh -c 'sleep infinity' > /run/nothingness/drive/flutter_input 2>/dev/null &
+nohup env HOME=/run/nothingness/home XDG_CONFIG_HOME=/run/nothingness/config XDG_DATA_HOME=/run/nothingness/data flutter run -d linux --no-pub --debug -t dev/main_debug.dart < /run/nothingness/drive/flutter_input > /run/nothingness/drive/flutter_run.log 2>&1 &
 echo $! > /tmp/flutter_pid
 """
             command_or_fail(["docker", "exec", name, "sh", "-c", launch], 4, "runtime_flutter_launch_failed")
-            states["ready"] = wait_for_state(name, "ready", lambda state: "playback" in state, timeout=180)
+            states["ready"] = wait_for_state(name, "ready", lambda state: "playback" in state, timeout=APP_READY_TIMEOUT)
             drive(name, "call", "ext.nothingness.setQueue", f"paths={','.join(TRACKS)}", "startIndex=0")
             drive(name, "resume")
             states["play"] = wait_for_state(name, "play", lambda state: state["playback"]["isPlaying"] and state["playback"]["currentIndex"] == 0)
@@ -160,7 +168,7 @@ echo $! > /tmp/flutter_pid
             drive(name, "shoot", "runtime_baseline")
             command_or_fail(["docker", "cp", f"{name}:/workspace/.tmp/agent_shots/runtime_baseline.png", str(artifacts / "runtime_baseline.png")], 4, "runtime_screenshot_copy_failed", stdout=os.devnull)
     finally:
-        command(["docker", "cp", f"{name}:/tmp/flutter_run.log", str(artifacts / "flutter_run.log")], stdout=os.devnull, stderr=os.devnull)
+        command(["docker", "cp", f"{name}:/run/nothingness/drive/flutter_run.log", str(artifacts / "flutter_run.log")], stdout=os.devnull, stderr=os.devnull)
         command(["docker", "rm", "-f", name], stdout=os.devnull, stderr=os.devnull)
     if command(["docker", "container", "inspect", name], stdout=os.devnull, stderr=os.devnull).returncode == 0:
         fail(4, "runtime_container_cleanup_failed")

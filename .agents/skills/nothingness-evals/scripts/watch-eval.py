@@ -147,6 +147,14 @@ def known_retry_cost(campaign: dict[str, Any], task_id: str) -> float | None:
     return sum(value for value in values if isinstance(value, (int, float)))
 
 
+def novnc_url_for_run(run_id: str) -> str | None:
+    path = RUNS_ROOT / run_id / "run.json"
+    if not path.is_file():
+        return None
+    value = read_json(path).get("novnc_url")
+    return value if isinstance(value, str) and value else None
+
+
 def task_line(task_id: str, state: str, retries: str, elapsed: str, tools: str, tokens: str, cost: str, last_activity: str) -> str:
     return f"{task_id:<{TASK_COLUMN}} {state:<{STATE_COLUMN}} {retries:>8} {elapsed:>8} {tools:>8} {tokens:>11} {cost:>10}  {last_activity}"
 
@@ -216,6 +224,9 @@ def render(campaign_id: str) -> tuple[str, bool]:
     active = next((row for task_id in campaign["tasks"] for row in task_rows(campaign, task_id) if row.get("state") == "RUNNING"), None)
     if active is not None:
         lines.append(f"Current task phase: {active.get('phase')}  timeout {duration(active.get('elapsed'))} / {duration(active.get('timeout_seconds'))}")
+        novnc = novnc_url_for_run(active["run_id"])
+        if novnc:
+            lines.append(f"Live GUI  {novnc}")
     else:
         lines.append("Current task phase: none active")
     lines.append("Retries are fresh task restarts; discarded runs are not included in task cost or accepted totals.")

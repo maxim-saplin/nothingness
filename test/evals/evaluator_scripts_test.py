@@ -21,10 +21,13 @@ SCRIPTS = ROOT / ".agents" / "skills" / "nothingness-evals" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 
-def write_fixture_run(runs_root: Path, run_id: str, suite_id: str, task_id: str, *, progress: dict | None = None, result: dict | None = None, summary: dict | None = None, admission: dict | None = None) -> Path:
+def write_fixture_run(runs_root: Path, run_id: str, suite_id: str, task_id: str, *, progress: dict | None = None, result: dict | None = None, summary: dict | None = None, admission: dict | None = None, run_metadata: dict | None = None) -> Path:
     run = runs_root / run_id
     run.mkdir(parents=True, exist_ok=True)
-    (run / "run.json").write_text(json.dumps({"run_id": run_id, "suite_id": suite_id, "task_id": task_id, "trial": 1, "calibration": False, "requested_model": {"provider": "azure-openai-responses", "model": "gpt-5.4-mini", "thinking": "medium"}, "container": "fixture-container-not-running", "prepared_at": "2026-01-01T00:00:00Z"}))
+    metadata = {"run_id": run_id, "suite_id": suite_id, "task_id": task_id, "trial": 1, "calibration": False, "requested_model": {"provider": "azure-openai-responses", "model": "gpt-5.4-mini", "thinking": "medium"}, "container": "fixture-container-not-running", "prepared_at": "2026-01-01T00:00:00Z"}
+    if run_metadata:
+        metadata.update(run_metadata)
+    (run / "run.json").write_text(json.dumps(metadata))
     if progress is not None:
         (run / "artifacts").mkdir(parents=True, exist_ok=True)
         (run / "artifacts" / "progress.json").write_text(json.dumps(progress))
@@ -1789,6 +1792,13 @@ class EvaluatorScriptsTest(unittest.TestCase):
         self.assertEqual(hash_label, f"{common.IMAGE_SOURCE_HASH_LABEL}={common.image_source_sha256(hashes)}")
         self.assertEqual(json.loads(manifest_label.split("=", 1)[1]), hashes)
 
+    def test_eval_dockerfile_pins_flutter_and_drops_cirrus_stable(self) -> None:
+        dockerfile = (ROOT / "evals" / "image" / "Dockerfile").read_text()
+        self.assertNotIn("cirruslabs", dockerfile)
+        self.assertNotIn("flutter:stable", dockerfile)
+        self.assertIn("FLUTTER_REVISION=4cf24164269a5ebf0c16a028a00727d0e77bbb05", dockerfile)
+        self.assertIn("debian:bookworm-slim@", dockerfile)
+
     def test_admission_probe_process_failure_is_distinguished_from_a_provider_rejection(self) -> None:
         probe = subprocess.CompletedProcess(["docker"], 1, "", "")
         probe_result = subprocess.CompletedProcess(["docker"], 0, "{}", "")
@@ -1896,6 +1906,30 @@ class EvaluatorScriptsTest(unittest.TestCase):
         self.assertIn("unassisted_pass", after_display)
         self.assertFalse(after_finished)
         self.assertEqual(before_digest, after_digest)
+
+    def test_campaign_dashboard_shows_live_gui_url_for_running_task(self) -> None:
+        task_id = "t1-playback-smoke-linux"
+        novnc = "http://127.0.0.1:37631/vnc.html?autoconnect=true&resize=scale"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runs_root = root / "runs"
+            campaigns_root = root / "campaigns"
+            write_fixture_run(
+                runs_root,
+                "run-t1",
+                "suite-live",
+                task_id,
+                progress={"phase": "running", "started_at_unix": 0, "timeout_seconds": 1200, "tool_calls": 1, "tokens": {"totalTokens": 10}, "cost_usd": None, "last_activity": "tool call: bash", "last_activity_at": "2026-01-01T00:01:00Z"},
+                run_metadata={"novnc_url": novnc},
+            )
+            common.write_json(
+                campaigns_root / "camp-live" / "campaign.json",
+                {"schema_version": 1, "campaign_id": "camp-live", "suite_id": "suite-live", "model": {"provider": "azure-openai-responses", "model": "gpt-5.4-nano", "thinking": "low"}, "tasks": [task_id], "runs": {task_id: ["run-t1"]}, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:01:00Z"},
+            )
+            with patch.object(watch, "RUNS_ROOT", runs_root), patch.object(watch, "CAMPAIGNS_ROOT", campaigns_root), patch.object(watch, "command", return_value=subprocess.CompletedProcess([], 1, "", "")):
+                display, finished = watch.render("camp-live")
+        self.assertIn(f"Live GUI  {novnc}", display)
+        self.assertFalse(finished)
 
 
 if __name__ == "__main__":

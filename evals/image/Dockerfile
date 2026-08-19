@@ -1,12 +1,19 @@
-FROM node:22-bookworm-slim AS node
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS node
 
-FROM ghcr.io/astral-sh/uv:0.11.28 AS uv
+FROM ghcr.io/astral-sh/uv:0.11.28@sha256:0f36cb9361a3346885ca3677e3767016687b5a170c1a6b88465ec14aefec90aa AS uv
 
-FROM ghcr.io/cirruslabs/flutter:stable
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
 
 ARG PI_ARTIFACT_SHA256
 ARG PI_ENTRY=bin/pi
 ARG PI_PACKAGES_SHA256
+ARG FLUTTER_VERSION=3.47.0
+ARG FLUTTER_REVISION=4cf24164269a5ebf0c16a028a00727d0e77bbb05
+ARG APT_SNAPSHOT=20260812T000000Z
+
+LABEL nothingness.eval.flutter_version="${FLUTTER_VERSION}" \
+      nothingness.eval.flutter_revision="${FLUTTER_REVISION}"
+
 ENV DEBIAN_FRONTEND=noninteractive \
     TRY_SYSTEM_LIBS_FIRST=1 \
     DISPLAY=:99 \
@@ -18,13 +25,21 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PUB_CACHE=/root/.pub-cache \
     UV_CACHE_DIR=/opt/uv-cache \
     UV_OFFLINE=1 \
-    UV_PYTHON=/usr/bin/python3
+    UV_PYTHON=/usr/bin/python3 \
+    PATH="/sdks/flutter/bin:${PATH}"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    alsa-utils clang cmake curl ffmpeg git jq libasound2-dev libflac-dev \
-    libgtk-3-dev liblzma-dev libogg-dev libopus-dev libpulse0 libvorbis-dev \
-    ninja-build novnc openbox pkg-config pulseaudio python3 websockify \
-    x11vnc xvfb \
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+  && printf '%s\n' 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99snapshot \
+  && printf '%s\n' \
+    "deb http://snapshot.debian.org/archive/debian/${APT_SNAPSHOT} bookworm main" \
+    "deb http://snapshot.debian.org/archive/debian-security/${APT_SNAPSHOT} bookworm-security main" \
+    > /etc/apt/sources.list \
+  && apt-get update && apt-get install -y --no-install-recommends \
+    alsa-utils ca-certificates clang cmake curl ffmpeg fonts-dejavu-core git jq \
+    libasound2-dev libflac-dev libgtk-3-dev liblzma-dev libogg-dev libopus-dev \
+    libpulse-dev libpulse0 libstdc++-12-dev libvorbis-dev libxtst6 ninja-build \
+    novnc openbox pkg-config procps pulseaudio python3 unzip websockify x11vnc xdg-user-dirs xvfb \
+    xz-utils \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
@@ -37,8 +52,18 @@ RUN printf '%s\n' '# /// script' '# requires-python = ">=3.10"' '# dependencies 
   && uv --version \
   && python3 -c 'import websockets; assert websockets.__version__ == "15.0.1"'
 
-RUN flutter config --enable-linux-desktop \
-  && flutter precache --linux
+RUN git clone --depth 1 --branch "${FLUTTER_VERSION}" https://github.com/flutter/flutter.git /sdks/flutter \
+  && cd /sdks/flutter \
+  && test "$(git rev-parse HEAD)" = "${FLUTTER_REVISION}" \
+  && flutter config --enable-linux-desktop --no-analytics \
+  && flutter precache --linux \
+  && rm -rf bin/cache/artifacts/engine/android-* \
+         bin/cache/artifacts/engine/darwin-* \
+         bin/cache/artifacts/engine/ios \
+         bin/cache/artifacts/engine/windows-* \
+         bin/cache/artifacts/engine/web \
+         bin/cache/downloads \
+  && flutter --version
 
 COPY dependency-seed/ /tmp/dependency-seed/
 RUN cd /tmp/dependency-seed \
