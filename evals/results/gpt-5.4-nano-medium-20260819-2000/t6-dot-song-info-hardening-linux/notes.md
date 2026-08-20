@@ -1,0 +1,1 @@
+Normal- and maximum-scale long-metadata screenshots showed the text inside Dot without overlap. Restart persistence and short-metadata comparisons were not independently demonstrated; final runtime was live with zero overflow reports.

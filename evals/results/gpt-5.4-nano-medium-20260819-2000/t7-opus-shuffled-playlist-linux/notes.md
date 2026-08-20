@@ -1,0 +1,1 @@
+The live run queued the ten supplied Opus fixtures once, enabled shuffle, and advanced exactly one track within the fixture set. Event history and final inspection confirmed the transition and a clean runtime.

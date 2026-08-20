@@ -1,0 +1,1 @@
+The candidate preserved different-folder jump behavior and added scroll-to-track plus an accessible semantics label. The predicate still only checks folder mismatch, so the same-folder off-screen action remained absent; final runtime was responsive with no overflow reports.

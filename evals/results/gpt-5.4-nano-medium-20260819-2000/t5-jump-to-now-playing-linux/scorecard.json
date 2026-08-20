@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Different-folder jump action was activated successfully and the candidate captured a post-action screenshot after invoking scroll-to-track.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The shipped visibility predicate compares only parent folders and never uses isTrackVisible for a same-folder playing track, so the core off-screen case is not exposed.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A playing track in the current folder does not expose the jump action when its row is visible.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Final runtime had isPlaying false and songInfo null, with no jump action in semantics.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active affordance is a labeled semantics button and the session tapped its action successfully.",
+      "evidence_ref": "verification-8af24c9cfd614954a6ae57907a8b8998"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before-state screenshots were captured and reviewed while the target row was outside the visible browser region.",
+      "evidence_ref": "verification-8af24c9cfd614954a6ae57907a8b8998"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "An after-state screenshot was captured and reviewed following the jump action.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Events support play, tap, and screenshot claims, but the stronger same-folder claim lacks a supporting state observation.",
+      "evidence_ref": "events-9c21d7269fce4b3f952b8d55286faa36"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The app remained usable, but the session did not complete a full on-screen navigation and next/previous regression sweep.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final runtime remained responsive and reported zero overflow or error reports.",
+      "evidence_ref": "verification-d9932c3acf8f4981b07921c7182cad03"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette selected, judge semantics show screen immediately followed by color scheme with abutting bounds.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The row label is exactly lowercase color scheme, with no duplicate visible cassette variant row.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E3","tier":"required","verdict":"partial","note":"Direct screen=cassette succeeded and the row reflects cassette, but the complete on-screen cycle and multiple transitions were not verified.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E4","tier":"required","verdict":"partial","note":"Direct cassettevariant=3 succeeded and the row displays Tape · Colour, but on-screen activation and multiple transitions were not verified.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"Non-Cassette screens and their representative controls were not exercised, so scoping is unverified.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine judge PNG shows Settings with screen=cassette and the adjacent, legible color scheme row.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Semantics and settings state corroborate cassette, adjacent color scheme placement, and Tape · Colour.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"Surrounding rows remain present, but no baseline comparison or representative interaction sweep established preserved order and behavior.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Final runtime inspection reports a live app and zero overflow reports after the settings capture.","evidence_ref":"verification-7b20a5a6612447afa0aab84dcdc28125"}
+  ]
+}

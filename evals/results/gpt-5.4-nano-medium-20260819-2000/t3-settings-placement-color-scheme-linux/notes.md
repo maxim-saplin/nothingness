@@ -1,0 +1,1 @@
+Cassette placement and the exact color scheme label were verified with semantics and a genuine screenshot. Coverage was limited because no full screen cycle, on-screen row activation, or non-Cassette regression sweep was completed.

@@ -2,7 +2,7 @@
 
 **11/18** across 6 scored tasks · **$0.8818** · 742.1k in / 166.9k out · unassisted · judge: judge-t1, judge-t2, judge-t3, judge-t4, judge-t5, judge-t6, judge-t7
 
-<!-- judge: one paragraph — what was run and the single most important thing it showed. -->
+This campaign scored 11/18 across six scored Linux tasks, with one task left unassigned. The strongest results came from the settings and Dot layout checks; playback smoke and gesture coverage exposed major gaps in execution and evidence.
 
 | Task | Score | Outcome | Assisted | In | Out | Reasoning | Cache | Cost | $/point |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -654,4 +654,6 @@ None — fully unassisted.
 
 ## What surprised us
 
-<!-- judge: up to 3 bullets. Only things the table does not already say. -->
+- The settings and Dot tasks produced strong live evidence, while playback smoke failed because the app was never launched.
+- The gesture task remained operationally unassigned after the judge lost the run before scoring.
+- Several verdicts turned on evidence quality and recovery discipline as much as on source changes.
