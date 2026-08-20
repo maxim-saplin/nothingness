@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing all preferences and restarting, my verification screenshot showed the Dot pulsing dot alone with no artist/title overlay.","evidence_ref":"verification-01cd47cd37de4c138332b0e2557ef23c"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled show song info, restarted, and verified the overlay remained visible with the playing fixture track afterward.","evidence_ref":"verification-f59aaa3c28c04ff1bc9dcb5d2a47a852"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I disabled show song info, restarted, and verified the overlay was absent while the dot remained visible.","evidence_ref":"verification-c0622a64746e416bb789be166d1e82bf"},
+    {"id":"E4","tier":"required","verdict":"met","note":"My fresh 100% screenshot with 64-character artist and title shows both wrapped inside the hero, above and separate from the visible pulsing dot, with no clipped glyphs.","evidence_ref":"verification-2cd53e69353b4f0a89bc86c96d733540"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At 150% the long text itself is contained, but the screenshot shows the pulsing dot has disappeared entirely, so the required overlay-over-dot layout is not preserved.","evidence_ref":"verification-13623197ade14fff90f04cf4aafcfd1e"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"My fresh 100% reproduction was on-point, but the candidate's submitted normal screenshot contains only short 01-undercover-49.opus metadata rather than the required long artist and title.","evidence_ref":"verification-2cd53e69353b4f0a89bc86c96d733540"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"My fresh 150% reproduction shows long metadata but no pulsing dot, while the candidate's submitted maximum screenshot is the same short-metadata phone-frame case and is not on-point.","evidence_ref":"verification-13623197ade14fff90f04cf4aafcfd1e"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Normal and maximum tree captures independently show non-empty hero-artist and hero-song text; the tree reports 30/15px at normal and 45/22.5px at maximum for the long values.","evidence_ref":"verification-a26d7f43808e405991f90d842eab81b6"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short undercover metadata renders cleanly with a visible dot at 100%, but at confirmed 150% the overlay remains while the dot disappears, an obvious maximum-scale regression.","evidence_ref":"verification-f0a8ae7a75d2446cbbd8714a698f4553"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After repeated toggles, restarts, scale changes, and long/short playback, the app stayed responsive and the runtime verification reported zero overflow/error reports.","evidence_ref":"verification-13623197ade14fff90f04cf4aafcfd1e"}
+  ]
+}

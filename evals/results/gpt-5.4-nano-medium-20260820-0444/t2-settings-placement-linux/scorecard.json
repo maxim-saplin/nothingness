@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live Cassette settings semantics and screenshot show screen at index 5 immediately followed by variant at index 6 with abutting rows.","evidence_ref":"verification-692db8f24d464d4aaf38cf99623b0f1b"},
+    {"id":"E2","tier":"required","verdict":"met","note":"On-screen activation cycled Spectrum, Polo, Dot, Void, and Cassette in order; direct screen changes also updated the displayed screen value.","evidence_ref":"verification-ed2709afe77a40c396d8aaa54297b0cc"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The Cassette variant row changed on-screen from Colour to Minimal, and direct variant selection returned it to the requested displayed value.","evidence_ref":"verification-fdd5934a531e4a0f80c6a853703759ee"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, Dot, Polo, and Void captures show no Cassette-only row after screen, while their own controls remained present and responsive when exercised.","evidence_ref":"verification-18572af5945b4c31b59eb98f84087d0d"},
+    {"id":"E5","tier":"required","verdict":"partial","note":"The judge captured a genuine, legible Cassette settings screenshot, but the candidate's own screenshot artifact was empty and its run never reached a natural completion.","evidence_ref":"verification-692db8f24d464d4aaf38cf99623b0f1b"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final semantics dump independently corroborates Cassette, variant Colour, and consecutive indices 5 and 6 alongside the screenshot.","evidence_ref":"verification-692db8f24d464d4aaf38cf99623b0f1b"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"Observed order remained stable and immersive toggled successfully, but the exhaustive pairwise and every-row functionality comparison requested by the rubric was not completed.","evidence_ref":"verification-692db8f24d464d4aaf38cf99623b0f1b"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"The live app stayed responsive with zero overflow reports in final runtime inspection, but the candidate itself was auto-finished while a test hung, so the full candidate exercise was not naturally completed.","evidence_ref":"verification-692db8f24d464d4aaf38cf99623b0f1b"}
+  ]
+}

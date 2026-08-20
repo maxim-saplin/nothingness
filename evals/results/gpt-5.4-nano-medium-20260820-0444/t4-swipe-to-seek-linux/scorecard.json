@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's final event trace shows one atomic dragByKey end=false followed by a screenshot, but its captured during image reads 0:00 / 0:00 · 0%; it was not a valid track target/duration/progress capture.","evidence_ref":"events-14b9861e2abc48cb8b5266457f8d93f2"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Fresh real-X11 during and post captures show no centered time readout or tall vertical seek line; the varied swipe burst also left no center indicator.","evidence_ref":"verification-343f1adc1f4c4ff5a2110bf83eac31e5"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After releasing a long-track real swipe and settling, the bottom line reverted from the temporary seek text to the normal ~ crumb, with no residual seek readout.","evidence_ref":"verification-299823c1dd5748d5b291b7cacf7486fa"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate event trail contains only one legible during-gesture target capture; the earlier attempt failed on the mouse-tracker assertion, so there are no two live values to compare.","evidence_ref":"events-14b9861e2abc48cb8b5266457f8d93f2"},
+    {"id":"E5","tier":"required","verdict":"met","note":"On a 7:00 track, the pre-swipe position was about 2:08, the during target was 3:14, and the post-release runtime was about 3:20 while still playing; release committed the seek in the requested direction and near the target.","evidence_ref":"verification-299823c1dd5748d5b291b7cacf7486fa"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"A candidate during screenshot is traceable, but the surrounding record shows it was taken after one atomic end=false call with no real elapsed incremental pointer capture; this does not meet the rubric's genuine in-flight evidence requirement.","evidence_ref":"events-14b9861e2abc48cb8b5266457f8d93f2"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The candidate's collected post screenshot follows its end=true call and visibly shows the normal ~ folder crumb with the seek feedback cleared; the judge independently saw the same settled state after a real swipe.","evidence_ref":"verification-299823c1dd5748d5b291b7cacf7486fa"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled structural bundle independently reports the normal ~ bottom semantics alongside a live playing track, agreeing with the post-swipe screenshot.","evidence_ref":"verification-299823c1dd5748d5b291b7cacf7486fa"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Real hero center tap paused playback and a subsequent hero next tap advanced the queue; an upward swipe in swipe-up mode changed the browser layout. The hero previous tap did not change the current index, so the full unrelated-gesture set is not demonstrated.","evidence_ref":"verification-cb775dae211d4426b151662e210254b1"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Five varied real-X11 swipes completed without destabilizing the app; overflow reports were zero before and after, and the final runtime bundle remained live and playing.","evidence_ref":"verification-acd77db599fa442d96f28b7727bf898b"}
+  ]
+}

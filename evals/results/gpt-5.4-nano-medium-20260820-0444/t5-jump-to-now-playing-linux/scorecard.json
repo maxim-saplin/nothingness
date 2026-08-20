@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With 10-undercover-47.opus playing, I browsed /opt/nothingness, saw the accessible jump action, activated it, and verified navigation to /opt/nothingness/media with the target row fully visible.","evidence_ref":"verification-7d583876323b4de2990b2967197b2c52"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"With the browser already at /opt/nothingness/media and the playing row offscreen at scrollPosition 0, the live semantics tree exposed no jump action and tapping the expected affordance returned no widget found.","evidence_ref":"verification-c5d5dae5d44d42c49e3843adb17ed6c4"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After the successful jump, row 47 was fully within the list viewport and the semantics capture exposed no active jump action.","evidence_ref":"verification-7d583876323b4de2990b2967197b2c52"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Idle captures at both /opt/nothingness/media and /opt/nothingness showed isPlaying false and songInfo null with no active jump affordance.","evidence_ref":"verification-cab8f15c7361405287b47f4a98f10f58"},
+    {"id":"E5","tier":"required","verdict":"met","note":"When active in the different-folder case, the semantics tree exposed a tappable label reading \"jump to now-playing track\".","evidence_ref":"verification-1b537799edaf4af08232208fab8aff05"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The candidate's genuine before_now_playing_offscreen.png shows the playing track's row absent from the visible browser while the same-folder path remains shown; my live pre-jump capture reproduced the offscreen state.","evidence_ref":"verification-c5d5dae5d44d42c49e3843adb17ed6c4"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The candidate's genuine after screenshot shows the target row visible in /opt/nothingness/media, matching my live post-jump capture with the folder unchanged.","evidence_ref":"verification-7d583876323b4de2990b2967197b2c52"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate session contains concrete inspect, semantics, screenshot, tap, and post-action state observations supporting its write-up rather than only an unverified implementation claim.","evidence_ref":"events-e4ae1887fd6d4c2d9091bdfcf275e635"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"An actual on-screen folder-row tap navigated correctly, and pause/resume/next produced expected live playback transitions; repeated previous checks did not move from queue index 5, so baseline playback coverage was only partial.","evidence_ref":"verification-ad9334f61e92454885ddd0c8d8a0e23b"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After the feature and control exercises the app remained live, overflows reported zero entries, and the final runtime capture showed normal playback and no errors.","evidence_ref":"verification-ad9334f61e92454885ddd0c8d8a0e23b"}
+  ]
+}

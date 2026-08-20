@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics and screenshot show the screen row immediately followed by color scheme, with adjacent bounds and no intervening row.",
+      "evidence_ref": "verification-35b608de2f214ec3861b5f24f388ecd2"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The live semantics label is exactly lowercase color scheme, with no cassette variant row retaining the old label in the captured sheet.",
+      "evidence_ref": "verification-35b608de2f214ec3861b5f24f388ecd2"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Repeated on-screen activation advanced screen through spectrum, polo, dot, cassette, and void, while direct screen changes were reflected in the row and settings state.",
+      "evidence_ref": "verification-36878539cb6f4daab1c7ef4724072501"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping color scheme changed Tape Mono to Tape Amber, and direct cassettevariant 3 changed the displayed value to Tape Colour while cassette remained selected.",
+      "evidence_ref": "verification-bd15cd57aa944c05b55a5b6739179366"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, polo, dot, and void captures show no color scheme row; representative live controls remained responsive, including spectrum immersive and dot show song info.",
+      "evidence_ref": "verification-b6d8ebcf853c4ee9b5a4841e8fa837ff"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The judge-captured PNG visibly shows the Settings sheet with Cassette selected and legible adjacent screen and color scheme rows.",
+      "evidence_ref": "verification-35b608de2f214ec3861b5f24f388ecd2"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The semantics snapshot independently corroborates cassette, the exact color scheme label, row order, and current Tape Mono value.",
+      "evidence_ref": "verification-35b608de2f214ec3861b5f24f388ecd2"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across cassette and non-cassette semantics, unrelated rows retain their order; tapping immersive, variant, and dot show song info changed their displayed values.",
+      "evidence_ref": "verification-b6d8ebcf853c4ee9b5a4841e8fa837ff"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final runtime inspection found the app live and responsive with zero overflow reports after the navigation and control exercise.",
+      "evidence_ref": "verification-c1b568d6d61b46a5b39797a5ff2be2c6"
+    }
+  ]
+}

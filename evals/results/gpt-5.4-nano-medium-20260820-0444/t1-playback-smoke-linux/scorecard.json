@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The candidate launched the Linux debug app and drove it through ext.nothingness VM-service calls; the final verification shows a live extension-answering app.","evidence_ref":"verification-5d319ffd22b044d4bc2916ea201af0c4"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The recorded inspect snapshots show isPlaying true, then false after pause, then true after resume.","evidence_ref":"verification-5d319ffd22b044d4bc2916ea201af0c4"},
+    {"id":"E3","tier":"required","verdict":"met","note":"A four-track queue was loaded; next changed index/path from track 0 to 1/02-undercover-50.opus and prev returned to index 0/01-undercover-49.opus.","evidence_ref":"verification-5d319ffd22b044d4bc2916ea201af0c4"},
+    {"id":"E4","tier":"required","verdict":"met","note":"While playing, the seek to 0:45 was followed by an inspect position of 45373 ms, within the required tolerance of 45000 ms and beyond the starting position.","evidence_ref":"verification-5d319ffd22b044d4bc2916ea201af0c4"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The final report's transition and value claims are backed by the replay output containing the corresponding inspect snapshots and command results.","evidence_ref":"events-c2403174fc0440d09662f2eb9672c7e5"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The inspection found an empty git status and diff stat, and the live transport behavior was normal for an unmodified build.","evidence_ref":"inspection-15f6109304064aada7e5513151aa0bf1"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"No unresolved app crash, hang, or overflow was present; the final runtime remained responsive after the smoke sequence.","evidence_ref":"verification-5d319ffd22b044d4bc2916ea201af0c4"}
+  ]
+}

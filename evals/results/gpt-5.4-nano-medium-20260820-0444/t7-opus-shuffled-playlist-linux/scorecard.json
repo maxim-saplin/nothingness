@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent live verification showed queueLength 10 and exactly the ten mounted fixture paths, each once, with no extras.",
+      "evidence_ref": "verification-c8db199ffe4545e386c768cdf6f13ef6"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings, tapped the visible shuffle status control, and live runtime verification then reported shuffle true.",
+      "evidence_ref": "verification-9a39c03fe83d4a1fba4a3e4ca968fff9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, live verification showed isPlaying true, current fixture /opt/nothingness/media/01-undercover-49.opus, and isNotFound false.",
+      "evidence_ref": "verification-e98e2d138dec48dfb8dd12b0824f049c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "One live next changed currentIndex from 6 to 7 and the current path from 01-undercover-49.opus to 02-undercover-50.opus; both were valid supplied fixtures.",
+      "evidence_ref": "verification-5649211093db4baba8963231cc0e1cd5"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The complete candidate event chain contains no queue, playback, or navigation action that introduced foreign media; my live re-check also observed only the ten supplied paths.",
+      "evidence_ref": "events-3ce82043033d4cf1ae0a79c2f67b4894"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate reported an implementation and a proposed evaluator sequence, but supplied no concrete queue, shuffle, playback, or transition state observation traceable to those claims.",
+      "evidence_ref": "events-3ce82043033d4cf1ae0a79c2f67b4894"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Inspection found an unauthorized modification to dev/agent_service.dart beyond the one exempt macOS registrant change, although the live behavior itself was otherwise normal.",
+      "evidence_ref": "inspection-85526eb443954653a3ba723e9ef9fd13"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No unresolved app crash or hang remained; the independently launched debug app answered throughout verification and reported zero overflow records.",
+      "evidence_ref": "verification-de35af23c8214a82860c2315205becd5"
+    }
+  ]
+}
