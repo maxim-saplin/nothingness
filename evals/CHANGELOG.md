@@ -2,6 +2,9 @@
 
 ## 1.7.2 — 2026-08-19
 
+The external Copilot runner now supports repeated campaigns and a dry-run that validates session cost accounting into `orchestrator.json`.
+The leaderboard also accepts numeric `cost_usd` strings written by Copilot orchestrators while preserving `N/A` for unavailable costs.
+
 Campaign start no longer races the desktop entrypoint against a slow `docker cp`. The entrypoint keeps retrying Xvfb/Pulse until SIGTERM instead of exiting at 30s; waiters fail fast when the container dies and copy `/run/nothingness/logs` on failure. Fixture seeding streams `git archive` into the container (tar pipe) and runs git init / `pub get` / primed baseline inside it, dropping the host-side checkout and `.git` copy. Preflight no longer re-runs `flutter precache` or a temp-dir `pub get` that prepare and the offline gate already proved. Baseline containers keep `--rm` off so failures leave logs. Ops only; scores remain comparable with 1.7.1.
 
 ## 1.7.1 — 2026-08-19

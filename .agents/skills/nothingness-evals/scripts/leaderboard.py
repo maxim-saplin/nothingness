@@ -55,6 +55,17 @@ def money(value: object) -> str:
     return "unknown" if not isinstance(value, (int, float)) else f"${value:.4f}"
 
 
+def orchestrator_cost(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str) and value.upper() != "N/A":
+        try:
+            return float(value.lstrip("$").replace(",", ""))
+        except ValueError:
+            pass
+    return None
+
+
 def retry_summary(manifest: dict[str, Any], items: list[dict[str, Any]]) -> str:
     if not manifest:
         return "–"
@@ -95,13 +106,13 @@ def render(results: list[dict[str, Any]]) -> list[str]:
         date = str(items[0].get("classified_at") or "")[:10]
         conductor = orchestrator(name)
         who = str(conductor.get("orchestrator") or "unrecorded")
-        conducted = conductor.get("cost_usd")
+        conducted = orchestrator_cost(conductor.get("cost_usd"))
         versions = sorted({str(item.get("eval_version") or "") for item in items} - {""})
         helped = [item for item in items if item.get("assisted")]
         interventions = sum(item.get("intervention_count") or 0 for item in items)
         lines.append(
             f"| `{model.get('model', '?')}` | {model.get('thinking', '?')} | {date} | {', '.join(versions) or '–'} | {who} "
-            f"| {f'${conducted:.2f}' if isinstance(conducted, (int, float)) else '–'} | {retry_summary(manifest, items)} "
+            f"| {f'${conducted:.2f}' if conducted is not None else '–'} | {retry_summary(manifest, items)} "
             f"| **{score}/{len(scored) * 3}** | {'no' if not helped else f'**{interventions}** on {len(helped)}/{len(items)} tasks'} "
             f"| {tokens['input'] / 1000:.0f}k / {tokens['output'] / 1000:.0f}k "
             f"| ${accepted_cost:.4f} | {money(campaign_cost)} | {f'${campaign_cost / score:.4f}' if isinstance(campaign_cost, (int, float)) and score else '–'} | [detail](results/{name}/README.md) |"

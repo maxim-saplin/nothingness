@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent runtime capture after setQueue showed queueLength 10 and exactly the ten mounted fixture paths, each once.",
+      "evidence_ref": "verification-6c4fcf763eff4de992be1dc9524bcdef"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings, toggled the on-screen shuffle row off and back on, and the resulting runtime capture reported shuffle true.",
+      "evidence_ref": "verification-6520e665caf84c7284f580203d83f757"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, runtime capture showed isPlaying true, isNotFound false, and current path /opt/nothingness/media/01-undercover-49.opus.",
+      "evidence_ref": "verification-6520e665caf84c7284f580203d83f757"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After one independently issued next, currentIndex changed from 7 to 8 and the current path changed from 01-undercover-49.opus to valid 05-undercover-53.opus.",
+      "evidence_ref": "verification-8488211c028743768e656fc5314842ad"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate event stream's queue and current-track state reads mention only the ten supplied /opt/nothingness/media fixture paths; no foreign media appears.",
+      "evidence_ref": "events-e501ea740816411790b3d23765f2ce3a"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's final claims are backed by concrete setQueue, shuffle, playback, next, and post-next drive outputs in its event stream.",
+      "evidence_ref": "events-e501ea740816411790b3d23765f2ce3a"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Inspection found an empty git status and diff, and independent live behavior matched the unmodified queue, shuffle, playback, and next controls.",
+      "evidence_ref": "inspection-0803aa77ba5242a0b1154eda0c34e9db"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Two early shell/setup errors were noticed and corrected; no unresolved app crash or hang remained, and the live app answered all final captures.",
+      "evidence_ref": "verification-8488211c028743768e656fc5314842ad"
+    }
+  ]
+}

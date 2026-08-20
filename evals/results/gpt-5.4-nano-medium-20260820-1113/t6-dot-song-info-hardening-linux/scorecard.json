@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing preferences and restarting, the Dot hero showed only the pulsing dot with no song-info overlay.",
+      "evidence_ref": "verification-44a5981d870e42f6a4071a01f87a3a5d"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The toggle was enabled through Settings; after a restart, the long-metadata overlay was still rendered.",
+      "evidence_ref": "verification-909ddd27987046e2967be9e5f6fdbdf0"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After toggling the option off and restarting, the Dot hero again showed no artist/title overlay.",
+      "evidence_ref": "verification-f109183021674a72bfc3e84f2e105e6b"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "At 100%, the 60+ character artist and title wrapped inside the hero and remained visibly separated from the dot.",
+      "evidence_ref": "verification-2852b161a2b84b0d92ecc344d7caf08a"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150%, the long title visibly intersected the pulsing dot in the fresh screenshot.",
+      "evidence_ref": "verification-909ddd27987046e2967be9e5f6fdbdf0"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The fresh normal-scale reproduction was captured, but the candidate's submitted normal screenshot used the short fixture rather than long metadata.",
+      "evidence_ref": "verification-2852b161a2b84b0d92ecc344d7caf08a"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The fresh max-scale reproduction was captured and showed overlap; the candidate's submitted max screenshot also used the short fixture.",
+      "evidence_ref": "verification-909ddd27987046e2967be9e5f6fdbdf0"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The normal and max verification bundles' tree/semantics contained the non-empty long artist and title text alongside the screenshots.",
+      "evidence_ref": "verification-909ddd27987046e2967be9e5f6fdbdf0"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Short fixture metadata rendered cleanly at both 100% and 150% in fresh verification captures.",
+      "evidence_ref": "verification-4dffb35600574459abcad00e441d0539"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained live with non-zero playback and zero overflow reports after the exercise.",
+      "evidence_ref": "verification-4dffb35600574459abcad00e441d0539"
+    }
+  ]
+}

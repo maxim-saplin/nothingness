@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette selected, the live semantics and screenshot show the screen row immediately followed by color scheme, with no intervening row or header.","evidence_ref":"verification-60aad99f33104cbeb0f734c72611db6b"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The live semantics and screenshot show exactly one lowercase color scheme label and no stale cassette variant row in the visible sheet.","evidence_ref":"verification-60aad99f33104cbeb0f734c72611db6b"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I tapped the screen selector to Spectrum and directly switched through Polo, Dot, Void, and Cassette; each fresh capture reported the matching screen value.","evidence_ref":"verification-d4c42467e03c409eb4b3ec607eb92a61"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Tapping the renamed row changed its displayed value to Tape · Amber, and a direct cassettevariant call retained that matching value in a fresh capture.","evidence_ref":"verification-1ec74bcf771845408014978bf90ccdf8"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void captures contain no color scheme row; representative controls changed for Spectrum (bar count), Polo and Void (text size via X11), and Dot (show song info).","evidence_ref":"verification-cc648893394543a49082a331661069f0"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine live screenshot clearly shows the Settings sheet with Cassette selected, screen, and the adjacent color scheme row and value.","evidence_ref":"verification-60aad99f33104cbeb0f734c72611db6b"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The independent semantics capture corroborates Cassette, exact lowercase label, adjacency, and the current Tape · Amber value.","evidence_ref":"verification-60aad99f33104cbeb0f734c72611db6b"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Unrelated settings retained their order across the captured screens, and immersive, Spectrum bar count, Dot show-song-info, Polo text size, and Void text size all remained responsive.","evidence_ref":"verification-9b1d7112ac374e73afb3c6552535591d"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After navigation and control exercise, the app remained responsive and the runtime capture reported zero overflow reports.","evidence_ref":"verification-60aad99f33104cbeb0f734c72611db6b"}
+  ]
+}

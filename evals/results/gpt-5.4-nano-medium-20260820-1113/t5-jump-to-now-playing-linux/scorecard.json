@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"In /opt/nothingness, the accessible jump action was present; activating it navigated to /opt/nothingness/media and the playing 06-undercover-54 row was visible.","evidence_ref":"verification-e71cd64a7ef34de3ae6c5aacacee85e3"},
+    {"id":"E2","tier":"required","verdict":"met","note":"With /opt/nothingness/media already open and 06-undercover-54 offscreen, the action appeared and activation scrolled to the row while currentPath stayed unchanged.","evidence_ref":"verification-e77e5c95c24d4e5183a3301964b18eec"},
+    {"id":"E3","tier":"required","verdict":"met","note":"While playing 10-undercover-47, its row was fully within the list viewport and no active jump action appeared in semantics.","evidence_ref":"verification-bcf9428a7a0140af83e5563b02159dd3"},
+    {"id":"E4","tier":"required","verdict":"met","note":"After the fixture ended, inspect reported isPlaying false and songInfo null, and the idle media browser exposed no jump action.","evidence_ref":"verification-9fcf744fe2964a36bf1fbc4c2d5e9c6a"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active action was a semantics button labeled 'scroll to now-playing track', not an unlabeled glyph.","evidence_ref":"verification-3e317caaa8a841c2866025e338e9014f"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The pre-action capture shows playback of 06-undercover-54 while that row is absent from the visible list region.","evidence_ref":"verification-3e317caaa8a841c2866025e338e9014f"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The post-action capture shows 06-undercover-54 visible in the same /opt/nothingness/media folder.","evidence_ref":"verification-e77e5c95c24d4e5183a3301964b18eec"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate's write-up claims are traceable to its drive.py inspect/nav/play/tap/shoot calls and the live state captures in the contiguous event stream.","evidence_ref":"events-55543c177bad4e048e50622cc514adc2"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"An on-screen folder tap changed currentPath as expected, and browser-row playback plus next, prev, pause, and resume produced responsive queue/playback transitions.","evidence_ref":"verification-10983504445144f1ae2bd7a1bd723f6e"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated jump and navigation checks left the app live with zero overflow reports and a responsive runtime inspection.","evidence_ref":"verification-10983504445144f1ae2bd7a1bd723f6e"}
+  ]
+}

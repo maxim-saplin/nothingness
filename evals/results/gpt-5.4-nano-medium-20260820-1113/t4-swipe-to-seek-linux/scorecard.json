@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate event trail contains atomic dragByKey calls and post-call screenshots, but no traceable capture taken while a gesture was in flight showing the bottom-line target, duration, and progress.","evidence_ref":"events-b9987bdaa8d543dbb1e8cbc4aa95469b"},
+    {"id":"E2","tier":"required","verdict":"met","note":"A real calibrated X11 swipe capture showed no centered time readout or tall vertical seek line; the hero remained free of the old center HUD.","evidence_ref":"verification-97964f68de4b488d9657245cc98c5742"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After a short swipe and release, the settled screenshot and tree showed the bottom line back to the normal folder marker (~), with the seek preview state cleared.","evidence_ref":"verification-73531fb458e54db795e4aa1ebc028218"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate supplied no two legible mid-gesture captures; its own records show atomic drag calls followed by settled screenshots rather than live target samples.","evidence_ref":"events-b9987bdaa8d543dbb1e8cbc4aa95469b"},
+    {"id":"E5","tier":"required","verdict":"met","note":"A fresh playback from the beginning, followed by a calibrated rightward swipe of about 200px, landed at 18.36s on an 83.78s track, matching the roughly 17.5s target implied by the gesture.","evidence_ref":"verification-73531fb458e54db795e4aa1ebc028218"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate-owned screenshot is traceable to an actually in-flight gesture; the candidate's screenshot calls occurred after atomic drag calls and delay, not between incremental pointer updates.","evidence_ref":"events-b9987bdaa8d543dbb1e8cbc4aa95469b"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The genuine post-gesture screenshot shows the normal folder line (~) and no lingering seek readout or center indicator.","evidence_ref":"verification-73531fb458e54db795e4aa1ebc028218"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled verification tree independently reports the normal ~ folder text and a null seek-preview state, agreeing with the screenshot.","evidence_ref":"verification-73531fb458e54db795e4aa1ebc028218"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"An on-screen X11 play/pause tap clearly toggled playback, and the tree exposed previous/play/next controls; the combined previous/next probe ended with no active track, so all tap-zone transitions and vertical behavior were not fully established.","evidence_ref":"verification-f6b2242ef0304d10a9bcc3c443442a5b"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated calibrated real-X11 swipes left the live app responsive; the verification runtime reported zero overflow/error reports and the process remained alive.","evidence_ref":"verification-73531fb458e54db795e4aa1ebc028218"}
+  ]
+}

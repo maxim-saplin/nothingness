@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Independent Cassette semantics and screenshot show screen at index 5 immediately followed by variant at index 6 with abutting row bounds.","evidence_ref":"verification-4d8421a195d8469ca90ec6c834f2f38c"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I activated the screen row through Spectrum, Polo, Dot, Void, and Cassette and each captured state matched the selected screen; the cycle returned to Cassette.","evidence_ref":"verification-57f7ee2698fe44c786f4b9c3377f3503"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The Cassette variant row changed from Tape · Mono after its on-screen activation, and direct cassettevariant 2 was reflected as Tape · Amber in a fresh capture.","evidence_ref":"verification-f8c2b550df994ac8b25cdeb6e71ff158"},
+    {"id":"E4","tier":"required","verdict":"partial","note":"Spectrum, Polo, Dot, and Void captures showed their own rows and no Cassette-only row under screen; representative Spectrum and Dot controls changed, but slider taps for Polo and Void did not provide a clear changed value.","evidence_ref":"verification-8d338754baeb49a283ab08a386222f35"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The independent PNG plainly shows the Settings sheet with Cassette selected and readable adjacent screen and variant rows.","evidence_ref":"verification-4d8421a195d8469ca90ec6c834f2f38c"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The same independent semantics snapshot structurally corroborates screen=cassette, variant= Tape · Mono, index 5 followed by index 6, and matching row rectangles.","evidence_ref":"verification-4d8421a195d8469ca90ec6c834f2f38c"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Across the captured screen states, unrelated MODE/LOOK/LIBRARY and shared DISPLAY rows retained their order; direct taps on unrelated controls such as spectrum color and Dot song-info changed their values without reshuffling.","evidence_ref":"verification-3b442e38ca924515b1868f58d961ecf3"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated settings navigation, screen cycling, and control activation, the final runtime inspection remained responsive and reported zero overflow/error reports.","evidence_ref":"verification-4d8421a195d8469ca90ec6c834f2f38c"}
+  ]
+}
