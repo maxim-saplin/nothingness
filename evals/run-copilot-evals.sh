@@ -134,7 +134,7 @@ run_dry() {
 
 run_campaign() {
   local iteration="$1"
-  local session_id events_file prompt
+  local session_id events_file
   local -a before_campaigns after_campaigns new_campaigns
   local path campaign_path campaign_id result_dir
   declare -A before_set=()
@@ -146,10 +146,9 @@ run_campaign() {
 
   session_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   events_file="$COPILOT_HOME_DIR/session-state/$session_id/events.jsonl"
-  prompt="$PROMPT"$'\n\n'"This is intentional repeat $iteration of $COUNT. Create a fresh campaign and use --allow-repeat when creating it."
 
   printf '[copilot] repeat %s/%s\n' "$iteration" "$COUNT"
-  copilot --session-id "$session_id" --yolo -p "$prompt"
+  copilot --session-id "$session_id" --yolo -p "$PROMPT"
 
   mapfile -t after_campaigns < <(list_campaigns)
   new_campaigns=()
