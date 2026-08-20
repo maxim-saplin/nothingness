@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live queue contained exactly ten supplied /opt/nothingness/media/*.opus paths, each once and no foreign entries.","evidence_ref":"verification-6cecf5df1eba4695994e34e96f7431cd"},
+    {"id":"E2","tier":"required","verdict":"met","note":"After using the real settings shuffle control, runtime reported shuffle true.","evidence_ref":"verification-2ed948c1e9a842ff9a97b900599cdc65"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Before navigation, runtime showed isPlaying true on a valid in-set fixture with nonzero spectrum.","evidence_ref":"verification-2ed948c1e9a842ff9a97b900599cdc65"},
+    {"id":"E4","tier":"required","verdict":"met","note":"One next transition changed the current fixture from 01-undercover-49.opus to 02-undercover-50.opus while remaining valid and in-set.","evidence_ref":"verification-6cecf5df1eba4695994e34e96f7431cd"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate event chain and final report contain only the ten supplied fixture paths for queue and current-track state; no foreign media appeared.","evidence_ref":"events-42cea1bae55244a189c51b9446662fb9"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"Candidate claims about queue size, shuffle, playback, and the single next transition were backed by extension state reads and a final report.","evidence_ref":"events-42cea1bae55244a189c51b9446662fb9"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Final inspection showed an empty git status/diff and the live behavior matched the unmodified app's expected playback controls.","evidence_ref":"inspection-c34fa1705cb54ca9b930e40e1a806ca9"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The app remained responsive, with zero overflow reports and a live playing runtime after the transition.","evidence_ref":"verification-6cecf5df1eba4695994e34e96f7431cd"}
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate issued concrete ext.nothingness drive calls, and my live verification attached to the running Linux VM with registered runtime state.",
+      "evidence_ref": "verification-273c112ba64d493ca2122f1bc6cbc305"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent runtime captures showed track 01 playing, then paused, then playing again, with the expected isPlaying values.",
+      "evidence_ref": "verification-1b356ef677e34227b4bbd24b1dec4d19"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a three-track queue loaded, my before/after captures changed currentIndex from 0 to 1 and path from track 01 to track 02 after next.",
+      "evidence_ref": "verification-b5ed408ac2b34f0c8cc5c04349f3c35c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Starting from about 10 seconds while playing, seek 0:30 produced a captured position of 30.416 seconds, clearly forward and within tolerance.",
+      "evidence_ref": "verification-d1c67dc99e264d0cb7530d856e1adb78"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's final claims are backed by its session outputs: play/pause/resume flags, seek acknowledgements and inspect positions, and the second track path after the direct skip workaround.",
+      "evidence_ref": "events-c2c4a1b6fcda41028bd165044c955cf1"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Live behavior was normal and post-run inspection found empty git status and diff, so no source changes were made.",
+      "evidence_ref": "inspection-37ca3944681042a68007f520eec800a0"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The initial VM-service discovery failure was followed by a successful contract call and continued live driving; final runtime verification reported no overflow reports.",
+      "evidence_ref": "verification-1b356ef677e34227b4bbd24b1dec4d19"
+    }
+  ]
+}

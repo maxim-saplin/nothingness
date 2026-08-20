@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing preferences and restarting, the Dot screen showed no artist/title overlay.",
+      "evidence_ref": "verification-f010e2eaf26a4432a33a98c106f17121"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The enabled song-info setting and overlay were still present after a full process relaunch.",
+      "evidence_ref": "verification-422f5dc3ba4f41c784274a3d161afa35"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After toggling the option off and restarting, the Dot screen again showed no overlay.",
+      "evidence_ref": "verification-71fdc3dbbe4b46d59c949d244c6bd038"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "At 100%, genuinely long artist and title text wrapped inside the hero with no visible edge clipping or dot intersection.",
+      "evidence_ref": "verification-88e6062362c24091b2d78d740820c2b9"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "At 150%, long metadata remained inside the hero; the artist was legibly ellipsized and the title wrapped without clipping or overlap.",
+      "evidence_ref": "verification-422f5dc3ba4f41c784274a3d161afa35"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's submitted normal-scale screenshot shows only short undercover/49 metadata, not the required long-metadata state.",
+      "evidence_ref": "verification-88e6062362c24091b2d78d740820c2b9"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's submitted max-scale screenshot likewise shows only short undercover/49 metadata, not the required long-metadata state.",
+      "evidence_ref": "verification-422f5dc3ba4f41c784274a3d161afa35"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Fresh tree captures at 100% and 150% contain non-empty hero-artist and hero-song Text nodes with the long metadata.",
+      "evidence_ref": "verification-422f5dc3ba4f41c784274a3d161afa35"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Fresh short-metadata captures at normal and maximum scale remained clean and preserved the ordinary overlay layout.",
+      "evidence_ref": "verification-93aa8c52a99f43c7b9a02fa7483cb717"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated setting, scale, long/short playback, and restart checks, the app remained responsive and final runtime reported zero overflow/error reports.",
+      "evidence_ref": "verification-13c69de094644ba39849c12c9391bc68"
+    }
+  ]
+}

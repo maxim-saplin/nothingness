@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette selected, semantics and the screenshot show screen at index 5 immediately followed by color scheme at index 6, with text size next.","evidence_ref":"verification-970883194fec46a882ad5e77cfeda73a"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The row label reads exactly lowercase color scheme and the cassette-specific row is not duplicated elsewhere; the displayed value is Tape · Mono.","evidence_ref":"verification-970883194fec46a882ad5e77cfeda73a"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I tapped the screen row through Cassette, Spectrum, Polo, Dot, Void, and back to Cassette, and each getSettings screen value matched the active row.","evidence_ref":"verification-a9d7b7d736294ff4beca84ac3c974496"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The color scheme row changed from Tape · Mono to Tape · Amber on-screen, and cassettevariant 3 produced Tape · Colour in a fresh semantics capture.","evidence_ref":"verification-00746998efdc4b9d931bfeed2e9cf22a"},
+    {"id":"E5","tier":"required","verdict":"partial","note":"Spectrum independently showed no color scheme row outside Cassette, and Dot/Void controls responded, but spectrum/polo lower controls were not reachable by synthetic key tap in this session, so all four non-Cassette controls are not fully proven.","evidence_ref":"verification-aabe5e601da64f8fa18bcabf6ba4b38e"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The candidate screenshot genuinely shows the Settings sheet with Cassette, screen, color scheme, its current value, and the adjacent text-size row legibly in frame.","evidence_ref":"verification-970883194fec46a882ad5e77cfeda73a"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The independent semantics dump agrees with the screenshot on screen, exact color scheme label, order, and Tape · Mono value.","evidence_ref":"verification-970883194fec46a882ad5e77cfeda73a"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Unrelated rows retained their order, and immersive/theme taps remained responsive while the cassette pair was inserted locally.","evidence_ref":"verification-ad902a8986d8491194016b0f4244d854"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After repeated settings navigation, screen cycling, and color-scheme changes, the app remained live with zero overflow/error reports.","evidence_ref":"verification-ad902a8986d8491194016b0f4244d854"}
+  ]
+}

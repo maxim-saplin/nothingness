@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With 10-undercover-47.opus playing while browsing /opt/nothingness, the accessible jump action appeared; activating it navigated to /opt/nothingness/media and left the target row visible.",
+      "evidence_ref": "verification-e04512c8654a4f53a9df4d069170d527"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With 07-undercover-44.opus playing and the media folder reset so its row was off-screen, the action appeared; activation kept /opt/nothingness/media and scrolled the 44 row into view.",
+      "evidence_ref": "verification-c719d5f3b0174aada1c6840e4087b366"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "When the playing 10-undercover-47 row was fully visible in the correct folder, no active jump action was exposed in semantics.",
+      "evidence_ref": "verification-0b87cf5b87f844618394b1a7fd57dadc"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After hot restart, playback inspect reported isPlaying false and songInfo null; the semantics capture exposed no jump action.",
+      "evidence_ref": "verification-16c1814561f14ee8b21244b25899de51"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active action was exposed in semantics with the distinguishing label \u201cjump to now-playing track\u201d and a tappable button node.",
+      "evidence_ref": "verification-4a926f4e45144d9aa6dcc4b2a604b6cf"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate-submitted before_offscreen2.png is a genuine 280x653 capture showing the playing 44 row absent while later rows are visible; the live pre-jump bundle matches that state.",
+      "evidence_ref": "verification-5db1d27f3ea74b58a88faa56d999e4a0"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate-submitted after_offscreen_action_activated.png is a genuine capture showing row 44 highlighted and visible in the same media path; the live post-jump bundle confirms it.",
+      "evidence_ref": "verification-c719d5f3b0174aada1c6840e4087b366"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Candidate claims about conditional exposure, activation, folder retention, and row visibility are backed by extension reads, screenshot outputs, and the tap event in the contiguous session event trail.",
+      "evidence_ref": "events-ed30c04e53e04ed285ccc3c93bb74e2b"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An actual tap on void-folder:/opt/nothingness/media changed the folder, and previous/pause/resume/next playback controls responded while the app remained live.",
+      "evidence_ref": "verification-2009b86387ca4cc4ad40ef623a5713cf"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated jump/navigation/playback checks, the app remained responsive and final runtime reported zero overflow/error reports.",
+      "evidence_ref": "verification-5bca415141874351ae5b1500f95bc90c"
+    }
+  ]
+}

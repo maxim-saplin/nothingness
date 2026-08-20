@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate event trail contains only atomic dragByKey replies and no traceable mid-gesture capture whose output shows the bottom-line feedback.","evidence_ref":"events-e85c887b083a4922b2be2c8dfb6400be"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Independent real-X11 forward and reverse held swipes showed only the bottom-line target/duration/progress readout; no centered time readout or tall vertical seek indicator appeared.","evidence_ref":"verification-99f6bd31eb834b90b341b2a0aa99dbb1"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and settling, the final screenshot returned the bottom line to the normal folder-path display (~), with no lingering seek readout.","evidence_ref":"verification-64e6aef0e02c40bd9b9224a04485a8b3"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate did not capture two legible during-gesture outputs; its event record shows atomic drag calls without live target samples, so candidate-owned tracking evidence is absent.","evidence_ref":"events-e85c887b083a4922b2be2c8dfb6400be"},
+    {"id":"E5","tier":"required","verdict":"met","note":"A controlled forward swipe showed 0:44 / 1:23 and 54% while held; after release I paused immediately and runtime reported position 45464ms, within about one second of that target.","evidence_ref":"verification-64e6aef0e02c40bd9b9224a04485a8b3"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate-produced during-gesture screenshot is traceable in the event trail or artifacts; the candidate ended without a screenshot deliverable.","evidence_ref":"events-e85c887b083a4922b2be2c8dfb6400be"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The independent post-gesture screenshot is a genuine settled capture showing the normal folder line and no temporary seek feedback.","evidence_ref":"verification-64e6aef0e02c40bd9b9224a04485a8b3"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled tree/semantics bundle independently shows the normal now-playing-folder crumb while the screenshot shows the same reverted bottom line.","evidence_ref":"verification-64e6aef0e02c40bd9b9224a04485a8b3"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Actual hero tap keys for next, play/pause, and previous responded, and after enabling swipe-up browser mode a real upward X11 drag expanded the browser as expected.","evidence_ref":"verification-75d3b774e718414eab7f7f9c8e64657e"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated real forward/reverse swipes and other hero gestures left the app responsive; final runtime reported zero overflow/error reports.","evidence_ref":"verification-64e6aef0e02c40bd9b9224a04485a8b3"}
+  ]
+}
