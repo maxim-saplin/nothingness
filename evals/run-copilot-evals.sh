@@ -4,8 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 COPILOT_HOME_DIR="${COPILOT_HOME:-$HOME/.copilot}"
-RUNS_ROOT="${NOTHINGNESS_EVAL_RUNS_ROOT:-$ROOT_DIR/.tmp/evals}"
-CAMPAIGNS_ROOT="$RUNS_ROOT/campaigns"
+BASE_RUNS_ROOT="${NOTHINGNESS_EVAL_RUNS_ROOT:-$ROOT_DIR/.tmp/evals}"
 COPILOT_TASK_WAIT_SECONDS="${COPILOT_TASK_WAIT_TIMEOUT_SECONDS:-86400}"
 
 usage() {
@@ -36,33 +35,35 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
-list_campaigns() {
-  if [[ -d "$CAMPAIGNS_ROOT" ]]; then
-    find "$CAMPAIGNS_ROOT" -mindepth 2 -maxdepth 2 -type f -name campaign.json -printf '%h\n' | sort
-  fi
-}
-
 run_copilot() {
   local session_id="$1"
+  local runs_root="$2"
+  local log_file="$3"
 
-  COPILOT_TASK_WAIT_TIMEOUT_SECONDS="$COPILOT_TASK_WAIT_SECONDS" \
-    copilot --session-id "$session_id" --yolo -p "$PROMPT"
+  mkdir -p "$(dirname "$log_file")"
+  NOTHINGNESS_EVAL_RUNS_ROOT="$runs_root" \
+    COPILOT_TASK_WAIT_TIMEOUT_SECONDS="$COPILOT_TASK_WAIT_SECONDS" \
+    copilot --session-id "$session_id" --yolo -p "$PROMPT" 2>&1 | tee "$log_file"
 }
 
-campaign_status() {
-  local campaign_file="$1"
+result_dir_from_log() {
+  local log_file="$1"
 
-  python3 - "$campaign_file" <<'PY'
-import json
+  python3 - "$log_file" <<'PY'
 import pathlib
+import re
 import sys
 
 path = pathlib.Path(sys.argv[1])
-payload = json.loads(path.read_text(encoding="utf-8"))
-status = payload.get("status")
-if not isinstance(status, str) or not status:
-    raise SystemExit(f"campaign_status_missing:{path}")
-print(status)
+text = path.read_text(encoding="utf-8", errors="replace")
+matches = re.findall(r"(?<![A-Za-z0-9_.-])evals/results/([A-Za-z0-9_.-]+)(?=[/` )]|$)", text)
+if not matches:
+    raise SystemExit(f"result_directory_not_reported:{path}")
+
+result_dir = pathlib.Path("evals/results") / matches[-1]
+if not result_dir.is_dir():
+    raise SystemExit(f"result_directory_not_found:{result_dir}")
+print(result_dir)
 PY
 }
 
@@ -146,57 +147,35 @@ PY
 }
 
 run_dry() {
-  local session_id events_file output_dir output_file
+  local session_id events_file output_dir output_file log_file runs_root
   session_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   events_file="$COPILOT_HOME_DIR/session-state/$session_id/events.jsonl"
   output_dir="$ROOT_DIR/.tmp/copilot-dry-run-$session_id"
   output_file="$output_dir/orchestrator.json"
+  log_file="$output_dir/copilot.log"
+  runs_root="$BASE_RUNS_ROOT/dry-run-$session_id"
 
-  run_copilot "$session_id"
+  run_copilot "$session_id" "$runs_root" "$log_file"
   write_orchestrator "$events_file" "$output_file" "dry-run"
   validate_orchestrator "$output_file"
 }
 
 run_campaign() {
   local iteration="$1"
-  local session_id events_file status
-  local -a before_campaigns after_campaigns new_campaigns
-  local path campaign_path campaign_id result_dir
-  declare -A before_set=()
-
-  mapfile -t before_campaigns < <(list_campaigns)
-  for path in "${before_campaigns[@]}"; do
-    [[ -n "$path" ]] && before_set["$path"]=1
-  done
+  local session_id events_file log_file runs_root result_dir campaign_id
 
   session_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   events_file="$COPILOT_HOME_DIR/session-state/$session_id/events.jsonl"
+  log_file="$ROOT_DIR/.tmp/copilot-evals/$session_id/copilot.log"
+  runs_root="$BASE_RUNS_ROOT/$session_id"
 
   printf '[copilot] repeat %s/%s\n' "$iteration" "$COUNT"
-  run_copilot "$session_id"
+  run_copilot "$session_id" "$runs_root" "$log_file"
 
-  mapfile -t after_campaigns < <(list_campaigns)
-  new_campaigns=()
-  for path in "${after_campaigns[@]}"; do
-    if [[ -n "$path" && -z "${before_set[$path]+present}" ]]; then
-      new_campaigns+=("$path")
-    fi
-  done
-  if [[ ${#new_campaigns[@]} -ne 1 ]]; then
-    printf 'expected one new campaign, found %s; Copilot must finish one campaign before the next repeat\n' "${#new_campaigns[@]}" >&2
-    exit 1
-  fi
-
-  campaign_path="${new_campaigns[0]}"
-  campaign_id="$(basename "$campaign_path")"
-  status="$(campaign_status "$campaign_path/campaign.json")"
-  if [[ "$status" != "complete" ]]; then
-    printf 'campaign %s did not complete (status=%s); stopping before the next repeat\n' "$campaign_id" "$status" >&2
-    exit 1
-  fi
-  result_dir="$ROOT_DIR/evals/results/$campaign_id"
-  write_orchestrator "$events_file" "$result_dir/orchestrator.json" "$campaign_id"
-  validate_orchestrator "$result_dir/orchestrator.json"
+  result_dir="$(result_dir_from_log "$log_file")"
+  campaign_id="${result_dir##*/}"
+  write_orchestrator "$events_file" "$ROOT_DIR/$result_dir/orchestrator.json" "$campaign_id"
+  validate_orchestrator "$ROOT_DIR/$result_dir/orchestrator.json"
 }
 
 if [[ "$DRY_RUN" == true ]]; then
