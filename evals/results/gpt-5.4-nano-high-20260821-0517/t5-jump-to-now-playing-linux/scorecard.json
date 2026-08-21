@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never launched or drove the app, so cross-folder availability and navigation were not verified.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No live capture verified the same-folder scrolled-out row case; the candidate did not exercise it.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The conditional absence while the row is fully visible was not tested in a live app session.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No-playing state and the absence of an active action were not captured because the candidate never launched the app.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"Accessibility of the active action was not verified in semantics or widget output.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No on-point before screenshot was captured; the session contains no candidate app run.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No on-point after screenshot was captured; the session contains no candidate app run.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate produced no write-up claims, so there were no unsupported behavioral claims to trace.","evidence_ref":"events-8e8b780533d04581bfe0847212e65e6b"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"Ordinary navigation and playback controls were not exercised and verified by the candidate.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"No runtime verification was captured because no live candidate app was running during the judged session.","evidence_ref":"verification-eca56bbcf236457a8b58f05bb99c9f4c"}
+  ]
+}

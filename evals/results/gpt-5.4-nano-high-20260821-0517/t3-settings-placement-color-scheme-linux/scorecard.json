@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette selected, live semantics and screenshot show screen immediately followed by color scheme with no intervening row or header.","evidence_ref":"verification-365943c694eb41338dffbf0ec29e0ebc"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The live semantics and screenshot show the exact lowercase color scheme label, with the cassette row renamed rather than duplicated.","evidence_ref":"verification-365943c694eb41338dffbf0ec29e0ebc"},
+    {"id":"E3","tier":"required","verdict":"met","note":"UI taps cycled screen through spectrum, polo, dot, void, and cassette with matching displayed values; direct screen calls also landed and were reflected.","evidence_ref":"verification-b904b3e491614be1901848d8ee205ef9"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The renamed row advanced by UI activation from Tape · Mono, and direct cassettevariant 2 produced the matching Tape · Amber value in a fresh capture.","evidence_ref":"verification-f0f26338488f4972b68e50b6401a8fc7"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void each showed their own settings without color scheme; bar count, Polo/Void text size via X11, and Dot show-song-info all changed on-screen.","evidence_ref":"verification-f52520636c134f689615a3ee9b18fe75"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine live screenshot clearly shows the Settings sheet with Cassette selected, screen, and adjacent legible color scheme row.","evidence_ref":"verification-365943c694eb41338dffbf0ec29e0ebc"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The independent semantics capture corroborates Cassette, exact label, adjacency, and current Tape · Amber value.","evidence_ref":"verification-f0f26338488f4972b68e50b6401a8fc7"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Unrelated rows retained order and remained responsive; immersive and cassette haptics toggled, while representative per-screen controls also remained functional.","evidence_ref":"verification-3e966c745e924d388189289953bf9a70"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After opening, closing, switching screens, and cycling controls, the app remained live and runtime overflows reported zero entries.","evidence_ref":"verification-365943c694eb41338dffbf0ec29e0ebc"}
+  ]
+}

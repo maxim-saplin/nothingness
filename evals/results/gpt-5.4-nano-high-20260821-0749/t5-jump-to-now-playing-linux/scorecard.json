@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With playback active in a different folder, the accessible jump action was present; tapping it navigated to /opt/nothingness/media and brought the playing row 50 into view.","evidence_ref":"verification-5b9506f7f11a4beb8383976c8a90c9dc"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"In /opt/nothingness/media with playing track 10/47 off-screen, the row was absent from the visible list and no jump action was exposed, so the same-folder hardening case failed.","evidence_ref":"verification-8a45359d2ef3409bbfb19c5a1628af5d"},
+    {"id":"E3","tier":"required","verdict":"met","note":"With playing track 05/53 fully visible and unclipped, the screenshot and semantics showed the row on-screen and no active jump action.","evidence_ref":"verification-6fa2c657a4474b38b4f26986672dbcfc"},
+    {"id":"E4","tier":"required","verdict":"met","note":"After the fixture ended, playback state showed isPlaying false and songInfo null; the semantics contained no jump action.","evidence_ref":"verification-69397df7cc4b4f1eb42bf65a71e0d775"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active cross-folder affordance was a semantics button labeled \"jump to now-playing folder\".","evidence_ref":"verification-725a0e92a982466d84b40b24b145ef1a"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The stable before screenshot showed /opt/nothingness with the playing track's media row absent while the jump glyph was visible.","evidence_ref":"verification-725a0e92a982466d84b40b24b145ef1a"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The stable after screenshot showed /opt/nothingness/media with the playing row 50 visible and highlighted.","evidence_ref":"verification-5b9506f7f11a4beb8383976c8a90c9dc"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate produced no final write-up claims; there were therefore no unsupported behavioral claims to trace.","evidence_ref":"events-c4371d6028224f909a189ad29e576282"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"On-screen folder taps changed between /opt/nothingness and /opt/nothingness/media, and pause/resume/next/previous left playback live with the expected queue state.","evidence_ref":"verification-8834c02532794277be53e15e8ea82e3e"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The final live runtime responded normally with no overflow reports after navigation, playback controls, and jump activation.","evidence_ref":"verification-8834c02532794277be53e15e8ea82e3e"}
+  ]
+}

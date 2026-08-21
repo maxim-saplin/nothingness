@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never launched the app or captured a genuine during-gesture state; its event trail ends in a blocking Flutter screenshot test.","evidence_ref":"events-e7ac753078be4ff9895c97c4f0f961b8"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No live-app swipe reproduction was possible, so absence of the center indicator was not verified.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No live post-release state was captured; the only screenshot is a black no-app frame.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The session contains no two legible candidate during-gesture captures demonstrating changing targets.","evidence_ref":"events-e7ac753078be4ff9895c97c4f0f961b8"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"Playback position after a real swipe was never inspected because the app was never launched.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate during-gesture screenshot capture is traceable; the added screenshot test remained blocked.","evidence_ref":"events-e7ac753078be4ff9895c97c4f0f961b8"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The verified screenshot is black because no live app was found, not a settled post-gesture app screenshot.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"No post-gesture tree or playback-state dump exists; the runtime and tree lenses were unavailable.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"Tap-zone and vertical-drag regressions could not be exercised without a running app.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"Repeated gesture stability and runtime errors were not testable because the app was never running.","evidence_ref":"verification-496b4108ba0d4c8896fc5d56e71479c5"}
+  ]
+}

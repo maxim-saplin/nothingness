@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After resetting the persisted Dot config to its default-off value and restarting, the fresh screenshot shows only the centered dot with no song-info overlay.","evidence_ref":"verification-458b07d432a9436fb23accc1a1d5038a"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The show-song-info preference was persisted as enabled, the app was restarted, and the long artist/title overlay remained rendered afterward.","evidence_ref":"verification-5f26555bbb3d416fb03db5686aa09f49"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The preference was then persisted as disabled and restarted; the resulting fresh Dot state has no overlay.","evidence_ref":"verification-ecc6af124b3d4288ab87a53bcd0fa28b"},
+    {"id":"E4","tier":"required","verdict":"partial","note":"At normal scale the deliberately long metadata is fully visible within the hero and does not overlap pixels from the dot, but the rendered dot is zero-sized, so preservation of the centered pulsing dot is not demonstrated.","evidence_ref":"verification-898026c7a1dc4936a15f0eccea3f234b"},
+    {"id":"E5","tier":"required","verdict":"partial","note":"At 150% the long overlay remains contained and readable, but the centered dot is again absent/zero-sized, making the claimed non-intersection a vacuous result rather than hardening around a visible dot.","evidence_ref":"verification-94db19cb4a3f413ab4286cd0afbd3411"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"A genuine candidate normal screenshot was delivered, but it shows only short metadata (undercover/44), not the required long artist and title; the fresh long reproduction does not repair the candidate deliverable defect.","evidence_ref":"verification-898026c7a1dc4936a15f0eccea3f234b"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The delivered candidate max screenshot likewise shows only short metadata, so it is not an on-point 150% screenshot for the required long-metadata scenario despite the fresh long reproduction.","evidence_ref":"verification-94db19cb4a3f413ab4286cd0afbd3411"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and max verification trees independently contain non-empty hero-artist and hero-song Text nodes with the deliberately long values and scale-dependent sizes.","evidence_ref":"verification-94db19cb4a3f413ab4286cd0afbd3411"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short metadata renders cleanly at normal scale and the candidate max artifact is clean, but the candidate max state also loses the centered dot, which is a visible common-case regression.","evidence_ref":"verification-a011e9564ca045a295e9553338472bf8"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The app remained responsive through the state changes with empty overflow reports; final runtime inspection showed active playback and no reported errors.","evidence_ref":"verification-5f26555bbb3d416fb03db5686aa09f49"}
+  ]
+}

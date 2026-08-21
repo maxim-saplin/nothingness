@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate captured screenshots after atomic dragByKey calls; the event trail shows no genuine in-flight gesture capture, so the during-gesture bottom-line claim is not citable.",
+      "evidence_ref": "events-097e3903f1dd484f985ed7c666494439"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My held real-X11 swipe capture shows the bottom readout without any centered time indicator or tall vertical line; the settled opposite-direction capture also shows none.",
+      "evidence_ref": "verification-789a90fbfb004ad1bf78d1e1bd72c28e"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and a settle delay, the bottom line reverted to /opt/nothingness/media and the temporary seek readout was gone.",
+      "evidence_ref": "verification-6cc78b59ddae4c4392c02465f2bc87a2"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The two candidate gesture calls are atomic dragByKey invocations, not real incremental in-flight captures, so two live target values cannot be verified from the event trail.",
+      "evidence_ref": "events-66f30f0a0b9c4172a2ee85d1e4c250dd"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A controlled real-X11 swipe while playing changed the running track position from the mid-track baseline to a substantially different post-release position in the swipe direction.",
+      "evidence_ref": "verification-e52090fdf72442cd9647cc6ad95bd5cd"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's during screenshot calls are traceable only after atomic dragByKey calls; no event evidence places either screenshot inside a genuine held gesture.",
+      "evidence_ref": "events-097e3903f1dd484f985ed7c666494439"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh post-gesture screenshot shows the normal folder path at the bottom and no lingering seek readout or center indicator.",
+      "evidence_ref": "verification-6cc78b59ddae4c4392c02465f2bc87a2"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled verification bundle's structural tree and semantics independently report /opt/nothingness/media on the bottom line, matching the screenshot.",
+      "evidence_ref": "verification-6cc78b59ddae4c4392c02465f2bc87a2"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Real X11 clicks exercised previous, pause/play, and next controls and the app remained responsive, but I did not independently establish the pre-existing vertical-drag behavior.",
+      "evidence_ref": "verification-f739bf77e86f4801bfcdb16361b2872d"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated real-X11 swipes and transport interactions, the runtime inspection still showed a live playing app with no overflow reports.",
+      "evidence_ref": "verification-e52090fdf72442cd9647cc6ad95bd5cd"
+    }
+  ]
+}

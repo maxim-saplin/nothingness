@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live semantics and screenshot show screen immediately followed by color scheme with no intervening row or header when Cassette is selected.","evidence_ref":"verification-9c30ca6d55da42eba5e6dd537eeef176"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The live row label is exactly lowercase color scheme, with no stale variant-labeled cassette row in the sheet.","evidence_ref":"verification-9c30ca6d55da42eba5e6dd537eeef176"},
+    {"id":"E3","tier":"required","verdict":"met","note":"UI taps advanced screen through spectrum, polo, dot, void, and back to cassette with matching values; direct polo and cassette calls also matched fresh captures.","evidence_ref":"verification-97e0dfc09350416dbb1fd17f51631f44"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The renamed row advanced from Tape · Mono to Tape · Amber by UI tap, and direct cassettevariant 3 produced a matching updated variant in a fresh capture.","evidence_ref":"verification-0d9d90d675b84ac09207e22dd26f9d4f"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, polo, dot, and void captures showed no cassette-only color scheme row; representative controls for each screen state changed on-screen and remained responsive.","evidence_ref":"verification-ae46d33a15374f759098d47ed3855935"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine final screenshot clearly shows the Settings sheet, Cassette, screen, and adjacent legible color scheme rows.","evidence_ref":"verification-9c30ca6d55da42eba5e6dd537eeef176"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The independent semantics capture corroborates Cassette, exact color scheme text, adjacency, and the current Tape · Mono value.","evidence_ref":"verification-9c30ca6d55da42eba5e6dd537eeef176"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Unrelated settings retained their established order across the captured states, and representative theme, bar-count, variant, and debug-layout controls responded to taps.","evidence_ref":"verification-3345ea5c52d84478bf6ddae1eb44fdeb"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After opening settings, switching all screen types, and cycling controls, the app remained live with zero overflow reports in the final runtime inspection.","evidence_ref":"verification-9c30ca6d55da42eba5e6dd537eeef176"}
+  ]
+}

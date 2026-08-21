@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Cassette verification shows screen at indexInParent 5 with rect ending at y=276 immediately followed by variant at indexInParent 6 starting at y=276; the screenshot visibly shows the adjacent rows.","evidence_ref":"verification-445aac3e4409464bb24fac7aa93df09c"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I tapped the screen selector through a complete five-step cycle and separately set spectrum, dot, and cassette directly; fresh semantics and settings captures tracked the selected screen and remained responsive.","evidence_ref":"verification-445aac3e4409464bb24fac7aa93df09c"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The cassette variant row changed after its own tap, then direct cassettevariant calls changed the displayed value; the final Cassette semantics and screenshot retain the wired row and updated value.","evidence_ref":"verification-445aac3e4409464bb24fac7aa93df09c"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void states showed no cassette-only row; Polo and Void lower controls were reached by real X11 scrolling and the Polo slider changed from 100% to 110%.","evidence_ref":"verification-8e4d8d4b41fb4cec8234071f75ce4798"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The verified PNG genuinely shows the Settings sheet with screen=cassette and the adjacent variant row legibly in frame.","evidence_ref":"verification-445aac3e4409464bb24fac7aa93df09c"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final Cassette verification bundle independently contains semantics, settings state, and screenshot agreeing on screen=cassette, variant value, and consecutive row geometry.","evidence_ref":"verification-445aac3e4409464bb24fac7aa93df09c"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Across the captured states, unrelated MODE/LOOK/LIBRARY/SOUND/DISPLAY/ABOUT rows retain their order; I also activated unrelated screen, immersive, theme variant, and lower screen controls during the checks.","evidence_ref":"verification-8e4d8d4b41fb4cec8234071f75ce4798"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The final runtime capture remained live with zero overflow reports, null library error, and no crash while switching screens, scrolling settings, and opening the sheet.","evidence_ref":"verification-445aac3e4409464bb24fac7aa93df09c"}
+  ]
+}

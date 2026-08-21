@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate launched the real Linux build and issued concrete ext.nothingness drive calls; a fresh preflight and verification confirmed a live VM with 31 registered extensions.",
+      "evidence_ref": "verification-0d686641465d4f43bcd4598b89bef59f"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh runtime captures showed isPlaying false after pause and true after resume, matching the requested play/pause transition.",
+      "evidence_ref": "verification-223773f868134144b6ed0c14b8d54821"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A three-track queue changed from index 0 track 01-undercover-49 to index 1 track 02-undercover-50 after next.",
+      "evidence_ref": "verification-ca4b4721698e4a59a912d08057d4d57c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While playing, seeking to 20000 ms moved the fresh runtime read to 22090 ms on the active track, clearly forward and within tolerance.",
+      "evidence_ref": "verification-333e686b12a94f4a8586b16342ca2653"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's final report is backed by its event-trail drive calls and inspect outputs for queue loading, play/pause, next/prev, seek, and audio events.",
+      "evidence_ref": "events-7968f4a10b084672a1452003c1c4e0a7"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Fresh inspection found an empty git status and diff, and the live playback behavior was standard with no source edits.",
+      "evidence_ref": "inspection-55419fce00d941dba3bb3e5c67994f54"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live runtime remained responsive through the re-check, with no overflow reports or unresolved crash/hang visible in the final verification.",
+      "evidence_ref": "verification-8a7b22f47de44fd29132987f75a638d1"
+    }
+  ]
+}

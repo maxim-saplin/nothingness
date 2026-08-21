@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live Linux VM-service session was reachable and answered drive.py extension calls; fresh verification captured a live app.","evidence_ref":"verification-5458f473770c49a2aa89fd315b0d9fbb"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Fresh runtime captures show playing, then paused, then playing again with the expected isPlaying transitions.","evidence_ref":"verification-6ef7c6f9d27e4a0b9122b384de318db2"},
+    {"id":"E3","tier":"required","verdict":"met","note":"A three-track queue changed from index 0 track 01-undercover-49 to index 1 track 02-undercover-50 after next.","evidence_ref":"verification-83c8f74ea9e7437f8ab7dc25fc561c86"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Seeking while playing moved the track forward to the requested target; a frozen verification read landed at 50.693s for a 50s target.","evidence_ref":"verification-f82d8efdc9fe474fbbf98ad8d5a8a6f3"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The final report's queue, transitions, track, seek, and overflow values are backed by concrete driver outputs and inspect reads in the event trail.","evidence_ref":"events-3f792ac63a6e4bfe8ad82f5e75c814cd"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"Fresh inspection found no workspace diff and runtime behavior remained standard playback behavior; the candidate made no source edits.","evidence_ref":"inspection-47f2cc4b01304710993a69ed2aaa53be"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The initial VM-service readiness error was followed by waiting, relaunch readiness, and successful repeated inspect/playback calls; no unresolved overflow or crash remained.","evidence_ref":"verification-5458f473770c49a2aa89fd315b0d9fbb"}
+  ]
+}

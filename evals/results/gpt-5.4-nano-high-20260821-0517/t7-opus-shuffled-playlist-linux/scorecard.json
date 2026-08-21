@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The verified runtime state reports queueLength 10 and lists exactly the ten mounted Opus fixture paths once each; every entry has isNotFound false.",
+      "evidence_ref": "verification-bbb2c0d08fdc4e64ab0d642297211f5f"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate activated the on-screen void-settings-status-shuffle control, and the verified runtime state reports shuffle true.",
+      "evidence_ref": "verification-bbb2c0d08fdc4e64ab0d642297211f5f"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The runtime verification shows isPlaying true with current path /opt/nothingness/media/07-undercover-44.opus, duration and spectrum active, and isNotFound false.",
+      "evidence_ref": "verification-bbb2c0d08fdc4e64ab0d642297211f5f"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The session recorded a pre-transition inspect at currentIndex 2 and a single Next result at currentIndex 3; both current paths were valid fixtures, and the final runtime verification confirms the changed post-transition track is playing and valid.",
+      "evidence_ref": "verification-bbb2c0d08fdc4e64ab0d642297211f5f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The contiguous full event observation contains the complete session trail; all queued and current paths shown in the setQueue and playback inspections are within the ten supplied fixture paths.",
+      "evidence_ref": "events-59a7b5e32b6e4aebb235ec6f54c26a46"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's final report's queue, shuffle, before/after tracks, and one-transition claims are each backed by concrete drive outputs in the complete event trail.",
+      "evidence_ref": "events-59a7b5e32b6e4aebb235ec6f54c26a46"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Collection reports an empty git status and no untracked files; the live behavior was the app's existing queue, shuffle, playback, and next functionality with no source edits.",
+      "evidence_ref": "inspection-7881b3f76be0416088b9219432e2ef35"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "A transient VM-log discovery error was followed by corrected DRIVE_RUN_LOG setup and successful live extension calls; the final verification reports zero overflow reports and the app remained responsive.",
+      "evidence_ref": "verification-bbb2c0d08fdc4e64ab0d642297211f5f"
+    }
+  ]
+}

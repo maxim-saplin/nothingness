@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live runtime re-check showed queueLength 10 and exactly the ten supplied /opt/nothingness/media/*.opus paths, each once and all isNotFound false.","evidence_ref":"verification-bee23d1c9f504797bf2d2d905bf09718"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The candidate opened settings, tapped void-settings-status-shuffle, and live runtime state showed shuffle true.","evidence_ref":"verification-bee23d1c9f504797bf2d2d905bf09718"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The live runtime showed isPlaying true with songInfo.path /opt/nothingness/media/01-undercover-49.opus and isNotFound false; the candidate's transition-time verification likewise showed valid playing fixture media.","evidence_ref":"verification-bee23d1c9f504797bf2d2d905bf09718"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The candidate's contiguous session record captured a valid before path 01 and after path 02 around one successful prev transition, and the after-state runtime verification showed a changed in-set valid track.","evidence_ref":"verification-a49ccaf363944bc7a9ea2581447ddd95"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Review of the session calls and state outputs found only the ten supplied fixture paths in queue and current-track observations; no foreign media appeared.","evidence_ref":"events-734574d396f94e499e6ef6e835ba224e"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The candidate's final claims about the ten-track queue, shuffle, playing fixture, and previous transition are backed by its setQueue/toggle/inspect outputs and the transition-time verification.","evidence_ref":"events-734574d396f94e499e6ef6e835ba224e"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The live app behaved as an unmodified build for the requested flow, and inspection found an empty git status and diff.","evidence_ref":"inspection-bcf775a878ee43e89345c9a8279b0f1f"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate noticed transient command errors and kept validating until the app answered; no unresolved crash, hang, or overflow remained, and the final runtime was responsive.","evidence_ref":"verification-bee23d1c9f504797bf2d2d905bf09718"}
+  ]
+}

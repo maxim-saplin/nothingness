@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With the isolated fresh preference store, Dot showed only the centered dot and no song-info overlay after selecting Dot.","evidence_ref":"verification-25085d1dce12495a9526cae72f3447d5"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled show song info, played the long-metadata track, hot-restarted while paused, and verified the long overlay remained visible afterward.","evidence_ref":"verification-2d8db594cd0c4df59c325c3efc6c82ce"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I turned the option back off, restarted again, and verified the resulting Dot hero had no artist/title overlay.","evidence_ref":"verification-f581051439a04c17b4950f20251b0806"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"At 100% with both metadata fields over 60 characters, the genuine screenshot shows the artist/title pixels directly behind and intersecting the large centered pulsing dot.","evidence_ref":"verification-836279cfa6ba47ac8318410214bbfed2"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At confirmed 150%, the long artist/title overlay is visibly intersected by the centered dot and the artist is clipped/ellipsized at the hero edge.","evidence_ref":"verification-d62cf219ec2d4fbfb8034c7a990f3a46"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"My fresh 100% reproduction is on-point but the candidate produced no submitted screenshot or live-app evidence, so the required candidate normal-scale deliverable cannot be verified.","evidence_ref":"verification-836279cfa6ba47ac8318410214bbfed2"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"My fresh 150% reproduction is on-point but the candidate produced no submitted screenshot or live-app evidence, so the required candidate max-scale deliverable cannot be verified.","evidence_ref":"verification-d62cf219ec2d4fbfb8034c7a990f3a46"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and maximum verification trees contain non-empty hero-artist and hero-song text, with sizes 30/15 and 45/22.5 respectively.","evidence_ref":"verification-d62cf219ec2d4fbfb8034c7a990f3a46"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short fixture metadata rendered at both scales without edge clipping, but the artist text also sits under/intersects the centered dot at both scales.","evidence_ref":"verification-1961b7b182744dc88c31e04b540e2176"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After repeated toggles, restarts, scale changes, and track switches, the app remained responsive; final runtime inspection reported zero overflow/error reports and active playback.","evidence_ref":"verification-fcc5cd15d5c24ee0918fbe12bd994b64"}
+  ]
+}
