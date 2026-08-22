@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics show screen at index 5 (y 231-276) immediately followed by variant at index 6 (y 276-321), and the screenshot shows the same adjacent rows.",
+      "evidence_ref": "verification-474232f100ae4957bd3aecedeb1e56ca"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Repeated on-screen activation cycled screen through Spectrum, Polo, Dot, Void, and Cassette; direct screen calls also updated the displayed state, with captures for Spectrum and Polo.",
+      "evidence_ref": "verification-f7b5a61eb1c64e5ea04ab61f8a51729f"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The Cassette variant row advanced on-screen from Mono to Amber, and direct cassettevariant calls changed the persisted variant through additional values while the row remained beside screen.",
+      "evidence_ref": "verification-56d16c1be9014988bccd8937541988e8"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void each showed their own settings without a Cassette variant row; representative controls responded on-screen, and each screen state was independently captured.",
+      "evidence_ref": "verification-da8d787797a9465fb18c3c5344e208f4"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine captured PNG visibly shows the Settings sheet with Cassette selected and the legible adjacent screen and variant rows.",
+      "evidence_ref": "verification-6b378f702a74471b93916baf0856ebbb"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The semantics snapshot independently corroborates Cassette, the adjacent row order, and the current variant value shown in the screenshot.",
+      "evidence_ref": "verification-aa08270538364fca863b8b88a1022fdd"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across the Cassette and non-Cassette captures, unrelated settings retain their ordering; visualizer-color and Dot song-info rows remained interactive and updated their displayed values.",
+      "evidence_ref": "verification-a9aec366510d4057a702e1ba27835184"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated open, switching, cycling, and variant exercises, the app remained responsive with zero overflow reports and a live runtime inspection.",
+      "evidence_ref": "verification-aa08270538364fca863b8b88a1022fdd"
+    }
+  ]
+}

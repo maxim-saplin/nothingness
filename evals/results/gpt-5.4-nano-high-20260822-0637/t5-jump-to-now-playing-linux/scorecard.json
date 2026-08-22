@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cross-folder crumb action was present; activation changed /opt/nothingness to /opt/nothingness/media and exposed the playing track folder.",
+      "evidence_ref": "verification-3ffc0ae8d93d4c58be10b39232b6b825"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "In the already-correct folder, the offscreen playing track exposed the accessible action and activation scrolled the list to the track without changing the folder.",
+      "evidence_ref": "verification-2c745f2eec7a4a73beea5668024c42b9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After the track was fully visible, the semantics bundle showed the row within the viewport and no active jump action.",
+      "evidence_ref": "verification-495cf175f5f24e1cb68c3e0e823b8240"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Clean idle captures at both /opt/nothingness and /opt/nothingness/media had songInfo null and no jump affordance.",
+      "evidence_ref": "verification-af4480fc3bc543e195e8919e20646c5f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active action appeared in the semantics tree as a button labeled scroll to now playing with a descriptive hint.",
+      "evidence_ref": "verification-d8f8a22ab4304e5eb6212d3c975f2ffb"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's submitted before_now_playing_row.png shows playback active and the playing row absent from the visible list while the action is shown.",
+      "evidence_ref": "verification-d8f8a22ab4304e5eb6212d3c975f2ffb"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's submitted after_now_playing_row.png is effectively the same pre-jump frame and does not show the playing row; my live post-jump capture does, but it is not the candidate's submitted after screenshot.",
+      "evidence_ref": "verification-2c745f2eec7a4a73beea5668024c42b9"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The implementation claims were partly traceable, but the candidate's live tap of its action failed and its final write-up claimed an after screenshot that did not evidence the transition.",
+      "evidence_ref": "events-35e62e7f100a4ee88456226467ee9414"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen folder-row tap navigated correctly, and queued playback pause/resume/next/prev controls remained responsive with the expected active queue state.",
+      "evidence_ref": "verification-9c1d16213d134bc9b47b92c99d6d9711"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final app remained live and responsive, and overflow reports were empty after exercising the feature and controls.",
+      "evidence_ref": "verification-9c1d16213d134bc9b47b92c99d6d9711"
+    }
+  ]
+}

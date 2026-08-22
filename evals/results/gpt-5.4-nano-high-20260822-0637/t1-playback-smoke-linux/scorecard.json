@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The candidate launched the Linux debug app and issued concrete ext.nothingness drive calls; a live verification answered with runtime state.","evidence_ref":"verification-c45c973807194573b6d94a63fa40c728"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Candidate captured pause as isPlaying false and resume as isPlaying true; my live paused and resumed captures corroborated the transition.","evidence_ref":"verification-d291e5672b3a49e88b325f1c132aa945"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The candidate loaded a ten-track queue and reported next changing index/path; my live before/after captures showed index 3 to 4 and track 04 to 05.","evidence_ref":"verification-1a9c965b251744c0b1a2671e88a0f8db"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate sought while paused and reported 60000 ms landing at 77525 ms, outside the rubric's ±2 s target tolerance; the live re-check only establishes that seeking works when playing, not that the candidate met this claim.","evidence_ref":"verification-8d3fdca9af244c0d839156982ae541ee"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The final report's playback claims are traceable to drive outputs and inspect snapshots in the contiguous session event stream.","evidence_ref":"events-8392f473af5d471a8df33076b3ac24e0"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The candidate made no source changes; collected git status/diff was clean and live behavior remained normal.","evidence_ref":"inspection-b09960ab475c449eb0355e4c8a7e959f"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"No unresolved crash or hang appeared; the app remained extension-responsive and my live checks completed without overflow reports.","evidence_ref":"verification-c45c973807194573b6d94a63fa40c728"}
+  ]
+}

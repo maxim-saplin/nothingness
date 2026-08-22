@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The pre-jump capture showed the labeled jump action while browsing /opt/nothingness; after activation, the browser was /opt/nothingness/media and the playing 47 row was visible.",
+      "evidence_ref": "verification-bfc314894c764042886102f15633a0de"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "With /opt/nothingness/media already open and the playing 47 row scrolled off-screen, the fresh semantics capture contained no jump action, so the same-folder jump could not be activated.",
+      "evidence_ref": "verification-ba94f54498f6401bb72b25833a1d2910"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After scrolling to the playing row, the 47 row was fully within the visible list and the fresh semantics capture exposed no active jump action.",
+      "evidence_ref": "verification-8e4d86d84dac4e33b689cb0c5dc18bb2"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The no-playing captures reported isPlaying false with songInfo null and contained no jump action label.",
+      "evidence_ref": "verification-3037542c5154492996a9bdc51e86c940"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active cross-folder affordance was present in the semantics tree with the distinguishing label jump to now-playing folder and a tap action.",
+      "evidence_ref": "verification-eeab3f8419534fdf896c362bde2922bf"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted only before_offscreen_no_action.png, which already showed row 49 visible in the media folder; no candidate before image showed the playing row absent.",
+      "evidence_ref": "verification-eeab3f8419534fdf896c362bde2922bf"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate after screenshot was present in the run artifacts, although the live post-activation capture independently showed row 47 visible.",
+      "evidence_ref": "verification-bfc314894c764042886102f15633a0de"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate produced no final write-up text, so there were no specific behavioral claims without an observation trail.",
+      "evidence_ref": "events-4451eb911801485bbf98a8586996c947"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An actual on-screen folder-row tap navigated into /opt/nothingness/media, and staged playback confirmed pause, resume, next, and previous transitions; the final bundle remained responsive.",
+      "evidence_ref": "verification-4a5eed84b30e45028d896823a081003e"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated feature and playback checks, the final runtime capture showed the app registered with no library error and overflow count zero.",
+      "evidence_ref": "verification-a822d7372d9a4b8e81296af7d24119b4"
+    }
+  ]
+}

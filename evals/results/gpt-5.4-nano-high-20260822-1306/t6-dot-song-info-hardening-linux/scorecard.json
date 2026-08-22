@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing preferences and restarting, the fresh Dot showed only the pulsing dot with no song-info overlay.",
+      "evidence_ref": "verification-b9c2949a11374255bd3d53a523233a03"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I enabled show song info, hot-restarted, and verified the overlay remained enabled and rendered afterward.",
+      "evidence_ref": "verification-9791b04590a34987885826b2eaba3b46"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I disabled show song info, restarted again, and verified the resulting Dot had no overlay.",
+      "evidence_ref": "verification-ef995fcb01bf405cb775cedaa1e45404"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "At 100% with long metadata, the wrapped and ellipsized overlay stayed inside the hero, but the centered pulsing Dot disappeared rather than remaining visible.",
+      "evidence_ref": "verification-b6fad87f3fad4cb2a3b1c4d6e4ae32d8"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "At 150% with long metadata, the overlay stayed inside the hero, but the centered pulsing Dot was absent because its rendered radius collapsed to zero.",
+      "evidence_ref": "verification-160b2ff4cc6340fa97dbca244b712c17"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh 100% long-metadata capture was on-point, but the candidate's submitted normal screenshot showed only short undercover metadata.",
+      "evidence_ref": "verification-b6fad87f3fad4cb2a3b1c4d6e4ae32d8"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh 150% long-metadata capture was on-point, but the candidate's submitted maximum screenshot showed only short undercover metadata.",
+      "evidence_ref": "verification-160b2ff4cc6340fa97dbca244b712c17"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The normal and maximum trees showed non-empty hero-artist and hero-song text at 30/15 and 45/22.5 sizes respectively.",
+      "evidence_ref": "verification-160b2ff4cc6340fa97dbca244b712c17"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Short metadata rendered cleanly at both 100% and 150%, but the enabled overlay also removed the centered pulsing Dot, a visible common-case regression.",
+      "evidence_ref": "verification-a1701794327544779d0ec5ea50444c47"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After the full exercise the app remained responsive, final runtime reported zero overflow reports, and the final inspection found live Flutter processes.",
+      "evidence_ref": "verification-c73b11262ad0454ba1255299607e92d0"
+    }
+  ]
+}

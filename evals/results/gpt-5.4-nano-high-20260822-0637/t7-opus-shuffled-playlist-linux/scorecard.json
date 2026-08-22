@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Runtime verification showed queueLength 10 and exactly the ten mounted fixture paths, each once, with no extras.","evidence_ref":"verification-3165bd1e5e0347078e99d7bfeac9a927"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I opened settings, tapped the visible shuffle status control, and runtime verification then reported shuffle true.","evidence_ref":"verification-9e3b5ad05c9b40b6afec9b0f805f0c60"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Before navigation, runtime verification showed isPlaying true, a supplied fixture as current, and isNotFound false.","evidence_ref":"verification-c2c215b559a04a3f933c2c511407fe0a"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The before read showed index 7 and fixture 01; after exactly one next, runtime showed index 8 and fixture 10, still valid and playing.","evidence_ref":"verification-444e191c5dfd4b8082abe1c3209f2d4a"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The complete candidate event stream contains no queue, play, or navigation of foreign media; the live re-check used only the ten supplied paths.","evidence_ref":"events-313a3f0ef98344b6a868a345c795629e"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The candidate produced no final report or specific claims; all claims in this judgment are backed by the live verification captures.","evidence_ref":"events-313a3f0ef98344b6a868a345c795629e"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"Final inspection found the unrequested untracked integration_test/opus_shuffle_single_track_transition_test.dart, beyond the sole tolerated generated registrant change.","evidence_ref":"inspection-ace39b0288f8486cb3e5a6f2354e89b1"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"The candidate remained blocked in its flutter test command and never recovered or reported a resolved session; I had to finish the run while it was still running.","evidence_ref":"verification-147e9ce867c64805810bf1c52dd9b3ee"}
+  ]
+}

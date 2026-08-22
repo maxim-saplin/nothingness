@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live runtime verification after setQueue showed queueLength 10 and exactly the ten supplied fixture paths once each, with every entry resolvable.",
+      "evidence_ref": "verification-c8453766f8594d47bf1ac9304f0ce1c7"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings, tapped the visible void-settings-status-shuffle control, and runtime verification then reported shuffle true.",
+      "evidence_ref": "verification-a9798d1165bb4b9e92245855ca1c5fdd"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, live runtime verification showed isPlaying true on supplied fixture 01-undercover-49.opus with isNotFound false.",
+      "evidence_ref": "verification-9f28c9db84f24069b28a139c70c3e377"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The state changed from currentIndex 7 and fixture 01 to currentIndex 8 and fixture 02 after one next call; the post-transition track remained valid and playing.",
+      "evidence_ref": "verification-a63ab9c31afb4bfabd32d550cc21a3b5"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The complete candidate event chain contains no foreign queue or current-track paths, and my live re-check used only the ten supplied fixtures.",
+      "evidence_ref": "events-be125aebb4dc4a57b0602670ca79e0a2"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate was stopped during a test command and produced no final report, so there are no candidate-specific claims traceable to observations.",
+      "evidence_ref": "events-be125aebb4dc4a57b0602670ca79e0a2"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Inspection found the unrequested untracked integration_test/shuffle_opus_fixture_transition_test.dart file beyond the tolerated generated registrant change.",
+      "evidence_ref": "inspection-84876c10805741dd8e9da5db082de00e"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The candidate left its second long-running integration test unresolved; after I relaunched the app, the live runtime answered and overflows were empty.",
+      "evidence_ref": "verification-26a27fffe62b49a2b9d90855b502813c"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Cassette semantics shows screen at index 5 immediately followed by color scheme at index 6 with abutting y-ranges and no intervening row.","evidence_ref":"verification-8f2a43b93765496395b48fcd2478e337"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The single cassette variant row is labeled exactly lowercase color scheme; the full cassette semantics cluster contains no stale cassette variant label.","evidence_ref":"verification-8f2a43b93765496395b48fcd2478e337"},
+    {"id":"E3","tier":"required","verdict":"met","note":"On-screen screen-row taps advanced through the complete spectrum, polo, dot, void, cassette cycle and direct screen calls were reflected in fresh settings captures.","evidence_ref":"verification-7ee07d0136b74a4caedc8ae3003b1760"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The color scheme row changed from Tape Mono to Tape Amber after its own tap, and a direct cassettevariant 3 call produced a fresh verified variant state.","evidence_ref":"verification-e3353828a9874da78f140eaa5487d4dc"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, polo, dot, and void captures show no cassette-only color scheme row; their own controls were present and representative controls changed on-screen (spectrum color, dot info, polo/void text size).","evidence_ref":"verification-1fd9cd16f25c41c3af287f32d09333a2"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine final PNG plainly shows the Settings sheet with screen cassette and adjacent, legible screen and color scheme rows.","evidence_ref":"verification-8f2a43b93765496395b48fcd2478e337"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The same cassette verification contains structural semantics/settings corroborating screen=cassette, exact label, adjacent indices, and the displayed Tape Mono value.","evidence_ref":"verification-8f2a43b93765496395b48fcd2478e337"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Across the screen captures, unrelated MODE/LOOK/LIBRARY rows retain their relative order; theme and variant rows also responded to on-screen activation.","evidence_ref":"verification-8f2a43b93765496395b48fcd2478e337"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After repeated navigation, scrolling, row activation, and screen cycling, the live app remained responsive and final runtime inspection reported zero overflow reports.","evidence_ref":"verification-8f2a43b93765496395b48fcd2478e337"}
+  ]
+}

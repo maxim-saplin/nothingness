@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing all preferences and restarting, the Dot screen showed only the pulsing dot with no artist/title overlay; runtime songInfo was null.",
+      "evidence_ref": "verification-c830245c3c17434ba9dd0f764dcb699d"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I enabled show song info, restarted after pausing, replayed the long-metadata track, and the overlay remained rendered after restart.",
+      "evidence_ref": "verification-057dd3d262f34480917fb6740dffa66c"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After explicitly disabling the option, pausing and restarting, replaying the same long-metadata track produced no overlay while the dot remained visible.",
+      "evidence_ref": "verification-a1330536a648407b8efdc34e8bf49fa8"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh 100% screenshot shows both long strings fully inside the hero, with the visible pulsing dot clearly separated below them.",
+      "evidence_ref": "verification-057dd3d262f34480917fb6740dffa66c"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "At 150% the long artist/title are contained and legibly truncated/wrapped without pixel overlap, but the candidate layout collapses the pulsing dot to zero size, so the required dot is missing.",
+      "evidence_ref": "verification-8bc8eca33cf04b7eaed5bb657d1bb408"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My fresh 100% long-metadata capture is genuine and agrees with the candidate's submitted normal screenshot: the overlay is legible, contained, and separate from the dot.",
+      "evidence_ref": "verification-057dd3d262f34480917fb6740dffa66c"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "My fresh 150% capture and the submitted max screenshot genuinely show the claimed long metadata and no text clipping/overlap, but both also reveal the pulsing dot has disappeared (zero-size).",
+      "evidence_ref": "verification-8bc8eca33cf04b7eaed5bb657d1bb408"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Normal and max verification bundles contain non-empty long artist/title semantics and tree structure; the max tree also exposes the zero-size dot geometry.",
+      "evidence_ref": "verification-8bc8eca33cf04b7eaed5bb657d1bb408"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Short metadata is clean at 100%, but at 150% the dot is also zero-size, an obvious layout regression compared with the normal state.",
+      "evidence_ref": "verification-799b5e7d04894f6c81315fa46406ae41"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated toggles, restarts, scale changes, and long/short playback, final runtime inspection showed the app live, playing, responsive, and with zero overflow reports.",
+      "evidence_ref": "verification-a1330536a648407b8efdc34e8bf49fa8"
+    }
+  ]
+}

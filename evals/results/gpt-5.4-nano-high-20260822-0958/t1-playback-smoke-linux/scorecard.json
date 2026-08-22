@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Candidate launched and drove the live Linux VM-service extension surface; the recheck also reached the same extension-registered app.","evidence_ref":"verification-e961ea74b30740c49c1a9edbbd63641f"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Live runtime captures show playback true, then false after pause, then true after resume, matching the candidate's reported transition.","evidence_ref":"verification-a6d1bef776624f85beee3f1f1f97a7fa"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The candidate's next call was made with an empty single-track queue and cleared playback; directly playing the second file did not demonstrate next/prev on a multi-track queue.","evidence_ref":"verification-1fa911c74e0e4fc987c93e603b229857"},
+    {"id":"E4","tier":"required","verdict":"met","note":"A live seek while playing to 60 seconds landed at 61.301 seconds; playback was paused only afterward to freeze the citable capture.","evidence_ref":"verification-a857f71cabb2497d9da212ae44df3d06"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The candidate's extension calls and returned state reads in the contiguous session event stream support its specific play, pause, resume, next, direct-play, and seek claims.","evidence_ref":"events-ab78226034984d79a5ba82c1e96269db"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final live recheck behaved normally and the inspection git status/diff was empty, with no source changes attributable to the candidate.","evidence_ref":"inspection-087070e66705408580fac742cb639db3"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The live recheck remained responsive with no overflow reports, and the candidate completed without an unresolved app crash or hang.","evidence_ref":"verification-a857f71cabb2497d9da212ae44df3d06"}
+  ]
+}

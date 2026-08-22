@@ -1,0 +1,7 @@
+E1 — The candidate launched the Linux debug app, confirmed 31 ext.nothingness extensions, staged the fixture queue, and drove it through drive.py. I independently captured a live extension-answering runtime with the queue present.
+E2 — The candidate paused and resumed playback and eventually obtained state reads showing false then true after earlier parser failures. My captures independently showed playing true, paused false, and resumed true.
+E3 — The candidate loaded ten fixtures and verified next from index 0/path 01 to index 1/path 02, then also returned to index 0 with prev. My three-track recheck reproduced the next transition in runtime captures.
+E4 — The candidate issued seeks while playback was running, but its report only exposed the requested drive acknowledgements. I independently froze a playing seek at 30.511 seconds after a 10.469-second baseline, satisfying the 30-second target tolerance.
+E5 — The play/pause/resume and skip values in the report are backed by state reads in the contiguous event stream. The 30-second and 45-second seek claims lack post-seek position reads, so traceability is partial.
+E6 — The candidate made no source edits. The collected git inspection was clean, and the live transport behavior remained the unmodified fixture behavior.
+E7 — Several candidate shell parsing attempts failed, but it retried the affected playback reads and finished with the app responsive. My live runtime verification showed no overflow reports or unresolved app fault.

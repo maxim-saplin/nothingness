@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's event trail shows atomic dragByKey calls followed by screenshots; it contains no genuine in-flight capture, and the submitted during image does not show the seek readout.",
+      "evidence_ref": "events-33a44ba020924e159706f4868c3ca8d0"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent held X11 swipes showed the bottom target readout without any centered time HUD or tall vertical line in the captured hero.",
+      "evidence_ref": "verification-7b6b570a84234374b1f5cb433237d86a"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and a settle window, the fresh screenshot and semantics returned the bottom line to /opt/nothingness/media.",
+      "evidence_ref": "verification-3379e00f847f46d39c910d289b7ece9a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's trace contains repeated atomic dx=220 drag calls but no two distinct, legible during-gesture target captures to establish live directional or magnitude tracking.",
+      "evidence_ref": "events-33a44ba020924e159706f4868c3ca8d0"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A controlled held swipe displayed 3:35 / 7:00 · 51%; after release the same track's runtime position was about 3:37, confirming the seek committed.",
+      "evidence_ref": "verification-3379e00f847f46d39c910d289b7ece9a"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Although the event payload names seek_swipe_during.png, it follows one atomic dragByKey call and provides no evidence the screenshot was captured while the gesture was in flight.",
+      "evidence_ref": "events-33a44ba020924e159706f4868c3ca8d0"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh post-release PNG shows the normal /opt/nothingness/media folder line with no lingering seek text or center indicator.",
+      "evidence_ref": "verification-3379e00f847f46d39c910d289b7ece9a"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled screenshot is independently corroborated by the same capture's semantics/tree and live playback state showing the folder path and a responsive app.",
+      "evidence_ref": "verification-3379e00f847f46d39c910d289b7ece9a"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Real on-screen taps changed previous (50→49), play/pause (playing→paused), and next (49→50); a vertical drag in fixed mode left the Void screen and playback behavior intact.",
+      "evidence_ref": "verification-3445aa94be8849ab8d1ac54051c54543"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "A final burst of varied real swipes left the app playing and responsive with zero overflow reports in the runtime capture.",
+      "evidence_ref": "verification-80371b1d4ac443e28a3bca3021103df0"
+    }
+  ]
+}

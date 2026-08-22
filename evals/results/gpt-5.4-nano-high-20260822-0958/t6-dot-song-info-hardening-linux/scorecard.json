@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing screen_config_dot and reloading Dot, the fresh hero showed only the pulsing dot and no overlay.",
+      "evidence_ref": "verification-1ea4f3ea27d94f138986af94d38a836d"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The live app showed the option enabled before testing, but a restart persistence round trip was not completed; the available restart FIFO was absent.",
+      "evidence_ref": "verification-32cc53ee3e434c04a31ad204b8b31614"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The live app was not successfully restarted after disabling, so round-trip persistence could not be verified.",
+      "evidence_ref": "verification-1ea4f3ea27d94f138986af94d38a836d"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh 100% capture with 60-character artist and title showed wrapped, ellipsized text fully inside the hero above the pulsing dot.",
+      "evidence_ref": "verification-32cc53ee3e434c04a31ad204b8b31614"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh 150% capture showed both long fields fully rendered within the hero with ellipses and no pixels outside the hero or overlapping a visible dot.",
+      "evidence_ref": "verification-3a3f88766491486f8d77373698111767"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh 100% screenshot was on-point, but the candidate did not submit a long-metadata normal screenshot; its recorded shots used a short fixture.",
+      "evidence_ref": "verification-32cc53ee3e434c04a31ad204b8b31614"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh 150% screenshot was on-point, but the candidate did not submit a long-metadata maximum screenshot; its recorded shots used a short fixture.",
+      "evidence_ref": "verification-3a3f88766491486f8d77373698111767"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The normal and maximum verification trees independently showed non-empty hero-artist and hero-song text with sizes 30/15 and 45/22.5 respectively.",
+      "evidence_ref": "verification-3a3f88766491486f8d77373698111767"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Fresh short-fixture captures at 100% and 150% showed clean ordinary title rendering and a visible, separated dot without clipping.",
+      "evidence_ref": "verification-54779ff682a84cc5a4720bfa2dfa04d9"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Runtime captures remained responsive and reported zero overflow/error reports after the long and short track exercises.",
+      "evidence_ref": "verification-3a3f88766491486f8d77373698111767"
+    }
+  ]
+}

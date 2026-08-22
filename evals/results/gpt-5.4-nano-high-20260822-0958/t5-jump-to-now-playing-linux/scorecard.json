@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The labeled jump action was present from /opt/nothingness, and activation navigated to /opt/nothingness/media with the playing 47 row visible; see paired before/after captures.",
+      "evidence_ref": "verification-8035c26f9d5f4cb188c7d4afa646b622"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With /opt/nothingness/media already open and track 54 off-screen, activation kept that path and scrolled the 54 row into view.",
+      "evidence_ref": "verification-00842067a34b4a8da36dda51b62302f8"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After the jump, track 54 is fully visible and the active jump semantics node is absent.",
+      "evidence_ref": "verification-00842067a34b4a8da36dda51b62302f8"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After a pause and hot restart, inspect showed isPlaying false and songInfo null; the browser tree and semantics contained no jump action.",
+      "evidence_ref": "verification-391291f61298437e8ccb5cf88d5bf412"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active affordance is exposed in semantics with the distinguishing label 'jump to now-playing folder'.",
+      "evidence_ref": "verification-89d1c91177b14746bc3fa079047e481e"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The before capture shows the playing 47 row absent while browsing /opt/nothingness and the jump action visible.",
+      "evidence_ref": "verification-89d1c91177b14746bc3fa079047e481e"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The after capture shows the playing 47 row visible in /opt/nothingness/media after activation.",
+      "evidence_ref": "verification-8035c26f9d5f4cb188c7d4afa646b622"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Candidate claims about conditional visibility, folder navigation, same-folder scrolling, and screenshots are backed by its event-stream drive and extension outputs.",
+      "evidence_ref": "events-abda73681242470b9e34e08ff00d2d2b"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen folder-row tap navigated from /opt/nothingness into media, and next, previous, pause, and resume all responded with the expected final playing state.",
+      "evidence_ref": "verification-0dba3d65f0794be6ab7b912e3da16b6e"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained responsive after repeated jump cases and control checks; the final runtime capture reports no overflow entries.",
+      "evidence_ref": "verification-0dba3d65f0794be6ab7b912e3da16b6e"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Cassette verification shows screen at indexInParent 5 immediately followed by color scheme at indexInParent 6 with abutting y-ranges.","evidence_ref":"verification-d5d697c2874645a8a7d871a78ae348b9"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The cassette row label is exactly lowercase color scheme, with no duplicate cassette variant label in the visible settings semantics.","evidence_ref":"verification-d5d697c2874645a8a7d871a78ae348b9"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Repeated on-screen taps cycled screen values through void, cassette, spectrum, polo, and dot, and direct screen changes were reflected in the settings row; final return remained cassette.","evidence_ref":"verification-d5d697c2874645a8a7d871a78ae348b9"},
+    {"id":"E4","tier":"required","verdict":"met","note":"On-screen activation changed the row from Tape Mono to Tape Amber, and direct cassettevariant 3 produced Tape Colour while retaining the renamed row and value.","evidence_ref":"verification-d14d9d262b4142879127da84c1aa9c9a"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Independent semantics captures for spectrum, polo, dot, and void show screen-specific layouts without any cassette color scheme row; shared controls remain present and responsive.","evidence_ref":"verification-55e40a4792eb41338c254654bbc06c8d"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The genuine captured screenshot visibly shows the Settings sheet with Cassette selected and legible adjacent screen and color scheme rows.","evidence_ref":"verification-d5d697c2874645a8a7d871a78ae348b9"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The cassette semantics dump independently corroborates screen=cassette, exact color scheme label, adjacent indices, and the displayed Tape variant value.","evidence_ref":"verification-d5d697c2874645a8a7d871a78ae348b9"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Across the captured settings states, unrelated MODE/LOOK and app-wide rows preserve order; the immersive row also changed when activated.","evidence_ref":"verification-29512ec8f33446b2bd9edb50808bffab"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Final runtime inspection found the app live and responsive with zero overflow reports after navigation and repeated control exercise.","evidence_ref":"verification-d5d697c2874645a8a7d871a78ae348b9"}
+  ]
+}

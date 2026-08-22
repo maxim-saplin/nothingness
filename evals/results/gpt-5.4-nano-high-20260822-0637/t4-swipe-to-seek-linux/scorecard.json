@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's event trail shows atomic synthetic drag calls followed by screenshots; the during screenshot is an empty screen and does not show target, duration, or progress in the folder line.","evidence_ref":"events-fb72a7bf4b29425c9bd789f1b9fe2dff"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The available verification capture was taken with no active track and does not establish the absence of the center indicator during a real swipe; the candidate's synthetic touch path was not a valid gesture reproduction.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"Although the settled image shows the normal ~ marker, the app had no registered library or active playback, so this does not verify feedback clearing after a seek gesture.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"Only one legible candidate screenshot exists, and it is a post-atomic-drag empty screen; no two live target values can be compared.","evidence_ref":"events-fb72a7bf4b29425c9bd789f1b9fe2dff"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"The required runtime verification has null songInfo and no playback position, so an actual seek commit cannot be established.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate screenshot call follows a completed atomic dragByKey call; the event trail contains no incremental pointer updates proving the screenshot was captured in-flight.","evidence_ref":"events-fb72a7bf4b29425c9bd789f1b9fe2dff"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The verification screenshot shows the normal ~ marker but was captured after playback had been lost, so it is not a verified post-swipe deliverable.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"The settled semantics include the normal ~ bottom label and runtime reports no seek state, but the structural capture has no active library/playback context linking it to a completed swipe.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"The verification semantics expose previous, play, and next controls, but no on-screen tap transitions or vertical-drag behavior were successfully exercised and verified.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The candidate exercised multiple synthetic touch drags without new overflow reports, and the final runtime inspection remained responsive with zero overflow entries.","evidence_ref":"verification-0a6db79b0ebb4c2fb32cd7fb2938d461"}
+  ]
+}

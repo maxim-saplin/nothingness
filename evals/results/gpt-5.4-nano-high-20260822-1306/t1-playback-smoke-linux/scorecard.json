@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate launched the Linux debug app and used the live ext.nothingness drive surface; my verification answered with runtime state and a populated queue.",
+      "evidence_ref": "verification-c66c6b117ef84e41aecc8d436b00eca8"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent runtime captures showed playback true, then false after pause, then true after resume, matching the candidate's transition report.",
+      "evidence_ref": "verification-d1ecf744158e4671bd8575d0031deaa7"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a three-track queue, my before/after captures showed next changing currentIndex 0 to 1 and the active path from track 01 to track 02, corroborating the candidate's skip.",
+      "evidence_ref": "verification-fca18a8fb428407b973a3367a247478c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A live seek performed while playing moved the same track from 10.469 seconds to 30.511 seconds; the post-seek position is within the requested 30-second tolerance.",
+      "evidence_ref": "verification-bac71c64eb82465bb2a8a6f304007c73"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The candidate's play/pause/resume and skip claims have concrete state reads, but its 30-second and 45-second seek entries report command acknowledgements without a post-seek position read.",
+      "evidence_ref": "events-c3936f9751c7424db623ec0bc333b050"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live smoke behavior was normal and the collected git inspection reported empty status and diff, with no candidate source changes.",
+      "evidence_ref": "inspection-b3188cb1457c4a3c8afd41e3f16c04b1"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate recovered from its shell parsing/read errors by retrying state reads; the app remained responsive and my runtime capture showed zero overflow reports.",
+      "evidence_ref": "verification-bac71c64eb82465bb2a8a6f304007c73"
+    }
+  ]
+}

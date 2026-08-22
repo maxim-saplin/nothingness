@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette selected, the live semantics capture shows screen at index 5 (y 231–276) immediately followed by variant at index 6 (y 276–321), and the screenshot shows both rows legibly adjacent.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The live capture confirms the screen row exists, but no valid verification was captured after on-screen or direct screen cycling, so preserved behavior is unproven.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The live capture shows the cassette variant row, but no valid verification was captured after activating it or changing variants, so preserved behavior is unproven.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"Only the Cassette state was captured; no valid verification covers non-Cassette screens and their controls, so scoped non-regression is unproven.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The genuine captured PNG shows the Settings sheet with screen = cassette and the adjacent variant row fully in frame and readable.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The semantics and settings snapshot independently corroborate Cassette selection, the adjacent row order, and the current Tape · Mono variant shown in the screenshot.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E7","tier":"secondary","verdict":"unmet","note":"The single Cassette capture shows unrelated rows in one state, but no valid verification compares prior ordering or exercises unrelated controls, so this expectation is unproven.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"The runtime snapshot shows a responsive app with zero overflow reports and no error state at capture, but the required repeated exercise was not independently verified.","evidence_ref":"verification-d5586adbbe5341e9b0e8873ba1c6839c"}
+  ]
+}
