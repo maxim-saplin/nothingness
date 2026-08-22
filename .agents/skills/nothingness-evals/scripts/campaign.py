@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,13 @@ def campaign_path(campaign_id: str) -> Path:
 
 
 def dashboard_command(campaign_id: str) -> str:
-    return f"uv run python {SCRIPT_DIR.relative_to(ROOT)}/watch-eval.py {campaign_id}"
+    script = SCRIPT_DIR.relative_to(ROOT) / "watch-eval.py"
+    return "(cd {root} && NOTHINGNESS_EVAL_RUNS_ROOT={runs_root} uv run python {script} {campaign})".format(
+        root=shlex.quote(str(ROOT)),
+        runs_root=shlex.quote(str(RUNS_ROOT)),
+        script=shlex.quote(str(script)),
+        campaign=shlex.quote(campaign_id),
+    )
 
 
 def load_campaign(campaign_id: str) -> dict[str, Any]:
@@ -99,14 +106,6 @@ def new_campaign(arguments: argparse.Namespace) -> None:
         fail(2, "campaign_already_exists")
     suite_path = arguments.suite.resolve()
     suite = load_suite(suite_path)
-    if not arguments.allow_repeat:
-        for existing in CAMPAIGNS_ROOT.glob("*/campaign.json"):
-            try:
-                other = read_json(existing)
-            except SystemExit:
-                continue
-            if other.get("protocol_mode") == PROTOCOL_MODE and other.get("suite_id") == suite["id"]:
-                fail(2, f"campaign_already_exists_for_model:{suite['id']} -- pass --allow-repeat for an intentional variability attempt")
     task_ids = [task["id"] for task in suite["tasks"]]
     now = utc_now()
     novnc_port = allocate_campaign_novnc_port(arguments.campaign_id)
@@ -312,7 +311,6 @@ def main() -> None:
     new_parser = subparsers.add_parser("new")
     new_parser.add_argument("suite", type=Path)
     new_parser.add_argument("--campaign-id", required=True, dest="campaign_id")
-    new_parser.add_argument("--allow-repeat", action="store_true", help="create another campaign for the same suite for an intentional variability attempt")
 
     add_run_parser = subparsers.add_parser("add-run")
     add_run_parser.add_argument("campaign_id")

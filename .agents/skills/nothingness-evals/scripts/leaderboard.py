@@ -51,6 +51,16 @@ def campaign_manifest(name: str) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def campaign_sort_key(name: str, items: list[dict[str, Any]]) -> tuple[str, str]:
+    manifest = campaign_manifest(name)
+    for field in ("created_at", "completed_at"):
+        value = manifest.get(field)
+        if isinstance(value, str) and value:
+            return value, name
+    classified = [str(item.get("classified_at") or "") for item in items]
+    return max(classified, default=""), name
+
+
 def money(value: object) -> str:
     return "unknown" if not isinstance(value, (int, float)) else f"${value:.4f}"
 
@@ -94,8 +104,7 @@ def render(results: list[dict[str, Any]]) -> list[str]:
 
     columns = ("Model", "Thinking", "Date", "Eval", "Orchestrator/Judge", "Orchestrator/Judge cost", "Retries", "Score", "Assisted", "Tokens (in/out)", "Accepted task cost", "Campaign cost", "$/point", "Report")
     lines = [f"| {' | '.join(columns)} |", f"|{'|'.join([' --- '] * len(columns))}|"]
-    for name in sorted(runs, reverse=True):
-        items = runs[name]
+    for name, items in sorted(runs.items(), key=lambda entry: campaign_sort_key(entry[0], entry[1]), reverse=True):
         manifest = campaign_manifest(name)
         model = items[0].get("selected_model") or items[0].get("requested_model") or {}
         scored = [item for item in items if item.get("validity") == "valid"]

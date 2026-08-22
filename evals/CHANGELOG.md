@@ -1,5 +1,9 @@
 # Nothingness Evaluator changelog
 
+## 1.7.3 - 2026-08-22
+
+Repeated campaigns are allowed by default. The Copilot runner forwards the supplied prompt unchanged, shares the normal runs root so its dashboard command sees the campaign, and attributes cost metadata to the most recently completed campaign and its matching published result. The leaderboard orders campaigns by start time across model and thinking groups.
+
 ## 1.7.2 — 2026-08-19
 
 The external Copilot runner now supports repeated campaigns and a dry-run that validates session cost accounting into `orchestrator.json`.
@@ -18,7 +22,7 @@ The evaluator image is now Debian bookworm-slim with a pinned Linux-only Flutter
 
 ## 1.6.1 — 2026-08-15
 
-Intentional repeat campaigns are now supported with `campaign.py new --allow-repeat`, preserving the default duplicate-campaign guard while allowing model variability measurements on the same harness and suite.
+Intentional repeat campaigns were added, preserving a duplicate-campaign guard by default while allowing model variability measurements on the same harness and suite.
 
 ## 1.6.0 — 2026-08-15
 

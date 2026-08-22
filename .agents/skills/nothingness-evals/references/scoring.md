@@ -50,11 +50,10 @@ Hard rule: **any unmet `required` expectation caps the score at 2**, regardless 
 
 ## Repeated campaigns are separate samples
 
-A model has one campaign by default; intentional additional campaigns may be created with
-`campaign.py new --allow-repeat`. Each campaign still has one accepted run per task and at most
-two fresh retries after operational failure. Retries are not samples, are never averaged, and do
-not change accepted-task cost. Repeated campaign scores remain separate published data points;
-compare them only when their harness version and suite manifest match.
+A model may have multiple campaigns for the same suite. Each campaign still has one accepted run
+per task and at most two fresh retries after operational failure. Retries are not samples, are
+never averaged, and do not change accepted-task cost. Repeated campaign scores remain separate
+published data points; compare them only when their harness version and suite manifest match.
 
 Campaign cost is the actual measured candidate/admission spend for accepted runs plus retries.
 Accepted-task cost is measured only from the accepted run for each task. Orchestrator/judge spend

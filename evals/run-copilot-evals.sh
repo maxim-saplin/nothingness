@@ -4,7 +4,9 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 COPILOT_HOME_DIR="${COPILOT_HOME:-$HOME/.copilot}"
-BASE_RUNS_ROOT="${NOTHINGNESS_EVAL_RUNS_ROOT:-$ROOT_DIR/.tmp/evals}"
+RUNS_ROOT="${NOTHINGNESS_EVAL_RUNS_ROOT:-$ROOT_DIR/.tmp/evals}"
+CAMPAIGNS_ROOT="$RUNS_ROOT/campaigns"
+RESULTS_ROOT="$ROOT_DIR/evals/results"
 COPILOT_TASK_WAIT_SECONDS="${COPILOT_TASK_WAIT_TIMEOUT_SECONDS:-86400}"
 
 usage() {
@@ -35,36 +37,65 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
-run_copilot() {
-  local session_id="$1"
-  local runs_root="$2"
-  local log_file="$3"
-
-  mkdir -p "$(dirname "$log_file")"
-  NOTHINGNESS_EVAL_RUNS_ROOT="$runs_root" \
-    COPILOT_TASK_WAIT_TIMEOUT_SECONDS="$COPILOT_TASK_WAIT_SECONDS" \
-    copilot --session-id "$session_id" --yolo -p "$PROMPT" 2>&1 | tee "$log_file"
-}
-
-result_dir_from_log() {
-  local log_file="$1"
-
-  python3 - "$log_file" <<'PY'
+latest_campaign_result() {
+  python3 - "$CAMPAIGNS_ROOT" "$RESULTS_ROOT" <<'PY'
+import json
 import pathlib
-import re
 import sys
 
-path = pathlib.Path(sys.argv[1])
-text = path.read_text(encoding="utf-8", errors="replace")
-matches = re.findall(r"(?<![A-Za-z0-9_.-])evals/results/([A-Za-z0-9_.-]+)(?=[/` )]|$)", text)
-if not matches:
-    raise SystemExit(f"result_directory_not_reported:{path}")
+campaigns_root = pathlib.Path(sys.argv[1])
+results_root = pathlib.Path(sys.argv[2])
 
-result_dir = pathlib.Path("evals/results") / matches[-1]
-if not result_dir.is_dir():
-    raise SystemExit(f"result_directory_not_found:{result_dir}")
-print(result_dir)
+
+def read_payload(path):
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def sort_key(path, payload):
+    created_at = payload.get("created_at")
+    if isinstance(created_at, str) and created_at:
+        return 1, created_at, path.stat().st_mtime_ns, path.parent.name
+    return 0, "", path.stat().st_mtime_ns, path.parent.name
+
+
+campaigns = []
+for path in campaigns_root.glob("*/campaign.json"):
+    payload = read_payload(path)
+    if payload is not None:
+        campaigns.append((sort_key(path, payload), path.parent.name, payload))
+if not campaigns:
+    raise SystemExit("campaign_not_found")
+
+_, campaign_id, campaign = max(campaigns)
+status = campaign.get("status")
+if status != "complete":
+    raise SystemExit(f"campaign_not_complete:{campaign_id}:{status or 'unknown'}")
+
+results = []
+for path in results_root.glob("*/campaign.json"):
+    payload = read_payload(path)
+    if payload is not None and payload.get("campaign_id") == campaign_id:
+        results.append((sort_key(path, payload), path.parent))
+if not results:
+    raise SystemExit(f"result_not_found_for_campaign:{campaign_id}")
+
+print(campaign_id)
+print(max(results)[1])
 PY
+}
+
+run_copilot() {
+  local session_id="$1"
+  local log_file="$2"
+
+  mkdir -p "$(dirname "$log_file")"
+  NOTHINGNESS_EVAL_RUNS_ROOT="$RUNS_ROOT" \
+    COPILOT_TASK_WAIT_TIMEOUT_SECONDS="$COPILOT_TASK_WAIT_SECONDS" \
+    copilot --session-id "$session_id" --yolo -p "$PROMPT" 2>&1 | tee "$log_file"
 }
 
 write_orchestrator() {
@@ -147,35 +178,40 @@ PY
 }
 
 run_dry() {
-  local session_id events_file output_dir output_file log_file runs_root
+  local session_id events_file output_dir output_file log_file
   session_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   events_file="$COPILOT_HOME_DIR/session-state/$session_id/events.jsonl"
   output_dir="$ROOT_DIR/.tmp/copilot-dry-run-$session_id"
   output_file="$output_dir/orchestrator.json"
   log_file="$output_dir/copilot.log"
-  runs_root="$BASE_RUNS_ROOT/dry-run-$session_id"
 
-  run_copilot "$session_id" "$runs_root" "$log_file"
+  run_copilot "$session_id" "$log_file"
   write_orchestrator "$events_file" "$output_file" "dry-run"
   validate_orchestrator "$output_file"
 }
 
 run_campaign() {
   local iteration="$1"
-  local session_id events_file log_file runs_root result_dir campaign_id
+  local session_id events_file log_file campaign_id result_dir
+  local -a latest=()
 
   session_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   events_file="$COPILOT_HOME_DIR/session-state/$session_id/events.jsonl"
   log_file="$ROOT_DIR/.tmp/copilot-evals/$session_id/copilot.log"
-  runs_root="$BASE_RUNS_ROOT/$session_id"
 
   printf '[copilot] repeat %s/%s\n' "$iteration" "$COUNT"
-  run_copilot "$session_id" "$runs_root" "$log_file"
+  run_copilot "$session_id" "$log_file"
 
-  result_dir="$(result_dir_from_log "$log_file")"
-  campaign_id="${result_dir##*/}"
-  write_orchestrator "$events_file" "$ROOT_DIR/$result_dir/orchestrator.json" "$campaign_id"
-  validate_orchestrator "$ROOT_DIR/$result_dir/orchestrator.json"
+  mapfile -t latest < <(latest_campaign_result)
+  if [[ ${#latest[@]} -ne 2 ]]; then
+    printf 'could not identify the latest completed campaign and its result\n' >&2
+    exit 1
+  fi
+
+  campaign_id="${latest[0]}"
+  result_dir="${latest[1]}"
+  write_orchestrator "$events_file" "$result_dir/orchestrator.json" "$campaign_id"
+  validate_orchestrator "$result_dir/orchestrator.json"
 }
 
 if [[ "$DRY_RUN" == true ]]; then

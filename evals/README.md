@@ -11,6 +11,9 @@ candidate's write-up.
 <!-- BEGIN GENERATED LEADERBOARD -->
 | Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Retries | Score | Assisted | Tokens (in/out) | Accepted task cost | Campaign cost | $/point | Report |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5.4-nano` | high | 2026-08-21 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $2.36 | 0 | **18/21** | no | 681k / 176k | $0.8417 | $0.8417 | $0.0468 | [detail](results/gpt-5.4-nano-high-20260821-1216/README.md) |
+| `gpt-5.4-nano` | high | 2026-08-21 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.55 | 0 | **17/21** | **1** on 1/7 tasks | 382k / 144k | $0.6529 | $0.6529 | $0.0384 | [detail](results/gpt-5.4-nano-high-20260821-0749/README.md) |
+| `gpt-5.4-nano` | high | 2026-08-21 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.29 | 0 | **14/21** | no | 486k / 148k | $0.6939 | $0.6939 | $0.0496 | [detail](results/gpt-5.4-nano-high-20260821-0517/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-20 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.61 | 0 | **19/21** | no | 698k / 141k | $0.7618 | $0.7618 | $0.0401 | [detail](results/gpt-5.4-nano-medium-20260820-1113/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-20 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.54 | 0 | **17/21** | no | 599k / 139k | $0.7396 | $0.7396 | $0.0435 | [detail](results/gpt-5.4-nano-medium-20260820-0810/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-20 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.68 | 1 | **16/21** | no | 424k / 136k | $0.7290 | $0.7290 | $0.0456 | [detail](results/gpt-5.4-nano-medium-20260820-0444/README.md) |
@@ -21,9 +24,6 @@ candidate's write-up.
 | `gpt-5.4-nano` | medium | 2026-08-11 | 1.3.0 | claude.opus-5-high | $57.18 | – | **15/21** | no | 488k / 126k | $0.6164 | $0.6164 | $0.0411 | [detail](results/gpt-5.4-nano-medium-20260811-0506/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-10 | 1.3.0 | unrecorded | – | – | **14/21** | no | 377k / 117k | $0.4537 | $0.4537 | $0.0324 | [detail](results/gpt-5.4-nano-medium-20260810-2027/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-10 | 1.0.0 | claude.opus-5-high | $50.56 | – | **11/18** | no | 742k / 167k | $0.8818 | $0.8818 | $0.0802 | [detail](results/gpt-5.4-nano-medium-20260810-0750/README.md) |
-| `gpt-5.4-nano` | high | 2026-08-21 | 1.7.2 | gpt-5.6-luna-high/pi | – | 0 | **18/21** | no | 681k / 176k | $0.8417 | $0.8417 | $0.0468 | [detail](results/gpt-5.4-nano-high-20260821-1216/README.md) |
-| `gpt-5.4-nano` | high | 2026-08-21 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.55 | 0 | **17/21** | **1** on 1/7 tasks | 382k / 144k | $0.6529 | $0.6529 | $0.0384 | [detail](results/gpt-5.4-nano-high-20260821-0749/README.md) |
-| `gpt-5.4-nano` | high | 2026-08-21 | 1.7.2 | gpt-5.6-luna-max/copilot-cli | $1.29 | 0 | **14/21** | no | 486k / 148k | $0.6939 | $0.6939 | $0.0496 | [detail](results/gpt-5.4-nano-high-20260821-0517/README.md) |
 
 `Retries` counts fresh task restarts in the current campaign. `Accepted task cost` uses only the accepted run for each completed task. `Campaign cost` includes accepted runs and retry spend. `Orchestrator/Judge cost` is supplied separately because those agent sessions are outside the measured containers. Regenerate with `leaderboard.py --write`; do not hand-edit between the markers.
 <!-- END GENERATED LEADERBOARD -->

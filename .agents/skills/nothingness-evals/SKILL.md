@@ -42,9 +42,9 @@ Pick the suite matching the requested model (e.g. `evals/suites/t1-t7-gpt-5.4-mi
 uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/suites/<suite>.json --campaign-id <id>
 ```
 
-For an intentional variability attempt after a completed campaign, pass `--allow-repeat` and use a new campaign id. Keep each campaign's results separate; do not combine attempts into one campaign or silently replace an existing result.
+Multiple campaigns for the same suite and model are allowed. Use a new campaign id for each campaign and keep each campaign's results separate; do not combine attempts into one campaign or silently replace an existing result.
 
-This returns a `dashboard_command` (`watch-eval.py <campaign-id>`). Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal. Do not wait until the end of the run to surface it.
+This returns a self-contained `dashboard_command`. Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal from any working directory. Do not wait until the end of the run to surface it.
 
 **noVNC is one URL per campaign.** `campaign.py new` reserves a host port and returns `novnc_url`; every task (and retry) of that campaign binds the same `127.0.0.1` port. Print it once as a markdown link (`[live GUI](<novnc_url>)`) when the campaign is created — do not reprint a new URL per task. The page is dead between tasks until the next container is up; refresh after `start`. `watch-eval.py` repeats that same campaign URL on its `Live GUI` line.
 
