@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate used the live Linux VM-service extension surface, and my fresh verification still answers with runtime, tree, semantics, settings, and screenshot captures.",
+      "evidence_ref": "verification-bca6a3bc8ec94c6095ab8934f7e44379"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My queue re-check captured paused playback at 5578 ms, then resumed it and captured isPlaying=true with the same track advancing.",
+      "evidence_ref": "verification-bca6a3bc8ec94c6095ab8934f7e44379"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "From a three-track queue at index 0, next changed the captured state to index 1 and track 02-undercover-50.opus while remaining playing.",
+      "evidence_ref": "verification-b73d3f6e18884103a49fd1496225b729"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While track 02 was playing at about 8.3 s, seek 0:30 moved it to 30.789 s; I paused immediately only to hold that target for the fresh capture.",
+      "evidence_ref": "verification-ef791afb0bb54078be9d5398b556eb3d"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's final play/pause, next, and 30216-to-33426 ms seek claims are backed by its own inspect outputs in the contiguous session event trail.",
+      "evidence_ref": "events-23060460f3114ec782706fe48b2a3bfd"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final inspection reports an empty git status and diff stat, and the live behavior is the unmodified playback behavior requested by this smoke test.",
+      "evidence_ref": "inspection-1caf315c79c04457b00bcae739b9919b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained live through the re-check, overflows reports stayed empty, and no unresolved crash or hang appeared in the candidate trail.",
+      "evidence_ref": "verification-ef791afb0bb54078be9d5398b556eb3d"
+    }
+  ]
+}

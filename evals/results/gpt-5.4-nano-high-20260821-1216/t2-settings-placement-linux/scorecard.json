@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette selected, semantics places screen at index 5 (y=231–276) and variant at index 6 (y=276–321), with abutting bounds; the screenshot shows the same adjacent rows.","evidence_ref":"verification-4ac3ba9614804fe290e8c9f5adee1638"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The live screen row cycled through Spectrum, Polo, Dot, Void, and Cassette with matching displayed values, and direct screen calls for Dot and Cassette were reflected in the row.","evidence_ref":"verification-ab662604578c44a2a2271b090513a6c8"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The Cassette variant row changed through its own tap and through direct variant calls; fresh semantics showed the corresponding Tape · Mono, Tape · Amber, and Tape · Colour labels.","evidence_ref":"verification-0f7469a83f924623853ca54b2eefe72a"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void states contain no Cassette-only row; their own controls changed live (Spectrum color, Polo and Void text size, and Dot song-info toggle).","evidence_ref":"verification-769fef09a1bb434dac67626a139d1f4b"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The verified PNG visibly shows the Settings sheet with screen=cassette and the adjacent variant row, both legible and in frame.","evidence_ref":"verification-4ac3ba9614804fe290e8c9f5adee1638"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The Cassette semantics and settings bundle independently corroborates screen=cassette, the consecutive row order, and the current Tape · Colour value.","evidence_ref":"verification-4ac3ba9614804fe290e8c9f5adee1638"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Across the captured screen states, unrelated MODE, LOOK, LIBRARY, SOUND, DISPLAY, and ABOUT rows retain their order and labels; scan-on-startup and smart-folders taps changed their values and were restored.","evidence_ref":"verification-e7075c9faa9d41e8b48f4d3fc4618994"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated settings navigation, screen switching, scrolling, and control activation, the app remained responsive and the final runtime bundle reported zero overflow reports and no library error.","evidence_ref":"verification-4ac3ba9614804fe290e8c9f5adee1638"}
+  ]
+}

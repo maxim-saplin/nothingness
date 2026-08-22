@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing the Dot screen config and restarting, the Dot capture showed only the centered dot and no artist/title overlay.","evidence_ref":"verification-ed0e03e8a0a04864a83a84f95065d363"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled show song info, paused before hot restart, and the post-restart capture still showed the fixture artist and title without retoggling.","evidence_ref":"verification-4bba181b99a846679a88f8fc20f3289c"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I toggled the option back off, restarted again, and the post-restart Dot capture showed no overlay despite the same track remaining loaded.","evidence_ref":"verification-579611a0a27a408689a7a3e41c4b2b1b"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The genuine 100% long-metadata screenshot keeps both text fields inside the hero, but the candidate's tree reports the centered dot container as 0x0, so the pulsing dot was removed rather than preserved alongside the overlay.","evidence_ref":"verification-6e7144c704034b56b57519508478146b"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At 150% the long text is contained, but the max-scale tree and screenshot again show a 0x0/absent centered dot; avoiding intersection by eliminating the dot does not satisfy the hardening requirement.","evidence_ref":"verification-adb90be8e3b3420cb833c4cd7d9d5fab"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"My fresh 100% reproduction is on-point, but the candidate did not submit a normal-scale screenshot: its event stream contains only shoot --help and the container had no candidate shot artifact.","evidence_ref":"verification-6e7144c704034b56b57519508478146b"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"My fresh 150% reproduction is on-point, but no candidate max-scale screenshot was delivered or captured by the candidate.","evidence_ref":"verification-adb90be8e3b3420cb833c4cd7d9d5fab"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and maximum verification trees contain non-empty hero artist/title text, with 30/15 and 45/22.5 point sizes respectively.","evidence_ref":"verification-f4e2b75d13cb497a94513a58efd52c1d"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short fixture metadata renders cleanly at both scales, but the centered dot is likewise absent/0x0 at both scales, a visible common-case regression.","evidence_ref":"verification-85d37dbef6594988a181de294fe1c17f"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After repeated toggles, restarts, scale changes, and long/short track switches, the final runtime remained responsive with active playback and zero overflow reports.","evidence_ref":"verification-6e7212c028c743f481d44ec4b357ac8b"}
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate event stream contains no live app launch, gesture input, or during-gesture capture; the added screenshot test was left hung.",
+      "evidence_ref": "events-41b559e689704dc88e24d6333b10bebd"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh held positive and reverse X11 swipe captures show only the bottom-line preview and no centered time HUD or tall vertical indicator.",
+      "evidence_ref": "verification-1e13a6c673c7422fb306bfbdc250f008"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and settle, the fresh post capture returns the bottom line to /opt/nothingness/media with no residual preview.",
+      "evidence_ref": "verification-c9eb9a14787a4168a33f1a18e7967ce3"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate produced no traceable during-gesture captures for two swipes, so its own live-value tracking cannot be credited from events.",
+      "evidence_ref": "events-41b559e689704dc88e24d6333b10bebd"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The held capture showed targetMs 310943; the settled runtime capture landed at position 311732, within one second, while playback remained functional.",
+      "evidence_ref": "verification-84c96807c52342888a9639a3f73afad9"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate-session screenshot call is traceable during an in-flight gesture; the candidate's screenshot test never completed.",
+      "evidence_ref": "events-41b559e689704dc88e24d6333b10bebd"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A genuine fresh post-gesture PNG shows the normal folder path and no seek readout or center indicator.",
+      "evidence_ref": "verification-c9eb9a14787a4168a33f1a18e7967ce3"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled verification bundle's tree and runtime both corroborate the screenshot's normal folder-line state and active Void screen.",
+      "evidence_ref": "verification-c9eb9a14787a4168a33f1a18e7967ce3"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen play/pause, next, and previous zones responded in fresh captures; a real vertical hero drag left the fixed Void presentation responsive and unchanged.",
+      "evidence_ref": "verification-a6d0486f3a864bd9921169cccc6616c4"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Five varied real X11 swipes completed without a crash; the final runtime bundle remained responsive with zero overflow reports.",
+      "evidence_ref": "verification-f49e041a47e14d0bb3af221e12b64b20"
+    }
+  ]
+}

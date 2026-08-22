@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, the live semantics places screen at index 5 (y=231–276) and color scheme at index 6 (y=276–321), with abutting bounds; the genuine screenshot shows the same adjacent rows.",
+      "evidence_ref": "verification-e4ea1d597e9d44a6ac884bf87c8dd981"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The Cassette row reads exactly lowercase color scheme and appears once; the separate pre-existing global variant / system row remains distinct, with no duplicate Cassette variant row.",
+      "evidence_ref": "verification-e4ea1d597e9d44a6ac884bf87c8dd981"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen activation cycled the screen through Spectrum, Polo, Dot, Void, and Cassette with matching row values, and direct screen settings also landed and were reflected in fresh captures.",
+      "evidence_ref": "verification-7fc75f968da94cdabab75ff3ed4d8f0b"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping color scheme advanced its displayed Cassette variant, while direct variant 3 and 4 calls produced matching fresh row values and settings state.",
+      "evidence_ref": "verification-c511f0757f37489fa849816faf38dae5"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void captures contain no Cassette-only color scheme row and each representative native control changed on-screen without disturbing its screen value.",
+      "evidence_ref": "verification-a2238d05a5f6427b961350b9ae5fe70b"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The captured PNG genuinely shows the Settings sheet with screen cassette and the legible adjacent color scheme row (Tape · Mono).",
+      "evidence_ref": "verification-e4ea1d597e9d44a6ac884bf87c8dd981"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same Cassette verification independently supplies semantics and settings state corroborating screen=cassette, consecutive placement, the exact label, and the current Tape · Mono value.",
+      "evidence_ref": "verification-e4ea1d597e9d44a6ac884bf87c8dd981"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The full settings semantics retained unrelated row order and labels; haptics and immersive both remained functional when tapped, with their displayed values updating in captures.",
+      "evidence_ref": "verification-6ccce56f0b0d455a9d38a7a8cd0ddad7"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated navigation and control cycling, the app remained responsive; final runtime captures reported no overflow reports or library errors.",
+      "evidence_ref": "verification-fd1187a17b214e10a1a0562fbca6e618"
+    }
+  ]
+}
