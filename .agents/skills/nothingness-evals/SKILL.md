@@ -44,11 +44,11 @@ uv run python .agents/skills/nothingness-evals/scripts/campaign.py new evals/sui
 
 Multiple campaigns for the same suite and model are allowed. Use a new campaign id for each campaign and keep each campaign's results separate; do not combine attempts into one campaign or silently replace an existing result.
 
-This returns a self-contained `dashboard_command`. Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal from any working directory. Do not wait until the end of the run to surface it.
+This returns a short `dashboard_command`. Print that command to the user **immediately**, before starting the first task, so they can follow along live in their own terminal from any directory inside the repository. Do not wait until the end of the run to surface it.
 
 **noVNC is one URL per campaign.** `campaign.py new` reserves a host port and returns `novnc_url`; every task (and retry) of that campaign binds the same `127.0.0.1` port. Print it once as a markdown link (`[live GUI](<novnc_url>)`) when the campaign is created — do not reprint a new URL per task. The page is dead between tasks until the next container is up; refresh after `start`. `watch-eval.py` repeats that same campaign URL on its `Live GUI` line.
 
-Then start the watchdog, so an orphaned run reaches you instead of waiting to be noticed. It prints one line per state change on stdout, so run it however your harness streams a long-running command (a background/monitor facility if it has one, otherwise a second terminal you glance at):
+Then start the watchdog, a monitor that reports orphaned or stalled runs and exits when the campaign ends. It is not another evaluator. It prints one line per state change on stdout, so run it however your harness streams a long-running command (a background/monitor facility if it has one, otherwise a second terminal you glance at):
 
 ```
 uv run python .agents/skills/nothingness-evals/scripts/watchdog.py <campaign-id>

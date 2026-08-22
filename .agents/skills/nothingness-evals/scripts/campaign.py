@@ -27,12 +27,12 @@ def campaign_path(campaign_id: str) -> Path:
 
 def dashboard_command(campaign_id: str) -> str:
     script = SCRIPT_DIR.relative_to(ROOT) / "watch-eval.py"
-    return "(cd {root} && NOTHINGNESS_EVAL_RUNS_ROOT={runs_root} uv run python {script} {campaign})".format(
-        root=shlex.quote(str(ROOT)),
-        runs_root=shlex.quote(str(RUNS_ROOT)),
-        script=shlex.quote(str(script)),
-        campaign=shlex.quote(campaign_id),
-    )
+    default_runs_root = ROOT / ".tmp" / "evals"
+    runs_root = ""
+    if RUNS_ROOT != default_runs_root:
+        value = RUNS_ROOT.relative_to(ROOT) if RUNS_ROOT.is_relative_to(ROOT) else RUNS_ROOT
+        runs_root = f" NOTHINGNESS_EVAL_RUNS_ROOT={shlex.quote(str(value))}"
+    return f'cd "$(git rev-parse --show-toplevel)" &&{runs_root} uv run python {script} {campaign_id}'
 
 
 def load_campaign(campaign_id: str) -> dict[str, Any]:

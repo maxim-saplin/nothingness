@@ -2,7 +2,7 @@
 
 ## 1.7.3 - 2026-08-22
 
-Repeated campaigns are allowed by default. The Copilot runner forwards the supplied prompt unchanged, shares the normal runs root so its dashboard command sees the campaign, and attributes cost metadata to the most recently completed campaign and its matching published result. The leaderboard orders campaigns by start time across model and thinking groups.
+Repeated campaigns are allowed by default. The Copilot runner forwards the supplied prompt unchanged, shares the normal runs root so its dashboard command sees the campaign, emits a concise repository-relative dashboard command, and stops with the original failure when no campaign is created. Cost metadata is attributed only to a campaign created during the current invocation and its matching published result. The leaderboard orders campaigns by start time across model and thinking groups.
 
 ## 1.7.2 — 2026-08-19
 

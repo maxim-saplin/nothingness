@@ -38,13 +38,15 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 latest_campaign_result() {
-  python3 - "$CAMPAIGNS_ROOT" "$RESULTS_ROOT" <<'PY'
+  python3 - "$CAMPAIGNS_ROOT" "$RESULTS_ROOT" "$1" <<'PY'
 import json
 import pathlib
 import sys
+from datetime import datetime
 
 campaigns_root = pathlib.Path(sys.argv[1])
 results_root = pathlib.Path(sys.argv[2])
+started_at = datetime.fromisoformat(sys.argv[3].replace("Z", "+00:00"))
 
 
 def read_payload(path):
@@ -65,10 +67,17 @@ def sort_key(path, payload):
 campaigns = []
 for path in campaigns_root.glob("*/campaign.json"):
     payload = read_payload(path)
-    if payload is not None:
+    created_at = payload.get("created_at") if payload is not None else None
+    if not isinstance(created_at, str):
+        continue
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError:
+        continue
+    if created > started_at:
         campaigns.append((sort_key(path, payload), path.parent.name, payload))
 if not campaigns:
-    raise SystemExit("campaign_not_found")
+    raise SystemExit("campaign_not_created_after_invocation")
 
 _, campaign_id, campaign = max(campaigns)
 status = campaign.get("status")
@@ -155,7 +164,7 @@ if campaign_id:
 
 output_path.parent.mkdir(parents=True, exist_ok=True)
 output_path.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
-print(output_path)
+print("orchestrator metadata written")
 PY
 }
 
@@ -173,7 +182,7 @@ if not isinstance(payload.get("orchestrator"), str) or not payload["orchestrator
     raise SystemExit("orchestrator_name_missing")
 if not isinstance(payload.get("cost_usd"), (int, float)) or isinstance(payload["cost_usd"], bool):
     raise SystemExit("orchestrator_cost_missing")
-print(f"validated {path}")
+print("orchestrator metadata validated")
 PY
 }
 
@@ -192,9 +201,10 @@ run_dry() {
 
 run_campaign() {
   local iteration="$1"
-  local session_id events_file log_file campaign_id result_dir
+  local session_id events_file log_file campaign_id result_dir invocation_started latest_output
   local -a latest=()
 
+  invocation_started="$(python3 -c 'from datetime import UTC, datetime; print(datetime.now(UTC).isoformat())')"
   session_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   events_file="$COPILOT_HOME_DIR/session-state/$session_id/events.jsonl"
   log_file="$ROOT_DIR/.tmp/copilot-evals/$session_id/copilot.log"
@@ -202,9 +212,13 @@ run_campaign() {
   printf '[copilot] repeat %s/%s\n' "$iteration" "$COUNT"
   run_copilot "$session_id" "$log_file"
 
-  mapfile -t latest < <(latest_campaign_result)
+  if ! latest_output="$(latest_campaign_result "$invocation_started")"; then
+    printf 'repeat %s stopped: Copilot did not create a completed campaign; see its output above\n' "$iteration" >&2
+    exit 1
+  fi
+  mapfile -t latest <<< "$latest_output"
   if [[ ${#latest[@]} -ne 2 ]]; then
-    printf 'could not identify the latest completed campaign and its result\n' >&2
+    printf 'repeat %s stopped: campaign metadata was incomplete\n' "$iteration" >&2
     exit 1
   fi
 
