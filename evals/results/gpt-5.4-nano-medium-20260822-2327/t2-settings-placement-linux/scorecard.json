@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Cassette selected showed the screen row at index 5 immediately followed by the cassette variant row at index 6 with abutting 45px rects; the rendered capture showed both rows adjacent and legible.","evidence_ref":"verification-eaf2ad1d36614409ae2b9716453dbe24"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I tapped the screen row through cassette, spectrum, polo, dot, and void, observing each displayed value, and direct screen commands independently landed on the named screens.","evidence_ref":"verification-b6f3bc92de4d49639ae19ff20fc3cdc6"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The cassette variant row advanced on its own tap, and direct cassettevariant calls changed the underlying setting with the row updating to the selected artwork label.","evidence_ref":"verification-1bb237b9883a43c7aca234becd2ddc44"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, polo, dot, and void each omitted the cassette-only row; their own controls remained present and representative controls changed when tapped after scrolling into view.","evidence_ref":"verification-70180af86af740759e6c1df08294066e"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The final genuine PNG capture visibly shows the Settings sheet with screen=cassette and the adjacent screen/variant rows readable in one frame.","evidence_ref":"verification-eaf2ad1d36614409ae2b9716453dbe24"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final semantics snapshot independently reports screen=cassette at index 5 and variant at index 6, matching the screenshot and its Minimal value.","evidence_ref":"verification-eaf2ad1d36614409ae2b9716453dbe24"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Across the captured screen states, unrelated rows retained their order; transport and browser both responded to on-screen taps with changed displayed values.","evidence_ref":"verification-d0298cedcc5e4f0fb7d796c6dca2ce22"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated screen changes, scrolling, variant changes, and settings close/reopen, the app remained live and the runtime overflow ring was empty.","evidence_ref":"verification-8613ca49a1d743cb9b1d236d7209e18e"}
+  ]
+}

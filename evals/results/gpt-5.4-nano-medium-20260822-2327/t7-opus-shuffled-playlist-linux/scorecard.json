@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Runtime verification showed queueLength 10 with exactly the ten supplied /opt/nothingness/media/*.opus paths, each once and no foreign entries.","evidence_ref":"verification-0c34280bbf7749b1b41a011607003cc3"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The candidate tapped the real void-settings-status-shuffle control and runtime verification reported shuffle true.","evidence_ref":"verification-0c34280bbf7749b1b41a011607003cc3"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Runtime verification showed isPlaying true, nonzero spectrum, and a valid in-set current fixture with isNotFound false.","evidence_ref":"verification-0c34280bbf7749b1b41a011607003cc3"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Candidate event records show one drive.py next after a currentIndex 4 read, followed by currentIndex 5 and songInfo 03-undercover-51.opus; the resulting fixture remained valid and in-set.","evidence_ref":"verification-0c34280bbf7749b1b41a011607003cc3"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Review of the complete candidate event chain found only the ten supplied fixture paths in setQueue and current-track state; no foreign media appeared.","evidence_ref":"events-0a5ed9dbfd394f4ab15403174ed47b03"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final report's queue, shuffle, playback, and single-next claims are backed by the candidate's concrete setQueue, tap, inspect, and next/inspect outputs.","evidence_ref":"events-0a5ed9dbfd394f4ab15403174ed47b03"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Inspection reported empty git status and diff, and the live behavior matched the unmodified build's queue, shuffle, playback, and next controls.","evidence_ref":"inspection-ad8fe8c07e4d40c8b89e0298574e5c49"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"A wrong-log inspect attempt and an unavailable rg command were followed by corrected preflight/launch and successful live runtime verification; no unresolved crash or hang remained.","evidence_ref":"verification-2f7e7552d56247c2b4c3c3fd145ea439"}
+  ]
+}

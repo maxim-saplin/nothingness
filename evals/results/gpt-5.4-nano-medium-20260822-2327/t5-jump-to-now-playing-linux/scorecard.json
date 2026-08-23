@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With playback active in /opt/nothingness/media, browsing /opt/nothingness exposed the labeled jump action; activating it returned to /opt/nothingness/media with track 44 visible in the verified post-state.","evidence_ref":"verification-ddcb22f7885f4228aa94b315da2bced3"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"In the same folder at scrollPosition 0, track 47 was outside the visible rows, but no same-folder bring-into-view action appeared and its key could not be activated.","evidence_ref":"verification-5ccd8d91fb7341468adf3fb3d46f78c3"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After scrolling to scrollPosition 203.2, the playing 47 row was fully visible (127.0–168.0 within the viewport) and no jump affordance was exposed.","evidence_ref":"verification-f028361d06174c909e93068f7d8b626c"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The live no-playing capture reports isPlaying false and songInfo null, and its semantics contain no jump action.","evidence_ref":"verification-0fa5345865cb49a6b5e492ed59fb99f5"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active different-folder control is represented in semantics with actions longPress/tap and the distinguishing label 'jump to now-playing folder'.","evidence_ref":"verification-54676bb1fcc8417a916bd54eed2ec23b"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate-submitted before screenshot was present in the collected artifacts; the candidate stopped while its screenshot test was still failing.","evidence_ref":"verification-54676bb1fcc8417a916bd54eed2ec23b"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No candidate-submitted after screenshot was present in the collected artifacts; the candidate stopped before completing its screenshot test.","evidence_ref":"verification-ddcb22f7885f4228aa94b315da2bced3"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate emitted no final write-up claims; the concrete jump activation and resulting states are traceable in the contiguous session event stream and verified captures.","evidence_ref":"events-5cc6b80bb5164e0283e7d736151b74f9"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"An on-screen folder-row tap navigated from /opt/nothingness into /opt/nothingness/media, and next/prev/pause/resume commands all returned normally while the app remained responsive.","evidence_ref":"verification-a11d3f7c4d554d4fa429e08d55e62374"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The final live runtime capture remained responsive with no library error and zero overflow reports after exercising navigation, playback, and jump states.","evidence_ref":"verification-43bf673f4ec546079b8287ef406f9c69"}
+  ]
+}

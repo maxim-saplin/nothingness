@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's only legible during artifact shows the unchanged /opt/nothingness/media folder line, not target/duration/progress; its dragByKey call was a short atomic synthetic call.","evidence_ref":"events-a9553c9ae4084091993a019ebcfeccb3"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Fresh held real-X11 forward and reverse swipes showed only the bottom target/duration/percent readout; neither screenshot had a centered readout or tall vertical line.","evidence_ref":"verification-55d8a6f0f509459f85d662cc52a8746a"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and settling, the screenshot and semantics returned the bottom line to /opt/nothingness/media with no seek feedback remaining.","evidence_ref":"verification-3c6c722acd734f689c7182f3f43c82be"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The session has no two distinct legible candidate-owned during-gesture target captures; the sole saved during_seek.png is a folder-path idle-looking image.","evidence_ref":"events-a9553c9ae4084091993a019ebcfeccb3"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Starting around 30 seconds, a real positive swipe moved playback to 41134 ms; I paused immediately and the runtime retained that changed forward target.","evidence_ref":"verification-e8f1451302d246c79354bc0062927832"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"Although a during_seek.png file was written, the event trail ties it to the atomic synthetic drag and the image shows the unchanged folder line rather than an in-flight seek display.","evidence_ref":"events-a9553c9ae4084091993a019ebcfeccb3"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The fresh settled screenshot shows the normal folder path and no lingering seek readout or center indicator.","evidence_ref":"verification-3c6c722acd734f689c7182f3f43c82be"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled tree and semantics independently contain the /opt/nothingness/media bottom crumb, agreeing with the settled screenshot.","evidence_ref":"verification-3c6c722acd734f689c7182f3f43c82be"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"On-screen play/pause changed isPlaying, next changed the queued track to index 2, previous reset the current track position from 27 seconds to near zero, and a real vertical drag left the app responsive in fixed presentation.","evidence_ref":"verification-41dea8789ad44090a3f32e109a0b98a3"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated real-X11 horizontal and vertical gestures left the app live; final runtime bundles reported zero overflow/error reports.","evidence_ref":"verification-e8f1451302d246c79354bc0062927832"}
+  ]
+}

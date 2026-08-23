@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Runtime capture shows queueLength 10 with exactly the ten supplied fixture paths, each once.","evidence_ref":"verification-e3f05616c40e45479c95037d631f32ce"},
+    {"id":"E2","tier":"required","verdict":"met","note":"After tapping the on-screen shuffle status control, runtime reports shuffle true.","evidence_ref":"verification-e3d79e9dbc0a4a128613977adfd35ef2"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Runtime capture before navigation shows isPlaying true on supplied 01-undercover-49.opus with isNotFound false.","evidence_ref":"verification-a9cc763b71aa4d2d94ca87b2fa1ebdf2"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The pre-transition capture was fixture 01 at index 5; after one next, runtime shows fixture 03 at index 6 and isNotFound false.","evidence_ref":"verification-d5caec7a9365430b96119df418de4e77"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The complete session event stream shows queueing, playback, and navigation only among the ten supplied fixture paths.","evidence_ref":"events-dc1c2b8c28164e1c931631f12850989e"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final report's queue, shuffle, playback, and transition claims are backed by concrete inspect outputs in the event stream.","evidence_ref":"events-dc1c2b8c28164e1c931631f12850989e"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Final inspection reports an empty git status and no diff; runtime behavior is the requested unmodified playback flow.","evidence_ref":"inspection-0d1942f0ea024bbaae6cb2c6f3134747"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate recovered from command and launch-probe errors, ultimately ran the live app, and final inspection shows it answering with zero overflow reports.","evidence_ref":"verification-d5caec7a9365430b96119df418de4e77"}
+  ]
+}

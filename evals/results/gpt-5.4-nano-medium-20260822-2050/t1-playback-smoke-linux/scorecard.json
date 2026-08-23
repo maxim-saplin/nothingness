@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The candidate reached a live Linux VM with registered extensions and exercised it with concrete drive.py calls; my fresh verification also captured a live playing queue.","evidence_ref":"verification-b8dc9f52104a4e699a817bdc8cec0191"},
+    {"id":"E2","tier":"required","verdict":"met","note":"My fresh captures showed the staged queue playing, then paused with isPlaying false, then resumed with isPlaying true.","evidence_ref":"verification-73db65ac31d244a496bf73c47a93b8ad"},
+    {"id":"E3","tier":"required","verdict":"met","note":"With a three-track queue, my next call changed currentIndex from 0 to 1 and the active path from track 01 to track 02.","evidence_ref":"verification-bb882652755b4dd784769b278e1fa4ef"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Seeking while playing from about 4 seconds to 60 seconds, then freezing playback, produced a verified position of 60.608 seconds, within tolerance and clearly forward.","evidence_ref":"verification-94712627687a44b6950a3183e20ea8b4"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The candidate's report is traceable to its event-stream state reads for queue playback, pause/resume, next-track index/path, seek acknowledgement, and the follow-up playback read.","evidence_ref":"events-6248da74a64d4c8dbf162cf7735d2bf4"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final inspection found an empty git status and diff, while the live playback behavior remained normal.","evidence_ref":"inspection-94a5d825dfd94ce98684f2bfbbb5250d"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The only recorded errors were an invalid ls option and an Android-only reset help attempt; no app crash or hang occurred, and the final runtime remained responsive with zero overflow reports.","evidence_ref":"verification-94712627687a44b6950a3183e20ea8b4"}
+  ]
+}

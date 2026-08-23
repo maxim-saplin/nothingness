@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's event trail only shows atomic dragByKey calls followed by screenshots after the call; no genuine in-flight capture is traceable.",
+      "evidence_ref": "events-cbb295df41c342fa9fab7c7b2a057378"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh right and left X11 swipe captures show no centered time readout or tall vertical seek indicator.",
+      "evidence_ref": "verification-7ab1cb55ac1249a8a9464289093087e0"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After settling, the bottom line reverted to /opt/nothingness/media in both the screenshot and semantics.",
+      "evidence_ref": "verification-afb714ed8802491c8ec1395166597b18"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied two post-call screenshots, but its own event trail has no two genuine during-gesture captures with live target values.",
+      "evidence_ref": "events-cbb295df41c342fa9fab7c7b2a057378"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A fast real right swipe while playing moved the frozen position from about 22s to 54s on the same track, clearly committing a forward seek.",
+      "evidence_ref": "verification-17a1a6fc43b243d4b46d8a5ae8ec7722"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The event trail identifies during screenshot files, but the surrounding command is an atomic dragByKey followed by shoot, not an in-flight capture.",
+      "evidence_ref": "events-cbb295df41c342fa9fab7c7b2a057378"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh post-gesture screenshot visibly shows the normal folder path with no lingering seek readout or center indicator.",
+      "evidence_ref": "verification-afb714ed8802491c8ec1395166597b18"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled verification includes both a tree/semantics dump and runtime state, agreeing with the post screenshot's folder-path line.",
+      "evidence_ref": "verification-afb714ed8802491c8ec1395166597b18"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Real on-screen next and play/pause taps produced the expected track and playing-state transitions; the vertical swipe left the app live but no distinct vertical transition was observable.",
+      "evidence_ref": "verification-68cb7b774b44490490cf876b4dccf4cf"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflow checks were empty before and after repeated real swipes, and the final runtime capture showed the app responsive with no errors.",
+      "evidence_ref": "verification-709f973e38be4603948efe7f2ac66c3f"
+    }
+  ]
+}

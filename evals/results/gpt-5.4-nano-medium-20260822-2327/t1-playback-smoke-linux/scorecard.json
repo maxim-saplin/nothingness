@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate launched the Linux build and issued live ext.nothingness calls; my verification also found the VM-service runtime answering.",
+      "evidence_ref": "verification-54238a7c76564298b1223d8572a467ca"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate runtime reads showed playing true, paused false, then resumed true; my paused and resumed captures corroborated the transition.",
+      "evidence_ref": "verification-21b3b242211e4309bbb3e8ad6d45d409"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a three-track queue, next changed currentIndex from 0 to 1 and changed the active path to track 02, matching the candidate's report and my capture.",
+      "evidence_ref": "verification-1f99370b828b48d3b6a958a740a39674"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "The candidate sought 00:30 while playing and read 33712 ms, which moved forward but exceeded the rubric's \u00b12-second target tolerance; my frozen recheck reached 30650 ms.",
+      "evidence_ref": "verification-11174ffbb5634f66987c9da95303ce41"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report's play/pause, skip, seek, and overflow claims each correspond to concrete drive.py outputs and inspect reads in the event trail.",
+      "evidence_ref": "events-4068c2e0b3a842aaafcf5ee4c5d52f99"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live smoke behavior was normal and the workspace inspection reported an empty git status and diff.",
+      "evidence_ref": "inspection-3b636f142c5e4162aca0317a1da5cc0a"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No unresolved app crash or hang appeared; the live VM remained responsive through the final runtime verification and reported zero overflow reports.",
+      "evidence_ref": "verification-54238a7c76564298b1223d8572a467ca"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing preferences and restarting, the fresh Dot screenshot showed only the pulsing dot with no artist/title overlay.","evidence_ref":"verification-3acd1d9fff0d41e5adda608340eb507a"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled the setting, restarted, and the post-restart settings semantics still reported show song info on; a subsequent playing state rendered the overlay when metadata was present.","evidence_ref":"verification-4f828aa2a974416fbe7829f2597a2e2b"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I toggled the setting off, restarted, and the resulting Dot state showed no song-info overlay despite retained track metadata.","evidence_ref":"verification-31dbdbdba9624abc9dc5c9d25e0d1196"},
+    {"id":"E4","tier":"required","verdict":"met","note":"At 100% with deliberately long artist and title metadata, the fresh screenshot showed both wrapped text blocks fully inside the hero and separated above the pulsing dot.","evidence_ref":"verification-114473a0a01d41e0931ec8290acfdd1c"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At 150% with the same long metadata, the fresh screenshot displayed Flutter's red ArgumentError page; the overlay was clipped and the app became unstable.","evidence_ref":"verification-fc3b01e6f0864b7c9fdb93f48dc26f68"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"My fresh 100% long-metadata capture was on-point, but the candidate-submitted normal screenshot visibly used only the short 01-undercover-49.opus metadata rather than the required long case.","evidence_ref":"verification-114473a0a01d41e0931ec8290acfdd1c"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"My fresh 150% capture exposed the red error page, and the candidate-submitted maximum screenshot likewise showed only short metadata plus the same ArgumentError rather than an on-point long-metadata capture.","evidence_ref":"verification-fc3b01e6f0864b7c9fdb93f48dc26f68"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and maximum structural trees contained non-empty hero-artist and hero-song text at 30/15 and 45/22.5 sizes, corroborating rendering at both scales.","evidence_ref":"verification-fc3b01e6f0864b7c9fdb93f48dc26f68"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"The ordinary short fixture remained visually clean at 100%, but enabling the same option at maximum scale led to the ArgumentError/red page, a common-case regression.","evidence_ref":"verification-6e69f893bb2e4a4aa7f828d5957c4a49"},
+    {"id":"E10","tier":"secondary","verdict":"partial","note":"The app answered runtime probes during most checks, but repeated Invalid argument(s): 20.0 errors appeared in the Flutter log at the changed DotHero clamp and the app later died during restart.","evidence_ref":"verification-fc3b01e6f0864b7c9fdb93f48dc26f68"}
+  ]
+}

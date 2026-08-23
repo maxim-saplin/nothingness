@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics show screen at index 5 immediately followed by color scheme at index 6, and the screenshot shows the same adjacent rows.",
+      "evidence_ref": "verification-d485028572ec48f0adedab61209544f8"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The row label is exactly lowercase color scheme; the full visible sheet has one such row and no stale cassette variant label.",
+      "evidence_ref": "verification-d485028572ec48f0adedab61209544f8"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps cycled screen values cassette, spectrum, polo, dot, void, and back to cassette, matching getSettings at each step.",
+      "evidence_ref": "verification-6476a70af17147559384a6c2b1019e36"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The color scheme row changed on its own tap, and direct cassettevariant calls changed the displayed value through multiple variants.",
+      "evidence_ref": "verification-47ac3de1af6b415e8ae9387716634764"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void each showed no cassette-only color scheme row; representative visualizer, text-size, toggle, and text-size controls changed when exercised.",
+      "evidence_ref": "verification-d20bb52a1eab4349ae38540f0e3903b9"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The final genuine PNG clearly shows the Settings sheet, Cassette value, and adjacent screen and color scheme rows with legible labels.",
+      "evidence_ref": "verification-d485028572ec48f0adedab61209544f8"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live semantics dump independently confirms cassette, exact color scheme label, adjacency, and the current Tape \u00b7 Colour value.",
+      "evidence_ref": "verification-d485028572ec48f0adedab61209544f8"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Unrelated settings retained their prior order; theme, immersive, transport, and browser rows remained present and responded to taps.",
+      "evidence_ref": "verification-829d77262db44fdeb8a5d74338e6f612"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After navigation and repeated control exercise, runtime inspection found the app live and responsive with zero overflow reports.",
+      "evidence_ref": "verification-d485028572ec48f0adedab61209544f8"
+    }
+  ]
+}

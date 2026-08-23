@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing all preferences and restarting, the fresh Dot screenshot showed only the centered dot with no artist/title overlay.","evidence_ref":"verification-f92f0631086049b9a06a27fe92b2f9ed"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled show song info, restarted, and verified the long artist/title overlay remained rendered with the setting retained.","evidence_ref":"verification-30b1737138414b38965efa574889c58f"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I disabled show song info, restarted, and verified the overlay disappeared while the Dot remained visible.","evidence_ref":"verification-0754c0fb7c664c1a899255d5ed388c0d"},
+    {"id":"E4","tier":"required","verdict":"partial","note":"My genuine 100% long-metadata capture kept both text fields inside the hero without clipping, but the safety clamp reduced the pulsing dot to an invisible zero-size shape rather than preserving a visible dot.","evidence_ref":"verification-6e709f13f8b14e188ae891181c91a505"},
+    {"id":"E5","tier":"required","verdict":"partial","note":"At 150% the long artist was legibly ellipsized inside the hero and the title stayed bounded, but the pulsing dot again disappeared entirely under the clamp.","evidence_ref":"verification-fcef28c004dc4899a0d68cc4fd1a3bc9"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate-submitted dot_text_normal.png exists but shows the short filename 01-undercover-49.opus, not the required long metadata state; my own normal capture cannot repair the missing deliverable.","evidence_ref":"verification-6e709f13f8b14e188ae891181c91a505"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate-submitted dot_text_max.png likewise shows short metadata, not the required long-metadata 150% state, despite my own max-scale reproduction.","evidence_ref":"verification-fcef28c004dc4899a0d68cc4fd1a3bc9"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and max verification trees independently contained non-empty hero-artist and hero-song Text nodes with sizes 30/15 and 45/22.5 respectively.","evidence_ref":"verification-fcef28c004dc4899a0d68cc4fd1a3bc9"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Fresh short-metadata captures at 100% and 150% showed clean overlay rendering and a visible centered dot without clipping or overlap.","evidence_ref":"verification-c699a949c4214b89aaf90266ad5b726b"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The final live runtime remained responsive while playing, reported no overflow entries, and returned normal inspection/verification bundles; the observed synthetic mouse assertion is the documented pre-existing harness sharp edge.","evidence_ref":"verification-87d0b2e60c144e61a4de00855731a1a6"}
+  ]
+}

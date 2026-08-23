@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With 10-undercover-47 playing from /opt/nothingness/media, the cross-folder action was present at /opt/nothingness and one activation returned to /opt/nothingness/media with row 47 visible.","evidence_ref":"verification-c16bc3b5d91b47cfbe68253f75375385"},
+    {"id":"E2","tier":"required","verdict":"partial","note":"In the already-correct media folder, the action was exposed while row 47 was off-screen and the row became visible with the folder unchanged, but the first activation did not move the list and a second activation was needed.","evidence_ref":"verification-5af0cfc6937c45a9bb5b9789188e0cda"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"After row 47 was fully visible, the active accessible jump action remained exposed in the semantics tree instead of disappearing.","evidence_ref":"verification-4c8af3e293a54e03a6927bee1e59ee8f"},
+    {"id":"E4","tier":"required","verdict":"met","note":"After playback ended with songInfo null and isPlaying false, captures in both the media folder and its parent showed no jump action.","evidence_ref":"verification-0054cb8131324228ac2fd1f25c4a7a01"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active affordance appeared in the semantics tree with the distinguishing label 'jump to now-playing track' and a tap action.","evidence_ref":"verification-5af0cfc6937c45a9bb5b9789188e0cda"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The candidate's before_jump.png genuinely showed playback of 47 while the browser displayed only later rows (50–54), and the matching pre-state capture showed 47 absent.","evidence_ref":"verification-5af0cfc6937c45a9bb5b9789188e0cda"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate's after_jump.png was visually identical to before_jump.png and still omitted row 47, so the required submitted after screenshot was not on-point.","evidence_ref":"verification-3e9d59ca15264e7f90bcef2108cc7c88"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"The write-up claimed activation scrolled the row into view, but its session contained no supporting state read and the submitted after screenshot contradicted that claim.","evidence_ref":"events-6001c3c0f65b48f7ba5d6f507b0171c2"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"An on-screen folder tap changed to /opt/nothingness/media, an on-screen track tap started playback, and next, previous, pause, and resume all responded with the expected final live state.","evidence_ref":"verification-a1a29c7891b047ec922a3b714afd3835"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated navigation, jump activation, and playback controls left the app responsive; the final runtime inspection showed a live app and zero overflow reports.","evidence_ref":"verification-a1a29c7891b047ec922a3b714afd3835"}
+  ]
+}
