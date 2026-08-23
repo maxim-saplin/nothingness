@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The live runtime queue has length 10 and contains each mounted fixture path exactly once, with every entry resolvable.",
+      "evidence_ref": "verification-b49b302558514160b7b3351072a0c7de"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings, tapped the real void-settings-status-shuffle control, and the runtime then reported shuffle true.",
+      "evidence_ref": "verification-52c11bd1e36c4fa7ba7066b0cec06e54"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, the live app was playing the in-set 01-undercover-49 fixture and reported isNotFound false.",
+      "evidence_ref": "verification-52c11bd1e36c4fa7ba7066b0cec06e54"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The pre-next capture showed index 9 / 01-undercover-49; one successful previous transition produced index 8 / 05-undercover-53, still playing and valid.",
+      "evidence_ref": "verification-96cbad400e454c92a32a1e8e603e1e3f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's test and report only enumerate or reference the ten mounted fixture paths; no foreign queue or current-track path appears in the event record.",
+      "evidence_ref": "events-b666dae6f5b84edda759a24f06770c73"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The passing test output traces the before/after paths and queue assertions, but it never reads or asserts the controller's shuffle flag before claiming shuffle was enabled.",
+      "evidence_ref": "events-b666dae6f5b84edda759a24f06770c73"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The final git inspection found the unrequested untracked integration_test/opus_shuffle_single_transition_test.dart beyond the rubric's allowed registrant-only change.",
+      "evidence_ref": "inspection-6218075615144affba79ca4c12d2348d"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's added test completed with All tests passed, and the live final capture remained responsive, playing, and free of overflow reports.",
+      "evidence_ref": "verification-daa8a318b8c24c62baf8bc0ac410a1a8"
+    }
+  ]
+}

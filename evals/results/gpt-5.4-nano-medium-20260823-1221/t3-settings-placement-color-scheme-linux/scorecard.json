@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, semantics show screen at index 5 (y231-276) immediately followed by color scheme at index 6 (y276-321), with abutting bounds and no intervening row.",
+      "evidence_ref": "verification-cff8d575a16c4f8c92b306651ae3e7ad"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The cassette row label is exactly lowercase color scheme; the only other variant label is the unrelated global theme variant row, and no stale cassette row remains.",
+      "evidence_ref": "verification-cff8d575a16c4f8c92b306651ae3e7ad"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The screen row advanced through cassette, spectrum, polo, dot, void, and back to cassette via direct setting calls and an on-screen tap; each captured semantics value matched the selected screen.",
+      "evidence_ref": "verification-9788611f0c77444ca203e4aefb88edc1"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen activation changed the renamed row from Tape · Amber to Tape · Colour, while direct cassettevariant calls set Tape · Amber and Minimal; the displayed value tracked each change.",
+      "evidence_ref": "verification-184aa39d4464498cadd5bbfe1ced15d6"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Separate captures for spectrum, polo, dot, and void show no color scheme row and retain their generic next control; their settings remained interactive, including the exercised immersive control.",
+      "evidence_ref": "verification-b8f5fab80cce4b879a519fd67724402b"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine Cassette settings screenshot visibly contains legible adjacent screen: cassette and color scheme: Tape · Mono rows.",
+      "evidence_ref": "verification-cff8d575a16c4f8c92b306651ae3e7ad"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The Cassette verification includes independent semantics, widget-tree, and settings dumps corroborating the order, exact label, and current variant value.",
+      "evidence_ref": "verification-cff8d575a16c4f8c92b306651ae3e7ad"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The full settings semantics preserve unrelated row order and labels; generic controls such as immersive remained tappable and updated their displayed state.",
+      "evidence_ref": "verification-cff8d575a16c4f8c92b306651ae3e7ad"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final runtime verification reports the app responsive with overflows count 0 after repeated settings and screen exercises.",
+      "evidence_ref": "verification-77f0e086d5804f49979c7bc5caedb3a6"
+    }
+  ]
+}

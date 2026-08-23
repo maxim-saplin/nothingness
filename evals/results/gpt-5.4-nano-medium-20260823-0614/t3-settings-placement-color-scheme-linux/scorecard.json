@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics and the screenshot show screen immediately followed by color scheme with abutting row bounds and no intervening row.",
+      "evidence_ref": "verification-e21e6e45267d48938825fcd5b9f23f14"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The single cassette variant row is labeled exactly lowercase color scheme, with no stale variant row in the Cassette settings.",
+      "evidence_ref": "verification-e21e6e45267d48938825fcd5b9f23f14"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps advanced through Spectrum, Polo, Dot, Void, and Cassette, while direct screen settings also updated the displayed screen value.",
+      "evidence_ref": "verification-90b491e559a04c26b0c181e20398e2e3"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The renamed row changed on-screen from Tape · Mono to Tape · Amber, and direct cassettevariant calls changed and reflected other variants before wrapping back.",
+      "evidence_ref": "verification-37cba607e932432aa0672341cb1ce3af"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void showed no color scheme row, retained their own controls, and representative controls changed on-screen.",
+      "evidence_ref": "verification-a2aa14c388894f5f930cb414dc706e5c"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine final screenshot clearly shows Cassette selected with adjacent, legible screen and color scheme rows.",
+      "evidence_ref": "verification-e21e6e45267d48938825fcd5b9f23f14"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The Cassette semantics independently corroborate the screenshot's selection, exact label, adjacent order, and Tape · Mono value.",
+      "evidence_ref": "verification-e21e6e45267d48938825fcd5b9f23f14"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Unrelated rows retained their prior order and representative immersive, transport, spectrum, Polo, Dot, and Void controls remained interactive.",
+      "evidence_ref": "verification-c476edcdc41a4b73b34397095ea7f133"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated navigation, scrolling, cycling, and row activation, runtime remained responsive with zero overflow reports.",
+      "evidence_ref": "verification-e21e6e45267d48938825fcd5b9f23f14"
+    }
+  ]
+}

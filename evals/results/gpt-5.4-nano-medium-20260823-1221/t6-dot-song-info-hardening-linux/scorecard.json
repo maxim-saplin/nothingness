@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing all preferences and restarting, the fresh Dot state had no song-info overlay.",
+      "evidence_ref": "verification-db9543c18d8941a49ac2303bd6471e7e"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I enabled show song info, restarted, played a fixture through the browser, and verified the overlay remained enabled and rendered.",
+      "evidence_ref": "verification-8efb597e29c14d2fa42076f57e15dce2"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I disabled show song info and restarted; the resulting Dot state had no overlay.",
+      "evidence_ref": "verification-eb85f89f5848420c905a6e835cc9f1c9"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% with genuinely long artist/title metadata, the captured screen displayed Flutter's Invalid argument(s): 20.0 error instead of a valid Dot hero; the overlay was not a clean, non-overlapping hero rendering.",
+      "evidence_ref": "verification-c3c4e999258046c7b7ae2e83d9283a5c"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% with the same long metadata, the screenshot again showed the Invalid argument(s): 20.0 Flutter error and clipped text rather than a valid Dot hero.",
+      "evidence_ref": "verification-7c25aeedf788486ea3bd6d9e0e7849f2"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh normal-scale capture was an error screen, and the candidate's submitted normal screenshot used only short metadata and also visibly showed the Flutter error banner.",
+      "evidence_ref": "verification-c3c4e999258046c7b7ae2e83d9283a5c"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My fresh maximum-scale capture showed the Flutter error and clipped long text, while the candidate's submitted maximum screenshot contained only short metadata and the same error banner.",
+      "evidence_ref": "verification-7c25aeedf788486ea3bd6d9e0e7849f2"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Normal- and maximum-scale verification bundles contained non-empty long artist/title semantics with non-zero bounds, corroborating that text was rendered in both states.",
+      "evidence_ref": "verification-edfd5fb9264e4c7a82f1d1026727f5a3"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "With ordinary undercover metadata at normal scale, the app remained navigable and showed the text, but the Dot hero was replaced by a visible Invalid argument(s): 20.0 Flutter error; the candidate's max-scale screenshot showed the same regression.",
+      "evidence_ref": "verification-994cf169da064c65a8cdc19adf9ef78c"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The app answered runtime probes and reported no overflow records, but repeated Dot/song-info exercise produced a visible Invalid argument(s): 20.0 Flutter error and a later restart temporarily lost the VM service.",
+      "evidence_ref": "verification-5a2cc2c0a5e04eda8ef96d85cd8a2dde"
+    }
+  ]
+}

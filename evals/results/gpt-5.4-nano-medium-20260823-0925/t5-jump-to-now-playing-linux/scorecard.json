@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Playing 07-undercover-44 (parent /opt/nothingness/media) while browsing the different parent folder /opt/nothingness, the jump glyph was present; tapping void-crumb-jump-to-playing navigated the browser into /opt/nothingness/media and left track 44's row on screen (idx10, y4-45 within viewport 0-332).",
+      "evidence_ref": "verification-2c6b8fb3115741509998991bececb775"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With /opt/nothingness/media already open but track 44's row scrolled off the top (reverse ListView, scrollPosition 0), the glyph was present; tapping it scrolled the list to scrollPosition 127 bringing row 44 fully into view (y4-45) while currentPath stayed /opt/nothingness/media (no re-navigation).",
+      "evidence_ref": "verification-bb3fc4be950340acbb81142cfe92ac6a"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The action is not conditioned on visibility: on Linux the code sets showJumpGlyph = playingExists unconditionally. With track 44's row fully visible and unclipped (y4-45 inside viewport 0-332) the jump action was still exposed as an active tappable button (SemanticsNode#9, actions tap/longPress, label 'jump to now-playing track in browser'). This is the always-on pattern the expectation falsifies.",
+      "evidence_ref": "verification-bb3fc4be950340acbb81142cfe92ac6a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With nothing playing (isPlaying false, songInfo null) no jump action appeared in tree or semantics at /opt/nothingness/media, and re-checked at the /opt/nothingness parent folder with the same result.",
+      "evidence_ref": "verification-c5818ffb045947e491de4c8ba775f198"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "getSemantics returned a real tree (not the generic-unavailable response); the action node carries the distinguishing label 'jump to now-playing track in browser' plus the ⊙ glyph, with tap action — a genuine accessible affordance, not a bare glyph.",
+      "evidence_ref": "verification-2c6b8fb3115741509998991bececb775"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate's before_track_54.png plainly shows the browser with the playing row (title 54) absent from the visible list (rows 44-52 shown) and the ⊙ glyph in the crumb; my live before-state reproduction (playing 44 off-screen, rows 47-54 shown) confirms the same pre-activation condition.",
+      "evidence_ref": "verification-6908f2346a4e433395256ddfe8e1f068"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate's after_track_54_delayed.png shows row 54 now visible and highlighted with path /opt/nothingness/media unchanged; my live after-state reproduction shows the same — row 44 scrolled into view at top, folder path identical.",
+      "evidence_ref": "verification-bb3fc4be950340acbb81142cfe92ac6a"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The write-up's claims (glyph only when playing; shown on Linux even in the same folder; tap keeps folder and scrolls via scrollToTrack; before/after screenshots) are all backed by session observations: 6 getLibraryState, 6 getSemantics, 18 tree, 68 shoot, plus the before/after PNGs it captured.",
+      "evidence_ref": "events-7a4ce08b76cf476a9216d7034399395f"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen taps navigate correctly: tapping void-folder:/opt/nothingness/media entered media, tapping void-up returned to /opt/nothingness. Playback transitions behave normally: with a real folder queue (row tap builds 10-track queue), next advanced 46->47 and prev returned 47->46; pause/resume toggled cleanly. (next/prev stopping under a single-track play is the pre-existing empty-queue quirk, not a regression.)",
+      "evidence_ref": "verification-c27be9c5f3a3487eb33a625401e2ab72"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflow count stayed 0 across E1-E4 exercises; the only run-log errors are environmental ALSA sound-card warnings (no audio device in container), no Flutter exceptions. App remained live and responsive (library registered, inspect answering) at the end.",
+      "evidence_ref": "verification-c27be9c5f3a3487eb33a625401e2ab72"
+    }
+  ]
+}

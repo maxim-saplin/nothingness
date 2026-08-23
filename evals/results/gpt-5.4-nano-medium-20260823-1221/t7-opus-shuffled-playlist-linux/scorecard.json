@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live runtime verification shows queueLength 10 and exactly the ten supplied fixture paths, each once, with no foreign entries and isNotFound false.",
+      "evidence_ref": "verification-1471d8318acb4fd089caf05b6bd0a6fd"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate tapped the on-screen shuffle control and its live runtime state reads shuffle true.",
+      "evidence_ref": "verification-5a2da00b5adb44fbb0ddd0734efe91e7"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live runtime verification shows isPlaying true on supplied fixture 07-undercover-44.opus with isNotFound false.",
+      "evidence_ref": "verification-1471d8318acb4fd089caf05b6bd0a6fd"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's recorded next changed 01-undercover-49.opus to 02-undercover-50.opus; live recheck likewise changed index 3/07-undercover-44 to index 4/06-undercover-54, still valid and in-set.",
+      "evidence_ref": "verification-4e2820471286430b9b1f28f6788db3e4"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The complete candidate event chain contains only the ten supplied fixture paths in queue/current-track state; no foreign media became queued or current.",
+      "evidence_ref": "events-9e68a3b1536f451095b26736189bd776"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The report's queue, shuffle, playback, and before/after transition claims are backed by concrete inspect and control outputs in the candidate event chain.",
+      "evidence_ref": "events-9e68a3b1536f451095b26736189bd776"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Runtime behavior matches the unmodified build and inspection reports empty git status and diff stat.",
+      "evidence_ref": "inspection-9d7b90045db341aeb03572f88f180892"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The initial drive pause lookup error was retried with the discovered session environment; subsequent runtime captures succeeded, with no overflow reports or unresolved app crash.",
+      "evidence_ref": "verification-1471d8318acb4fd089caf05b6bd0a6fd"
+    }
+  ]
+}

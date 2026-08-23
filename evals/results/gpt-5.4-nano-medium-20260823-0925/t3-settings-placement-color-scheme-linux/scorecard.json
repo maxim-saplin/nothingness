@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen=cassette the semantics show screen (indexInParent 5, y231-276) immediately followed by the cassette variant row labeled 'color scheme' (indexInParent 6, y276-321); abutting rects, nothing between.",
+      "evidence_ref": "verification-2e30ad6ce7ab4f5f85e337a6e4959f38"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The row's label reads exactly 'color scheme' (lowercase, matching other row labels); exactly one such row and no stale cassette 'variant' row remains (the separate theme 'variant' row is unrelated). Diff confirms only the cassette _Cycle label changed.",
+      "evidence_ref": "verification-2e30ad6ce7ab4f5f85e337a6e4959f38"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps of the screen row cycle cassette->spectrum->polo->dot->void->cassette (full cycle back to start), row value tracking each step; direct screen calls also reflected (spectrum bundle shows screen row=spectrum matching getSettings).",
+      "evidence_ref": "verification-db07df54c0b844cfa7d2a33266ccac66"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps of the 'color scheme' row cycle Minimal->Tape·Mono->Tape·Amber->Tape·Colour->Minimal; direct cassettevariant 2 sets the row to 'Tape · Amber' as captured, so both activation paths move the variant and the row value tracks.",
+      "evidence_ref": "verification-53eec25854634e60a193077961fff035"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum/polo/dot/void the semantics contain zero 'color scheme' labels and the row after screen is a generic control, not a cassette one; per-screen own controls still work (spectrum bar-count 8->12, dot show-song-info off->on).",
+      "evidence_ref": "verification-db07df54c0b844cfa7d2a33266ccac66"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Genuine screenshot of the settings sheet with Cassette selected shows the 'screen: cassette' row directly above 'color scheme: Tape · Mono', both legible.",
+      "evidence_ref": "verification-2e30ad6ce7ab4f5f85e337a6e4959f38"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Independent semantics + widget tree + getSettings dumps taken while Cassette selected corroborate the row order, exact 'color scheme' label, and current variant value; not resting on the image alone.",
+      "evidence_ref": "verification-2e30ad6ce7ab4f5f85e337a6e4959f38"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Every other row keeps its prior relative order (MODE/operating mode, LOOK/theme/variant/screen, then color scheme only, text size, haptics, immersive, transport, browser, ...); unrelated controls still respond (transport bottom->top, immersive off->on).",
+      "evidence_ref": "verification-2e30ad6ce7ab4f5f85e337a6e4959f38"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Runtime lens shows overflows count 0 after opening/closing settings, switching screens, and cycling the color scheme control repeatedly; app remained responsive (inspect answered normally).",
+      "evidence_ref": "verification-db07df54c0b844cfa7d2a33266ccac66"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate launched the debug Linux app and issued live ext.nothingness calls; independent verification also found the VM extensions and playback state answering.",
+      "evidence_ref": "verification-92e52716030a43d98caa625598a72c62"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent captures showed the two-track queue playing, then paused, then resumed playing with the expected isPlaying transitions.",
+      "evidence_ref": "verification-6f20a32b53604693bdd296ef6bebbf41"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a two-track queue loaded, an independent next call changed currentIndex from 0 to 1 and changed the active path to the second fixture.",
+      "evidence_ref": "verification-ae7341d6ef164dd3b092bd6e620e5d58"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Seeking while playing from 5,258 ms to 30,000 ms, then freezing, produced 30,693 ms\u2014forward movement within the required \u00b12-second tolerance.",
+      "evidence_ref": "verification-ccce39b58ecd4c239880238b2fd38982"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's report is backed by its contiguous event stream: each stated queue, play/pause, seek, skip, and final-state value appears in a corresponding inspect or action response.",
+      "evidence_ref": "events-a759df1795294cf89115bc742e490025"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The accepted run's git inspection was clean and the independent smoke checks showed no task-unrelated runtime or settings changes.",
+      "evidence_ref": "inspection-bf733fd4465b435e98ac539f59777ec3"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The initial VM readiness probe failed during Flutter startup, then the candidate corrected the log discovery and reached a live extension session before repeating the smoke checks; no unresolved crash or hang remained.",
+      "evidence_ref": "verification-ccce39b58ecd4c239880238b2fd38982"
+    }
+  ]
+}

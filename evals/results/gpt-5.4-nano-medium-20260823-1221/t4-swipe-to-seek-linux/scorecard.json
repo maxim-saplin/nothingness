@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's only during-gesture screenshot was captured from its delayed drag attempt, but the image shows the bottom line as '~' with no target, duration, or progress. The event trail also records the drag command's later mouse-tracker failure.","evidence_ref":"events-b6a2b15f0d2a4e51b5f428731b401111"},
+    {"id":"E2","tier":"required","verdict":"met","note":"My held X11 swipe capture shows no centered seek readout or tall vertical indicator, and the settled captures likewise show none. The candidate's own screenshot also contains no center indicator.","evidence_ref":"verification-89851a7a94144d5eabce0e67f51ecdc4"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and a settle window, the bottom line returned to /opt/nothingness/media in both semantics and the screenshot, with no residual seek text.","evidence_ref":"verification-1c7d39c421d3429a8cb56913f11f5a7d"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate's trail contains only one legible during-gesture screenshot, and it shows an unchanged '~' line rather than a target value. No second candidate capture exists to demonstrate tracking across swipes.","evidence_ref":"events-b6a2b15f0d2a4e51b5f428731b401111"},
+    {"id":"E5","tier":"required","verdict":"met","note":"With playback staged at 30 seconds, my controlled rightward X11 swipe landed at 47.463 seconds on an 83.783-second track, matching the approximately +200px target and clearly moving playback.","evidence_ref":"verification-d1ae7cc7ebfd42b394aba6eaa96ee0cf"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate's during screenshot is traceable to its delayed drag command, but its actual pixels show the bottom line as '~' rather than the required seek readout. The surrounding command also reports a mouse-tracker assertion during the drag.","evidence_ref":"events-b6a2b15f0d2a4e51b5f428731b401111"},
+    {"id":"E7","tier":"required","verdict":"met","note":"My post-gesture screenshot after settling shows the normal /opt/nothingness/media folder line and no seek readout or center indicator.","evidence_ref":"verification-1c7d39c421d3429a8cb56913f11f5a7d"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled verification bundle's semantics independently reports /opt/nothingness/media on the bottom node, agreeing with its screenshot and runtime state.","evidence_ref":"verification-acf71ca3ebfb4f829ef6c7f7e15cf99e"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Real on-screen hero taps still work: right-zone next advanced the queue, center-zone tap paused playback, and a mid-track left-zone tap reset the active track as the existing previous behavior. A vertical swipe in swipe-up presentation expanded the browser.","evidence_ref":"verification-89774f1886e54e84996719b180f19398"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"A burst of varied real X11 swipes left the app live and playing with zero overflow reports and no gesture-related runtime errors in the final bundle.","evidence_ref":"verification-4960d30643244b4faf2f8d284debfa5e"}
+  ]
+}

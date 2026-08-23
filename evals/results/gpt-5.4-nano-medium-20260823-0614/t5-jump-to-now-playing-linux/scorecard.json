@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With track 47 playing from the mount root, the active jump action navigated to /opt/nothingness/media and left row 47 visible.",
+      "evidence_ref": "verification-a0bd5bb6e7d64970b81dad0208959bdf"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "In /opt/nothingness/media with track 47 offscreen, the action scrolled the existing list to row 47 while the folder path stayed unchanged.",
+      "evidence_ref": "verification-90d45f8017ad49d2a094e9973249e7a3"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After row 47 was fully visible in its current folder, no active jump action remained in the accessibility capture.",
+      "evidence_ref": "verification-797e8ccc75f34175a576d52b7604d3ae"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Both the mount root and media folder showed isPlaying false with no songInfo and no active jump affordance after playback was stopped.",
+      "evidence_ref": "verification-fc34fddd566045f093e0f8ff5cd2516b"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active action appeared in semantics with the distinguishing label 'jump to now-playing folder'.",
+      "evidence_ref": "verification-ed9019e1f7cd4963aa70d5c14979104f"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's before captures show the playing row outside the browser list; the independent pre-jump screenshot likewise shows track 47 absent from the visible rows.",
+      "evidence_ref": "verification-dfe27c3b765a4ced9aa38171c9b3284c"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's after screenshots were captured before the jump settled and do not show the playing row in the browser, although a later independent capture did.",
+      "evidence_ref": "verification-90d45f8017ad49d2a094e9973249e7a3"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up claims conditional visibility and a successful result, but the candidate session contains no post-activation state or semantics read and its after screenshots contradict the visibility claim.",
+      "evidence_ref": "events-5bd8b8572d0144eea47278ae328e263e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen up and folder taps changed between /opt/nothingness and /opt/nothingness/media, while pause/resume, next, and a fresh previous-track transition all produced the expected playback states.",
+      "evidence_ref": "verification-f8c3a376830b4092a75ff418ee11e048"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated jump, navigation, and playback checks the app remained responsive and the final runtime reported zero overflow reports.",
+      "evidence_ref": "verification-934c571c723b4429a13b58a5be97ba6b"
+    }
+  ]
+}

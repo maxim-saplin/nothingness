@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate only ran an integration_test/flutter test and never issued ext.nothingness calls; a live debug VM was reachable only during the judge's independent re-check.","evidence_ref":"verification-51262844d0904ee9854f7ec58e25bcfa"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Independent live captures showed the fixture playing, then paused with isPlaying=false, then resumed with isPlaying=true, matching the reported transition.","evidence_ref":"verification-d6e0e93d97f240a7b29207bbc1a5c0d7"},
+    {"id":"E3","tier":"required","verdict":"met","note":"With a three-track queue, the independent next call changed currentIndex from 0 to 1 and changed the active path from the first to the second fixture.","evidence_ref":"verification-010ea4b40f234ca8b842a00b261e1caa"},
+    {"id":"E4","tier":"required","verdict":"met","note":"While playing at about 20 seconds, an independent seek to 57 seconds captured position 60.157 seconds, within the required tolerance after the verification bundle elapsed.","evidence_ref":"verification-a8452d9a77944e8291c6dd0d9b5f5591"},
+    {"id":"E5","tier":"secondary","verdict":"unmet","note":"The final report's claims were not traceable to live extension observations: the event stream records only the integration-test command and then a judge-finished session, with no drive.py playback calls or observed outputs.","evidence_ref":"events-0ad1397584914da0a7695808c141159b"},
+    {"id":"E6","tier":"secondary","verdict":"partial","note":"The app behaved normally in the independent smoke checks, but the candidate added the unrequested source file integration_test/playback_smoke_test.dart, beyond the permitted tooling-generated changes.","evidence_ref":"inspection-e5126f4e283d4714ade83ad58b45ed2d"},
+    {"id":"E7","tier":"secondary","verdict":"unmet","note":"The candidate's flutter test remained in a long build/tool call without a captured completion or recovery before judge finish, yet the final report asserted success; no recovery was demonstrated.","evidence_ref":"verification-51262844d0904ee9854f7ec58e25bcfa"}
+  ]
+}

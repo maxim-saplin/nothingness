@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Session drove the real Linux build through ext.nothingness.* (setQueue/play/pause/next/seek/inspect) against a live isolate; I reproduced a live session myself (drive.py contract = 31 registered extensions) and captured a full verification bundle answering right now.",
+      "evidence_ref": "verification-4f84c89ebfc84e7b97ee11710daf19f1"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I reproduced play/pause/resume live: runtime lens read isPlaying=true (e2-play, verification-4f84c89e, idx0), isPlaying=false after pause (this ref), isPlaying=true after resume (e2-resume, verification-fa6b6bda) - matching the candidate's reported transition.",
+      "evidence_ref": "verification-67499e3464944ed99b446daa33f0dda8"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Against a 5-track queue at index 0 (01-undercover-49.opus), a live next advanced currentIndex 0->1 and the active path to 02-undercover-50.opus, still playing - the direction the candidate claimed.",
+      "evidence_ref": "verification-3891951800ea4e9aa82db9274a8873d6"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "From a pre-seek position of 25760ms on track02, a live seek to 0:50 landed at 50565ms (within +0.6s of the 50000ms target and clearly forward), mirroring the candidate's own seek-to-60000ms that read 62698ms.",
+      "evidence_ref": "verification-f601eb503b714d92802d3b2fa5c981e5"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Every specific claim in the final report (setQueue queued:10, play isPlaying:true, pause isPlaying:false + spectrumNonZero:false, resume true, next ok, seek positionMs:60000, final currentIndex:1 pos 62698) is backed by a getPlaybackState/inspect capture in the same session's event stream.",
+      "evidence_ref": "events-a199b1099ce94acf86d01501e2476c7c"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Inspection git lens shows an empty status and empty diff_stat - no source changes at all - and my live re-check of play/pause/skip/seek behaved exactly as an unmodified build.",
+      "evidence_ref": "inspection-9636e0dc6b914875987881c159372241"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The early launch attempts that failed to find the VM URI were recovered by relaunching until the isolate registered; no overflow reports and no crash/exception traces in the run log, and the same session answers live now (this resume-state runtime capture).",
+      "evidence_ref": "verification-fa6b6bda9eb142fca4f4b7eba205bea5"
+    }
+  ]
+}

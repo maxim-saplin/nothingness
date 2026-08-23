@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live Cassette settings semantics show screen at index 5 (y 231-276) immediately followed by the cassette variant row at index 6 (y 276-321), and the final screenshot shows both rows adjacent.",
+      "evidence_ref": "verification-cdb2560f44fb4278a8597734f55c99f7"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I tapped the live screen row through spectrum, polo, dot, void, and back to cassette; each verification bundle's settings and semantics tracked the selected screen and the cycle completed.",
+      "evidence_ref": "verification-5e3a8aa3358549c68000a03b99eeaafd"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, tapping the adjacent variant row changed Tape Mono to Tape Amber, and a direct cassettevariant 3 call changed the displayed variant again; both states were captured live.",
+      "evidence_ref": "verification-70efccdfdb7a43e5b8b44f8a73939263"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live captures for spectrum, polo, dot, and void show no cassette-only row; the screen row is followed by the same non-cassette settings while each screen selection remained responsive.",
+      "evidence_ref": "verification-9ad4492580ab45279ad159a1c84b56b3"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The final genuine PNG capture visibly shows the Settings sheet with screen cassette and the adjacent variant row (Tape · Colour) both legible in frame.",
+      "evidence_ref": "verification-cdb2560f44fb4278a8597734f55c99f7"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The Cassette screenshot is independently corroborated by the same capture's semantics and settings lenses, including cassette screen state and consecutive row geometry/value.",
+      "evidence_ref": "verification-c9264a4205f145e694c7aeb59ed0fc0b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across Cassette and non-Cassette captures, unrelated rows retain their order; tapping the unrelated theme-variant row changed its displayed value without disturbing the sheet.",
+      "evidence_ref": "verification-3786575508f04f7b91c05b71851ab427"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated sheet open/close and screen/variant switching, the live runtime remained responsive with zero overflow reports and no new runtime errors.",
+      "evidence_ref": "verification-cdb2560f44fb4278a8597734f55c99f7"
+    }
+  ]
+}

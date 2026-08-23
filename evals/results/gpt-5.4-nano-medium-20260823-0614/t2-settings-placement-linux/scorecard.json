@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics show screen at index 5 immediately followed by variant at index 6 with abutting 231-276 and 276-321 rects; the screenshot shows the same adjacent rows.",
+      "evidence_ref": "verification-b6ac2ab9aa3d4d958a00d218e8e07d6b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps cycled Cassette through Spectrum, Polo, Dot, Void, and back to Cassette with matching settings state; direct screen calls also landed and were reflected in the sheet.",
+      "evidence_ref": "verification-2daa5b1e8b314b0f886443cf0304d836"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The adjacent variant row changed from Tape · Mono to Tape · Amber on its own tap, and direct cassettevariant calls 3, 1, and 4 produced Tape · Colour, Tape · Mono, and Minimal in the row.",
+      "evidence_ref": "verification-eead7bb22a6141f78b728430959391ab"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void each showed no Cassette-only row after screen; representative on-screen controls changed to bar count 8, text size 150%, show song info on, and text size 150% respectively.",
+      "evidence_ref": "verification-05dc4c333cdb44afbe2977724dc77489"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The final genuine PNG visibly frames the Settings sheet with Cassette selected and readable screen/cassette-variant rows directly adjacent.",
+      "evidence_ref": "verification-b6ac2ab9aa3d4d958a00d218e8e07d6b"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final semantics dump independently reports screen cassette at index 5, Minimal variant at index 6, and the settings state reports screenType cassette alongside the screenshot.",
+      "evidence_ref": "verification-b6ac2ab9aa3d4d958a00d218e8e07d6b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across the baseline/final and non-Cassette semantics captures, unrelated MODE/LOOK/LIBRARY/DISPLAY rows retain order; immersive and transport taps changed their displayed values, with other representative controls also responding.",
+      "evidence_ref": "verification-f8802226c6c94d0daa9edd713b00aaec"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated sheet open/close and screen/control exercises, the app remained live, the overflow ring buffer was empty, and final runtime inspection reported no app errors.",
+      "evidence_ref": "verification-b6ac2ab9aa3d4d958a00d218e8e07d6b"
+    }
+  ]
+}

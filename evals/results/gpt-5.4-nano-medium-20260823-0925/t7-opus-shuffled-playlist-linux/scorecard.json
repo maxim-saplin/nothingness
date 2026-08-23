@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live inspect shows queueLength 10 with exactly the ten mounted fixtures, each once, no duplicates/missing/foreign.",
+      "evidence_ref": "verification-03f60bf84e8e4672a8309426bca0c442"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I re-drove the on-screen void-settings-status-shuffle toggle live (true->false->true); runtime inspect confirms shuffle:true.",
+      "evidence_ref": "verification-773f9d3d3ecb4cfd8fdb66db9b65e0f6"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Runtime inspect shows isPlaying:true on an in-set fixture (04-undercover-52.opus) with isNotFound:false before the transition.",
+      "evidence_ref": "verification-03f60bf84e8e4672a8309426bca0c442"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I performed one live next transition (idx 6 09-undercover-46 -> idx 7 07-undercover-44); post-track is in-set, isNotFound:false, index genuinely changed.",
+      "evidence_ref": "verification-9cd9aa45cd45405f8ea68b9c8ce5b5e6"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Every media path across the session's setQueue/play/next/inspect events is one of the ten fixtures; only foreign path referenced is manifest.json (a file read, never queued or current).",
+      "evidence_ref": "events-364422064ada472ba7eceda63db26c07"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Report's claims (queue of 10, shuffle:true, before=01-undercover-49, after=04-undercover-52) each map to a concrete inspect in the session's own event stream.",
+      "evidence_ref": "events-364422064ada472ba7eceda63db26c07"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Inspection git status and diff_stat are both empty; runtime behavior across E1-E4 matches an unmodified build.",
+      "evidence_ref": "inspection-67067d623f9d4e9ca937699edb9e59e9"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No overflow reports, no crash/hang traces (only benign ALSA config noise); the same session is answering live and playing.",
+      "evidence_ref": "verification-773f9d3d3ecb4cfd8fdb66db9b65e0f6"
+    }
+  ]
+}

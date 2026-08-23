@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing preferences and restarting, the Dot screenshot shows only the pulsing dot with no song-information overlay.","evidence_ref":"verification-28d7edfdc73c44c1b030f4279f4144d9"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The show-song-info toggle was enabled, then the app was restarted; the post-restart Dot screenshot shows the idle song-info headline, confirming the enabled state persisted.","evidence_ref":"verification-cc265586b5d3445081b770dfb326db28"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After turning the option back off and restarting, the Dot screenshot again has no overlay and the tree contains no hero title block.","evidence_ref":"verification-74afe401511f4787a74b7822c3ca7144"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The fresh 100% long-metadata screenshot visibly places the large pulsing dot over the artist text and the overlay is not separated from the dot.","evidence_ref":"verification-fbc0cc628a2a488e936d7fead6907c12"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At 150% the long artist and title still render through the pulsing dot, with the artist visibly ellipsized at the hero edge, so the hardening requirement fails.","evidence_ref":"verification-599711f045124fec9c7672af79cda86c"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate normal-scale screenshot was submitted; the judge's own normal-scale capture demonstrates the failing overlap but cannot satisfy the required candidate deliverable.","evidence_ref":"verification-fbc0cc628a2a488e936d7fead6907c12"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No candidate maximum-scale screenshot was submitted; the judge's own maximum-scale capture shows overlap rather than an on-point candidate deliverable.","evidence_ref":"verification-599711f045124fec9c7672af79cda86c"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The judge captured structural tree and semantics reads at both 100% and 150%, with non-empty hero-artist and hero-song text and sizes 30/15 and 45/22.5 respectively.","evidence_ref":"verification-599711f045124fec9c7672af79cda86c"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"The ordinary fixture also shows the artist text under the pulsing dot at both captured scales, so the rendered common case is not clean under this implementation.","evidence_ref":"verification-0499a9706eb64c9b9dce16121e940ab1"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The option, text scales, long fixture, and ordinary fixtures were exercised repeatedly; final runtime inspection shows the app live with zero overflow reports.","evidence_ref":"verification-2a090c6043b74a1b9e1dd9f2f3d9aa1d"}
+  ]
+}

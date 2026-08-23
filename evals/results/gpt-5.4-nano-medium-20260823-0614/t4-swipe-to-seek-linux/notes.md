@@ -1,0 +1,5 @@
+The candidate changed `HeroFeedbackSurface` and `VoidScreen` to move Linux swipe feedback to the bottom folder line and hide the center HUD. Its session attempted synthetic mouse and touch drags and saved `seek_during.png`/`seek_post.png`, but the event trail shows atomic gestures and no genuine in-flight capture, so the candidate-owned during-capture expectations are unmet.
+
+Independent live checks used a browser-loaded metadata-rich 7:00 fixture and real X11 input. Held right and left swipes showed target/duration/percent in the bottom line without a center indicator; release restored `/opt/nothingness/media` and committed playback seeking. Real hero next, previous, and center play/pause taps worked; fixed-mode vertical drag left the app responsive. A varied swipe burst produced no overflows or runtime errors.
+
+Interventions: paused before relaunch; loaded the fixture through the library browser; used XTEST because synthetic desktop drags are unreliable on this fixture. Surprise: a first quick left X11 swipe did not move, while a slower held swipe from mid-track did and confirmed reverse seeking.

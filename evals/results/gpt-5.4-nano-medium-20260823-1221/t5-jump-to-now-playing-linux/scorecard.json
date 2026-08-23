@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live cross-folder test exposed the existing accessible jump action and activation changed /opt/nothingness to /opt/nothingness/media while bringing 10-undercover-47 into the visible list.","evidence_ref":"verification-81f2a8a93fb4417d9b796b5402c42c07"},
+    {"id":"E2","tier":"required","verdict":"met","note":"With /opt/nothingness/media already open and track 47 absent at scrollPosition 421.4, the new action was present; tapping it left the folder unchanged and moved the list to 288.7 where row 47 was visible.","evidence_ref":"verification-40855456b6734c65870168a70ea60ac6"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"A live capture with track 50 fully occupying the list viewport (row bounds 0.0-37.6 inside viewport 0.0-37.6) still exposed an active 'show now-playing track in browser' button.","evidence_ref":"verification-644368ccd549445194d7908c35cdd9cf"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Final live no-track inspection had isPlaying false and songInfo null, and the semantics tree contained no jump action.","evidence_ref":"verification-8a6f409bf8114c5fb64efdd74d3de9a6"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active action was exposed in the live semantics tree as a tappable button labeled 'show now-playing track in browser'.","evidence_ref":"verification-c1df6272e5e54022969e73be88829972"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate's submitted before_manual_2.png exists but shows the playing 49 row already visible, not a genuine before state with the playing row absent; the live pre-jump capture demonstrates the required state separately.","evidence_ref":"verification-c1df6272e5e54022969e73be88829972"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate's submitted after_manual_2.png is pixel-identical to before_manual_2.png and does not show a successful transition; its live after capture cannot repair the incorrect submitted evidence.","evidence_ref":"verification-40855456b6734c65870168a70ea60ac6"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The session contains concrete inspect/getSemantics reads around the candidate's cross-folder and same-folder tests, including the active label, folder path, scroll positions, and resulting rows; claims are traceable to recorded observations.","evidence_ref":"events-272e0279d9fc4937a148cf2b5028a30e"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"A real on-screen folder-row tap changed the library from /opt/nothingness to /opt/nothingness/media; pause/resume changed isPlaying as expected and next/prev returned normally without destabilizing the live app.","evidence_ref":"verification-40855456b6734c65870168a70ea60ac6"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated live activation left the app responsive and playing; final runtime and process inspection succeeded. Two RenderFlex overflow reports were present from the tiny-window exercise, but no feature crash or new error appeared.","evidence_ref":"verification-40855456b6734c65870168a70ea60ac6"}
+  ]
+}

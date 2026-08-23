@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I cleared screen_config_dot and hot-restarted the live build; the Dot hero showed only the pulsing dot with no artist/title overlay (semantics carried no hero-artist/hero-song text nodes, screenshot showed the bare dot). Default is off.",
+      "evidence_ref": "verification-da5eb1f0c43d45ca8863b6fe863d302f"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I toggled void-settings-dot-show-song-info on (row read \"on\"), hot-restarted, and the Dot hero still rendered the song-info overlay (idle \"nothingness\" headline) without re-toggling - the option genuinely persisted enabled.",
+      "evidence_ref": "verification-d73909a18ee34760a6e636486fe031c8"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "From the enabled state I toggled the control off (row read \"off\"), hot-restarted, and the Dot hero showed no overlay - a genuine persistence round trip, off stayed off.",
+      "evidence_ref": "verification-a7cde6f4136847499a5b522e580ffd4b"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own repro at 100% text size with a staged 65-char artist / 67-char title track playing: the overlay wraps to 2 lines each with in-bounds ellipsis and the (shrunk) dot sits below the text - no overlay pixels outside the hero, none overlapping the dot. isPlaying=true, long songInfo, overflows=0 in the same bundle.",
+      "evidence_ref": "verification-ca8af69de4e24f5dba30608ae1fd364b"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own repro at 150% (textScale=1.5 confirmed via hero-artist height 106px = 2x30x1.5x1.18 vs 70px at 100%): overlay wraps to 2 lines each with in-bounds ellipsis, fully inside the hero; the fix reserves ~half the hero so the dot collapses to radius 0, hence no clipping and no overlap even at max scale.",
+      "evidence_ref": "verification-3be9ac13d21c4dfd93f2b650ca62820e"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My own 100% repro is clean, but the candidate's submitted dot_text_normal.png does NOT support its claim: the metadata shown is the short bare filename \"01-undercover-49\" (not the required ~60-char artist/title), and the pulsing dot visibly overlaps the title's second line - the exact intersection the write-up claimed to prevent. Wrong case tested and the screenshot disproves the success claim.",
+      "evidence_ref": "verification-ca8af69de4e24f5dba30608ae1fd364b"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "My own 150% repro is clean, but the candidate's submitted dot_text_max.png again shows only short filename metadata (\"01-under cover\") and the dot heavily overlapping the title - it does not show long metadata and directly contradicts the \"no intersection\" claim. This is the declared-success/screenshot-disproves-it failure this rubric targets.",
+      "evidence_ref": "verification-3be9ac13d21c4dfd93f2b650ca62820e"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural reads corroborate the screenshots at both scales: hero-artist rendered non-empty at 70px height (100%) and 106px (150%), hero-song at 54px (150%); the 150% verification semantics carry the full \"Wandering Cartographers...\" / \"A Meandering Meditation...\" text nodes. Text genuinely renders, not just images.",
+      "evidence_ref": "verification-3be9ac13d21c4dfd93f2b650ca62820e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "With ordinary short metadata (undercover / 54) and song-info on, the overlay text itself renders cleanly with no clip/overlap, BUT the fix reserves worst-case 2-line-each height regardless of actual text, collapsing the central pulsing dot to ~0 (invisible) even for short metadata at both scales - a jarring layout regression for the common case versus the unmodified build's visible pulsing dot.",
+      "evidence_ref": "verification-3f563eeff7014bc7b69e69aec2fdc538"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across toggling the option, switching 100%<->150%, and switching long<->short tracks, overflows stayed count=0 and the app answered inspect normally (runtime lens, overflows.reports empty). The only crash was self-induced (I hot-restarted during playback, the known libflutter_linux_gtk teardown crash) - not attributable to the candidate's change.",
+      "evidence_ref": "verification-3be9ac13d21c4dfd93f2b650ca62820e"
+    }
+  ]
+}
