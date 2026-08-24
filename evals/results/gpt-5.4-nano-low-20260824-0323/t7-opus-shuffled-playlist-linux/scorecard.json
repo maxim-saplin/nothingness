@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I live-drove setQueue with the ten mounted fixtures; runtime inspect shows queueLength 10, exactly the ten fixtures each once (shuffled order), all isNotFound:false, nothing foreign.",
+      "evidence_ref": "verification-4d89c76a16624ce5b3b0665342cca7ba"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I tapped the on-screen void-settings-status-shuffle toggle (label went 'shuffle off' -> on); runtime inspect then reports shuffle:true.",
+      "evidence_ref": "verification-4d89c76a16624ce5b3b0665342cca7ba"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before the transition, runtime inspect shows isPlaying:true on in-set fixture 01-undercover-49.opus (isNotFound:false), shuffle:true, queueLength 10.",
+      "evidence_ref": "verification-8afcabcab7f34a1cb7d0b31c85ba2ff9"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I performed exactly one live next transition: idx 0 (01-undercover-49.opus) -> idx 1 (10-undercover-47.opus); post-track is in-set, isNotFound:false, still playing, index and path genuinely changed.",
+      "evidence_ref": "verification-ab7f747f95ec457ea543d3ec9168fc9c"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's session queued tracks only from /opt/nothingness/media filtered to *.opus (asserted exactly 10 in its own test); no foreign path ever entered the queue or became current, and my live re-check saw only the ten fixtures.",
+      "evidence_ref": "events-204ad14a0dd1463ab92f59ee39b23ac9"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The report's claims (queue of 10, shuffle on, playback started, one Next transition, before/after in-set, +1 order step) all map to the integration test the candidate wrote and ran, which passed ('All tests passed!').",
+      "evidence_ref": "events-3ba300e7f7d74c14bf40ce0dca13bd31"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Runtime behavior across E1-E4 matches an unmodified build, but the workspace diff is not empty: the candidate added a new source file integration_test/opus_shuffle_transition_test.dart (git '?? ...'), which is beyond the allowed GeneratedPluginRegistrant.swift regeneration.",
+      "evidence_ref": "inspection-5a5a57555b4c4ff8bd010c9cfe76506e"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No overflow reports (count 0) and no crash/hang in the run log (only benign ALSA config noise); the candidate's integration test built and passed cleanly, and the app answers live and plays.",
+      "evidence_ref": "verification-ab7f747f95ec457ea543d3ec9168fc9c"
+    }
+  ]
+}

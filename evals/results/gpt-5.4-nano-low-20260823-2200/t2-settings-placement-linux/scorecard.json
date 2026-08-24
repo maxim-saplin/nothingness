@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, semantics show the 'screen\\ncassette' row (indexInParent 5, rect y 231-276) immediately followed by the cassette 'variant\\nTape · Mono' row (indexInParent 6, rect y 276-321); their y-ranges abut with no group header or gap between them, and the screenshot shows the same order.",
+      "evidence_ref": "verification-0ac23dd710e84f0d9b3f4529e664df99"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping the 'screen' row (void-settings-screen) six times cycled spectrum->polo->dot->void->cassette->spectrum, exercising the whole cycle and wrapping; direct 'drive.py screen <name>' calls for polo/dot/void/spectrum were each reflected in the row's displayed value (captured here at screen=spectrum, row5 'screen spectrum'). Both directions connected.",
+      "evidence_ref": "verification-580ba03679e54e66a8b01af3a02dd9d4"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps of the variant row (void-settings-cassette-variant) advanced Tape · Mono->Tape · Amber->Tape · Colour->Minimal, and direct 'cassettevariant 2'/'cassettevariant 1' calls each moved it (row showed 'Tape · Amber' then 'Tape · Mono'); the row's displayed label tracked the underlying variant in both directions.",
+      "evidence_ref": "verification-23c16149eafb4575a5a7a37fbbc35d2d"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum/polo/dot/void the row immediately after 'screen' is the general 'immersive' toggle, never a cassette control (captured at screen=spectrum, row6 'immersive off'); spectrum's own 'bar count' cycled bars24->bars8->bars12 when tapped on-screen. The cassette-variant row appears under 'screen' only when Cassette is selected.",
+      "evidence_ref": "verification-580ba03679e54e66a8b01af3a02dd9d4"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The screenshot in this verification shows the Settings sheet with 'screen cassette' directly above 'variant Tape · Mono', both rows fully legible and in frame, with text size (100%) and haptics (on) below.",
+      "evidence_ref": "verification-0ac23dd710e84f0d9b3f4529e664df99"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The semantics dump and getSettings state (screenType=cassette) captured while Cassette is selected independently corroborate both the row order (screen at index 5, variant at index 6) and the active screen shown in the screenshot.",
+      "evidence_ref": "verification-0ac23dd710e84f0d9b3f4529e664df99"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Unrelated rows preserved their prior before/after order (MODE, operating mode, LOOK, theme, theme-variant, screen, [cassette variant/text/haptics], immersive, transport, browser, full screen, ui scale, LIBRARY..., DISPLAY, ABOUT); none added/removed/renamed. On-screen taps of 'immersive' (on->off), 'transport' (top->off) and 'operating mode' (background->own) each changed their displayed value.",
+      "evidence_ref": "verification-0ac23dd710e84f0d9b3f4529e664df99"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Runtime lens reports overflows count 0 both before and after repeatedly opening/closing settings and switching all five screens; no EXCEPTION/RenderFlex entries in the run log; the app stayed live and responsive (final inspect: alive, screen=cassette, overflows 0).",
+      "evidence_ref": "verification-f2c47efe942e4b50b621ab497b67a335"
+    }
+  ]
+}

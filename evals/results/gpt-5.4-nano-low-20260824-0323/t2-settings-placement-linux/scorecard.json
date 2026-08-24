@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With screen=cassette, semantics shows the 'screen / cassette' row (indexInParent 5, y231-276) immediately followed by 'variant / Tape · Mono' (indexInParent 6, y276-321) — consecutive indices, abutting y-ranges, no header or gap; the screenshot renders the same order.",
+      "evidence_ref": "verification-70fdab9c3e43497db5264eac70b969ed"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen tapping the screen row cycled cassette->spectrum->polo->dot->void_->cassette (full loop back), and direct screen calls were reflected in the row's displayed value; the cited cassette bundle shows the screen row tracking the active screen. Both directions connected.",
+      "evidence_ref": "verification-0236d01c1c8d4a068dd7df7fcfb543da"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Direct cassettevariant calls moved the row value (1->Tape·Mono, 2->Tape·Amber, 3->Tape·Colour, 4->Minimal; 5-7 clamp to Minimal, a drive.py detail), and on-screen taps advanced the variant one step at a time through the cycle; the cited bundle shows the variant row directly under screen carrying its value.",
+      "evidence_ref": "verification-70fdab9c3e43497db5264eac70b969ed"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum/polo/dot/void the row right after 'screen' is always 'immersive', never a cassette control (spectrum bundle cited); each screen's own controls still respond on-screen (spectrum bar-count 24->8, decay medium->fast; dot show-song-info off->on; void debug-layout off->on).",
+      "evidence_ref": "verification-cecca45e1b0f421e943fc6e0f4176c66"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never produced the required screenshot: it deadlocked in a foreground 'flutter run' and never ran shoot; flutter_evidence_exists is false and the only PNG in the container is my own judge capture. No candidate screenshot deliverable exists. (Cited verification:screenshot is my own capture, shown for kind; the deliverable itself is absent.)",
+      "evidence_ref": "verification-70fdab9c3e43497db5264eac70b969ed"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural dumps (semantics + getSettings) taken while cassette is selected independently corroborate the screenshot: getSettings screenType=cassette and the semantics row order/value match the rendered screen->variant adjacency.",
+      "evidence_ref": "verification-0236d01c1c8d4a068dd7df7fcfb543da"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across cassette and non-cassette screens the unrelated rows keep the same pairwise order (MODE/operating mode, LOOK/theme/theme-variant, screen, immersive, transport, browser, full screen, ui scale, LIBRARY..., SOUND/DISPLAY groups); none added/removed/renamed, and immersive/transport/browser each changed value when tapped on-screen.",
+      "evidence_ref": "verification-0236d01c1c8d4a068dd7df7fcfb543da"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "overflows reported count 0 both before and after repeatedly opening settings and switching all five screens; the runtime lens shows the app alive and responsive on cassette at the end with no new errors.",
+      "evidence_ref": "verification-0236d01c1c8d4a068dd7df7fcfb543da"
+    }
+  ]
+}

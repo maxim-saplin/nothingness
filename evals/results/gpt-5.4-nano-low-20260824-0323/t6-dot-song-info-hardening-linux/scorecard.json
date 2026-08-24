@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Prefs cleared (drive clearpref *) and hot-restarted; with the long-metadata track playing on the Dot screen the hero shows only the pulsing dot, no artist/title overlay, and the settings row reads 'show song info / off'. Default-off preserved.",
+      "evidence_ref": "verification-9032374283c0497ead7e1b13572386b7"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Toggled 'show song info' on (row read 'on'), hot-restarted; after restart the row still read 'on' and, with the long track replayed, the artist/title overlay renders in the hero without re-toggling. Persistence genuine.",
+      "evidence_ref": "verification-e9a99bcc8fd942cf9eb23c08fd16aed9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "From the enabled state, toggled the option off (row read 'off'), hot-restarted; after restart the row still read 'off' and, with the long track playing, no overlay renders (hero-artist absent from semantics). Round-trip persistence confirmed.",
+      "evidence_ref": "verification-e5872c2b780a4324ad509aa43b1d8a9a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% text size with artist(77ch)/title(89ch) long metadata, my own screenshot shows the centered pulsing dot drawn ON TOP of the overlay text ('The Extraordina[dot]rbose Symphonic', 'of N[dot]eaches') — the dot's pixels occupy the same region as the overlay and occlude it. Candidate's shift-down fix is a no-op here (dot radius fills the hero so the clamp forces shiftDown=0).",
+      "evidence_ref": "verification-093da8c8f9bb40f0b7d59b0678751715"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% text size (slider confirmed reading '150%') with the same long metadata, my screenshot shows the dot massively overlapping all overlay lines ('The Extraor[dot]ily Verbose', 'An Exceedingly Long and [dot] Ballad'). This is exactly the regression the task exists to fix; the candidate's fix does not prevent it.",
+      "evidence_ref": "verification-cbd58f2d7d55403b8de59861d02fefe9"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate produced NO screenshots at all (it explicitly said it couldn't generate them and never launched the app). No normal-scale deliverable exists, and my own 100% reproduction shows dot/overlay overlap, so the claim is disproved rather than merely unproven.",
+      "evidence_ref": "verification-093da8c8f9bb40f0b7d59b0678751715"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate max-scale screenshot exists (none were produced). My own 150% reproduction shows the dot overlapping the overlay text — the 'declared success, screenshot disproves it' failure this rubric targets, except the candidate didn't even declare a screenshot.",
+      "evidence_ref": "verification-cbd58f2d7d55403b8de59861d02fefe9"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural reads corroborate the overlay renders at both scales: getSemantics at 100% (this obs) and at 150% (verification-6a3a661450ea49d2a7feb25cf96bd4d8) both contain the full artist ('Extraordinarily...') and title ('Exceedingly...') text as rendered hero nodes.",
+      "evidence_ref": "verification-7b1c0e3b3dfd4752ac025735cec89d7c"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "With ordinary short metadata (artist 'undercover', title '53') the overlay still overlaps the dot at both 100% (verification-92681d62859b4f14bdef4b97760801d9) and 150% (this obs): the single artist line is drawn behind the dot ('und[dot]ver'). This matches the pre-change layout (the fix is a no-op), so it is not a NEW regression introduced by the change, but the common case does not render cleanly without dot overlap.",
+      "evidence_ref": "verification-bb623c12861048f09603a72321164db5"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After toggling the option, switching 100%/150% scales, and swapping long/short tracks, drive overflows reported 0 and the app answered inspect normally (live, screen=dot, playing). The one mid-exercise 'Lost connection' was the known harness hot-restart-during-playback fragility (a core dump, no 'Callback invoked after it has been deleted' candidate signature), not attributable to this change.",
+      "evidence_ref": "verification-caf0ea14ad794e1e814826029c75db39"
+    }
+  ]
+}

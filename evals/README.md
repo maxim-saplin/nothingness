@@ -11,7 +11,10 @@ candidate's write-up.
 <!-- BEGIN GENERATED LEADERBOARD -->
 | Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Retries | Score | Assisted | Tokens (in/out) | Accepted task cost | Campaign cost | $/point | Report |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `gpt-5.4-nano` | medium | 2026-08-23 | 1.7.3 | gpt-5.6-luna-high/pi | – | 0 | **15/21** | no | 482k / 159k | $0.8853 | $0.8853 | $0.0590 | [detail](results/gpt-5.4-nano-medium-20260823-1221/README.md) |
+| `gpt-5.4-nano` | low | 2026-08-24 | 1.7.3 | gpt-5.6-luna-high/pi | – | 1 | **13/21** | no | 267k / 41k | $0.2241 | $0.2241 | $0.0172 | [detail](results/gpt-5.4-nano-low-20260824-0323/README.md) |
+| `gpt-5.4-nano` | low | 2026-08-24 | 1.7.3 | gpt-5.6-luna-max/copilot-cli | $1.54 | 0 | **13/21** | no | 232k / 43k | $0.2474 | $0.2474 | $0.0190 | [detail](results/gpt-5.4-nano-low-20260824-0118/README.md) |
+| `gpt-5.4-nano` | low | 2026-08-23 | 1.7.3 | gpt-5.6-luna-max/copilot-cli | $49.49 | 1 | **16/21** | no | 245k / 36k | $0.2088 | unknown | – | [detail](results/gpt-5.4-nano-low-20260823-2200/README.md) |
+| `gpt-5.4-nano` | medium | 2026-08-23 | 1.7.3 | gpt-5.6-luna-max/copilot-cli | $1.75 | 0 | **15/21** | no | 482k / 159k | $0.8853 | $0.8853 | $0.0590 | [detail](results/gpt-5.4-nano-medium-20260823-1221/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-23 | 1.7.3 | gpt-5.6-luna-max/copilot-cli | $32.53 | 0 | **18/21** | no | 428k / 105k | $0.5556 | $0.5556 | $0.0309 | [detail](results/gpt-5.4-nano-medium-20260823-0925/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-23 | 1.7.3 | gpt-5.6-luna-max/copilot-cli | $1.95 | 2 | **17/21** | no | 327k / 93k | $0.4884 | $0.5109 | $0.0301 | [detail](results/gpt-5.4-nano-medium-20260823-0614/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-22 | 1.7.3 | gpt-5.6-luna-high/pi | – | 0 | **18/21** | no | 391k / 128k | $0.6356 | $0.6356 | $0.0353 | [detail](results/gpt-5.4-nano-medium-20260822-2327/README.md) |

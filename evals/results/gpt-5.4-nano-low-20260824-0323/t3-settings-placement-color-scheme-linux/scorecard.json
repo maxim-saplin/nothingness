@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "evidence_ref": "verification-45e24123344243f99e7d88f6c7331416",
+      "note": "With screen=cassette, semantics show 'screen/cassette' (indexInParent 5, y231-276) immediately followed by 'color scheme/Tape \u00b7 Mono' (indexInParent 6, y276-321) with abutting rects and nothing between; screenshot confirms the two rows are adjacent."
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "evidence_ref": "verification-45e24123344243f99e7d88f6c7331416",
+      "note": "The row directly below 'screen' has label line exactly 'color scheme' (lowercase, same register as other labels); its value line is the variant ('Tape \u00b7 Mono'). Only one such row exists and no leftover 'variant' cassette row remains."
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "evidence_ref": "verification-8ed449fc69314c089ea544b00dd700f5",
+      "note": "Tapping void-settings-screen on-screen cycled the row's value spectrum\u2192polo\u2192dot\u2192void\u2192cassette\u2192spectrum (full wrap); direct screen calls also updated the row (spectrum capture shows 'screen/spectrum'). Value tracks the active screen."
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "evidence_ref": "verification-45e24123344243f99e7d88f6c7331416",
+      "note": "Tapping the 'color scheme' row cycled its value Minimal\u2192Tape\u00b7Mono\u2192Tape\u00b7Amber\u2192Tape\u00b7Colour\u2192Minimal; direct cassettevariant call also moved it (cassettevariant 2 \u2192 'Tape \u00b7 Amber'). Row value reflects the active variant in both paths."
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "evidence_ref": "verification-8ed449fc69314c089ea544b00dd700f5",
+      "note": "For spectrum, polo, dot and void the row after 'screen' is 'immersive', never a cassette control; no 'color scheme' label appears on any non-cassette screen. Own controls still work (spectrum bar count 24\u21928, dot show-song-info off\u2192on on tap)."
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "evidence_ref": "verification-45e24123344243f99e7d88f6c7331416",
+      "note": "Screenshot lens (opened by judge) genuinely shows the settings sheet with screen=cassette and the 'color scheme / Tape \u00b7 Mono' row legibly directly beneath 'screen / cassette'."
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "evidence_ref": "verification-45e24123344243f99e7d88f6c7331416",
+      "note": "Semantics and getSettings captured while cassette is selected independently corroborate the screenshot: row order, exact 'color scheme' label, and the current variant value all agree."
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "evidence_ref": "verification-8ed449fc69314c089ea544b00dd700f5",
+      "note": "Full sheet order across screens is unchanged (MODE, LOOK, LIBRARY, SOUND/DISPLAY groups intact); no unrelated row was added, removed, renamed or reordered. Unrelated rows (bar count, show song info) still respond to on-screen taps."
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "evidence_ref": "verification-45e24123344243f99e7d88f6c7331416",
+      "note": "Runtime lens shows the app live and responsive after opening/closing settings, switching screens and cycling the color scheme control; drive.py overflows returned count 0 with no new errors."
+    }
+  ]
+}

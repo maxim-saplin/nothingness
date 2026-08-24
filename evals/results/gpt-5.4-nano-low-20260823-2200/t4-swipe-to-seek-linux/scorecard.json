@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No during-gesture capture exists anywhere in the candidate's event trail: it made 267 bash / 18 read / 2 edit calls (only source greps, flutter analyze, flutter test) and never launched or drove the app; its own final message admits it could not produce the screenshots. With no candidate mid-gesture capture, the bottom-line target/duration/progress claim is unproven from the candidate's own evidence.",
+      "evidence_ref": "events-2e69de39190d4be99c8e1023e06c2dc8"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own real X11 (XTEST) mid-gesture reproduction (swipe_during_state) and every burst swipe show no centered time readout and no full-height vertical line over the hero; the feedback is a single bottom-left line and the removed center HUD is confirmed gone in the diff.",
+      "evidence_ref": "verification-31666dde0431417cb9e78f990c74fc4d"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After releasing the swipe and a settle, swipe_post_state shows the bottom line back to the folder path '~' and the hero-seek-hud widget absent from the tree (count 0), versus present (count 1) mid-gesture; the temporary readout fully clears.",
+      "evidence_ref": "verification-da808a38fd96422c91998149b03b355f"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate performed zero during-gesture captures, so there are not two data points (nor even one) in its own trail to show the target value tracks the swipe. Cannot be settled from the candidate's evidence per the rubric's events requirement.",
+      "evidence_ref": "events-2e69de39190d4be99c8e1023e06c2dc8"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Releasing commits a real seek: a rightward XTEST swipe moved playback from ~30s (swipe_pre_state pos 29639) to ~296s (swipe_post_state pos 296117) on a 420s track while playing, a large forward jump in the requested direction and rough proportion.",
+      "evidence_ref": "verification-da808a38fd96422c91998149b03b355f"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No during-gesture screenshot deliverable is traceable to any capture in the candidate's event trail; the candidate never ran flutter run/drive.py/shoot and explicitly stated it could not generate the screenshots. The required deliverable was not produced.",
+      "evidence_ref": "events-2e69de39190d4be99c8e1023e06c2dc8"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own post-gesture settled screenshot (swipe_post_state, screenshot lens) shows the bottom line back to the folder path '~' with no seek readout and no center indicator anywhere; a genuine later, settled capture.",
+      "evidence_ref": "verification-da808a38fd96422c91998149b03b355f"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The structural read taken with the same post-gesture bundle corroborates the screenshot: tree shows the folder crumb '~' with hero-seek-hud absent (count 0) and runtime shows the app live/playing, independently confirming the reversion.",
+      "evidence_ref": "verification-da808a38fd96422c91998149b03b355f"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Tap zones still work: on-screen taps of the hero center-third and transport-play toggled isPlaying True->False->True, and transport-next advanced the track (07->09). The candidate's diff only touched the _SeekHud overlay (IgnorePointer), leaving the GestureDetector, onTapUp, and vertical-drag wiring untouched; app stays responsive (swipe_stress_state). Vertical-drag reveal is gated to swipeUp browser presentation, not active in this fixture's mode, so it is a no-op here by unchanged design.",
+      "evidence_ref": "verification-28f4f9683f9d4a17a01df66a50dbb4f9"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "A burst of five swipes varying direction/magnitude/steps produced zero overflows (0 before and after) and no swipe-related errors in the run log; swipe_stress_state runtime shows the app still live and playing afterward (pos 253410). The only log errors were ALSA (no sound card) and SoLoud file-not-found from my own malformed setQueue test paths, not the gesture.",
+      "evidence_ref": "verification-28f4f9683f9d4a17a01df66a50dbb4f9"
+    }
+  ]
+}

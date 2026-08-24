@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Candidate never drove the app: its 25 bash calls were code-exploration only, then it wrote integration_test/smoke_playback_controls_test.dart and ran `flutter test integration_test/smoke_playback_controls_test.dart`, which hung from ~140s until the deadline guard finished the run at 1746s. Zero ext.nothingness.* / drive.py calls, no `flutter run`, no drivable session. The rubric explicitly falsifies E1 for a flutter-test-only approach. (I separately confirmed the app IS drivable live myself: 31 extensions registered, full verification bundle answers now.)",
+      "evidence_ref": "verification-4729a602464245b2a388ec049fe2e574"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No play/pause transition was ever observed by the candidate: it issued no play/pause/resume/inspect extension calls and captured no playing-flag state read. (My own live re-check works fine \u2014 pause set isPlaying=false, resume set it true \u2014 but the candidate produced none of this.)",
+      "evidence_ref": "verification-4729a602464245b2a388ec049fe2e574"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No skip/track-change was observed: the candidate never loaded a queue (no setQueue) and never called next/prev, so no index/path change exists in its session. (My live re-check advanced currentIndex 0\u21921\u21922 on a 3-track queue, but that is my evidence, not the candidate's.)",
+      "evidence_ref": "verification-4729a602464245b2a388ec049fe2e574"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No seek was observed: the candidate issued no seek call and read no position before/after. (My own live seek from 0:19 to 0:50 landed at 50885ms, within tolerance and clearly forward \u2014 the app works \u2014 but the candidate never exercised it.)",
+      "evidence_ref": "verification-4729a602464245b2a388ec049fe2e574"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The session produced no final report and no state reads at all: the last assistant action was the hung `flutter test`, force-finished by the deadline guard. There are zero behavioral observations of play/pause/skip/seek anywhere in the event stream to trace any claim to.",
+      "evidence_ref": "events-a35d4d88c30b4369a780b04cc7d8e072"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The workspace diff is a single added untracked file, integration_test/smoke_playback_controls_test.dart (git status shows only `?? integration_test/smoke_playback_controls_test.dart`, empty diff_stat) \u2014 beyond the one permitted GeneratedPluginRegistrant.swift regeneration (which did not occur, since the candidate never ran `flutter run`). It is a test file that does not alter runtime behavior, and my live re-check behaved like an unmodified build, so partial rather than a full fail.",
+      "evidence_ref": "inspection-9f654e3d42cf4dfe87fc134da3fb43b2"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "An unrecovered hang is visible in the trail: the candidate's own `flutter test` never returned and it neither noticed nor re-ran anything before the deadline guard ended the run. Mitigating: the candidate narrated no false 'passed' steps over the broken session (it produced no report at all), so it did not layer claims over the fault \u2014 partial rather than unmet.",
+      "evidence_ref": "verification-4729a602464245b2a388ec049fe2e574"
+    }
+  ]
+}

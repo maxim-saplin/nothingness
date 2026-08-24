@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Played 10-undercover-47.opus then browsed the parent /opt/nothingness; the existing 'jump to now-playing folder' action (key void-crumb-jump-to-playing) was present; tapping it set currentPath to /opt/nothingness/media with row .47 highlighted and fully on screen.",
+      "evidence_ref": "verification-f72d38c6b0f347948ded46b1fe4be7ed"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With currentPath already /opt/nothingness/media and track 47 playing but scrolled off-screen (list showed 50-54), the new 'bring now-playing track into view' action (key void-crumb-bring-now-playing-into-view) was present; tapping it left currentPath unchanged and scrolled the list to reveal row 47 (pre: verification-d5404a88).",
+      "evidence_ref": "verification-dd99e513fc264d5d9b47c1f780adf645"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Playing track 47 while its row was fully visible (rows 44-51, 47 unclipped, isPlaying=true, songInfo=47 in same bundle): neither jump action appears in the tree or semantics, so the action is genuinely visibility-conditional.",
+      "evidence_ref": "verification-102c1805d3454395815e70719b7f4cc7"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With songInfo=null / isPlaying=false, no jump action of either kind appears in the tree or semantics in the media folder (verification-7e85c60f) nor in the parent folder (verification-98ea5881).",
+      "evidence_ref": "verification-7e85c60fed184e059cd6f2cab03d8363"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "getSemantics answers on this build; the action node carries a distinguishing Semantics label 'bring now-playing track into view' (and the cross-folder action carries 'jump to now-playing folder'), not a bare glyph.",
+      "evidence_ref": "verification-d5404a881c2747e293625d639c720d36"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate provided no before screenshot. It never launched the app (its only capture attempt, drive.py replay, failed with 'could not find Dart VM service URI'); its tools were bash/read/edit/write only and no shoot/screenshot was produced. The before state shown here is my own live reproduction, not the candidate's.",
+      "evidence_ref": "verification-d5404a881c2747e293625d639c720d36"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate provided no after screenshot for the same reason as E6. The after state shown here is my own live reproduction.",
+      "evidence_ref": "verification-dd99e513fc264d5d9b47c1f780adf645"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Code-structure and 'flutter analyze passed' claims are traceable to the candidate's edits and bash runs, but its runtime-behavioral claims (activation keeps the folder and scrolls the row into view; glyph shown only when the row is off-screen) have no backing observation because it never drove the app; they happen to match my re-check but were unverified by the candidate.",
+      "evidence_ref": "events-f4f7d2f93ca64f40b8aca08897f2ac6f"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen folder-row tap (void-folder:/opt/nothingness/media) navigated currentPath from /opt/nothingness into /opt/nothingness/media; play/pause/resume all transitioned correctly. next/prev clearing playback is the pre-existing empty-queue quirk of playTrackByPath (queueLength 0), untouched by this diff, not a regression.",
+      "evidence_ref": "verification-0400cda69bf24a098763dd5a40f30b9a"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Overflow count stayed 0 across all E1-E4 exercises and the app answered inspect normally at the end (screen=void, overflows=0).",
+      "evidence_ref": "verification-0400cda69bf24a098763dd5a40f30b9a"
+    }
+  ]
+}

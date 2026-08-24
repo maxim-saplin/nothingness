@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing all preferences and hot restarting, the live Dot capture shows only the pulsing dot and no song-info overlay.",
+      "evidence_ref": "verification-9d5b5c43aa564f59bfb678d2b016c61f"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I enabled show song info, restarted, and the post-restart live capture retained the rendered song text with the setting on.",
+      "evidence_ref": "verification-37a937da61a241a79f2a035af2aefd61"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I toggled show song info back off, restarted, and the post-restart capture again had no overlay.",
+      "evidence_ref": "verification-c0115d0bed124b3d8b6bbe280df40412"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% with deliberately long artist and title metadata playing, the genuine screenshot visibly has the black pulsing dot drawn through the artist text.",
+      "evidence_ref": "verification-700d906ba05e4b0eba3401885eb05270"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% the long-metadata screenshot shows a Flutter Invalid argument(s): 20.0 error banner and no visible pulsing dot, so the hardened scenario is not validly rendered.",
+      "evidence_ref": "verification-7dcb53a7e7f848c8927e4aa1b7a332a1"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate-submitted normal screenshot is a Settings sheet at 3.00x with no long metadata, and my fresh 100% long-metadata capture fails the no-overlap criterion.",
+      "evidence_ref": "verification-700d906ba05e4b0eba3401885eb05270"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate-submitted maximum screenshot is a Settings sheet at 1.00x rather than a 150% long-metadata hero capture; my fresh 150% capture also displays the runtime error banner.",
+      "evidence_ref": "verification-7dcb53a7e7f848c8927e4aa1b7a332a1"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The normal- and maximum-scale verification bundles contain non-empty long artist/title text in both tree and semantics lenses, independently confirming the overlay renders.",
+      "evidence_ref": "verification-7dcb53a7e7f848c8927e4aa1b7a332a1"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Short fixture metadata is visible at both scales, but the normal capture shows the dot intersecting the artist and the maximum capture retains the Invalid argument banner.",
+      "evidence_ref": "verification-41009560fab14f318d4bdbec483259e0"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The app stayed live and the final runtime inspection reports zero recorded overflow reports, but the maximum-scale exercise visibly surfaced a Flutter Invalid argument(s): 20.0 rendering error.",
+      "evidence_ref": "verification-7dcb53a7e7f848c8927e4aa1b7a332a1"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cleared all prefs and hot-restarted; a fixture track was playing (isPlaying true, songInfo present) yet the Dot hero showed only the pulsing dot with no artist/title overlay. Default is off and the dot renders cleanly when off.",
+      "evidence_ref": "verification-36e7c2466acb4722937a5f7e76d8f7d4"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Enabled the show-song-info toggle (read 'on'), hot-restarted without re-toggling, and the overlay title still rendered (probe hero-song returned the track title, w=415 h=35). The setting genuinely persisted on.",
+      "evidence_ref": "verification-1ffd7b0743fa43ae85008db81415307e"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "From the enabled state, toggled the control off (read 'off'), hot-restarted, played a track (isPlaying true, songInfo present); the hero-song widget was absent (probeText: no widget found). Persistence is a genuine round trip.",
+      "evidence_ref": "verification-902a2fab4d894fcf8a394366625215f3"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% text size with a track whose artist (66 chars) and title (65 chars) are both long, the Dot hero does NOT render a pulsing dot: the candidate's radius clamp throws ArgumentError ('Invalid argument(s): 20.0') every spectrum frame, so the dot subtree is replaced by Flutter's red error box that fills the hero band, with the overlay text painted over it. The hardening broke the dot rather than containing the overlay.",
+      "evidence_ref": "verification-ce4b4e8d3ad34fa0b61c185de7c62a81"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Drove the dot text-size slider to a confirmed 150% (XTEST). Same long-metadata track: the identical ArgumentError crash fills the hero with the red error box, no pulsing dot; the artist H1 is ellipsized and the overlay text sits over the error box. The exact regression this task exists to prevent.",
+      "evidence_ref": "verification-df9d2261763449ceaad93e715a9e8557"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate delivered NO screenshots at all (its final message asked how to generate them and the diff touches only dot_hero.dart). My own fresh 100% reproduction moreover shows the dot crashed into a red error box, so the 'no clipping, no overlap' claim is disproven, not merely unproven.",
+      "evidence_ref": "verification-ce4b4e8d3ad34fa0b61c185de7c62a81"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate max-scale screenshot exists among the deliverables. My own fresh 150% reproduction shows the same crash (red error box, no dot), so the required max-scale evidence both is missing and would be disproven if claimed.",
+      "evidence_ref": "verification-df9d2261763449ceaad93e715a9e8557"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural reads corroborate the overlay text renders at both scales: probe/tree at 100% show hero-artist 30px (848x70) and hero-song 15px (587x18); at 150% hero-artist 45px (848x106) and hero-song 22.5px (848x54). The overlay itself is genuinely rendering (the dot is what fails, separately).",
+      "evidence_ref": "verification-ce4b4e8d3ad34fa0b61c185de7c62a81"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The common case regressed too: with the option on and an ordinary short fixture ('05-undercover-53.opus') the same ArgumentError crash paints the red error box over the hero at both 100% (see E2 bundle) and 150%. The reserved-space estimate is metadata-independent, so short metadata is not unaffected.",
+      "evidence_ref": "verification-d757ec57ae474b3c87db8be30f6226ee"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "Enabling the option throws ArgumentError ('Invalid argument(s): 20.0') on every spectrum frame (hundreds in the run log) from DotHero._radiusFor's clamp(minDotSize, min(maxDotSize, maxAllowed)) when maxAllowed collapses to 0 in the short hero band. The app still answers inspect but the dot renders as an error box. Note drive.py overflows reads 0 because this caught build exception never enters the overflow ring buffer.",
+      "evidence_ref": "verification-df9d2261763449ceaad93e715a9e8557"
+    }
+  ]
+}

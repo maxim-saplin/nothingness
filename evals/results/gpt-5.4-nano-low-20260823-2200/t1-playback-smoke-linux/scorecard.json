@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Candidate drove the real live Linux build via ext.nothingness.* (setQueue/play/pause/resume/next/seek/getAudioEvents through drive.py replay); I reproduced a live extension-answering session right now (contract count=31, runtime lens available).",
+      "evidence_ref": "verification-afc7dedf39aa48e6ada6a5602a026b49"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live re-check I drove: play->isPlaying true (e2-play afc7), pause->isPlaying false (this obs e5c5), resume->isPlaying true (e2-resume 15bd); transitions match the candidate's report.",
+      "evidence_ref": "verification-e5c513d7fea446cfb28f9c67ec0d5688"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On a 3-track queue I loaded, next advanced currentIndex 0->1 and path 01-undercover-49->02-undercover-50 (before e3 3518, after this obs); shuffle off, matching the candidate's next claim.",
+      "evidence_ref": "verification-cca0d43ca19149aa9058564ca020f589"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Seek from 14.5s to a 60s target moved playback forward to 64.2s live (before e4b 9131, after this obs 64181; positionMs returned 60000, ~4s is capture-time playback drift); candidate's own session read 30362ms after seek 0:30, within tolerance.",
+      "evidence_ref": "verification-cca2e6a9a6f349a48a83a7d8d6b0e6d3"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Every claim in the final report (isPlaying true, next->currentIndex 1/path 02, seek 0:30->positionMs 30000/songInfo.position 30362, overflows.count 0) is backed by an actual drive.py inspect/read in its own replay output captured in the event stream.",
+      "evidence_ref": "events-a0385fddd39d408c880abe254f6ad65a"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "git status is empty (status: [], diff_stat: []) with no source changes at all; runtime behaviour across E1-E4 matched an unmodified build.",
+      "evidence_ref": "inspection-f5c846de787e41139b0d98785d6d65a5"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No unresolved crash/hang: overflows.count 0, run log free of crash/SoLoud traces, and the same continuous session (PID 1077, up since 22:04) still answers live; an early launch VM-URI-not-found retry resolved before any step was reported.",
+      "evidence_ref": "verification-cca2e6a9a6f349a48a83a7d8d6b0e6d3"
+    }
+  ]
+}

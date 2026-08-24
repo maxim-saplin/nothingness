@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate launched the real Linux debug app and issued concrete ext.nothingness VM-service calls; a fresh preflight and inspect also showed a live VM with 35 extensions.",
+      "evidence_ref": "verification-468ac6907a1a459ab6cd17c0c5676332"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh captures showed playback true, then false after pause, then true after resume, matching the candidate's reported transition.",
+      "evidence_ref": "verification-0fab168918154569bc196947644a6978"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A three-track queue changed from index 0 track 01 to index 1 track 02 on next, and a clean index-1 setup changed to index 0 track 01 on prev.",
+      "evidence_ref": "verification-2969ab82cf07415fadef6d61625d6337"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate reported seek 1:30 but its inspect read only 9770ms on an 84720ms track, materially missing the requested target; a separate fresh 0:50 seek worked but does not validate the candidate's claim.",
+      "evidence_ref": "verification-981a2bdb3de74c4891da76b88de8defa"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report's pause/resume, next/prev, seek position, queue, and overflow claims all have corresponding inspect outputs in the candidate event stream.",
+      "evidence_ref": "events-1f33a2dd5d17418fb3f04d8123736dc8"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live behavior was an ordinary unmodified playback session and the run inspection reported an empty git status and diff.",
+      "evidence_ref": "inspection-81f397a8d18a4e28864e1b4bb2fd1dad"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate recovered from VM-discovery and command errors by completing a valid launch and rerunning the transport sequence before reporting results.",
+      "evidence_ref": "verification-0fab168918154569bc196947644a6978"
+    }
+  ]
+}

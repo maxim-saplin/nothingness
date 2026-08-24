@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never launched the app or issued setQueue, so no runtime observation proves the ten-fixture queue.","evidence_ref":"verification-1801bbc7d3ce4ea484dc5778806734f3"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The candidate never opened settings or activated the shuffle control, and runtime verification was unavailable.","evidence_ref":"verification-1801bbc7d3ce4ea484dc5778806734f3"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No playback command or runtime state read occurred; the candidate spent its final turn waiting on a Flutter test.","evidence_ref":"verification-1801bbc7d3ce4ea484dc5778806734f3"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No next/previous transition was performed or verified; the only activity was authoring and running a test that hung.","evidence_ref":"verification-1801bbc7d3ce4ea484dc5778806734f3"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The complete candidate event record contains no setQueue, play, next, or prev operation, so it shows no foreign track entering the queue or becoming current.","evidence_ref":"events-e5be7b21e8a64028bba59993f42c9000"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The candidate produced no final report or specific playback claims requiring traceability.","evidence_ref":"events-e5be7b21e8a64028bba59993f42c9000"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"The candidate added an unrequested integration_test/shuffle_next_transition_fixture_test.dart file, beyond the allowed non-functional artifact scope.","evidence_ref":"inspection-f586600beb364c2db71dfd8fa7405af6"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"The Flutter integration test remained hung until I finished the run; the candidate did not recover or rerun the affected step.","evidence_ref":"verification-1801bbc7d3ce4ea484dc5778806734f3"}
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Browsing the mount root (/opt/nothingness) while a media track played, the jump glyph was present; tapping it navigated the browser to the track's parent (/opt/nothingness/media) and the playing row (.44) was fully visible, highlighted at the top of the list.",
+      "evidence_ref": "verification-0af745335b1a439596e03da773424102"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Same-folder case (media open, playing 09-undercover-46 with its row scrolled off-screen): the glyph appears and the folder path stays /opt/nothingness/media, but a single activation is inert - 5 of 5 clean-reset single taps left the row off-screen (this bundle: pre-tap off-screen + glyph, post single-tap still off-screen). Only repeated taps eventually scroll it in, so the core 'activate once to reveal' ask is not delivered.",
+      "evidence_ref": "verification-86c961428ee7405193e4f3aabbe1098b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "With the playing row (46) fully within the viewport (unclipped, mid-list) in the correct folder, an active jump glyph remained exposed across 4/4 steady samples - the action is effectively always-on when a track plays in the browsed folder rather than genuinely conditional on visibility, the exact anti-pattern E3 forbids.",
+      "evidence_ref": "verification-9aa4fcad719b44a89e1d8ffab41d868f"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With nothing playing (runtime lens: isPlaying false, songInfo null), no jump action appeared in the semantics tree in the media folder; a second folder (root) was also checked and likewise showed no jump action.",
+      "evidence_ref": "verification-de7815eb55af461ab95e54b9f96bd0ec"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "In the active (cross-folder) state the glyph's semantics node carries a distinguishing label 'jump to now-playing folder' with the isButton flag - a real accessible affordance, not a bare glyph.",
+      "evidence_ref": "verification-e1987f219f7a407eab71af16234cb0b9"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate captured no before screenshot: it never got a live Flutter VM (every 'flutter run' failed with 'could not find Dart VM service URI'), never issued a drive.py shoot, and no candidate-authored PNGs exist in the workspace. The cited bundle is my own live reproduction of the pre-activation state, confirming none was submitted.",
+      "evidence_ref": "verification-43ae91d0d78e4bca991e26132f2181b7"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate captured no after screenshot for the same reason - it explicitly wrote it could not reach the 'shoot' stage. The cited bundle is my own reproduction of the post-activation state; no candidate after-screenshot exists.",
+      "evidence_ref": "verification-09c1798858be41a88804a12411755204"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up's behavioral claims ('when activated keeps the browser in the current folder', 'hidden when the row is already visible', 'not shown when nothing playing') are derived from reading the code, not from any session observation: the app never ran for the candidate (no successful inspect/getSemantics/shoot), so no state read backs any claim.",
+      "evidence_ref": "events-366f8f228e804b66a1438d1784b05cf6"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Ordinary navigation is intact: an on-screen folder-row tap (void-folder:/opt/nothingness/media) navigated root->media and an up-row tap navigated media->root, each confirmed via getLibraryState; pause/resume and playback transitions behaved normally on a fresh track.",
+      "evidence_ref": "verification-38e2536f9c48407081321a060bce7ba2"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "Playing a track in the browsed folder throws two exceptions - 'setState()/markNeedsBuild() called during build' (void_screen.dart:626, a ValueNotifier set inside the Selector builder) and 'Scrollable.of() was called with a context that does not contain a Scrollable widget' (isTrackInViewport). When the row is built/visible the crumb subtree is replaced by a red error widget, as seen in this bundle's screenshot; both exceptions are in the run log.",
+      "evidence_ref": "verification-bfc860c9e22847928a083b709ebc17e1"
+    }
+  ]
+}

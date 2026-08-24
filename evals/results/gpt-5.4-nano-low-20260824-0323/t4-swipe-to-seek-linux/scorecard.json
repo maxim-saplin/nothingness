@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Candidate's own during-gesture deliverable (swipe_seek_during.png, captured at seq ~11779 via `dragByKey key=void-hero-scrub-gesture ... kind=touch` then immediate `shoot`) shows the bottom line still reading the folder path '~' -- NOT target/duration/progress. The kind=touch dragByKey is a no-op on the hero (key sits on the GestureDetector itself, no ancestor), so onSeekPreview never fired and seekCrumbText stayed null. No genuine mid-gesture instant with target/duration/progress exists anywhere in the candidate's event trail.",
+      "evidence_ref": "events-c68b1d860c69486a8165ca1232277135"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own real XTEST held-swipe capture (bottom line '2:24 / 3:14 · 74%') shows NO centered time readout and NO tall vertical line over the hero; the screenshot center is empty and the tree contains 0 hero-seek-hud nodes. The candidate deleted the centered _SeekHud entirely. No reproduction produced a center indicator.",
+      "evidence_ref": "verification-f51ccdbbd52948b8b5ea64e4afa5a3ea"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After a real XTEST swipe release plus a ~2s settle, the bottom line (SemanticsNode#9) reverted to the folder crumb '~ / jump to now-playing folder', with no residual seek readout. onSeekPreviewEnd clears seekCrumbText via a 400ms timer.",
+      "evidence_ref": "verification-5ed0add6d81b482a8c4a3d3adc418eb7"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate performed exactly ONE atomic dragByKey (a no-op, kind=touch) and one shoot; there is no second during-gesture capture and no legible target-position value in any candidate during-capture (the sole shot shows the folder path unchanged). No two data points of differing magnitude/direction exist to show the feedback tracks the swipe.",
+      "evidence_ref": "events-c68b1d860c69486a8165ca1232277135"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Seek commits to the last-shown target. Real XTEST test while playing: pre-position 31.3s, mid-gesture bottom line showed target 1:21 (81s), post-release drive.py inspect read 82.4s -- within +/-2s of the shown target and clearly forward. Cited post bundle has runtime lens; a separate rightward swipe from 61s->82s also confirmed forward commit.",
+      "evidence_ref": "verification-5ed0add6d81b482a8c4a3d3adc418eb7"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The during-gesture screenshot deliverable was captured immediately AFTER a single atomic dragByKey (no incremental updates, no real elapsed time, drag moved nothing), and the image shows the resting folder-path bottom line -- a near-duplicate of the post-gesture shot. It is not traceable to any capture taken while a gesture was genuinely in flight; it matches the recorded field-test failure of a during-screenshot that disproves the claim it supports.",
+      "evidence_ref": "events-c68b1d860c69486a8165ca1232277135"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My own post-gesture XTEST screenshot (settled) shows the bottom line back to the folder path '~' with the jump icon, no seek readout and no center indicator -- a genuinely later, settled capture distinct from the during state. Corroborates the candidate's own post shot content.",
+      "evidence_ref": "verification-5ed0add6d81b482a8c4a3d3adc418eb7"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural read in the same settled bundle -- semantics SemanticsNode#9 = '~ / jump to now-playing folder' and inspect playback (isPlaying true, position committed) -- independently corroborates the post-gesture screenshot's revert to the folder path.",
+      "evidence_ref": "verification-5ed0add6d81b482a8c4a3d3adc418eb7"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "All three hero-surface tap zones still work via real on-screen taps: NEXT zone advanced currentIndex 0->1, PREV zone 1->0 (3-track queue), and center play-pause toggled isPlaying true->false->true. Vertical-drag wiring (onVerticalDragUpdate/onVerticalDragEnd) is byte-identical to baseline in the diff -- the change only added horizontal seek-preview callbacks; I could not independently trigger browser-open via XTEST (setting-sync/gesture-arena claimed my drag as the working horizontal seek), a judge-side driving limitation, not evidence of regression.",
+      "evidence_ref": "verification-5ed0add6d81b482a8c4a3d3adc418eb7"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "overflows count 0 both before and after a burst of 6 varied XTEST swipes (differing magnitude/direction); app stayed live and responsive (isPlaying true, position advancing) afterward. No new errors attributable to the swipe feedback.",
+      "evidence_ref": "verification-5ed0add6d81b482a8c4a3d3adc418eb7"
+    }
+  ]
+}

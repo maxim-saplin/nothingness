@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live inspect shows queueLength=10 with exactly the ten fixtures under /opt/nothingness/media, each once, no duplicates, nothing foreign.",
+      "evidence_ref": "verification-3d1491b5f8d8433eacaceceb57faf4a4"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Tapping the on-screen void-settings-status-shuffle row flipped shuffle true->false->true live; final inspect reports shuffle:true through the real control, not a side channel.",
+      "evidence_ref": "verification-f1c4eec2fe28452b850093c9362e984b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before the transition the app was genuinely playing (isPlaying true) currentIndex 8 = 01-undercover-49.opus, an in-set fixture with isNotFound false.",
+      "evidence_ref": "verification-acc371dff026498bb3a45e527a47165c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A single next transition moved currentIndex 8->9 (01-undercover-49 -> 09-undercover-46); the resulting track is in-set with isNotFound false and the index genuinely changed.",
+      "evidence_ref": "verification-2a5afbca4c1f470887b834a48d0a3130"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Every queued and current-track path across the candidate's own setQueue/play/next getPlaybackState reads is one of the ten fixtures; a session-wide grep found zero opus paths outside /opt/nothingness/media.",
+      "evidence_ref": "events-2913c3a6c24f4b238b9eeb69dc6ad1f3"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The report's specific claims (10-file queue, shuffle on, next transition, before=01-undercover-49/idx8, after=09-undercover-46/idx9) each trace to a concrete getPlaybackState read in the session record.",
+      "evidence_ref": "events-2913c3a6c24f4b238b9eeb69dc6ad1f3"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Runtime behavior matched an unmodified build throughout, and the workspace git status/diff is empty (not even the tolerated GeneratedPluginRegistrant.swift regeneration).",
+      "evidence_ref": "inspection-0b015c42157248c5b268a6ccf8a7eccf"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "drive.py overflows reports count 0 and the runtime lens shows no crash/hang; the same live isolate answered continuously from the candidate's session with no silent relaunch.",
+      "evidence_ref": "verification-3d1491b5f8d8433eacaceceb57faf4a4"
+    }
+  ]
+}

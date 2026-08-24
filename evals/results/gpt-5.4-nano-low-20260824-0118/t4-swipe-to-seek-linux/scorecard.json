@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's event trail shows only an attempted atomic replay and then a final claim; no genuine candidate mid-gesture capture with the bottom target, duration, and progress is traceable.","evidence_ref":"events-430c4988822549e08f817c2a4ba88f32"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Fresh held real-X11 rightward and leftward captures show only the bottom target/duration/percent readout; neither during capture nor settled screenshots shows a centered readout or tall vertical line.","evidence_ref":"verification-56a98ef14931442086bfc97ae3d8a0d8"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After both real swipes settled, the bottom line reverted to the normal '~' folder crumb and the temporary seek readout was gone.","evidence_ref":"verification-e3d7e1c2692f4623ba24d6ddb8ebb619"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate did not produce two legible during-gesture captures; its event trail records an atomic replay failure rather than live target samples for comparison.","evidence_ref":"events-430c4988822549e08f817c2a4ba88f32"},
+    {"id":"E5","tier":"required","verdict":"met","note":"A held real-X11 swipe displayed a 3:09 / 5:59 target, and after release I paused immediately; runtime retained 189381ms, within about 0.4 seconds of that target.","evidence_ref":"verification-443acfe2e5894f9eb02774833ce5cb16"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate's event trail contains no screenshot deliverable captured between real incremental gesture updates; its replay was blocked before any such capture.","evidence_ref":"events-430c4988822549e08f817c2a4ba88f32"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The fresh settled screenshot visibly shows the normal /opt/nothingness/media folder line with no lingering target readout or center indicator.","evidence_ref":"verification-e3d7e1c2692f4623ba24d6ddb8ebb619"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The post-swipe verification bundle's tree and semantics independently show /opt/nothingness/media on the bottom crumb while runtime reports paused playback, agreeing with the settled screenshot.","evidence_ref":"verification-e3d7e1c2692f4623ba24d6ddb8ebb619"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"On-screen keyed next and play/pause taps responded and the app remained live, but previous did not change the queue index and the attempted vertical swipe did not produce a clearly observable browser transition.","evidence_ref":"verification-0989cd7824e3455896328e72d40596bb"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"A varied burst of real X11 swipes completed with the app responsive; final runtime remained live with nonzero playback and zero overflow reports.","evidence_ref":"verification-e3d7e1c2692f4623ba24d6ddb8ebb619"}
+  ]
+}
