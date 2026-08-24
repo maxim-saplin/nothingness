@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "t1-t7-gpt-5-nano-medium",
+  "requested_model": {
+    "provider": "azure-openai-responses",
+    "model": "gpt-5-nano",
+    "thinking": "medium"
+  },
+  "tasks": [
+    {"id": "t1-playback-smoke-linux"},
+    {"id": "t2-settings-placement-linux"},
+    {"id": "t3-settings-placement-color-scheme-linux"},
+    {"id": "t4-swipe-to-seek-linux"},
+    {"id": "t5-jump-to-now-playing-linux"},
+    {"id": "t6-dot-song-info-hardening-linux"},
+    {"id": "t7-opus-shuffled-playlist-linux"}
+  ]
+}
