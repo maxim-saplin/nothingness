@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or captured a genuine mid-gesture state; its last tool activity was repository searching and it supplied no live during-swipe output.",
+      "evidence_ref": "events-e75b2d05b95143d0bee64dfe3a5c46f5"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "A genuine focused X11 swipe visibly shows the old centered 5:00 / 7:00 readout and a tall full-height vertical marker over the hero.",
+      "evidence_ref": "verification-d5f1239c183049e7823b499d3a527c09"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and a settle wait, the screenshot and structural capture show the normal bottom ~ folder crumb with no remaining seek HUD.",
+      "evidence_ref": "verification-07a259866d0e48508bf2584bb0d48182"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied no two distinct candidate-owned during-gesture captures, so live target tracking cannot be established from its event trail.",
+      "evidence_ref": "events-e75b2d05b95143d0bee64dfe3a5c46f5"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The live rightward swipe committed a real seek on the 420623 ms track, with playback position clearly moving forward from the pre-swipe state and remaining active after release.",
+      "evidence_ref": "verification-938575487748474baede925022a50b2e"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate-owned during-gesture screenshot is traceable: the candidate did not run Flutter, drive a gesture, or capture a live screenshot in its session.",
+      "evidence_ref": "events-e75b2d05b95143d0bee64dfe3a5c46f5"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh settled PNG shows the long-track hero and the normal ~ crumb at the bottom, with neither the seek text nor center marker visible.",
+      "evidence_ref": "verification-07a259866d0e48508bf2584bb0d48182"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled verification's tree and semantics independently expose the bottom ~ crumb and no hero seek HUD, agreeing with its screenshot.",
+      "evidence_ref": "verification-07a259866d0e48508bf2584bb0d48182"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Real on-screen hero taps moved previous 1→0, paused and resumed playback in the center, and moved next 0→1; a vertical drag on the fixed presentation preserved its no-op behavior and the app stayed live.",
+      "evidence_ref": "verification-7ba85d380f8f488cbae55aa338e18681"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "A burst of varied real horizontal swipes plus a vertical drag left playback responsive, with zero overflow/error reports in the final runtime capture.",
+      "evidence_ref": "verification-46bb04a4b8954b6096d0da5d5726f193"
+    }
+  ]
+}

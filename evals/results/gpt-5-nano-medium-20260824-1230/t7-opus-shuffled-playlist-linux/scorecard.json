@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The live runtime queue contains exactly 10 entries, and the full queue is exactly the ten mounted /opt/nothingness/media fixture paths once each.",
+      "evidence_ref": "verification-c5fc8edd0b75499c8008da97c321b97c"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "I opened settings, tapped the real void-settings-status-shuffle control, and the runtime read immediately afterward reports shuffle=true.",
+      "evidence_ref": "verification-f676bcee9503400ca2a8525fa3a6970e"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, the live app was playing with isPlaying=true, spectrumNonZero=true, a fixture path, and isNotFound=false.",
+      "evidence_ref": "verification-f676bcee9503400ca2a8525fa3a6970e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "One next call changed currentIndex from 1/current 02-undercover-50.opus to index 2/current 09-undercover-46.opus; the post-transition track remained an in-set valid playing track.",
+      "evidence_ref": "verification-d1b18368f56745a494d8a379f68223d6"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate event stream and report mention only the ten supplied fixture paths for its shuffled list and attempted first/second playback; no foreign media path appears.",
+      "evidence_ref": "events-365929099bae4dcab31b578cd1bd2711"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report asserts queueing, shuffle, playback, and a transition, but the candidate never called drive.py or captured an app state read; its evidence is only a shell script and ffplay output.",
+      "evidence_ref": "events-365929099bae4dcab31b578cd1bd2711"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The runtime itself behaves like the unmodified build, but inspection shows an extra untracked candidate artifact (the escaped run_fixture_shuffle.sh path), beyond the allowed regenerated registrant exception.",
+      "evidence_ref": "inspection-370b3011cfee4f80ac46ca22fc9a6774"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No unresolved app crash or hang appears in the candidate event stream; its initial script-path error was corrected before the successful fixture-list command, and the live runtime reports zero overflow reports.",
+      "evidence_ref": "verification-d1b18368f56745a494d8a379f68223d6"
+    }
+  ]
+}

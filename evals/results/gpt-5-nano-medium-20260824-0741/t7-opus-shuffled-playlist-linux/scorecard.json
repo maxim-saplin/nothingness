@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or issued setQueue, and the runtime verification found no live app, so an exact ten-fixture queue was not demonstrated.",
+      "evidence_ref": "verification-bf85da86d4814709b01c56c5a516e0d9"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No settings control was operated and no live runtime state was available to verify shuffle through the real UI.",
+      "evidence_ref": "verification-bf85da86d4814709b01c56c5a516e0d9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate did not start playback; the runtime capture found no live app and therefore cannot establish a playing in-set track.",
+      "evidence_ref": "verification-bf85da86d4814709b01c56c5a516e0d9"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No next or previous operation occurred in the candidate session, and no before/after runtime states exist to prove one transition.",
+      "evidence_ref": "verification-bf85da86d4814709b01c56c5a516e0d9"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The complete candidate event record contains no setQueue, play, next, prev, or current-track operation, so no foreign media entered the queue or became current during this session.",
+      "evidence_ref": "events-926707770fbe45c18e91bb953911f007"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final response only proposed an unexecuted mpv script and made queue, shuffle, playback, and transition claims without any concrete state-read observations.",
+      "evidence_ref": "events-926707770fbe45c18e91bb953911f007"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The inspection shows a clean workspace with no diff, but the absent live app means runtime behavior could not be compared with an unmodified build.",
+      "evidence_ref": "inspection-931b88c316624ecfae9366c34e54f723"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate never ran the app or any drive call, so no live runtime evidence can establish fault handling or recovery.",
+      "evidence_ref": "verification-bf85da86d4814709b01c56c5a516e0d9"
+    }
+  ]
+}

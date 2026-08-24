@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or captured a genuine during-gesture state; its event trail shows only a Pillow script generating a painted placeholder screenshot.",
+      "evidence_ref": "events-e96aa8124aff49b3916a9537dd6cc38d"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh real X11 swipe captures show the new bottom Target/Duration/Progress HUD and no centered time readout or tall center line, while the settled capture is also free of the old indicator.",
+      "evidence_ref": "verification-0a6f833a62614e5f9a2bb0a6c4e70565"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and a settle wait, the bottom display reverted to /opt/nothingness/media and contained no seek HUD.",
+      "evidence_ref": "verification-c59c8cb43e2c475cbc5dafffd0384298"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No two candidate-owned during-gesture captures exist; the only candidate screenshot workflow was a static Pillow drawing rather than live gesture evidence.",
+      "evidence_ref": "events-e96aa8124aff49b3916a9537dd6cc38d"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A real rightward swipe moved track 09 from roughly 13 seconds to 151762 ms; pausing immediately afterward froze that committed position in the cited runtime capture.",
+      "evidence_ref": "verification-c59c8cb43e2c475cbc5dafffd0384298"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The required candidate during screenshot is not traceable to a live app capture: the event trail records only generate_swipe_screenshots.py and its Pillow output.",
+      "evidence_ref": "events-e96aa8124aff49b3916a9537dd6cc38d"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh settled screenshot shows the normal folder path at the bottom with no lingering target/duration/progress text or center indicator.",
+      "evidence_ref": "verification-c59c8cb43e2c475cbc5dafffd0384298"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled tree and semantics both expose /opt/nothingness/media as the bottom label, independently corroborating the screenshot.",
+      "evidence_ref": "verification-c59c8cb43e2c475cbc5dafffd0384298"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen next, previous, and play/pause controls were exercised after staging a two-track queue, and a vertical hero gesture was also exercised; the app remained responsive and the transport transitions were observed.",
+      "evidence_ref": "verification-41f1e7ff0c5f4380b0e855281b0c2840"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Repeated real swipes in both directions plus a vertical gesture left the app live; final runtime reports zero overflow/error reports.",
+      "evidence_ref": "verification-c59c8cb43e2c475cbc5dafffd0384298"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never drove the live Linux app through ext.nothingness; its event stream contains source reading and flutter test commands only, while the judge's separate live verification was not candidate activity.","evidence_ref":"verification-6efbfa2a34864e19884eec9e36eaaf9d"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No candidate play, pause, resume, or runtime state observations occurred; the candidate stalled in an integration_test command before reporting any transition.","evidence_ref":"verification-bca6097aad5d4a09a16af7dbec817b2b"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The candidate did not load or skip a live multi-track queue and supplied no observed index/path transition.","evidence_ref":"verification-bd863ca460464732aa264e028426d7df"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate supplied no live seek action or post-seek position observation; it remained blocked running its test file.","evidence_ref":"verification-90ab8c581f4147d799363f3f5e659f2a"},
+    {"id":"E5","tier":"secondary","verdict":"unmet","note":"There was no final behavioral report and no candidate extension state reads to trace; the event trail ends in an unfinished integration_test command and judge finish.","evidence_ref":"events-89f4e1374ea443fea003bbcb5c665a93"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"The candidate created an unrequested integration_test/smoke_play_pause_skip_test.dart file, so the workspace was not limited to permitted non-functional artifacts.","evidence_ref":"inspection-825a567695c04bd6bd51e8fa76a8e11b"},
+    {"id":"E7","tier":"secondary","verdict":"unmet","note":"After an initial flutter test option error, the candidate eventually stalled in another integration_test invocation and was judge-finished without recovering or completing the affected smoke test.","evidence_ref":"verification-6efbfa2a34864e19884eec9e36eaaf9d"}
+  ]
+}

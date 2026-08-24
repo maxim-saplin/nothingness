@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With track 47 playing, the action appeared in /opt/nothingness; activation navigated to /opt/nothingness/media and left row 47 visible.",
+      "evidence_ref": "verification-0c32cbaf5dd64c3391b9fa594cf4c590"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "In the already-open media folder, playing row 47 was off-screen but no jump action was exposed.",
+      "evidence_ref": "verification-92836a4b0de1419a9bd70ee52815114c"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With the playing row fully visible in the correct folder, no active jump action was exposed.",
+      "evidence_ref": "verification-feb1013810b24b29a1c5336be41a7f14"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After playback was cleared, runtime reported no playing track and neither checked folder exposed an active jump action.",
+      "evidence_ref": "verification-fcd7d1d9761e42b182fde8ce3f66c639"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active control was exposed in semantics as a button labeled 'jump to now-playing folder' with an action.",
+      "evidence_ref": "verification-3f404f402d9d47bfacc3fda1173a8429"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied no genuine before PNG; its final response included only an ASCII approximation.",
+      "evidence_ref": "verification-3f404f402d9d47bfacc3fda1173a8429"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied no genuine after PNG; its final response included only an ASCII approximation.",
+      "evidence_ref": "verification-0c32cbaf5dd64c3391b9fa594cf4c590"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or ran drive.py, analyzer, or tests, so its concrete behavior and screenshot claims were not traceable to session observations.",
+      "evidence_ref": "events-ea20fdf5083e4321a0f97bdad5ddcb2b"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen folder-row tap navigated correctly, and playback controls produced the expected live transitions.",
+      "evidence_ref": "verification-e1cf0ebf68484bd0bc9e20288fdf2cbc"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained responsive after the checks; final runtime reported no error and zero overflow reports.",
+      "evidence_ref": "verification-b3b5a6bc9f7f4114aedae9a820ac173a"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing preferences and restarting, the Dot hero showed only the pulsing dot with no artist/title overlay.","evidence_ref":"verification-e6f0bcbb8c374d1a8de2aa087ce66667"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The show-song-info option was enabled and a restart left the overlay visible, confirming persistence across restart.","evidence_ref":"verification-474cfec0c5ea436b95d1731c0bc9876f"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Turning the option off and restarting left the Dot hero without the overlay, confirming the disabled state persists.","evidence_ref":"verification-af8621b7a5444b2c9094f61b583c18bb"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The genuine 100% long-metadata screenshot shows the pulsing dot covering the artist/title text, so the overlay overlaps the dot.","evidence_ref":"verification-c84da7fc73ad4e7baba061dee085ad55"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At 150% the long artist and title still run through the centered pulsing dot, visibly failing the hardening requirement.","evidence_ref":"verification-996dc98f36474e23a1ef9b715e1a84c6"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate submitted no normal-scale screenshot; its write-up explicitly says actual screenshot files were not provided, and the judge capture shows overlap rather than supporting the claim.","evidence_ref":"verification-c84da7fc73ad4e7baba061dee085ad55"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate submitted no maximum-scale screenshot; the judge's 150% capture instead visibly shows overlap with the dot.","evidence_ref":"verification-996dc98f36474e23a1ef9b715e1a84c6"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Structural reads at 100% and 150% show non-empty hero artist/title text with non-zero geometry; the max read reports 45px and 22.5px text sizes.","evidence_ref":"verification-996dc98f36474e23a1ef9b715e1a84c6"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short fixture metadata rendered at both scales, but the artist text was also visibly covered by the pulsing dot, so the common case is not clean.","evidence_ref":"verification-b1074cec89034ccb883b516366ffdd5f"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After exercising option toggles, both text scales, and long/short tracks, the app remained live and the final runtime capture reported zero overflow reports.","evidence_ref":"verification-d21ea777c5594af19b6eddffbf6527b9"}
+  ]
+}

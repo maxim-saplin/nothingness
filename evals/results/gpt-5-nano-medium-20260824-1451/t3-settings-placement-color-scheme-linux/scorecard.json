@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live Cassette settings shows screen immediately followed by color scheme, with adjacent rows and no intervening header or gap.",
+      "evidence_ref": "verification-8eb6c18d9bcc4fe1b15497ab102c3697"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The single cassette variant row is visibly labeled exactly lowercase color scheme; the separate pre-existing theme variant row remains distinct.",
+      "evidence_ref": "verification-8eb6c18d9bcc4fe1b15497ab102c3697"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The screen row advanced on-screen through cassette, spectrum, polo, dot, and void and direct screen selections also matched the displayed value.",
+      "evidence_ref": "verification-00b0bff77bdf4a3183d472f6e521b640"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen color scheme activation changed Tape · Mono to Tape · Amber, and direct variants 3, 1, and 4 produced Colour, Mono, and Minimal with matching row values.",
+      "evidence_ref": "verification-46616d921b9246a7a51715d47bd966af"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void showed no color scheme row and retained working representative controls: bar count, text size, song-info toggle, and text size respectively.",
+      "evidence_ref": "verification-ce205266329a4d31b5353637921d8130"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's delivered screenshot_settings_cassette.png is a synthetic PIL text mock rather than a capture of the Settings UI, so the requested candidate screenshot deliverable was not produced.",
+      "evidence_ref": "verification-df69d4eef1bc40d7bce06ce00bac0979"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live semantics/state dump independently agrees with Cassette, the adjacent color scheme label, and its current Tape · Mono value.",
+      "evidence_ref": "verification-8eb6c18d9bcc4fe1b15497ab102c3697"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Unrelated settings remained in their established order and representative unrelated controls changed normally during the cross-screen checks.",
+      "evidence_ref": "verification-dbdc24523a694f75bccc3281229ffbae"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final live runtime remained responsive with zero overflow reports after repeated settings navigation and control exercises.",
+      "evidence_ref": "verification-a48d49d7f32241eba86c2c67f711ff46"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live Cassette semantics place screen at index 5, y=231-276, immediately followed by cassette variant at index 6, y=276-321; the genuine final screenshot shows both rows adjacent.",
+      "evidence_ref": "verification-cbe4bc6e1dde4f16adc44814f40d680a"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The on-screen selector cycled spectrum, polo, dot, void, and cassette, and direct screen selections updated the displayed screen value.",
+      "evidence_ref": "verification-6797fd6666ae4f9e8886c350565a5e05"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The adjacent variant row changed on-screen from Tape Mono to Tape Amber, while direct cassettevariant calls also changed and updated the displayed value across multiple variants.",
+      "evidence_ref": "verification-b6618d74dae84dbdb9f62ee39e97c850"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void showed no cassette-only row and retained responsive screen-specific controls: bar count, Polo text size, Dot show-song-info, and Void text size each changed through live interaction.",
+      "evidence_ref": "verification-e84df0b82c824b04ad5950530d7bef0d"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine final PNG visibly shows Settings with screen cassette and the legible adjacent cassette variant row.",
+      "evidence_ref": "verification-cbe4bc6e1dde4f16adc44814f40d680a"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final Cassette capture's semantics and settings lenses independently agree with the screenshot on screen state, consecutive row geometry, and Tape Mono value.",
+      "evidence_ref": "verification-cbe4bc6e1dde4f16adc44814f40d680a"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Unrelated MODE, LOOK, transport, browser, LIBRARY, DISPLAY, and Cassette rows retained their order; unrelated variant and immersive rows changed via on-screen activation.",
+      "evidence_ref": "verification-d2dc01d50544472f8b3c0fc58c02d358"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated screen switching and settings close/reopen, the app remained responsive with zero overflow reports and no new runtime errors.",
+      "evidence_ref": "verification-f4010bdd1dea4a9c90aa12a68327ac2c"
+    }
+  ]
+}

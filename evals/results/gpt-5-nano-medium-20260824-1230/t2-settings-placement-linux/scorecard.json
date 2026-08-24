@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, the live semantics tree places screen/cassette at index 4 (y186-231) immediately before variant/Tape · Amber at index 5 (y231-276), with abutting bounds and no intervening row; the verified screenshot shows the same adjacency.",
+      "evidence_ref": "verification-4e44faf5b7a443d3bf026a6bf05e8db5"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live taps cycled cassette→spectrum→polo→dot→void→cassette, and each captured row value tracked the active screen; direct screen commands also updated the row.",
+      "evidence_ref": "verification-7ee454b1e2274044bd7d61a7be295a23"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The relocated variant row changed on-screen from its initial value, and direct cassettevariant calls to 3 and 4 produced corresponding displayed variant values in live captures.",
+      "evidence_ref": "verification-c8d21aa280534924bd7f346e54a57a6e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void captures show no cassette-only row after screen; their remaining screen-specific settings stayed present, with representative Spectrum and Dot controls responding to live taps.",
+      "evidence_ref": "verification-217ad91a855c462dbc90c91cb1f65a1e"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate did not produce a valid screenshot deliverable: its event stream shows failed attempts to synthesize image files and no drive.py shoot. The on-point PNG cited here is an independent judge capture, not a candidate-produced screenshot.",
+      "evidence_ref": "verification-4e44faf5b7a443d3bf026a6bf05e8db5"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same live Cassette bundle independently reports screenType=cassette and semantics ordering screen/cassette immediately followed by variant/Tape · Amber.",
+      "evidence_ref": "verification-4e44faf5b7a443d3bf026a6bf05e8db5"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across the live sheet captures, unrelated MODE/LOOK/LIBRARY/DISPLAY rows retain their order; immersive and transport taps changed their displayed values without disturbing the relocated pair.",
+      "evidence_ref": "verification-600a911e32af490ba3bee2423e0ae116"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated settings navigation, screen cycling, and control taps, the app remained responsive; the runtime lens reports zero overflow reports.",
+      "evidence_ref": "verification-b95aeccee6e0499e89ac4f3a53862bc8"
+    }
+  ]
+}

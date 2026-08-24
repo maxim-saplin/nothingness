@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The modified app could not be launched, so cross-folder jump behavior was not observable."
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The modified app could not be launched, so same-folder scrolling behavior was not observable."
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The modified app could not be launched, so conditional visibility of the action was not observable."
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The modified app could not be launched, so the no-playing state could not be checked."
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The modified app could not be launched, so an accessible action could not be verified."
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "No on-point before screenshot was captured; the candidate supplied an SVG placeholder rather than a live browser screenshot."
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "No on-point after screenshot was captured; the candidate supplied an SVG placeholder rather than a live browser screenshot."
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "evidence_ref": "events-eea0c4ab962044a2a9f0b2fa324a8b0d",
+      "note": "The write-up claims live behavior and screenshots, but the contiguous session events show no app-driving session and the claimed captures were placeholders."
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The modified app could not be launched, so ordinary navigation and playback controls could not be exercised."
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "evidence_ref": "verification-1573bd93ce244b868c1fb23f719320ab",
+      "note": "The Linux build failed before startup with an undefined CustomSemanticsAction reference, leaving no live app to inspect for stability."
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live runtime showed queueLength 10 with exactly the ten supplied fixture paths, each once.",
+      "evidence_ref": "verification-af017ea3c22c4646984c8385ca797299"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The on-screen shuffle settings control was tapped and live runtime then reported shuffle true.",
+      "evidence_ref": "verification-1f9f15b5c82948c1a6728c1877be63e1"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, runtime showed active playback of fixture 01 with isNotFound false.",
+      "evidence_ref": "verification-cc6efd39a86b4eab8f8ca68e1297863a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "One next changed currentIndex 8 to 9 and moved from fixture 01 to valid fixture 04.",
+      "evidence_ref": "verification-4d44d23cdb024e76b9a8de130bc9b6e7"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The complete candidate event trail contains no queue/play/next/prev execution and no foreign current or queued path; every mentioned media path is in the fixture set.",
+      "evidence_ref": "events-095ca5d7f34d426b89904197906be40f"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report claimed queueing, shuffle, playback, and a transition, but the candidate recorded no app state read or extension call supporting those claims.",
+      "evidence_ref": "events-095ca5d7f34d426b89904197906be40f"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The workspace had an unrequested executable queue_opus_fixtures.sh artifact; no source-file diff was present.",
+      "evidence_ref": "inspection-78a4657ab68b43f4b780c4fda9ce3ed9"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No app crash, hang, overflow, or unresolved runtime fault appeared; the live app remained responsive through final capture.",
+      "evidence_ref": "verification-2459031ccba34917b20b357c15fbfc0a"
+    }
+  ]
+}

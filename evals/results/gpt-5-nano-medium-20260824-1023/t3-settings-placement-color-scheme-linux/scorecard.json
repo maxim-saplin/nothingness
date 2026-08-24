@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Cassette semantics and screenshot show screen immediately followed by color scheme with no intervening row.","evidence_ref":"verification-bc25db3bf7cb4e329f1a123adc6cf4a7"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The adjacent row label is exactly lowercase color scheme, with no cassette variant duplicate in the captured sheet.","evidence_ref":"verification-bc25db3bf7cb4e329f1a123adc6cf4a7"},
+    {"id":"E3","tier":"required","verdict":"met","note":"On-screen screen taps cycled cassette through spectrum, polo, dot, void, and back to cassette; each captured value tracked the active screen.","evidence_ref":"verification-2e9f13f9d23d4414bf1f1d9343c7fb74"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The renamed row advanced from Tape Mono to Tape Amber on tap, and direct variant calls produced further reflected values while remaining adjacent.","evidence_ref":"verification-f2086821e95c4a9d81a73b7698d7bb00"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void captures omit color scheme under screen, and representative controls responded on each screen.","evidence_ref":"verification-294976f44d32408284cae67ecccae3a9"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The final genuine PNG clearly shows the Settings sheet, Cassette screen value, and legible adjacent color scheme row.","evidence_ref":"verification-63c4a9613c764ac7a9ff7e05be4385a6"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The Cassette semantics dump independently corroborates ordering, exact label, and Tape Mono value shown in the screenshot.","evidence_ref":"verification-bc25db3bf7cb4e329f1a123adc6cf4a7"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Captured settings states preserve unrelated row order and the exercised common and screen-specific controls changed their displayed values.","evidence_ref":"verification-92f394f746344c628134bc66378b72de"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After the complete exercise the app remained responsive and the runtime inspection reported zero overflow/error reports.","evidence_ref":"verification-92f394f746344c628134bc66378b72de"}
+  ]
+}

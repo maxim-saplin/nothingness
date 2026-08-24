@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With 10-undercover-47.opus playing and /opt/nothingness browsed, the accessible jump action was present; activation navigated to /opt/nothingness/media and the 47 row was visibly highlighted.",
+      "evidence_ref": "verification-554d8c40e32745aeabefe7230f388940"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With 06-undercover-54.opus playing in /opt/nothingness/media and its row offscreen, the jump action was present; activation kept the same path and scrolled 54 into view.",
+      "evidence_ref": "verification-697bee45ea6b40c5b28fa32c4c38c57a"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "After the jump made the 54 row fully visible and unclipped, the semantics tree and screenshot still exposed an active jump-to-now-playing button.",
+      "evidence_ref": "verification-697bee45ea6b40c5b28fa32c4c38c57a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After natural playback ended, inspect reported isPlaying false and songInfo null, and the browser semantics contained no jump action.",
+      "evidence_ref": "verification-8ba3a772263a4fe8924a9d0165bf8443"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active affordance was a semantics button labeled \"jump to now-playing folder\", not an unlabeled glyph.",
+      "evidence_ref": "verification-2278dae17a4d4fcabfe2b65cdf23b34c"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine before PNG shows the media browser with 54 absent from the visible list while playback is active and the jump affordance present.",
+      "evidence_ref": "verification-2278dae17a4d4fcabfe2b65cdf23b34c"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The genuine after PNG shows 54 highlighted in the browser while the path remains /opt/nothingness/media.",
+      "evidence_ref": "verification-697bee45ea6b40c5b28fa32c4c38c57a"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's described visibility and activation behavior matched the concrete live state reads and captures from the E1-E5 recheck; no contrary claim was needed to explain the result.",
+      "evidence_ref": "events-55b14ce50b254a97aca368e226058a35"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen media folder tap changed the library path as expected, and queued playback visibly advanced with next while pause/resume and previous remained responsive.",
+      "evidence_ref": "verification-bf694182b5a240bcb61af90aee620833"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated jump and playback checks, the app remained responsive and the runtime bundle reported zero overflow reports.",
+      "evidence_ref": "verification-cc220baa8961450cbfd2eceb9f64c16c"
+    }
+  ]
+}

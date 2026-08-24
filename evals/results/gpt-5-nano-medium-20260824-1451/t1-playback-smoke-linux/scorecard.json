@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched or drove the real Linux app: its event trail contains repository reads and a write of an integration test, but no flutter run or drive.py/extension calls. The independently launched app is evidence of a working harness, not candidate execution.",
+      "evidence_ref": "verification-540cdb54d227422f800b2fb911777eba"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent live recheck captured true playback, pause, and resume states: playing=true, then false, then true, with the same fixture track and advancing position.",
+      "evidence_ref": "verification-7e5e4175a87c47cf934a7068bf49e078"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A three-track live queue changed from index 0/01-undercover-49.opus to index 1/02-undercover-50.opus after next; the post-skip capture also shows the queue intact and playing.",
+      "evidence_ref": "verification-6b741c9b2ebd4d6e9556bf5a33fbf7bb"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A fresh playing queue was sought to 0:45 and then paused to freeze the result; the live runtime capture reads position 45,789 ms on track 01 (within 2 seconds of 45,000 ms and clearly beyond the starting position).",
+      "evidence_ref": "verification-3258265009294c52951f043404db039d"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report presents play/pause, next, and 20/40-second seek results as performed, but the candidate event stream contains no corresponding live state reads or extension calls; it only writes the fake-transport test and describes what it should show.",
+      "evidence_ref": "events-cc2380c5d5664faebfcbdf9b8dbed407"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The live recheck matched the unmodified runtime, but inspection found an unrequested source artifact: untracked integration_test/media_smoke_test.dart. This is beyond the two documented Flutter-generated registrant exceptions.",
+      "evidence_ref": "inspection-3ed19a69ed0646d8ba3f10be3d57bde7"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live app remained responsive after the recheck and the final runtime capture reports zero overflow reports; no unresolved app crash or hang was present in the run log.",
+      "evidence_ref": "verification-790e04454d7645d692cb7bfb75618760"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Cassette semantics show screen at index 5 immediately followed by variant at index 6 with abutting rects; screenshot agrees.","evidence_ref":"verification-16e31dc22f424e6c849d3a797e015ca8"},
+    {"id":"E2","tier":"required","verdict":"met","note":"On-screen screen taps advanced through spectrum, polo, dot, void, and back to cassette; direct screen calls also updated the displayed row.","evidence_ref":"verification-15d71d76f04d4c79ab6bfd414bbc36c0"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The adjacent variant row changed from Tape Mono to Tape Amber on tap and to Tape Colour via cassettevariant 3, with the displayed value updating.","evidence_ref":"verification-26990ae1e7174846a9bebc893d4bb7f3"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void captures have no cassette row directly below screen; representative controls remained tappable and changed state.","evidence_ref":"verification-0623ff4cd299469fa7f76c379c2ebf56"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The captured PNG visibly shows the Settings sheet with screen cassette and the adjacent variant row legibly in frame.","evidence_ref":"verification-16e31dc22f424e6c849d3a797e015ca8"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The semantics dump independently corroborates cassette, variant Tape Mono, consecutive indices, and abutting geometry shown in the screenshot.","evidence_ref":"verification-16e31dc22f424e6c849d3a797e015ca8"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"Unrelated rows retain their order and responded to taps, but the old hidden DISPLAY variant row remains in addition to the newly seated row.","evidence_ref":"verification-225eaa521af345cdbdcf1c37fd4675b8"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated settings navigation and screen switching, runtime remained responsive with zero overflow reports.","evidence_ref":"verification-2bbb356d6e964186b8ecc1f2709dd61f"}
+  ]
+}

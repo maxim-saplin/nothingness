@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, the semantics capture shows screen/cassette at index 5 (y231-276) immediately followed by the cassette variant row at index 6 (y276-321), with no intervening row or gap.",
+      "evidence_ref": "verification-c77f3d586df84322ab64dc4056e680cd"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The row label remains exactly \"variant\"; when variant 3 is selected, \"color scheme\" appears only as the value, not as the row label. The unrelated theme variant row also remains.",
+      "evidence_ref": "verification-332a6c1c1c6c4335b0ebb134c9530efc"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen taps cycled the screen row through spectrum, polo, dot, void, and back to Cassette, while direct screen calls to spectrum and polo were reflected in the displayed screen value.",
+      "evidence_ref": "verification-82b21a57686a4f70895b6fe036fcf0ce"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The relocated row responds to its own tap (Tape · Mono to Tape · Amber), and direct cassettevariant calls changed the displayed value through Tape · Mono, Tape · Amber, and color scheme.",
+      "evidence_ref": "verification-ff1e50373b6247a7849d240beb187dba"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "For spectrum, polo, dot, and void, the row after screen is immersive and no cassette-only row or color scheme label appears; the visible immersive control responded when tapped on each screen.",
+      "evidence_ref": "verification-f6463c0e2387431a9ceb517c91ab3f74"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The genuine Cassette screenshot shows adjacent screen and variant rows, but not a color scheme label; the candidate's supplied PNG is an illustrative drawing rather than a capture of the running app.",
+      "evidence_ref": "verification-332a6c1c1c6c4335b0ebb134c9530efc"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The Cassette verification includes independent semantics and getSettings data agreeing with the screenshot on screen=cassette, consecutive row order, and the current variant value.",
+      "evidence_ref": "verification-332a6c1c1c6c4335b0ebb134c9530efc"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across Cassette and non-Cassette captures, unrelated rows retain their order and names; on-screen taps of unrelated controls such as bar count and immersive changed their displayed values.",
+      "evidence_ref": "verification-c01a95b9bf784ea9b001760d4533df1d"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final runtime capture reports the app alive and responsive with zero overflow reports after repeated screen switching, settings interaction, and cassette variant cycling.",
+      "evidence_ref": "verification-2b3495e33af4450490c55664c8c5742f"
+    }
+  ]
+}

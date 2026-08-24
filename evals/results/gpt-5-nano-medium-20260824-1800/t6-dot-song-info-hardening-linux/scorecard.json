@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate did not clear preferences or launch the app; my fresh-state verification found no live app, so default-off behavior could not be confirmed.",
+      "evidence_ref": "verification-39889c847ba743ddb24ade3cc96b39e6"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No toggle or restart was exercised because the candidate never produced a runnable build; the persisted-enabled verification had no live app.",
+      "evidence_ref": "verification-cec18e39f2af4220905a9907685d7da2"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The disable-and-restart round trip was not performed and the disabled-state verification found no live app.",
+      "evidence_ref": "verification-b05dd0e14877423a8af44352266b2cda"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The normal-scale verification produced only a blank desktop because the modified app failed to compile, so long-metadata geometry was not shown.",
+      "evidence_ref": "verification-86b5b576ab18480b9280173b20d9ba85"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The maximum-scale verification likewise had no live app or rendered overlay; the candidate build stopped on a Dart import error.",
+      "evidence_ref": "verification-a7549d4d32314873bf5facb993ef2f0f"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate normal screenshot was submitted, and my normal screenshot capture was a blank desktop after the compile failure.",
+      "evidence_ref": "verification-86b5b576ab18480b9280173b20d9ba85"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate maximum screenshot was submitted, and my maximum screenshot capture was a blank desktop after the compile failure.",
+      "evidence_ref": "verification-a7549d4d32314873bf5facb993ef2f0f"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "Neither scale yielded a structural tree or semantics read because no Dart VM service became available.",
+      "evidence_ref": "verification-da8ba05b1cd8498d83c80022e9fab8be"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate never ran a short-metadata comparison at either scale; the app could not build for an independent visual check.",
+      "evidence_ref": "verification-18acff9dc1354e2a9ffd41d73c5a134a"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "Launching the modified workspace failed with a Dart error for missing lib/widgets/base_hero_container.dart, and final runtime inspection confirmed no live app.",
+      "evidence_ref": "verification-cedfd5016e8e47a19fa4f3a016f83996"
+    }
+  ]
+}

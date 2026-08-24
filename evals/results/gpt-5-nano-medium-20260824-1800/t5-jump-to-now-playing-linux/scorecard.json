@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The modified app failed to compile, so cross-folder jump behavior and row visibility were not observable.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The modified app failed to compile, so same-folder scrolling and folder preservation were not observable.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The build never started, so conditional disappearance when the playing row is fully visible could not be checked.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No live build was available to verify that no active jump action is exposed when nothing is playing.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's proposed semantic label was not reachable because the modified app failed compilation.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate before screenshot exists; the candidate produced prose only and the captured desktop image was a blank no-app state.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No candidate after screenshot exists; the candidate explicitly supplied no real PNG capture and the app never ran.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up asserts behavior and screenshots, but the complete session event chain contains no flutter run, drive.py, or state observation supporting those claims.",
+      "evidence_ref": "events-72c96789f0df4986bd8f29e945d38e16"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The failed build prevented on-screen navigation and playback-control regression checks.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate's Linux launch failed with malformed import text and undefined Platform errors before startup, so stability could not be established.",
+      "evidence_ref": "verification-0f7452a6ffd44e6aa55f60c545b13b94"
+    }
+  ]
+}

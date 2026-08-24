@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or captured a during-gesture state in its own event trail; its session contains only code inspection and edits, so no candidate-produced capture proves target, duration, and progress in the bottom line.",
+      "evidence_ref": "events-bc901fdae1b7459cbeef95634332e8b3"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A fresh real X11 mid-track swipe capture shows the bottom strip without any centered time readout or tall vertical marker; the settled capture likewise has neither.",
+      "evidence_ref": "verification-8a540a0747ae4945bb7591d5c5d33061"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and settling, the screenshot returns to the normal /opt/nothingness/media folder line and contains no residual seek feedback.",
+      "evidence_ref": "verification-8801dbf158b543509e2c1d9746f8c44b"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate session has no gesture captures or two during-gesture data points; it cannot establish live tracking across different swipe magnitudes or directions.",
+      "evidence_ref": "events-bc901fdae1b7459cbeef95634332e8b3"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A fresh real swipe from a playing mid-track origin changed playback from about 30 seconds to about 48 seconds in the swipe direction, with the post-release runtime still live and playing.",
+      "evidence_ref": "verification-7750d42f714e4bb1b77de38872294666"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No during-gesture screenshot deliverable is traceable in the candidate's event trail; the candidate never drove the app or captured screenshots.",
+      "evidence_ref": "events-bc901fdae1b7459cbeef95634332e8b3"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh post-gesture screenshot shows the settled folder path at the bottom with no seek readout or center indicator.",
+      "evidence_ref": "verification-8801dbf158b543509e2c1d9746f8c44b"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same settled verification bundle includes structural tree/semantics showing /opt/nothingness/media and runtime inspection, independently corroborating the screenshot.",
+      "evidence_ref": "verification-8801dbf158b543509e2c1d9746f8c44b"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The center play-pause zone toggled playback and queued next/previous taps returned the queue to index 0; the app remained responsive after a vertical drag, but no independent state transition for the vertical behavior was captured.",
+      "evidence_ref": "verification-82ca93677cac40dbb9824c5501e4ca25"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After six varied real X11 swipes, overflow reports remained empty and the runtime bundle showed the app live, playing, and responsive.",
+      "evidence_ref": "verification-6deed755587246939004556147f5c4c6"
+    }
+  ]
+}

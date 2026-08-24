@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing all preferences and restarting, the live Dot capture shows only the pulsing dot with no song-info overlay.","evidence_ref":"verification-715da68a1cb9431ea60d93cc104cbe0a"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled show song info, hot-restarted, and the live post-restart Dot capture retained the overlay.","evidence_ref":"verification-1f03d0c74adc469d8c587ff8977003a3"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I disabled show song info, restarted again, and the live Dot capture showed no overlay.","evidence_ref":"verification-ce5455cb472e471a8980ec77d14c7cbc"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The genuine 100% capture with 60-plus-character artist and title visibly has both text lines running behind and intersecting the centered black dot.","evidence_ref":"verification-e378f575cf124e4da4d63a15f11c4bbf"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"The genuine 150% capture still visibly intersects the artist text with the centered dot, despite ellipsis truncation at the edge.","evidence_ref":"verification-91fced478a6a443ea555e2a776d46510"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"I captured a fresh valid 100% screenshot, but no candidate-submitted normal-scale screenshot exists among the deliverables; the fresh capture itself also shows dot overlap.","evidence_ref":"verification-e378f575cf124e4da4d63a15f11c4bbf"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"I captured a fresh valid 150% screenshot, but no candidate-submitted max-scale screenshot exists among the deliverables and the fresh capture shows overlap.","evidence_ref":"verification-91fced478a6a443ea555e2a776d46510"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and maximum verification bundles contain live tree structure with non-empty hero-artist and hero-song text; the max bundle independently confirms the rendered overlay at 150%.","evidence_ref":"verification-91fced478a6a443ea555e2a776d46510"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short fixture metadata renders and remains responsive at both scales, but the artist text visibly intersects the dot in the live normal and max captures, so the clean no-overlap criterion is only partially satisfied.","evidence_ref":"verification-01d77618824b41a9a715480686060be1"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Repeated toggling, scale changes, and long/short track switching left the app live with empty overflow reports and responsive runtime inspection.","evidence_ref":"verification-01d77618824b41a9a715480686060be1"}
+  ]
+}

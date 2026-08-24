@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never exercised the live VM: its event trail contains source inspection/editing and failed flutter commands, but no drive.py or ext.nothingness playback calls; the live extension session was launched only for the judge's independent re-check.",
+      "evidence_ref": "verification-d10eddd0591c459c8c2e188a78e5437f"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent live captures showed fixture playback, then isPlaying=false while paused, then isPlaying=true after resume; the app responded correctly even though the candidate did not perform these calls itself.",
+      "evidence_ref": "verification-a45fe424493d450b8fa15e64065b9c7b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent three-track queue captures showed next changing currentIndex from 0/path 01 to 1/path 02; the queue remained multi-track and active playback continued.",
+      "evidence_ref": "verification-274e6fc7f054411c8b585bc8cc8442fb"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent live seek while playing moved the active track position to about 35.0s after requesting 30s, within the rubric tolerance and clearly beyond the pre-seek position.",
+      "evidence_ref": "verification-b3b5935d275443828bb2bbf216750088"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate's final report claims an automated play/next/previous/seek/pause sequence but provides no state-read observations; its event trail has no corresponding extension calls or outputs.",
+      "evidence_ref": "events-22b72e7c83a3490db5d0fc285e7d5a4c"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The app behaved normally during the independent smoke checks, but the candidate made an unrequested 39-line source change to lib/main.dart rather than only producing non-functional artifacts.",
+      "evidence_ref": "inspection-3bbd16276a6146cc96557f40e2e8740c"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate's flutter invocations failed with command-not-found and it never launched or recovered the app before reporting completion; the later live app was started by the judge, not recovered by the candidate.",
+      "evidence_ref": "verification-d10eddd0591c459c8c2e188a78e5437f"
+    }
+  ]
+}

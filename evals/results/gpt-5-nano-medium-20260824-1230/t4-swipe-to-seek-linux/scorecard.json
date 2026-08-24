@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate event trail contains no app launch, gesture execution, or candidate-owned during-gesture capture; its final response only gives instructions and claims the change.","evidence_ref":"events-d5917f61570d411fa2a92ffe12ff2196"},
+    {"id":"E2","tier":"required","verdict":"met","note":"A fresh real X11 mid-gesture capture and settled captures show no centered time readout or tall vertical seek line over the hero.","evidence_ref":"verification-2f90c6c8d56c442195cfb72b80eb2028"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and settling, the bottom line returned to /opt/nothingness/media with no lingering seek readout.","evidence_ref":"verification-b391be5b07e3461d864b1071286d4ef3"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No two candidate-owned during-gesture captures or live target values exist in the candidate event trail.","evidence_ref":"events-d5917f61570d411fa2a92ffe12ff2196"},
+    {"id":"E5","tier":"required","verdict":"met","note":"A rightward real X11 swipe from about 30 seconds moved the playing track to 56879 ms; pausing immediately afterward froze the changed committed position in the runtime capture.","evidence_ref":"verification-f58cf56810aa484daa7d265740795db4"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate never launched the app or captured the required during-gesture screenshot; no such deliverable is traceable in its event trail.","evidence_ref":"events-d5917f61570d411fa2a92ffe12ff2196"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The fresh post-gesture screenshot shows the normal folder path at the bottom and no seek readout or center indicator.","evidence_ref":"verification-f58cf56810aa484daa7d265740795db4"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled verification bundle's tree and semantics independently expose /opt/nothingness/media as the bottom label, matching the screenshot.","evidence_ref":"verification-f58cf56810aa484daa7d265740795db4"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"Fresh on-screen transport taps for previous, play/pause, and next produced the expected responsive transitions, and a vertical hero drag was exercised without destabilizing the app.","evidence_ref":"verification-a9c7b604eb0c4fd9abbd684f5c826c10"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Several varied real X11 swipes plus a vertical gesture left the app responsive; the final runtime reports zero overflow/error reports.","evidence_ref":"verification-38b872133ac942f9b1446d7f07241127"}
+  ]
+}

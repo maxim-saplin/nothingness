@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With Cassette selected, the semantics show screen at index 5 (y231-276) immediately followed by the cassette variant row at index 6 (y276-321), with abutting bounds and no intervening row.",
+      "evidence_ref": "verification-1a19766b2ce048b5a33f13080623d462"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The adjacent row's label still reads exactly 'variant'; only its displayed value is 'color scheme', so the required label rename was not implemented.",
+      "evidence_ref": "verification-1a19766b2ce048b5a33f13080623d462"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Repeated on-screen activation and direct screen commands exercised the full spectrum->polo->dot->void->cassette cycle, and the screen row tracked the active screen value.",
+      "evidence_ref": "verification-311dc87f3ccd489ebd9af99d2cd2d05c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The adjacent cassette row advanced on-screen and direct cassettevariant calls set multiple variants; its displayed value tracked those changes, although the row label remained variant.",
+      "evidence_ref": "verification-27ec3be1689c42faac49bebed8d725dd"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void showed no cassette-only color scheme row below screen; representative controls on each non-Cassette screen remained present and responded.",
+      "evidence_ref": "verification-85520ebf727a4da3b06cc0a2c2a8cb48"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate deliverable was a Pillow-generated placeholder, not a live capture; the genuine Cassette screenshot captured during judging shows the adjacent row but still reads variant rather than color scheme.",
+      "evidence_ref": "verification-1a19766b2ce048b5a33f13080623d462"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The independent semantics and settings snapshots corroborate the live screenshot's Cassette state, adjacency, observed variant label/value, and current variant state.",
+      "evidence_ref": "verification-1a19766b2ce048b5a33f13080623d462"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Across own/background modes and all screen types, the non-Cassette settings groups remained present in their expected order and representative unrelated controls still changed state; the moved Cassette-specific controls stayed together beneath screen.",
+      "evidence_ref": "verification-1a19766b2ce048b5a33f13080623d462"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeatedly opening and closing settings, switching screens, and cycling cassette variants, the runtime remained responsive with zero overflow reports and no new app errors observed.",
+      "evidence_ref": "verification-1a19766b2ce048b5a33f13080623d462"
+    }
+  ]
+}

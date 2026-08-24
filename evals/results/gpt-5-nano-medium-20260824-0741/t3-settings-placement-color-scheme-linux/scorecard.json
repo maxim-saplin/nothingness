@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's modified app could not build, so Cassette settings placement was not observable in a live UI.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No live settings sheet was available to verify an exact color scheme label.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The screen control could not be exercised because the candidate build failed before launching.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The renamed control could not be exercised because the candidate build failed before launching.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"Non-Cassette screen scoping and controls were not testable without a live app.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The captured desktop image is black and does not show the Settings sheet or either requested row.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E7","tier":"secondary","verdict":"unmet","note":"The structural lenses were unavailable because no responsive Dart VM service existed after the build failure.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"Other settings groups and their functionality could not be inspected without a running app.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"The candidate's modified Linux app failed to compile with errors in void_settings_sheet.dart, so runtime stability could not be established.","evidence_ref":"verification-269755fb72184db8990c12f48e92ad17"}
+  ]
+}

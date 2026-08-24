@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With playback active in /opt/nothingness/media, navigating to /opt/nothingness exposed the labeled jump action; tapping it returned to /opt/nothingness/media and the playing 47 row was visible.",
+      "evidence_ref": "verification-0df87efdbc1a437ab73ba7a828fcdbb9"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "In the already-correct media folder, track 47 was initially off-screen; activating the action kept currentPath unchanged and moved the list to scrollPosition 179.6 with row 47 visible.",
+      "evidence_ref": "verification-ef615583eec742bdb3100fc6ea89b139"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "After the jump, the playing row was fully visible, but the semantics still exposed an actionable button labeled 'jump to now-playing folder', so the action is not conditional on visibility.",
+      "evidence_ref": "verification-9728621e4cb2451eaadfc0456c8f9a06"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After a paused hot restart cleared playback, runtime reported isPlaying false and songInfo null; the media-folder semantics contained no jump action.",
+      "evidence_ref": "verification-01f05743aacc4164a2c3c1b0f1fdae88"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active control is a real semantics button with the distinguishing label 'jump to now-playing folder' and tap action.",
+      "evidence_ref": "verification-ecf970d372fe42ee81840b6367a24d18"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted only ASCII mockups and did not capture a before PNG; the live judge capture proves the state but is not a candidate-provided screenshot deliverable.",
+      "evidence_ref": "verification-ecf970d372fe42ee81840b6367a24d18"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted only ASCII mockups and did not capture an after PNG; the live judge capture proves the behavior but is not a candidate-provided screenshot deliverable.",
+      "evidence_ref": "verification-ef615583eec742bdb3100fc6ea89b139"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up makes concrete behavior and screenshot claims, but the candidate never launched the app or made drive/extension state reads; its event stream contains no flutter run, drive.py, or flutter analyze/test execution.",
+      "evidence_ref": "events-2c11932796cd4a00a819cbde7f20b89a"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen folder-row tap navigated from /opt/nothingness to media, and setQueue, next, pause, and resume produced the expected live playback transitions with currentIndex advancing and isPlaying toggling.",
+      "evidence_ref": "verification-9dfaa95237924aeb815e3d834bbcfaa0"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated cross-folder and same-folder jumps plus playback controls, the app remained responsive, runtime had no error, and overflows reported count 0.",
+      "evidence_ref": "verification-9dfaa95237924aeb815e3d834bbcfaa0"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+E1: In the live Linux app, Cassette showed screen at index 5 followed immediately by variant at index 6, with abutting semantic y-ranges and no intervening row. The final capture rendered screen cassette directly above Tape · Amber.
+E2: A real X11 tap on the screen row cycled polo, dot, void, Cassette, spectrum, and back to polo, while the displayed row and getSettings stayed synchronized. Direct screen calls to Spectrum and Cassette also updated the displayed row.
+E3: The relocated Cassette variant row advanced on-screen from Tape · Mono to Tape · Amber. Direct cassettevariant calls selected Minimal and Mono and the row reflected each value.
+E4: Spectrum, Polo, Dot, and Void each omitted the Cassette-only row and placed immersive immediately after screen. Their representative controls remained usable, including bar count, song info, and text size changes.
+E5: The candidate's submitted SVG was a mock schematic, but I captured a genuine live screenshot showing the Settings sheet with Cassette selected and both adjacent rows legible.
+E6: The final semantics and settings snapshots independently reported screenType cassette, consecutive screen/variant rows, and the Tape · Amber value shown in the screenshot.
+E7: Unrelated MODE, LOOK, LIBRARY, DISPLAY, and other settings rows retained their expected order and labels. An on-screen Transport activation changed bottom to top without disturbing that ordering.
+E8: After clearing the overflow buffer, I repeatedly opened and closed Settings and switched across all five screens; no overflow reports appeared. The final runtime inspection showed the app alive on Cassette with zero overflows.

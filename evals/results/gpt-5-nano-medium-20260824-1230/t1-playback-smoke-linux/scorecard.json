@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never drove the live VM-service app; its event stream contains only fixture listing and a playerctl script, with no drive.py or ext.nothingness calls.","evidence_ref":"verification-2897cec2b8f54a2fa1f5b9b2a1975a94"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Independent live verification showed isPlaying true after play, false after pause, and true after resume, with the same fixture track retained.","evidence_ref":"verification-5bb257044edd44f68da30b56681fbb06"},
+    {"id":"E3","tier":"required","verdict":"met","note":"A three-track queue was loaded and the next action changed currentIndex 0/path 01 to index 1/path 02 while playback continued.","evidence_ref":"verification-b54657a251584435af3b37bce2b146cc"},
+    {"id":"E4","tier":"required","verdict":"met","note":"While playing from a mid-track position near 10 seconds, seeking to 30 seconds produced a verified position near 30 seconds.","evidence_ref":"verification-817e83db6f004d9ead47a30e3320d957"},
+    {"id":"E5","tier":"secondary","verdict":"met","note":"The candidate's concrete claims about fixture names, accessibility, and playerctl absence are backed by its own shell output; it did not claim unobserved playback transitions as completed.","evidence_ref":"events-320d6c5ea1b24278a72e4eed33001267"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The only workspace change was the untracked non-runtime smoke_test_linux_media.sh artifact; the live app remained unmodified and behaved normally.","evidence_ref":"inspection-d61cd3ddfa474fb2801d5c223de6c2f0"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"No unresolved app crash, hang, or overflow occurred; the independently driven app remained responsive with an empty overflow report.","evidence_ref":"verification-0c517a54f01a405e970c68333b7167f0"}
+  ]
+}

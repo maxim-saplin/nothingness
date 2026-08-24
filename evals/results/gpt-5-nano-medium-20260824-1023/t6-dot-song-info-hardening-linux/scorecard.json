@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing all preferences and restarting, the genuine Dot screenshot showed only the pulsing dot and no song-info overlay.","evidence_ref":"verification-3bd1ab0c4ff548c0bd13c973d53a4b96"},
+    {"id":"E2","tier":"required","verdict":"partial","note":"The show-song-info setting remained on after restart, but with a playing long-metadata track the post-restart hero still rendered no overlay, so the full persistence/rendering claim is not met.","evidence_ref":"verification-f96539b4d53444fd8501e1073c6ee3d2"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After explicitly disabling the option and restarting, the Dot state remained without a song-info overlay; the setting had been toggled off before the restart.","evidence_ref":"verification-90094e811e8e4aca9f22f51343cd8aca"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The genuine 100% long-metadata screenshot shows no artist/title overlay at all; the tree shows the new overlay stuck at SizedBox(height: Infinity) and NEEDS-LAYOUT rather than rendering inside the hero.","evidence_ref":"verification-acaf23fedbe34892b9139a97eec9da23"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"The genuine 150% long-metadata screenshot likewise shows only the dot and browser, with no visible overlay; the max-scale tree still reports the overlay layout as Infinity/NEEDS-LAYOUT.","evidence_ref":"verification-a07dcfd7e6a44ee899efeb455fee2c64"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"A fresh valid 100% long-metadata screenshot was captured, but the candidate submitted no screenshot deliverable and the fresh hero contains no rendered overlay to support the claim.","evidence_ref":"verification-acaf23fedbe34892b9139a97eec9da23"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"A fresh valid 150% long-metadata screenshot was captured, but the candidate submitted no screenshot deliverable and the fresh hero contains no rendered overlay to support the claim.","evidence_ref":"verification-a07dcfd7e6a44ee899efeb455fee2c64"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"Normal and max verification trees contain the long non-empty hero-artist and hero-song widgets, but both are NEEDS-LAYOUT under an Infinity-sized parent, so non-zero rendered geometry is not corroborated.","evidence_ref":"verification-a07dcfd7e6a44ee899efeb455fee2c64"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short fixture playback remained live at both scales with no overflow, but the song-info overlay was absent in both genuine captures, which is a layout regression rather than a clean ordinary-metadata rendering.","evidence_ref":"verification-4ff2dfa96e39455eac13c26a4e7d51fe"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After repeated preference, scale, long-track, and short-track exercise, the runtime remained responsive with zero overflow reports and a live playback state.","evidence_ref":"verification-4ff2dfa96e39455eac13c26a4e7d51fe"}
+  ]
+}

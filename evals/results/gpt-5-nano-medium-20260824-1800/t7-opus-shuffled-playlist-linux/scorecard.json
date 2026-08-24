@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the Flutter app or called setQueue, so no ten-track runtime queue was established or observed.",
+      "evidence_ref": "verification-d86b7dbffd0c43f3b23ceb9de71cd40d"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No settings UI or shuffle control was used, and no runtime shuffle state was captured.",
+      "evidence_ref": "verification-d86b7dbffd0c43f3b23ceb9de71cd40d"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate did not play a fixture in the app; its only playback attempt was an external mpv script that failed before starting.",
+      "evidence_ref": "verification-d86b7dbffd0c43f3b23ceb9de71cd40d"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No next or previous app transition was performed or observed; mpv failed to create its IPC socket before navigation.",
+      "evidence_ref": "verification-d86b7dbffd0c43f3b23ceb9de71cd40d"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The session contains no app queue/current-track operation and no foreign media path; the external script only globbed the supplied /opt/nothingness/media Opus set, then failed before playback.",
+      "evidence_ref": "events-cb66df37d68e420f80586790b1fe8ed7"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report asserts the intended queue, shuffle, and transition validation but contains no concrete state-read observations supporting those claims.",
+      "evidence_ref": "events-9757e62ce9fc4e00a60c4f30d82e2b6b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The candidate did not edit app source, but it left an unrequested executable workspace artifact, perform_opus_queue.sh, beyond the allowed non-functional artifacts.",
+      "evidence_ref": "inspection-fd93ec8dc91e4506b597f35f5e41f404"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The mpv launch errored with a missing IPC socket; although the candidate noticed it, it did not recover or rerun the affected task through the app.",
+      "evidence_ref": "verification-d86b7dbffd0c43f3b23ceb9de71cd40d"
+    }
+  ]
+}
