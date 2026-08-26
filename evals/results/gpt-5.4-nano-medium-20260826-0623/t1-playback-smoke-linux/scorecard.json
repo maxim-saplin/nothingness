@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate used drive.py against a live Linux VM, and the live extension surface remained reachable during verification.",
+      "evidence_ref": "verification-e7b28e8e064b41eb9b8f54844b79555f"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh runtime captures showed isPlaying false after pause and true after resume.",
+      "evidence_ref": "verification-c5d98d7a65794bec8d60044d71a8e345"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A three-track queue changed from index 0/path 01 to index 1/path 02 after next.",
+      "evidence_ref": "verification-9e487b7a67c7495eb60dc79d2ada562f"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While playing, seek to 30 seconds landed at 30.927 seconds after a 21.109-second pre-seek position.",
+      "evidence_ref": "verification-ecf0c3998d784d2992ad3aa285574230"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final pause, resume, next, and seek claims are backed by the candidate's recorded driver outputs.",
+      "evidence_ref": "events-bf973ebee64542d288c9a74c2f5cbb98"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The workspace inspection found an empty git status and diff; live playback behavior was unmodified.",
+      "evidence_ref": "inspection-4356d2b8080e43428582e8cd674c293e"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No app crash or unresolved overflow was present, and the same running session answered live runtime verification.",
+      "evidence_ref": "verification-c5d98d7a65794bec8d60044d71a8e345"
+    }
+  ]
+}

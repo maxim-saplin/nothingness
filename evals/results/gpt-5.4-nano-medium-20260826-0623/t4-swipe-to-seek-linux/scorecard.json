@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched the app or captured a held swipe; its event trail has no traceable mid-gesture bottom-line capture.",
+      "evidence_ref": "events-b46ec7f71a944f1f9413304d3bbde426"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The held real-X11 swipe capture shows bottom-line feedback and no centered time readout or vertical line.",
+      "evidence_ref": "verification-f515f2cec02349d4860afc2444ed111b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and settling, the post-swipe screenshot and semantics show the normal '~' folder line without seek feedback.",
+      "evidence_ref": "verification-ee2850c42cb040e39f784351ad86c2ea"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No two candidate-produced, traceable mid-gesture captures exist to establish live tracking across different swipes.",
+      "evidence_ref": "events-b46ec7f71a944f1f9413304d3bbde426"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A real held rightward swipe displayed 0:51 / 1:23 / 61%, then the playing runtime position advanced from the mid-track start to the corresponding target after release.",
+      "evidence_ref": "verification-f515f2cec02349d4860afc2444ed111b"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's session contains no during-gesture screenshot capture; it stopped in a test command without launching the app.",
+      "evidence_ref": "events-b46ec7f71a944f1f9413304d3bbde426"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh settled screenshot is visibly post-release and shows the restored folder line with no center indicator.",
+      "evidence_ref": "verification-ee2850c42cb040e39f784351ad86c2ea"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled verification's semantics structurally reports the normal '~' folder row, agreeing with its screenshot.",
+      "evidence_ref": "verification-ee2850c42cb040e39f784351ad86c2ea"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Fresh on-screen previous, play-pause, and next taps all produced their expected playback transitions; a real vertical drag left the live app responsive, but its prior distinct behavior was not independently observable.",
+      "evidence_ref": "verification-2f642e99952349599562129c266e157d"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After four real swipes with varied direction and speed, the app remained live, playing, and reported zero overflows.",
+      "evidence_ref": "verification-2f642e99952349599562129c266e157d"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The captured review could not verify a live state; my live recheck also navigated to the media folder but left track 47 off-screen after activation.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No citable live verification was captured; in the live same-folder recheck, tapping the exposed action left the target row off-screen.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The required fully-visible-row condition was not captured through a citable verification bundle.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "A citable no-playing state was not captured, so this condition cannot receive credit.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Although a label was observed during manual orientation, the required live semantics capture was unavailable to the verifier.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted no before screenshot; available screenshots are judge captures, not a candidate pre-jump artifact.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted no after screenshot showing the playing row revealed.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate produced no final write-up or specific completion claims; its terminal event is a hung tool call rather than an unsupported assertion.",
+      "evidence_ref": "events-6c2de1ce26df4daea06cfe1e763d5738"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The rubric's required on-screen navigation and playback regression checks were not captured through a verification bundle.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "No citable verification runtime capture was available to establish repeated feature stability.",
+      "evidence_ref": "verification-62c1e00f877942e69982925fafe945cf"
+    }
+  ]
+}

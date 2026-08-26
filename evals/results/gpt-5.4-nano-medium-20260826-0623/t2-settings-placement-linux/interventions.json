@@ -1,0 +1,1 @@
+[{"id":"judge-cbcdeb8b8b81","timestamp":"2026-08-26T06:51:28.362586Z","classification":"recovery","mode":"steer","message":"Your active shell command appears stalled. Recover from the blocked tool call and continue your task.","reason":"The current bash tool call has produced no completion event for several supervision polls.","delivery":"delivered"}]

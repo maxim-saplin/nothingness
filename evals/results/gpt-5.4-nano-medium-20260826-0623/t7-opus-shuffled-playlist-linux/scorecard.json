@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live runtime capture shows exactly ten unique queued /opt/nothingness/media fixtures and no foreign paths.",
+      "evidence_ref": "verification-5e19dc0928b143df8aee09e19b8e0db6"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The live settings control was toggled off then on; the final runtime capture reports shuffle true.",
+      "evidence_ref": "verification-9b106821b9eb4d8b9eb1a9a9ae02813f"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Immediately before navigation, runtime reports isPlaying true and current fixture 01-undercover-49.opus with isNotFound false in the queue.",
+      "evidence_ref": "verification-d1dd4728e8e9401bae835c8319480909"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A live next changed the pre-navigation index/path 8/01-undercover-49.opus to 9/05-undercover-53.opus; the post track is present and resolvable.",
+      "evidence_ref": "verification-bad9f4f0354845158f1bd0a16c069b2e"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The complete cited session event chain shows setQueue, playback, and next operating only on the ten supplied /opt/nothingness/media fixtures.",
+      "evidence_ref": "events-af2ec2a039a84ffc9cd871bbb008a9d2"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate's queue, shuffle, before, after, and next claims are backed by the recorded final state-read output.",
+      "evidence_ref": "events-af2ec2a039a84ffc9cd871bbb008a9d2"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final inspection found an empty git status and no diff while the live app retained normal fixture-playback behavior.",
+      "evidence_ref": "inspection-1f1f599988354f78adb8a9f7fca1e9cf"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final live capture is responsive with no overflow reports; the candidate's transient parsing errors were retried and its final playback sequence completed.",
+      "evidence_ref": "verification-bad9f4f0354845158f1bd0a16c069b2e"
+    }
+  ]
+}

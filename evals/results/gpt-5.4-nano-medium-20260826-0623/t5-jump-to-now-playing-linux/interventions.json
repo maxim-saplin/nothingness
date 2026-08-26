@@ -1,0 +1,1 @@
+[{"id":"judge-293c7c5a89c3","timestamp":"2026-08-26T08:16:37.521991Z","classification":"recovery","mode":"steer","message":"Your current test command appears hung. Recover from the blocking command and continue your work.","reason":"The active test command has produced no session events for over five minutes.","delivery":"delivered"}]

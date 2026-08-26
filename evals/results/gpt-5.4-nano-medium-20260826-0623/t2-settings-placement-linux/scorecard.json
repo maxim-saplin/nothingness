@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With Cassette active, the semantics order and rendered sheet place the Tape · Mono variant immediately after screen with contiguous rows.","evidence_ref":"verification-b1068fe5468f41a5b3c5074215e46a60"},
+    {"id":"E2","tier":"required","verdict":"met","note":"On-screen screen-row activations traversed spectrum, polo, dot, void, and back to cassette; direct polo and dot selection were reflected in captured rows.","evidence_ref":"verification-dda606b0b5c448818a5af9be0995926a"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The on-screen cassette variant row activated, and direct variant settings 3 then 2 each updated the live captured row.","evidence_ref":"verification-50c63dbb1ff042d68234d02b9352b562"},
+    {"id":"E4","tier":"required","verdict":"partial","note":"All four non-Cassette screens were reached and their captures did not show the cassette variant beneath screen, but representative per-screen controls were not each independently activated.","evidence_ref":"verification-24de0ca313414f8bb8d2549828a99b4f"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The final live screenshot visibly shows Settings with screen cassette and the adjacent variant row legibly in frame.","evidence_ref":"verification-b1068fe5468f41a5b3c5074215e46a60"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final verification includes a structural semantics snapshot and settings state agreeing with the Cassette screenshot's row order and value.","evidence_ref":"verification-b1068fe5468f41a5b3c5074215e46a60"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"Captured sheets retained the unrelated row ordering while theme and immersive controls both activated, but this did not exhaustively exercise every unrelated row.","evidence_ref":"verification-1e16e27ad4464443a372b2f041086f74"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated settings navigation and screen switching, the final live runtime was responsive with zero overflow reports.","evidence_ref":"verification-b1068fe5468f41a5b3c5074215e46a60"}
+  ]
+}

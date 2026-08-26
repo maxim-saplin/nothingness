@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The Cassette semantics and screenshot place color scheme directly after screen with consecutive rows.","evidence_ref":"verification-e054f1589be94bd9ad5b5106ccc8b772"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The adjacent row label is exactly lowercase color scheme, with no second cassette variant row visible.","evidence_ref":"verification-e054f1589be94bd9ad5b5106ccc8b772"},
+    {"id":"E3","tier":"required","verdict":"met","note":"On-screen screen taps traversed spectrum, polo, dot, void, and back to cassette; direct screen selection also reflected in the row.","evidence_ref":"verification-a6f4b3b99abc4e13b715f3416d088be3"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Tapping color scheme changed Mono to Amber, and direct cassettevariant selections updated the displayed cassette value.","evidence_ref":"verification-ffb5171067a648689cbbc0b18a4eea4d"},
+    {"id":"E5","tier":"required","verdict":"partial","note":"All four non-Cassette screens lacked color scheme below screen; Spectrum and Dot controls responded, but Polo and Void controls were not fully exercisable in the built viewport.","evidence_ref":"verification-2a8249d3b6c14463ac60e00aaceaa329"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The captured live screenshot clearly shows Settings with cassette selected and the adjacent, legible color scheme row.","evidence_ref":"verification-e054f1589be94bd9ad5b5106ccc8b772"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The Cassette structural semantics independently records screen/cassette followed by color scheme/Tape · Mono.","evidence_ref":"verification-e054f1589be94bd9ad5b5106ccc8b772"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"The unrelated rows retained their observed order and Spectrum bar count plus Dot song info responded; coverage was sampled rather than exhaustive.","evidence_ref":"verification-114677231f6d44bda1d5bba1b24e071c"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After repeated screen/variant exercise, the app remained live and the runtime capture reported zero overflows.","evidence_ref":"verification-69d3ebcabe2445b598f614627f41d9ad"}
+  ]
+}
