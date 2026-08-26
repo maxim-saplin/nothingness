@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate inspected and edited source but never issued drive.py or VM-service calls against a live app.","evidence_ref":"verification-31b9eff73a784b83bc60023f16318c18"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The candidate described a play/pause procedure, but did not execute or observe the transitions in its session.","evidence_ref":"verification-b5a83383a8874439923b6a62466838ee"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The candidate did not load a queue or observe next/previous track changes; its report only gave expected steps.","evidence_ref":"verification-ce77006492c1401f8aff745e7c2ae7c8"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate did not perform or verify a seek; it supplied instructions for a future test instead.","evidence_ref":"verification-f1b62113a63e45dd87f4beb2c292ba15"},
+    {"id":"E5","tier":"secondary","verdict":"unmet","note":"Specific playback claims and expected outcomes in the final report have no supporting candidate-session state reads or extension calls.","evidence_ref":"events-b5e6f6703fc647128af9b10adcb2564d"},
+    {"id":"E6","tier":"secondary","verdict":"partial","note":"The workspace diff contains an unrequested runtime change to lib/services/library_service.dart that auto-adds the media root.","evidence_ref":"inspection-93375e145d2e4859b9bd59602f441729"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"No unresolved app crash, hang, or overflow appears in the captured live runtime state or process inspection.","evidence_ref":"verification-f1b62113a63e45dd87f4beb2c292ba15"}
+  ]
+}

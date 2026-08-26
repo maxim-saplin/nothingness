@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing the Dot preference and restarting, the live screenshot shows the pulsing dot without any artist/title overlay.",
+      "evidence_ref": "verification-ac378e0a5ac44c4191eb09af72986191"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The toggle was enabled, survived a restart, and the resumed long-metadata track rendered the overlay afterward.",
+      "evidence_ref": "verification-f191544019e14d79a01bb8ad08c066c9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After explicitly turning the option off and restarting, the live long-metadata hero showed no overlay.",
+      "evidence_ref": "verification-c504c06d3bc24fc5827f05983a6ab95b"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100%, the long artist/title overlay visibly occupies the same region as the centered pulsing dot, though the text is otherwise rendered.",
+      "evidence_ref": "verification-d20110a7f798426fb5d8e15d90bdae01"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150%, the overlay is visibly intersected by the dot and the title's lower line is cut at the hero boundary.",
+      "evidence_ref": "verification-7cd5d9fc84d14a1d83dae8f18c15904c"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "A fresh 100% reproduction was captured, but the candidate supplied no screenshot deliverable and the reproduced long overlay fails the no-overlap criterion.",
+      "evidence_ref": "verification-d20110a7f798426fb5d8e15d90bdae01"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "A fresh 150% reproduction was captured, but the candidate supplied no screenshot deliverable and the reproduced long overlay fails both overlap and clipping criteria.",
+      "evidence_ref": "verification-7cd5d9fc84d14a1d83dae8f18c15904c"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Probe/tree reads at normal and maximum scales show non-empty hero-artist and hero-song text with non-zero sizes; max probe reports 45px/816x106 and 22.5px/816x54.",
+      "evidence_ref": "verification-7cd5d9fc84d14a1d83dae8f18c15904c"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Short fixture metadata renders at both scales without clipping, but the centered dot still visibly intersects the artist text in both captures.",
+      "evidence_ref": "verification-ac842b5a7d124fa18703f7cedf88b6c4"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated toggling, restarts, scale changes, and long/short track switches, the app remained live with zero overflow reports.",
+      "evidence_ref": "verification-ac842b5a7d124fa18703f7cedf88b6c4"
+    }
+  ]
+}

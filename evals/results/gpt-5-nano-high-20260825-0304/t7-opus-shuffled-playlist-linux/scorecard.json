@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live runtime queue contains exactly 10 entries, all ten supplied /opt/nothingness/media Opus paths once each, with every isNotFound false.","evidence_ref":"verification-0f496b743b4944959680ce85bf243607"},
+    {"id":"E2","tier":"required","verdict":"met","note":"After tapping the on-screen void-settings-status-shuffle control, the live runtime reports shuffle true.","evidence_ref":"verification-88dddfe08ef040458c40238cf6ed6b86"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Explicit playback of supplied fixture 09-undercover-46.opus reports isPlaying true, a supplied path, nonzero spectrum, and isNotFound false.","evidence_ref":"verification-5d4f3333dd1b4c5bb37653acb2664431"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The live re-check advanced from queue index 0 / 01-undercover-49.opus to index 1 / 06-undercover-54.opus; the resulting track remained supplied and valid.","evidence_ref":"verification-27ffedb226e245de8f9c74cbcecdc168"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate's recorded shuffle and playback script output names only the ten supplied fixture paths; no foreign media path appears in its event record.","evidence_ref":"events-3efc64c4d4c04fc4b2c172776be2a7b4"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"The final report asserts queue, shuffle, and transition behavior from an ffplay shell script, but the candidate never captured an app state or extension observation supporting those claims.","evidence_ref":"events-3efc64c4d4c04fc4b2c172776be2a7b4"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"The app remained an unmodified runtime, but the candidate left an untracked functional opus_queue_and_one_transition.sh file, beyond the rubric's allowed non-functional artifacts.","evidence_ref":"inspection-3f1b32fbe99a4b7591554d8ee4e46883"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The live app remained responsive through queueing, shuffle, playback, and next; the final runtime bundle reports no overflow reports or unresolved app fault.","evidence_ref":"verification-f7396ef900134d22bb0ad8cfc4cf8d6a"}
+  ]
+}

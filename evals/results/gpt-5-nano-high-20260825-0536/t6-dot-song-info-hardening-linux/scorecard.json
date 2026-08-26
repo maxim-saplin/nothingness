@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing the relevant preference and restarting, the fresh Dot showed only the pulsing dot with no artist/title overlay.",
+      "evidence_ref": "verification-a1648aa6f31247fd8e73a11d6b70cf4c"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Show song info was enabled and the restarted Dot still rendered the overlay, confirming persistence.",
+      "evidence_ref": "verification-48514617ddf84cdd86bbd89a2728f984"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The option was turned off and restarted; the resulting Dot showed no overlay, confirming the round trip.",
+      "evidence_ref": "verification-080a929fa30740f38d55caa042a3c997"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% with genuinely long artist and title metadata, the overlay visibly occupies the same region as the centered pulsing dot.",
+      "evidence_ref": "verification-53ef5a0f722147758cfcf6ca0fd414f3"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% with the same long metadata, the enlarged overlay still intersects the centered pulsing dot.",
+      "evidence_ref": "verification-7c5c242489344261a9b8c864165c12a6"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's normal PNG is a synthetic drawing with placeholder metadata, not a genuine 100% app capture of the required long case; my genuine 100% capture also shows overlap.",
+      "evidence_ref": "verification-53ef5a0f722147758cfcf6ca0fd414f3"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's maximum PNG is a synthetic drawing with placeholder metadata, not a genuine 150% app capture of the required long case; my genuine 150% capture shows overlap.",
+      "evidence_ref": "verification-7c5c242489344261a9b8c864165c12a6"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Normal and maximum tree/semantics captures show non-empty hero-artist and hero-song text, with sizes 30/15 and 45/22.5 respectively.",
+      "evidence_ref": "verification-7c5c242489344261a9b8c864165c12a6"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "Ordinary undercover fixture metadata also renders under the pulsing dot at both captured scales, so the common case is not clean in this implementation.",
+      "evidence_ref": "verification-93d5d220fe4c4486a549cb235762dfd0"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Repeated toggles, restarts, scale changes, and long/short playback left the app responsive; the final runtime capture reports zero overflow/error reports.",
+      "evidence_ref": "verification-93d5d220fe4c4486a549cb235762dfd0"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live Cassette semantics and screenshot show screen/cassette immediately followed by the single variant-cycling row.","evidence_ref":"verification-cab79c0fb090480bb0bb4d45044885ba"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The live row label is exactly variant, while color scheme appears only as its value.","evidence_ref":"verification-cab79c0fb090480bb0bb4d45044885ba"},
+    {"id":"E3","tier":"required","verdict":"met","note":"On-screen cycling and direct setting calls tracked Spectrum, Polo, Dot, Void, and Cassette; see the captured cycle bundles.","evidence_ref":"verification-eb1d36da7d23412f9d061e676396ffe2"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The live row advanced Mono to Amber on-screen, and direct variant calls updated the displayed value through color scheme and Minimal.","evidence_ref":"verification-8a34c849c2b149718640a72e9240b11d"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void showed no Cassette-only row; representative native controls changed via real X11 input on each screen.","evidence_ref":"verification-c6e5b541d569494a8058c2233ea26b4a"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"A genuine Cassette screenshot exists and shows adjacency, but it visibly reads variant rather than the required color scheme label.","evidence_ref":"verification-cab79c0fb090480bb0bb4d45044885ba"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"The live semantics dump independently confirms adjacency and the current value, but also confirms the incorrect variant label.","evidence_ref":"verification-cab79c0fb090480bb0bb4d45044885ba"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Unrelated rows retained their order and real X11 activation changed smart folders and debug layout; screen-specific controls also remained usable.","evidence_ref":"verification-a30402695b804415bc047fdf873c2253"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"The final post-exercise verification remained available and the final inspection reported a live app with zero overflow reports.","evidence_ref":"verification-ab09578c20164214a586a85ea5244756"}
+  ]
+}

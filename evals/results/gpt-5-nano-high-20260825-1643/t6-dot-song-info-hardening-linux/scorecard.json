@@ -1,0 +1,76 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After clearing the Dot show-song-info preference and restarting, the fresh Dot capture showed no song-info overlay.",
+      "evidence_ref": "verification-da850b38deba41eca3b31564fb20cfa5"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The show-song-info toggle was enabled and the app restarted; the post-restart capture still rendered the hero song text without retoggling.",
+      "evidence_ref": "verification-60518fc9c9f04385a02c6f3c113d9ed4"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After disabling show-song-info and restarting, the capture contained no hero song-information text, so the off state persisted as a round trip.",
+      "evidence_ref": "verification-808e30b466e244b085fb4670ce842281"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 100% with both metadata fields over 60 characters, the genuine screenshot showed a red Flutter error and the tree contained ErrorWidget Invalid argument(s): 20.0 instead of a valid Dot layout.",
+      "evidence_ref": "verification-3020cea1e81a4a16a64ff76d9120e2a3"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "At 150% with the same long metadata, the genuine screenshot again showed Invalid argument(s): 20.0 with clipped/overlapping text and no valid centered Dot.",
+      "evidence_ref": "verification-4a6fc8eda4434315bc18ddad47180b83"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied only hand-authored SVG placeholder labels rather than a genuine normal-scale screenshot, and the judge's own 100% long-metadata capture was an error screen.",
+      "evidence_ref": "verification-3020cea1e81a4a16a64ff76d9120e2a3"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied only an SVG placeholder rather than a genuine maximum-scale screenshot, and the judge's own 150% long-metadata capture showed the same Flutter error.",
+      "evidence_ref": "verification-4a6fc8eda4434315bc18ddad47180b83"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Structural reads at 100% and 150% contained non-empty hero-artist and hero-song nodes at 30/15 and 45/22.5 sizes, respectively.",
+      "evidence_ref": "verification-4a6fc8eda4434315bc18ddad47180b83"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Parsed ordinary fixture metadata was exercised at both scales, but the 100% capture surfaced the same Invalid argument(s): 20.0 error and the 150% capture hid the title beneath the Dot, a common-case layout regression.",
+      "evidence_ref": "verification-eeeccdc059c648e6abcbcd4b23400d31"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The app remained responsive and inspectable, but repeated long and ordinary metadata exercises surfaced a feature-attributable Flutter ErrorWidget/red error screen with Invalid argument(s): 20.0.",
+      "evidence_ref": "verification-ce19534b334942968ff1c33b67961859"
+    }
+  ]
+}

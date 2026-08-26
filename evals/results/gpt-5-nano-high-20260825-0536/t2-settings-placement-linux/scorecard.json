@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live semantics and screenshot show screen=Cassette at index 5 immediately followed by variant at index 6 with abutting row bounds and no intervening row.",
+      "evidence_ref": "verification-e628fad571584d4dbba0b046e18b4f20"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Five on-screen activations cycled Cassette through Spectrum, Polo, Dot, Void, and back to Cassette; direct screen calls also updated the displayed screen value.",
+      "evidence_ref": "verification-72800f4ab89f415ca2186bd73be395a7"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The seated variant row changed on tap from Tape Mono to Tape Amber, and direct cassettevariant values 1–4 displayed Mono, Amber, Colour, and Minimal respectively.",
+      "evidence_ref": "verification-e628fad571584d4dbba0b046e18b4f20"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void each omitted the cassette-only row below screen, while spectrum color, Dot song-info, and Polo/Void text-size controls changed through the live UI.",
+      "evidence_ref": "verification-c847684a7e6a4ddaa8dc4e44f19ec7c4"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The submitted settings_screenshot_cassette.png is a static PIL/ImageDraw illustration rather than a genuine app capture; the candidate never launched or drove the app, so the required candidate screenshot deliverable was not met.",
+      "evidence_ref": "verification-e628fad571584d4dbba0b046e18b4f20"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The live semantics dump independently corroborates screen=Cassette, variant=Minimal, consecutive indices 5 and 6, and abutting rectangles.",
+      "evidence_ref": "verification-e628fad571584d4dbba0b046e18b4f20"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Unrelated MODE, LOOK, transport, browser, full-screen, UI-scale, library, and display rows retained their order and representative toggles/cycles remained responsive; no duplicate cassette row appeared.",
+      "evidence_ref": "verification-9551096ab84746a3a72a50802f9f7272"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated sheet navigation, screen cycling, variant changes, and X11 slider interactions, the app remained live with zero overflow reports.",
+      "evidence_ref": "verification-e628fad571584d4dbba0b046e18b4f20"
+    }
+  ]
+}

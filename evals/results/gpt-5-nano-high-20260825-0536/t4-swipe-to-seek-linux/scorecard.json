@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate did not launch Flutter or capture a real in-flight gesture; its event trail instead writes and runs a PIL generate_screenshots.py placeholder. My held X11 capture showed target/duration/progress at the bottom of the 173px hero, while the actual folder line at the screen bottom remained '~'.",
+      "evidence_ref": "events-81a9f7faeb334c5ebea0f69649211a2b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Fresh held rightward and leftward X11 swipes showed no centered time readout or tall full-height line; the hero center remained 'empty' and only the short bottom-of-hero HUD appeared.",
+      "evidence_ref": "verification-985d8d3051a64b64a9329c761bfd15ee"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After the rightward swipe was released and settled for over one second, the screenshot and semantics returned the normal folder crumb '~' with no target/duration/progress readout.",
+      "evidence_ref": "verification-5d50c01f50654d18a040100d7159c24c"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "No genuine candidate-held capture exists, so there are no two candidate-observed target values from different swipe directions or magnitudes; the only candidate images were statically generated placeholders.",
+      "evidence_ref": "events-81a9f7faeb334c5ebea0f69649211a2b"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With playback active, the baseline runtime position was 8,096ms and the rightward swipe settled at 302,310ms of a 420,623ms track, a clear forward seek rather than a redraw-only gesture.",
+      "evidence_ref": "verification-5d50c01f50654d18a040100d7159c24c"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate supplied no real screenshot capture: its event trail shows a fabricated PIL image generator and no Flutter/drive capture during a live gesture, while collection found no agent shots.",
+      "evidence_ref": "events-81a9f7faeb334c5ebea0f69649211a2b"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The fresh post-release screenshot shows the normal bottom folder crumb '~' with the temporary seek readout and center indicator absent.",
+      "evidence_ref": "verification-5d50c01f50654d18a040100d7159c24c"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The same settled verification bundle's semantics/tree contains the '~' jump-to-now-playing-folder node and its runtime confirms the live playing app, independently corroborating the screenshot.",
+      "evidence_ref": "verification-5d50c01f50654d18a040100d7159c24c"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "On-screen previous, play/pause, resume, and next taps all produced the expected playback transitions; with browser mode set to swipe-up, a real upward hero drag changed the expanded-hero hint state to the collapsed-hero/expanded-browser state without errors.",
+      "evidence_ref": "verification-a6ec819a920c4e28b22ccf1aa5b07f6b"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After clearing the overflow ledger, five real X11 swipes with varied direction, distance, and speed left the app responsive and playing with zero overflow reports.",
+      "evidence_ref": "verification-f651b9ae0fb94659a2fa200fc05765bb"
+    }
+  ]
+}

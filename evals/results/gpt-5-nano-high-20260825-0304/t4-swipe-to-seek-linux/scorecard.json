@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate did not launch the app or capture a genuine mid-gesture state; its only during-gesture deliverable was a hand-written SVG asset.","evidence_ref":"events-4ae5f0383b9b4ef99a2f24f937567d20"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The fresh verification could not inspect the app because the candidate build failed to compile, so absence of a center indicator was not verified.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No live post-release state was available: the app failed to compile and no folder-path reversion could be observed.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The event trail contains only two static SVG writes, not two live during-gesture captures with differing target values.","evidence_ref":"events-a7809b6b0dc34b228228cd79f450cf65"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"Runtime verification was unavailable because the modified Linux app did not compile, so an actual seek commit could not be demonstrated.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate wrote a file named during-gesture.svg but never launched the app or traced a screenshot capture during a real gesture.","evidence_ref":"events-4ae5f0383b9b4ef99a2f24f937567d20"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No genuine settled app screenshot was captured; the only verification had screenshot bytes but no live app lenses after the compile failure.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"No post-gesture structural dump was available because the app never became responsive.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"Tap and vertical-gesture regressions could not be exercised without a running application.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"The modified app failed during Linux compilation with Dart syntax and API errors, preventing repeated gesture checks or a live responsiveness check.","evidence_ref":"verification-c97f66d6561d4432906053358b10f32e"}
+  ]
+}

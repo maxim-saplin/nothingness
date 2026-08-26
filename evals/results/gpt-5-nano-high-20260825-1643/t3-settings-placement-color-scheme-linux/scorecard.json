@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live Cassette semantics and screenshot show screen at index 5 immediately followed by color scheme at index 6 with abutting row bounds.","evidence_ref":"verification-cdf6af5a166d49f9b214fa8ab84f3325"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The live row label is exactly lowercase color scheme; the only other variant label is the unrelated theme variant row, with no duplicate cassette control.","evidence_ref":"verification-cdf6af5a166d49f9b214fa8ab84f3325"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Repeated live taps cycled screen through spectrum, polo, dot, void, and cassette, and direct screen calls were reflected in the screen row.","evidence_ref":"verification-cdf6af5a166d49f9b214fa8ab84f3325"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The live color scheme row advanced from Tape · Mono to Tape · Amber on tap, and direct cassettevariant calls updated it through v3 and v4 values.","evidence_ref":"verification-2ac3a47fca92458ab368762b51b830c3"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Live Spectrum, Polo, Dot, and Void settings contained no color scheme row; representative own controls changed, including bar count, Polo/Void text size, and Dot show song info.","evidence_ref":"verification-bc07df6fb93f4ee98144ee0af463decd"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate's claimed screenshot was a PIL-rendered mock rather than a capture of the running app; the genuine judge capture is not the candidate deliverable.","evidence_ref":"verification-cdf6af5a166d49f9b214fa8ab84f3325"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The live semantics and settings snapshots independently corroborate Cassette, the exact color scheme label, adjacent indices, and the current Minimal value.","evidence_ref":"verification-cdf6af5a166d49f9b214fa8ab84f3325"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Unrelated MODE, LOOK, LIBRARY, SOUND, DISPLAY, and ABOUT rows retained their order; variant, transport, browser, and representative controls responded and were restored.","evidence_ref":"verification-9233720a4acb4edcb46e841f58f27ba2"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"The app stayed responsive through navigation, scrolling, screen and variant cycling, and final runtime inspection reported zero overflow reports.","evidence_ref":"verification-cdf6af5a166d49f9b214fa8ab84f3325"}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live Cassette semantics show screen at index 5 immediately followed by color scheme at index 6 with abutting bounds; the genuine screenshot agrees.","evidence_ref":"verification-b27309cae51746b68ebc159d0a131797"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The adjacent row label is exactly lowercase color scheme; the only other variant label is the unrelated theme variant row, with no cassette duplicate.","evidence_ref":"verification-b27309cae51746b68ebc159d0a131797"},
+    {"id":"E3","tier":"required","verdict":"met","note":"On-screen taps cycled screen through spectrum, polo, dot, void, and back to cassette, and direct screen changes were reflected in each captured row value.","evidence_ref":"verification-ba74ece33d614c9fb7edf338b0349a37"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Tapping the renamed row changed Tape Mono to Tape Amber, while direct cassettevariant calls 1, 2, and 3 updated the displayed values to Mono, Amber, and Colour.","evidence_ref":"verification-c82a5631e7a64a2d8be9e14001ba833e"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void captures omit color scheme and retain their own rows; real X11 taps changed bar count, show song info, and debug layout on representative screens.","evidence_ref":"verification-d9d0e3133791424592738c74c9e743e1"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate committed settings_region_cassette_linux.png, but it is a fabricated 900x480 mock image rather than a genuine Settings capture; the live verification screenshot is genuine but not the candidate deliverable.","evidence_ref":"verification-ae893c34511d4fd19e7f6e36e2c764fc"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The live semantics and settings snapshot independently corroborate Cassette, the exact color scheme label, adjacent indices, and the current variant value.","evidence_ref":"verification-b27309cae51746b68ebc159d0a131797"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The captured sheet preserves unrelated row order; real taps changed immersive, transport, and browser values without disturbing the screen/color scheme pair.","evidence_ref":"verification-65e26651c2eb43efbc0fd15db3015223"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"After repeated navigation and control cycling, runtime remained responsive with zero overflow reports and no new app errors in final inspection.","evidence_ref":"verification-ae893c34511d4fd19e7f6e36e2c764fc"}
+  ]
+}

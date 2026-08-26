@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"With a fresh isolated preference store and Dot selected, the live screenshot shows only the pulsing dot and no song-information overlay.","evidence_ref":"verification-5269bcb49ca741b09f1e221ab1fc8736"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The toggle was enabled, the app hot-restarted, and a fresh settings capture still reports show song info on, confirming persistence.","evidence_ref":"verification-2ef67d69ab774e76b3154ea173dc4527"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After explicitly disabling the toggle and restarting, the final Dot capture has no song-information overlay, confirming the round trip.","evidence_ref":"verification-8a7c54674a594ee6a935e0afbad01198"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"At 100% with deliberately long artist and title metadata, the screenshot visibly places the artist/title text in the same region as the large centered dot.","evidence_ref":"verification-2018d48b6c35461da02fc8683b0c876a"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At 150%, long metadata still intersects the centered dot; the maximum-scale screenshot disproves the required hardening behavior.","evidence_ref":"verification-93fd7ad813f349ffbdc98bbf5b49596a"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate submitted no screenshot artifacts, and the judge's fresh 100% reproduction visibly shows overlap rather than supporting the claimed behavior.","evidence_ref":"verification-2018d48b6c35461da02fc8683b0c876a"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate submitted no screenshot artifacts, and the judge's fresh 150% reproduction visibly shows overlap rather than supporting the claimed behavior.","evidence_ref":"verification-93fd7ad813f349ffbdc98bbf5b49596a"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Fresh verification bundles at 100% and 150% include tree and semantics reads with non-empty hero-artist/hero-song text and rendered sizes 30/15 and 45/22.5.","evidence_ref":"verification-93fd7ad813f349ffbdc98bbf5b49596a"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"A supplied short-metadata fixture was exercised at both scales; the ordinary artist text also occupies the pulsing dot's region, so the required clean common case was not observed.","evidence_ref":"verification-26de256758bb4c25aafd67fa2c798d3f"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The option, both scales, long metadata, and short fixtures were exercised repeatedly; final runtime inspection shows the app responsive with zero overflow reports.","evidence_ref":"verification-9187b63855db4d6b886fbea5e44b8f3d"}
+  ]
+}

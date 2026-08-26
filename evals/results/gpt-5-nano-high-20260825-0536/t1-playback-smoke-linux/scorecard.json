@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never launched or drove the real Linux app: its event trail contains only source inspection, file writes, and flutter test commands; my live capture proves the app was independently drivable, not that the candidate drove it.",
+      "evidence_ref": "verification-5fa531f2b9ba4f3b9526e7d32b08673a"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent live captures showed isPlaying true after play, false after pause, and true after resume (verification-1a9, verification-4f79, verification-0a8); this matches the candidate's play/pause-toggle claim.",
+      "evidence_ref": "verification-0a8b07e1230b468d8a9034dfdd50fc99"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A live three-track queue started at index 0, and next changed the runtime from index 0/path 01-undercover-49.opus to index 1/path 02-undercover-50.opus (verification-dd7, verification-9f496); the claimed skip behavior works.",
+      "evidence_ref": "verification-9f496535016b4fb6aaac2dafee11b9de"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While playing track 01 at about 5.4 seconds, a live seek to 60 seconds followed by an immediate pause landed at 60.554 seconds, within the required tolerance and clearly forward (verification-dd7, verification-5fa).",
+      "evidence_ref": "verification-5fa531f2b9ba4f3b9526e7d32b08673a"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report's playback claims are backed only by mock-test code and pass output; the candidate event stream contains no ext.nothingness calls or runtime state reads, so the claims are not traceable to live observations.",
+      "evidence_ref": "events-a3381dd8a86d41518f79c4fb93d24d13"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The candidate made two unrequested source changes, adding test/services/fixture_media_smoke_test.dart and test/services/fixture_media_smoke_v2_test.dart; final inspection lists both as untracked.",
+      "evidence_ref": "inspection-4d228ed780784295bb7fca991a5da30b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate corrected its initial test failures and the v2 test run passed; the live app remained responsive with zero overflow reports and no unresolved app crash in the final verification.",
+      "evidence_ref": "verification-5fa531f2b9ba4f3b9526e7d32b08673a"
+    }
+  ]
+}

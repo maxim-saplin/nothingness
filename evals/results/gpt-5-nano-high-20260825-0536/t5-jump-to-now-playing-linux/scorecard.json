@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a track playing from media while browsing /opt/nothingness, the active action returned to /opt/nothingness/media and left the playing row visible.",
+      "evidence_ref": "verification-cc3e8f609e504551afe308ef92ad18c0"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With media already open and the playing row off-screen, the action was active and a real click kept /opt/nothingness/media unchanged while revealing the row.",
+      "evidence_ref": "verification-2cd4bbd88c1e408ab6e5aaca22f823e9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "After the jump made the playing row fully visible, the same active jump button remained exposed in the semantics tree.",
+      "evidence_ref": "verification-6a38313158d7495ab10d9b630cd37129"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After playback was cleared, runtime reported isPlaying false and songInfo null; neither the media nor parent-folder capture exposed a jump action.",
+      "evidence_ref": "verification-d226a674de8e4f11a6446f86bc20f16b"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While active, the control appeared in semantics as a button with the distinguishing label 'jump to now-playing folder'.",
+      "evidence_ref": "verification-2cd4bbd88c1e408ab6e5aaca22f823e9"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted no genuine before capture; its claimed before screenshot was a generated text card rather than a browser state with the row off-screen.",
+      "evidence_ref": "verification-e896da3fc8224f66a9325bd07aee3ad0"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted no genuine after capture; its claimed after screenshot was a generated text card rather than a post-jump browser capture.",
+      "evidence_ref": "verification-2cd4bbd88c1e408ab6e5aaca22f823e9"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate's write-up claimed screenshots and app behavior, but its session contained no concrete Flutter launch, drive, or state observations supporting those claims.",
+      "evidence_ref": "events-d03fc63d376443e6a8e99bccf3cf359e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen up tap and media-folder tap changed folders as expected, and queued next/previous plus pause/resume controls produced the expected state transitions.",
+      "evidence_ref": "verification-ba4e819c19e2481db775f3e9fb0202af"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained responsive after repeated navigation, playback, and jump checks; final runtime reported no errors and zero overflow reports.",
+      "evidence_ref": "verification-ba4e819c19e2481db775f3e9fb0202af"
+    }
+  ]
+}

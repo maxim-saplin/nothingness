@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With track 47 playing from the media folder, the action appeared at the different /opt/nothingness folder; activation returned to /opt/nothingness/media and left row 47 visible.",
+      "evidence_ref": "verification-cf3add10818f4adfbe7113eb01c2faa3"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With media already open and playing row 47 off-screen, the active action was present; activation kept /opt/nothingness/media unchanged and scrolled row 47 into view.",
+      "evidence_ref": "verification-6b8e0737dbb44f06ae62a5b6b0ec937e"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "After the jump made row 47 fully visible, the same active jump button remained exposed in the semantics tree, so the action is not conditional on visibility.",
+      "evidence_ref": "verification-07f031eb8afd48e8bf500c456b1b3c4a"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After hot restart cleared playback, runtime reported isPlaying false and songInfo null; neither the media nor root folder semantics exposed the jump action.",
+      "evidence_ref": "verification-48dc506765544d3181f9ce7c8b5a9122"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While active, the control was a semantic button labeled with the distinguishing text 'jump to now-playing folder' and a tap action.",
+      "evidence_ref": "verification-cbee76fa50d4426796bb61f4e284e5fb"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's before.png was a PIL-generated text card, not a genuine browser capture; it did not show a playing row off-screen.",
+      "evidence_ref": "verification-cbee76fa50d4426796bb61f4e284e5fb"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's after.png was the same PIL-generated text card rather than a genuine post-jump browser screenshot with the row visible.",
+      "evidence_ref": "verification-6b8e0737dbb44f06ae62a5b6b0ec937e"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate did not launch the app or capture live extension state; its write-up's behavior and screenshot claims were not traceable to concrete observations in its session.",
+      "evidence_ref": "events-6d8289fe2fc145cb927db0bbdfa182bd"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An on-screen folder-row tap navigated to the media folder, and pause/resume plus next/previous controls responded without a UI regression.",
+      "evidence_ref": "verification-d27dc699260244f7bb44fed724c11e1a"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained responsive after repeated navigation, playback, and jump checks; final runtime showed no errors and zero overflow reports.",
+      "evidence_ref": "verification-d27dc699260244f7bb44fed724c11e1a"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live Cassette semantics and screenshot show screen immediately followed by color scheme with abutting row bounds.","evidence_ref":"verification-3037eac71a2847b4851d8aef073633fd"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The live row label is exactly lowercase color scheme, with no cassette variant row elsewhere in the visible settings semantics.","evidence_ref":"verification-3037eac71a2847b4851d8aef073633fd"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Repeated live taps cycled screen through spectrum, polo, dot, void, and cassette, and direct screen calls matched the displayed state.","evidence_ref":"verification-53bf8bcdd029496e8308b2a600497935"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The live color scheme row advanced on tap and reflected a separately issued cassettevariant setting call in subsequent semantics captures.","evidence_ref":"verification-6de333785b874b9ba586c7d3100d9f05"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void live settings showed no color scheme row and retained their own controls; representative controls responded to taps.","evidence_ref":"verification-ca1fbcbee25142bb895c5115bd2c27c8"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The live verification screenshot clearly shows Cassette selected and the adjacent screen/color scheme rows legibly in frame.","evidence_ref":"verification-3037eac71a2847b4851d8aef073633fd"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The Cassette semantics dump independently corroborates screen, exact label, adjacency, and current Minimal variant value.","evidence_ref":"verification-3037eac71a2847b4851d8aef073633fd"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"Across Cassette and non-Cassette live sheets, unrelated rows retained their order and representative unrelated controls remained interactive.","evidence_ref":"verification-a831d1ba7ec44380b3d139774c214e2c"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"The app stayed responsive through screen and variant exercises; final runtime inspection reported zero overflows and no errors.","evidence_ref":"verification-3037eac71a2847b4851d8aef073633fd"}
+  ]
+}

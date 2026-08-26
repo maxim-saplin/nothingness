@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never captured a live gesture; its event trail generated PIL images from polo.webp. My live capture showed Target 0:41 / 1:23 above the browser, while the actual bottom folder line still showed /opt/nothingness/media.","evidence_ref":"events-94aa936860c24e79a66f69a71c90aff0"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Held rightward and leftward X11 swipes showed the new short bottom-of-hero readout and no centered time readout or tall vertical seek line.","evidence_ref":"verification-23162f5e471a431586f31b8e5393a23d"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and settling, the temporary readout disappeared and the bottom line returned to /opt/nothingness/media.","evidence_ref":"verification-9dc01c58d2094c53b673a22efc739fee"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No two genuine candidate during-gesture captures exist; the only submitted images were static PIL placeholders, so candidate-side live target tracking is unproven.","evidence_ref":"events-94aa936860c24e79a66f69a71c90aff0"},
+    {"id":"E5","tier":"required","verdict":"met","note":"A controlled active-playback swipe displayed target 0:40 / 1:23, and after release the app was paused at 40,837ms, within one second of that target.","evidence_ref":"verification-1a6c312573fb4d6b98874fb8bd48eced"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The required during-gesture deliverable was not captured from the app; the event trail records a PIL-generated illustration instead of a live screenshot.","evidence_ref":"events-94aa936860c24e79a66f69a71c90aff0"},
+    {"id":"E7","tier":"required","verdict":"met","note":"A fresh settled screenshot shows the normal folder path and no seek readout or center indicator.","evidence_ref":"verification-9dc01c58d2094c53b673a22efc739fee"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled screenshot is independently corroborated by the same bundle's semantics/tree, including the /opt/nothingness/media bottom-line label.","evidence_ref":"verification-9dc01c58d2094c53b673a22efc739fee"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"On-screen play, next, and previous controls responded: play resumed, next advanced to track 50, and previous reset the active track from a mid-track position; a vertical hero drag caused no visible regression.","evidence_ref":"verification-5493db8f4f744b1d9412193851cacdb5"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After clearing the overflow ledger and exercising multiple real X11 swipes, the app remained responsive with zero overflow reports and a live playback runtime.","evidence_ref":"verification-7a6ea2e7876f40c2b5881cfb98ad949b"}
+  ]
+}

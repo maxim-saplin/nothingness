@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never reached or drove a live app: its event stream shows Flutter_NOT_FOUND and build/tool probing, with no drive.py or ext.nothingness calls. I independently launched the app and confirmed extensions, but that does not establish candidate execution.",
+      "evidence_ref": "verification-1767d652812a4f00a83c94d494819009"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My live re-check against the built Linux app showed play isPlaying=true, pause isPlaying=false, and resume isPlaying=true in successive runtime captures.",
+      "evidence_ref": "verification-9934ddfde9bb4775a2d0230995aaa496"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a three-track queue, the live runtime changed from index 0/path 01-undercover-49 to index 1/path 02-undercover-50 after next.",
+      "evidence_ref": "verification-9e467f233a754ecf935b77d701ae2a1e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While playing, runtime position moved from 32186ms to 61994ms after a 60000ms seek, within the required tolerance and clearly forward.",
+      "evidence_ref": "verification-ee678be131054d4b895699746bf73574"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report presents the work as an enabled smoke test, but the candidate session contains no playback extension calls or state reads; its concrete claims are instructions and source-level assertions rather than traceable behavioral observations.",
+      "evidence_ref": "events-66e813ad70d94ee889d8a6832f02a318"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The live behavior was normal, but the candidate made a task-unrequested source change to lib/services/library_service.dart (14 added lines for automatic fixture-root loading), beyond allowed non-functional artifacts.",
+      "evidence_ref": "inspection-2fcb1e9409314352b71a95b82c54819d"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The independently launched session remained responsive with no overflow reports or unresolved runtime crash; the candidate did not report a playback step as passed over an app crash.",
+      "evidence_ref": "verification-ee678be131054d4b895699746bf73574"
+    }
+  ]
+}

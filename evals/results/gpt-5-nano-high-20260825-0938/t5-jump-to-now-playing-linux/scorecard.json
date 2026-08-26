@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","evidence_ref":"verification-aa136edce5d7417285d5478c7322883e","note":"With track 47 playing and the browser at /opt/nothingness, the semantic custom action was present, but the candidate supplied no tappable affordance or live activation result proving navigation to the media folder and row visibility."},
+    {"id":"E2","tier":"required","verdict":"unmet","evidence_ref":"verification-a65fffeafe8b464aadb30777166cf32c","note":"In /opt/nothingness/media, track 47 was off-screen and the custom action was present, but no live activation could be performed or verified to scroll the existing list while preserving the folder."},
+    {"id":"E3","tier":"required","verdict":"unmet","evidence_ref":"verification-ea8d693c8a8145efbc7a3d6833532e2c","note":"With the playing 51 row fully visible in the browser, the active Show current track custom action still appeared in semantics, so the action was not conditional on visibility."},
+    {"id":"E4","tier":"required","verdict":"met","evidence_ref":"verification-711550036975438db75ce61ea49d9c02","note":"After a fresh restart, runtime reported isPlaying false and songInfo null, and the semantics capture exposed no Show current track action."},
+    {"id":"E5","tier":"required","verdict":"met","evidence_ref":"verification-a65fffeafe8b464aadb30777166cf32c","note":"The active affordance was exposed in the live semantics tree as a distinguishing CustomSemanticsAction labeled Show current track."},
+    {"id":"E6","tier":"required","verdict":"unmet","evidence_ref":"verification-a65fffeafe8b464aadb30777166cf32c","note":"The independent before capture shows track 47 absent from the visible list, but the candidate submitted no actual before screenshot (only an ASCII sketch in its response)."},
+    {"id":"E7","tier":"required","verdict":"unmet","evidence_ref":"verification-a65fffeafe8b464aadb30777166cf32c","note":"No candidate after screenshot was submitted and no activation result was demonstrated; the before capture remains the only on-point image."},
+    {"id":"E8","tier":"secondary","verdict":"unmet","evidence_ref":"events-e6b73621fd0b4411bb26fca0cdb6b4a9","note":"The candidate's write-up describes hypothetical testing and ASCII screenshots, while its session events contain source inspection/editing but no app-driving state reads or feature activation observations."},
+    {"id":"E9","tier":"secondary","verdict":"met","evidence_ref":"verification-bf79e66c8f5f4ba4adb59d1617c3fa14","note":"A real on-screen tap of the media folder changed navigation into /opt/nothingness/media; the live app remained responsive and ordinary controls were exercised without errors."},
+    {"id":"E10","tier":"secondary","verdict":"met","evidence_ref":"verification-93fe3f9a445640e98eafd0832def61ce","note":"After navigation, playback, restart, and semantics checks, the live runtime answered normally with no overflow reports and no feature-attributable crash."}
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With playback in /opt/nothingness/media and the browser at /opt/nothingness, the jump affordance was available; activation returned to /opt/nothingness/media with track 47 visible.",
+      "evidence_ref": "verification-f8d84f3067db463fa92d410f0f4819df"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With track 47 playing and its folder already open at scroll position 0, the row was off-screen; activating the semantic action kept /opt/nothingness/media and scrolled track 47 into view.",
+      "evidence_ref": "verification-f85ff5e301fb4cdab7128b198cac5edb"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The post-jump capture shows track 47 fully within the list viewport, but the semantics tree still exposes an enabled tappable \"Go to now playing track\" action.",
+      "evidence_ref": "verification-f85ff5e301fb4cdab7128b198cac5edb"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After track 47 ended naturally, runtime reported isPlaying false and songInfo null; captures in both /opt/nothingness/media and /opt/nothingness showed only a disabled Library crumb without an active jump action.",
+      "evidence_ref": "verification-226e056ff4f34cd48ea4a4f8819751b7"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The active semantics node is labeled \"Go to now playing track\", marked as a button and enabled, and carries a tap action.",
+      "evidence_ref": "verification-f85ff5e301fb4cdab7128b198cac5edb"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted hand-authored SVG illustrations rather than a genuine before screenshot; the live before capture used for cross-checking is separate judge evidence.",
+      "evidence_ref": "verification-3edbbbb747544c1d8c3509668e3cafc8"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate submitted a hand-authored SVG illustration rather than a genuine after screenshot; no submitted PNG or other real app capture was provided.",
+      "evidence_ref": "verification-f85ff5e301fb4cdab7128b198cac5edb"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The write-up claims testing and verified states, but the candidate session contains no Flutter launch, driver, or state-read observations; it only writes SVG mockups and describes unperformed validation.",
+      "evidence_ref": "events-f41f7ef34f4c4f69b6ae357d29078d6b"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "An actual on-screen folder-row tap navigated root to media, and inspected controls showed pause, resume, next (45→46), and previous (46→45) transitions working.",
+      "evidence_ref": "verification-985b6369b6fd4c959f98e78b1dcbfc9f"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Repeated cross-folder and same-folder jumps, natural playback completion, and control checks left the app responsive with zero overflow/error reports in the final runtime capture.",
+      "evidence_ref": "verification-c8b7165d569b4f9fa5d85377334fb984"
+    }
+  ]
+}

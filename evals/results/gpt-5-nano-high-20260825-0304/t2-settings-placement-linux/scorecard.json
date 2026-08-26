@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The live Cassette bundle shows screen at index 5 ending at y=276 immediately followed by cassette variant at index 6 starting at y=276; the screenshot visibly confirms the adjacent rows.","evidence_ref":"verification-15df6393819a46b8be2912b11e0f3b47"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I tapped the screen row through spectrum, polo, dot, void, and Cassette, with each displayed value advancing in cycle order and returning to Cassette.","evidence_ref":"verification-83206f6e764a458b98e70171123fa059"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The cassette variant row changed from Mono to Amber on its own tap, and direct cassettevariant calls changed the underlying selection through variants 1 and 3 with matching labels.","evidence_ref":"verification-f39b0ed9396a4a049d64ad57f334b00c"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void each omitted the cassette-only row; representative controls responded, including bar count 24→8, Dot show-song-info toggle, and real X11 slider changes to 140%.","evidence_ref":"verification-ad0484acfffd4484b6bfa8000fde6961"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The verified PNG shows the Settings sheet with Cassette selected and both the screen and directly adjacent cassette-variant rows legible.","evidence_ref":"verification-15df6393819a46b8be2912b11e0f3b47"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The same Cassette bundle contains semantics and settings state agreeing with the screenshot on Cassette and the current adjacent variant value.","evidence_ref":"verification-15df6393819a46b8be2912b11e0f3b47"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The settings semantics preserved the unrelated row order, and I activated immersive, transport, browser, screen, and other unrelated controls while observing responsive updates.","evidence_ref":"verification-15df6393819a46b8be2912b11e0f3b47"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated settings navigation and screen switching, the final live verification showed a responsive app and zero overflow reports.","evidence_ref":"verification-15df6393819a46b8be2912b11e0f3b47"}
+  ]
+}

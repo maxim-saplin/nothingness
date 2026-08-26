@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live runtime showed exactly ten supplied Opus paths, each once, with queueLength 10 and no not-found entries.","evidence_ref":"verification-c0ad711bc6534b5087241a187d9747d9"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I opened settings, tapped the real shuffle status control, and live runtime then reported shuffle true.","evidence_ref":"verification-65019808533e4237b1ae63d58b633873"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Live runtime showed active playback of the supplied 07-undercover-44.opus fixture with isNotFound false.","evidence_ref":"verification-6e494384db2a451b97d9e8ffa6da28f4"},
+    {"id":"E4","tier":"required","verdict":"met","note":"From the captured playing baseline at index 9, one prev changed the live state to index 8 and a different supplied valid fixture.","evidence_ref":"verification-9ecbc7d7ddc84a0b9a54fcd6025df67f"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate never created an app queue/current track; all media paths in its event record were within the ten supplied fixtures.","evidence_ref":"events-147e65031e47415c94cd94a53dfe58a6"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"The candidate's final response was an unexecuted mpv plan; it contains no concrete playback state read tying its expected outcomes to observed app state.","evidence_ref":"events-147e65031e47415c94cd94a53dfe58a6"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Final inspection found no workspace diff or untracked candidate files.","evidence_ref":"inspection-7fc7355f702147f4bbd7da7f113cde79"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The live app stayed responsive with zero overflow reports and no unresolved app crash or hang.","evidence_ref":"verification-9ecbc7d7ddc84a0b9a54fcd6025df67f"}
+  ]
+}

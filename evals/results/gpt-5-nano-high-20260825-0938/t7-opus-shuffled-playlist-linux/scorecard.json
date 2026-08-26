@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live runtime verification showed queueLength 10 and exactly the ten mounted /opt/nothingness/media Opus paths, each once, with isNotFound false.","evidence_ref":"verification-f0c5a3a0295c4698a0230e8d8f2959be"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I opened settings, tapped the visible shuffle status control, and runtime verification then reported shuffle true.","evidence_ref":"verification-31775039506542618e6799023fa9d5c6"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After enabling shuffle, live runtime showed isPlaying true on /opt/nothingness/media/07-undercover-44.opus with isNotFound false and active spectrum data.","evidence_ref":"verification-61b9698c205f4cc6ae6764e28c12880a"},
+    {"id":"E4","tier":"required","verdict":"met","note":"The aligned before state was index 2/path 07-undercover-44.opus; one next advanced to index 3/path 05-undercover-53.opus, still playing and in-set with isNotFound false.","evidence_ref":"verification-ce18073f2a2d4a118b250c90ca74b3f9"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate event record contains no queue/play/next calls or foreign current paths; the complete session event chain and live re-check show only the ten supplied paths.","evidence_ref":"events-717859c3b65d40fbb3652da06c02412f"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"The final report supplied an mpv shell recipe but no concrete state observations or drive calls tracing its queue, shuffle, playback, or transition claims.","evidence_ref":"events-717859c3b65d40fbb3652da06c02412f"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The inspection git lens reported empty status and diff, and the live behavior matched the unmodified build while I performed the requested controls.","evidence_ref":"inspection-565627219f0d4e6589373a0c458a6e49"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"No unresolved candidate crash, hang, or drive error appeared in the event trail; the app was responsive for all live verification calls and ended with zero overflows.","evidence_ref":"verification-9ccca200327c438ea47e0b866949d6c5"}
+  ]
+}

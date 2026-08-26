@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live runtime showed queueLength 10 with exactly the ten supplied Opus paths once each, and every queue entry was not found false.","evidence_ref":"verification-a4523fcd5531423db7def0004e6bcefb"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I opened settings and tapped the real shuffle status control; the subsequent live runtime reported shuffle true.","evidence_ref":"verification-faf4b13e46d94fe1a82cfe4c1c29108c"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Live runtime showed active playback of supplied 01-undercover-49.opus with isPlaying true and isNotFound false.","evidence_ref":"verification-faf4b13e46d94fe1a82cfe4c1c29108c"},
+    {"id":"E4","tier":"required","verdict":"met","note":"From captured index 6 / 01-undercover-49.opus, one next changed the live state to index 7 / 06-undercover-54.opus, still a valid supplied fixture.","evidence_ref":"verification-2abbc37bd89a4a43b230d3c3988bee26"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate did not create an app queue or current track; all media paths in its script output were within the ten supplied fixtures, with no foreign path shown.","evidence_ref":"events-c324295efc6a479a9704ee4fea587c24"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"The candidate's final report was based on an ffplay shell script and had no app state read or extension observation tying queue, shuffle, playback, or transition claims to the running app.","evidence_ref":"events-4f7bdce1c10c4c29a929e3b4d240eddb"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"The runtime remained unmodified, but the candidate left an untracked functional opus_fixture_enqueue.py file beyond the allowed non-functional artifacts.","evidence_ref":"inspection-bb97efad4875422f8b11f28395eaff92"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The live app remained responsive with zero overflow reports throughout the judge's playback and navigation checks; no unresolved app crash or hang was present.","evidence_ref":"verification-40d1596d2a644084ae1c70c465ac712f"}
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate never drove a live app: its event stream contains source inspection, flutter analyze/test activity, and instructions for manual driving, but no drive.py or ext.nothingness playback calls; my separate live session only proves the harness was available.",
+      "evidence_ref": "verification-ff937fda4ddd41caa0a425eccd0c474b"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "My live re-check showed playing isPlaying=true, pause isPlaying=false, and resume isPlaying=true in successive runtime captures (e2-playing, e2-paused, e2-resumed).",
+      "evidence_ref": "verification-a6affa41fa47485fa74474c533f8fe0b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "With a three-track queue, my runtime changed from index 0/path 01-undercover-49 to index 1/path 02-undercover-50 after next.",
+      "evidence_ref": "verification-11a36a50c12741daa398098d06134694"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "While playing, runtime was at 23157ms before the seek and landed at 45512ms after seeking to 45000ms, within tolerance and clearly forward; I paused only after the seek to capture the stable target.",
+      "evidence_ref": "verification-c8cfc4c3078e407287043c8905585634"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The final report describes a smoke test and hypothetical playback coverage, but the candidate session has no playback extension calls or state reads, so its behavioral claims are not traceable to live observations.",
+      "evidence_ref": "events-7b48fe17f7ed454591148d9543f5d533"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final live runtime behaved normally and the final workspace inspection showed an empty git status and diff, with no unrequested source changes.",
+      "evidence_ref": "inspection-231789f40107488b833e8a3365724c7c"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "My live session stayed responsive through playback, queue navigation, and seek; the runtime overflow ring was empty and no unresolved crash was present.",
+      "evidence_ref": "verification-c8cfc4c3078e407287043c8905585634"
+    }
+  ]
+}

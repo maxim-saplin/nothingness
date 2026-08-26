@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate never captured a during-gesture state; its event trail contains only source inspection/edits, and the submitted code does not build.","evidence_ref":"events-5344d562bc63458aa15135b4ea23a2dd"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No live app was available for the required swipe reproductions, so absence of the center indicator is unverified.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The app never reached a runnable state, so clearing and reverting the temporary feedback could not be observed.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"There are no two candidate during-gesture captures or target values to compare; the event trail shows no drive/swipe session.","evidence_ref":"events-5344d562bc63458aa15135b4ea23a2dd"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"Runtime inspection was unavailable because the candidate build failed on a malformed literal \\n in playback_controller.dart, so seek movement was not testable.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate during-gesture screenshot capture is traceable; the session contains no app-driving screenshot call.","evidence_ref":"events-5344d562bc63458aa15135b4ea23a2dd"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No post-gesture app screenshot exists; the only judge screenshot is a desktop-level blank capture after the failed build.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"No settled structural dump was available because the app never launched.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"Previous/play-pause/next taps and vertical dragging could not be exercised without a live app.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"No gesture burst could run; launching the candidate produced Dart compile errors from its malformed import edit.","evidence_ref":"verification-661ab4b97c8949b2895dea65bb00c1cd"}
+  ]
+}

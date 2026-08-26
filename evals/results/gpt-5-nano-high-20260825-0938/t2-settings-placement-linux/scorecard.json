@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live Cassette semantics and screenshot show screen at index 5 ending at y=276 immediately followed by variant at index 6 starting at y=276.","evidence_ref":"verification-1e9db88f16574eb9843e704fc13aa4df"},
+    {"id":"E2","tier":"required","verdict":"met","note":"On-screen taps advanced screen through Polo, Dot, Void, Cassette, and Spectrum, while direct screen calls updated the displayed screen value.","evidence_ref":"verification-6fa730e154f64b9aa6696e79d64bd34a"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The relocated variant row changed Mono to Amber via its own activation; direct variant calls selected Mono, Amber, and Colour with matching displayed labels.","evidence_ref":"verification-d786a88492f44a44830e49f788d994a1"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Spectrum, Polo, Dot, and Void omitted the cassette-only row; representative controls responded, including bar count, Dot show-song-info, and real X11 text-size slider changes for Polo and Void.","evidence_ref":"verification-6eb802a76a1e44d28c71541aca8e8666"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The verified live PNG clearly shows the Settings sheet with Cassette selected and the adjacent screen and variant rows legible.","evidence_ref":"verification-1e9db88f16574eb9843e704fc13aa4df"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The same live Cassette verification contains semantics and settings state corroborating Cassette and the visible variant value.","evidence_ref":"verification-1e9db88f16574eb9843e704fc13aa4df"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Across live screen switches, unrelated mode/theme/transport/browser/full-screen/library rows remained present and ordered; unrelated controls remained tappable.","evidence_ref":"verification-1e9db88f16574eb9843e704fc13aa4df"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"After repeated sheet navigation and screen/control exercise, the live app remained responsive with zero overflow reports in runtime inspection.","evidence_ref":"verification-1e9db88f16574eb9843e704fc13aa4df"}
+  ]
+}
