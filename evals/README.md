@@ -11,6 +11,7 @@ candidate's write-up.
 <!-- BEGIN GENERATED LEADERBOARD -->
 | Model | Thinking | Date | Eval | Orchestrator/Judge | Orchestrator/Judge cost | Retries | Score | Assisted | Tokens (in/out) | Accepted task cost | Campaign cost | $/point | Report |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `gpt-5-nano` | medium | 2026-08-27 | 1.7.3 | gpt-5-nano-medium/pi | – | 0 | **7/21** | **1** on 1/7 tasks | 303k / 99k | $0.0832 | $0.0832 | $0.0119 | [detail](results/gpt-5-nano-medium-20260827-0550/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-27 | 1.7.3 | gpt-5.6-terra-high/copilot-cli | $11.96 | 0 | **16/21** | no | 625k / 139k | $0.7217 | $0.7217 | $0.0451 | [detail](results/gpt-5.4-nano-medium-20260827-0246/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-27 | 1.7.3 | gpt-5.6-terra-high/copilot-cli | $8.39 | 0 | **16/21** | **1** on 1/7 tasks | 709k / 145k | $0.6848 | $0.6848 | $0.0428 | [detail](results/gpt-5.4-nano-medium-20260827-0033/README.md) |
 | `gpt-5.4-nano` | medium | 2026-08-26 | 1.7.3 | gpt-5.6-terra-high/copilot-cli | $9.69 | 0 | **14/21** | no | 750k / 186k | $1.0795 | $1.0795 | $0.0771 | [detail](results/gpt-5.4-nano-medium-20260826-2153/README.md) |

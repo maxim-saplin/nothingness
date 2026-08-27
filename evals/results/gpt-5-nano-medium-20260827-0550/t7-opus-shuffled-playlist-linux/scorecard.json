@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live re-check queued exactly the ten unique mounted Opus fixture paths.",
+      "evidence_ref": "verification-ead25c2fd5f544c09ea2ca951c8f8cfb"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The visible shuffle status control was tapped and the live runtime then reported shuffle true.",
+      "evidence_ref": "verification-492be1fe52fb450a9cefbd8f1a087476"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Before navigation, runtime showed active playback of /opt/nothingness/media/07-undercover-44.opus with no not-found flag.",
+      "evidence_ref": "verification-492be1fe52fb450a9cefbd8f1a087476"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "One live next changed index 4 to 5 and current media to valid in-set 09-undercover-46.opus.",
+      "evidence_ref": "verification-ba6301f634bb400ebc9f1da309e5e8e5"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate event trail contains no app queue/play/navigation operation or foreign media path.",
+      "evidence_ref": "events-122fed92e4f24fd7ad9e76576087327a"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "Its mpv queue, shuffle, playback, and transition claims have no concrete app state read in the candidate session.",
+      "evidence_ref": "events-122fed92e4f24fd7ad9e76576087327a"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The live app behaved as baseline, but git status contains unrequested queue_opus_fixtures.sh.",
+      "evidence_ref": "inspection-baff2a82b39842f19afff89a66ac6e59"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No candidate crash, hang, or call error appears in the event trail; the live app remained responsive with zero overflows.",
+      "evidence_ref": "verification-554fd59f0694473e97cd003a163244d7"
+    }
+  ]
+}

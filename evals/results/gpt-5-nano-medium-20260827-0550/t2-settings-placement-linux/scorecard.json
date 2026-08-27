@@ -1,0 +1,14 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate build failed before the settings sheet could be rendered, so the required Cassette row adjacency was not observable.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No live app was available after the candidate build failure, so screen-row cycling could not be exercised.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No live app was available after the candidate build failure, so cassette-variant activation could not be exercised.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The build failure prevented verification across the non-Cassette screens and their controls.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"The captured desktop image did not show a running Settings sheet with the Cassette rows; the app never launched.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"No live structural state dump was available because compilation failed before a VM service started.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E7","tier":"secondary","verdict":"unmet","note":"The build failure prevented exercising unrelated settings rows or checking their order.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"Runtime inspection found no responsive app because the modified settings source did not compile.","evidence_ref":"verification-8824e76393b646a79214849fa8cea554"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate build failed, so no cross-folder action could be observed.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The candidate build failed before the same-folder scrolled-out case could be driven.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"No running candidate UI was available to verify visibility-conditional exposure.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No running candidate UI was available to verify the no-playing state.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"No candidate semantics or widget tree could be captured because compilation failed.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The candidate supplied no authentic before screenshot; only an unavailable-app desktop capture exists.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The candidate supplied no authentic after screenshot; no candidate UI could launch.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"The final claims of implementation and verification have no candidate drive.py or Flutter runtime observations.","evidence_ref":"events-7f9e90e347b6475e94be868838bb7521"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"Compilation failure prevented live checks of browsing, navigation, and playback controls.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"Launching the candidate exposed Dart compilation errors, so it was not responsive at the end.","evidence_ref":"verification-ec9d4cfec9be42e38a4985faa31b1dc6"}
+  ]
+}
