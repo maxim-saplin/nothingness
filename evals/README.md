@@ -68,6 +68,13 @@ carries a backfilled `1.0.0`, flagged as such in its own `result.json`.
 
 Only one model has been run end to end so far. Nothing here supports a broad comparison yet.
 
+[ASSESSMENT.md](ASSESSMENT.md) is a dated assessment of the benchmark itself — whether the
+design holds, what is intrinsically limiting about it, and where it is worth scaling. It also
+records the run-to-run spread behind this table, so read it before comparing two rows.
+[DIMENSIONS.md](DIMENSIONS.md) reports the same campaigns on seven axes instead of one
+integer — what worked, what was proven, what broke, and what it cost — derived from the
+published artifacts with no extra runs.
+
 ## How a campaign runs
 
 The user names a model; nothing else is asked of them.
