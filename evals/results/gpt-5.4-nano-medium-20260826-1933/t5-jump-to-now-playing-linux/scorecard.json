@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"From /opt/nothingness, the labeled action was active; activation returned to /opt/nothingness/media with track 47 visible.","evidence_ref":"verification-22384457ca9e4648ae97aedd25bb5028"},
+    {"id":"E2","tier":"required","verdict":"met","note":"With track 47 playing but absent from its already-current folder's viewport, the action scrolled it fully into view without changing the folder.","evidence_ref":"verification-1948806e1ec7495893dbbc0ddcb4f8f9"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After the same-folder jump, track 47 was fully visible and the active jump affordance was absent.","evidence_ref":"verification-1948806e1ec7495893dbbc0ddcb4f8f9"},
+    {"id":"E4","tier":"required","verdict":"met","note":"Idle captures in the media folder and its parent showed songInfo null and no active jump affordance.","evidence_ref":"verification-abec1f0bc9274220ab084a31370a8275"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The active same-folder action appeared in semantics as a tappable button labeled 'jump to now-playing folder'.","evidence_ref":"verification-50030dff16924688bda1bc03ae8f21e9"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The pre-jump screenshot captured the playing track absent from the visible list while the labeled action was present.","evidence_ref":"verification-50030dff16924688bda1bc03ae8f21e9"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The post-jump screenshot captured track 47 visibly in the unchanged /opt/nothingness/media folder.","evidence_ref":"verification-1948806e1ec7495893dbbc0ddcb4f8f9"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"The candidate recorded real before/after screenshots and an activation, but its write-up's stronger state claims lack corresponding state reads.","evidence_ref":"events-e42c4baf4234417ea80ec43b5d0b7f71"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"An on-screen media-folder tap and pause/resume worked, but next/previous on the direct-play state cleared the track rather than demonstrating ordinary transitions.","evidence_ref":"verification-abec1f0bc9274220ab084a31370a8275"},
+    {"id":"E10","tier":"secondary","verdict":"partial","note":"Both jump scenarios remained responsive, but final runtime evidence contained an additional RenderFlex overflow report during the exercise.","evidence_ref":"verification-abec1f0bc9274220ab084a31370a8275"}
+  ]
+}

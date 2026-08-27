@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate used drive.py VM-extension calls, and the live extension session remained reachable.",
+      "evidence_ref": "verification-d06d6be46cb74709aab60059f73ad6d6"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent captures observed playing=true, then false after pause, then true after resume.",
+      "evidence_ref": "verification-dab4655d2c724dcca4a30fb379ec953b"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A three-track queue changed from index 0/path 01 to index 1/path 02 after next.",
+      "evidence_ref": "verification-18a9de8948cc4ca598f9fb7e3ffc9733"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "From 6421 ms, a live seek to 30000 ms landed at 30608 ms on the same track.",
+      "evidence_ref": "verification-e3e58dc3d79d4bdaa0587a59ebef22c8"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report's specific queue, transition, skip, and seek claims match the candidate event trail.",
+      "evidence_ref": "events-80f69dbc3ccc410caa88dd67f6961c44"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The captured workspace git status and diff were empty.",
+      "evidence_ref": "inspection-77ec8c844593401fbf3e8d3dcda36d50"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "No unresolved app crash or hang appeared; the final live runtime remained responsive.",
+      "evidence_ref": "verification-d06d6be46cb74709aab60059f73ad6d6"
+    }
+  ]
+}

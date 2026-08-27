@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id": "E1", "tier": "required", "verdict": "unmet", "note": "The candidate never launched a live app, so its fresh default-off behavior was not verified.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E2", "tier": "required", "verdict": "unmet", "note": "No live candidate app state or restart verification was captured for enabling persistence.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E3", "tier": "required", "verdict": "unmet", "note": "No live candidate app state or restart verification was captured for disabling persistence.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E4", "tier": "required", "verdict": "unmet", "note": "No genuine normal-scale long-metadata screenshot from a live candidate app was captured.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E5", "tier": "required", "verdict": "unmet", "note": "No genuine maximum-scale long-metadata screenshot from a live candidate app was captured.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E6", "tier": "required", "verdict": "unmet", "note": "The collected run has no candidate normal-scale screenshot deliverable to compare with a reproduction.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E7", "tier": "required", "verdict": "unmet", "note": "The collected run has no candidate maximum-scale screenshot deliverable to compare with a reproduction.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E8", "tier": "secondary", "verdict": "unmet", "note": "No structural live-app read at either scale was captured by the candidate.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E9", "tier": "secondary", "verdict": "unmet", "note": "No live short-metadata exercise at either text scale was captured.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"},
+    {"id": "E10", "tier": "secondary", "verdict": "unmet", "note": "The candidate did not complete a live exercise or provide runtime evidence showing the app remained healthy.", "evidence_ref": "verification-745f0068f776499984553dcb866a965c"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The pre-action accessible folder jump was present from /opt/nothingness and activation returned to /opt/nothingness/media with track 49 visible.","evidence_ref":"verification-081a6ea180254a44882f85f40a2c2980"},
+    {"id":"E2","tier":"required","verdict":"partial","note":"A fully offscreen same-folder track 47 exposed the labeled action and activation revealed it without changing /opt/nothingness/media, but the action was absent when track 49 was partially clipped.","evidence_ref":"verification-0679027379e54199bfdcd85131a4250e"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"After jumping, track 47 was fully visible yet the semantics tree still exposed an active 'jump to now-playing track' button.","evidence_ref":"verification-ad871bb3ac3a40028ff7b04282543952"},
+    {"id":"E4","tier":"required","verdict":"partial","note":"The captured idle media-folder state had isPlaying false, songInfo null, and no active jump action; a second idle folder could not be reached after later playback staging retained a current track across hot restart.","evidence_ref":"verification-abcc166396164c53b5990e372b4a29de"},
+    {"id":"E5","tier":"required","verdict":"met","note":"With fully offscreen track 47, semantics exposed a tappable button labeled 'jump to now-playing track'.","evidence_ref":"verification-e8ee10cad75d44d5a14eab45bbf915fc"},
+    {"id":"E6","tier":"required","verdict":"met","note":"The submitted before screenshot shows playing 01-undercover-49 while browser rows 50–54 are visible and row 49 is absent; the live pre-jump reproduction agrees.","evidence_ref":"verification-e8ee10cad75d44d5a14eab45bbf915fc"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The submitted after screenshot shows row 49 selected and visible in the unchanged media folder; the live same-folder post-jump capture likewise shows track 47 visible.","evidence_ref":"verification-ad871bb3ac3a40028ff7b04282543952"},
+    {"id":"E8","tier":"secondary","verdict":"partial","note":"The candidate replayed a concrete same-folder script and captured screenshots, but its write-up's visibility-conditional claim lacks a recorded check of the fully-visible state that remained active.","evidence_ref":"events-e093fb315c9a41cdbeb738528e93dfce"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"On-screen media-folder and up taps changed browser paths, and queued next/previous plus pause/resume all remained responsive.","evidence_ref":"verification-22796a4121d446569d2ca6d1db13bc17"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Feature exercises produced no runtime overflow reports and the hot-restarted app remained live and responsive.","evidence_ref":"verification-db2aa62d523b4c68b5c03278dee4aef6"}
+  ]
+}

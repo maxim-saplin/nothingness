@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing preferences and restarting, the Dot hero showed only its centered dot and no artist/title overlay.","evidence_ref":"verification-09dd53fcd9e34f7d83c58d239ec27306"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The enabled toggle survived a restart and the restarted Dot view rendered the long artist/title overlay.","evidence_ref":"verification-6bb16251260b43dca46a43d782f1eb7b"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After toggling off, pausing, and restarting, the Dot hero again showed the dot without an artist/title overlay.","evidence_ref":"verification-6ab749bc6fd04ce3a4e9fe13819ddaa3"},
+    {"id":"E4","tier":"required","verdict":"met","note":"At confirmed 100%, both 68-character metadata fields rendered fully within the hero with intentional artist ellipsis and no visible collision.","evidence_ref":"verification-738a2b2e178f47f0a0e987390acc60c1"},
+    {"id":"E5","tier":"required","verdict":"met","note":"At confirmed 150%, the 68-character fields were legibly contained and did not visibly clip or collide.","evidence_ref":"verification-af25906d9ee44987a347b5deae06cf08"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The submitted normal-scale screenshot exists but its artist and title are each under the rubric's 60-character long-metadata threshold.","evidence_ref":"verification-738a2b2e178f47f0a0e987390acc60c1"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The submitted maximum-scale screenshot exists but likewise uses metadata shorter than the required roughly 60 characters per field.","evidence_ref":"verification-af25906d9ee44987a347b5deae06cf08"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The maximum-scale verification structurally reports the non-empty long artist and title, and the paired 100% capture did the same.","evidence_ref":"verification-af25906d9ee44987a347b5deae06cf08"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short metadata remained readable at both scales, but enabling song info removes the normally centered Dot circle, a visible common-case layout regression.","evidence_ref":"verification-c72c8e389ce243adb50d75fd747e1d5a"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The final live verification remained responsive with a playing ordinary track and no overflow reports.","evidence_ref":"verification-c72c8e389ce243adb50d75fd747e1d5a"}
+  ]
+}

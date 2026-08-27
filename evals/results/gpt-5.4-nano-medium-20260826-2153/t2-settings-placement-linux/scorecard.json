@@ -1,0 +1,62 @@
+{
+  "task_id": "t2-settings-placement-linux",
+  "rubric_sha256": "f75a4c59579db026e20f55bd63af6fb18b877b8e2262165eaf3fa16889b1d2eb",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics and the rendered sheet place screen directly before the Tape variant row.",
+      "evidence_ref": "verification-08a63ee6cb4c49a4b27ad4f449596cde"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The on-screen screen selector completed cassette\u2192spectrum\u2192polo\u2192dot\u2192void\u2192cassette, and direct selections reflected in its row.",
+      "evidence_ref": "verification-08a63ee6cb4c49a4b27ad4f449596cde"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The on-screen variant tap changed Tape Mono to Tape Amber; direct variants 1 and 3 displayed Mono and Colour.",
+      "evidence_ref": "verification-b95064a448bd41adb1e0902432cadc88"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Spectrum, Polo, Dot, and Void each showed immersive directly after screen with no cassette row, and its row toggled on tap.",
+      "evidence_ref": "verification-0a4003c940934fafaf655148ff5299af"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The screenshot visibly shows Cassette selected and the screen and Tape variant rows adjacent.",
+      "evidence_ref": "verification-08a63ee6cb4c49a4b27ad4f449596cde"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The cassette verification includes matching semantics, settings, and screenshot captures.",
+      "evidence_ref": "verification-08a63ee6cb4c49a4b27ad4f449596cde"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Semantic snapshots retained unrelated row order; browser changed from fixed to swipe up after its on-screen activation.",
+      "evidence_ref": "verification-cebc4d5c71db459dbb6c487d8544f6bb"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated opening, closing, and screen switching, the live runtime reported zero overflows and remained responsive.",
+      "evidence_ref": "verification-cebc4d5c71db459dbb6c487d8544f6bb"
+    }
+  ]
+}

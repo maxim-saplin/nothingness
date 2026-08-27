@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live re-queue inspection showed exactly the ten mounted Opus paths once each, all resolvable.","evidence_ref":"verification-f3ea63659a7d4b99b214d87378c505e2"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The visible shuffle status control toggled off and then on; the final live runtime capture reports shuffle true.","evidence_ref":"verification-c26803650b41463fb47c44a381707f8b"},
+    {"id":"E3","tier":"required","verdict":"met","note":"Live pre-navigation capture shows isPlaying true with supplied 03-undercover-51.opus current and no not-found entry.","evidence_ref":"verification-37997dce53a843e98a0822310b3d4e55"},
+    {"id":"E4","tier":"required","verdict":"met","note":"One live next changed index 8 to 9 and current path from supplied 03-undercover-51.opus to supplied 10-undercover-47.opus.","evidence_ref":"verification-de31d69277864d59bbae22aa27f55af4"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The complete recorded candidate action chain queues and reports only paths under /opt/nothingness/media for the ten supplied fixtures.","evidence_ref":"events-ae64a99d0e6d4a378dfbd39f7f18abff"},
+    {"id":"E6","tier":"secondary","verdict":"met","note":"The final queue, shuffle, before/after paths, and active playback claims each have concrete candidate state reads in the recorded event chain.","evidence_ref":"events-ae64a99d0e6d4a378dfbd39f7f18abff"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"Final live inspection found an empty git status and no task-unrelated runtime behavior.","evidence_ref":"inspection-4b5324db81df4b8e96d58b0434affa05"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The live app remained responsive and playing with zero overflow reports; earlier command validation failures were followed by successful state reads, with no crash or hang.","evidence_ref":"verification-de31d69277864d59bbae22aa27f55af4"}
+  ]
+}

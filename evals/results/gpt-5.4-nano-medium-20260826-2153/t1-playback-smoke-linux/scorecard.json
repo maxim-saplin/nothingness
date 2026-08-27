@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate used drive.py extension calls against a live Linux VM, and the judge independently captured the live extension-backed runtime.",
+      "evidence_ref": "verification-c26c0cc570c04beba243f16ce6cbb0e2"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The judge reproduced pause then resume: runtime was false while paused and true after resume on the same active track.",
+      "evidence_ref": "verification-8fef5156289f4b4dadc0072c9af7f3d8"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A fresh three-track queue moved from index 0 and 01-undercover-49.opus to index 1 and 02-undercover-50.opus after next.",
+      "evidence_ref": "verification-1e4bca6a4bcf4cea9ae45243bbcda5e2"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A live forward seek to 0:30 landed at 33296 ms while playing, within the requested tolerance and clearly ahead of the pre-seek 3264 ms state.",
+      "evidence_ref": "verification-ce93d1f22f794565aeb298078fc86b6a"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final report's play, pause, seek, next, and previous claims each correspond to concrete drive.py outputs and state reads in the event trail.",
+      "evidence_ref": "events-b3547d1801cb4601af0a65e9551649a9"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final live inspection found normal playback behavior and an empty workspace git status and diff.",
+      "evidence_ref": "inspection-817d0632bc30433daf3fd6d412fbd037"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The candidate recovered from initial driver-path/log mistakes and completed live state checks; final runtime remained responsive with playback active.",
+      "evidence_ref": "verification-ce93d1f22f794565aeb298078fc86b6a"
+    }
+  ]
+}

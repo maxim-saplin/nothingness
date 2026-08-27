@@ -1,0 +1,1 @@
+[{"id":"judge-17304e970b65","timestamp":"2026-08-26T21:25:43.844744Z","classification":"recovery","mode":"steer","message":"Your current flutter test command appears to be blocking well beyond its requested timeout; recover from the stuck tool state.","reason":"Candidate is blocked in an unresponsive tool execution.","delivery":"delivered"}]

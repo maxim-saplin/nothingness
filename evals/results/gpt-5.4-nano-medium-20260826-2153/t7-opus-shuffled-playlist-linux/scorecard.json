@@ -1,0 +1,14 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"Live runtime re-check showed exactly the ten supplied /opt/nothingness/media Opus paths once each, with queueLength 10.","evidence_ref":"verification-c9c6deedc7c54b0f8292b07b5b30f38f"},
+    {"id":"E2","tier":"required","verdict":"met","note":"The on-screen void-settings-status-shuffle row was tapped from its displayed off state; the subsequent runtime capture reported shuffle true.","evidence_ref":"verification-c3e0e12b916f449faaf6d5bb6bbda467"},
+    {"id":"E3","tier":"required","verdict":"met","note":"The pre-navigation live capture reported isPlaying true and the current supplied Opus path was not flagged not-found.","evidence_ref":"verification-4b5df60135e14ba5a9d3f2b9b3d4d1bd"},
+    {"id":"E4","tier":"required","verdict":"met","note":"One next action changed the live current index from 5 to 6; the post-transition track remained a resolvable supplied fixture.","evidence_ref":"verification-fb985fd6519f442ea0f58fc3c6765cb3"},
+    {"id":"E5","tier":"required","verdict":"met","note":"The candidate event record names only the ten supplied fixture paths in its queue/transition report, with no foreign queued or current path observed.","evidence_ref":"events-c585a14d87894f01955ae9460ceb04df"},
+    {"id":"E6","tier":"secondary","verdict":"unmet","note":"The final claims came from a custom controller unit test; the event record contains no candidate drive.py state read from the live app.","evidence_ref":"events-c585a14d87894f01955ae9460ceb04df"},
+    {"id":"E7","tier":"secondary","verdict":"partial","note":"The live re-check behaved normally, but git status contains the unrequested untracked source test/evaluator/fixture_shuffle_transition_test.dart.","evidence_ref":"inspection-16130e61492d48b28882e690320fb80a"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The candidate resolved its test errors before reporting completion; the live runtime capture remained responsive with no unresolved app crash or hang.","evidence_ref":"verification-5718a61408b6472eb6baf75e60749fa8"}
+  ]
+}

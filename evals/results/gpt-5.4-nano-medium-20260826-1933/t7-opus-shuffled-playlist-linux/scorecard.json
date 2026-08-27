@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Live re-queue inspection showed exactly the ten mounted Opus fixtures, each once, with no foreign or missing path.",
+      "evidence_ref": "verification-87cf181937c545cc99fbc3c574ebbfce"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The live settings shuffle control was toggled off and then on; the final runtime capture reports shuffle true.",
+      "evidence_ref": "verification-7cef5d0de78b4cd1ac91bcdb70aa4132"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A supplied fixture was played live; runtime showed isPlaying true and its in-set path resolved normally.",
+      "evidence_ref": "verification-e4ffada03dde4ba0aaf5e878df315fde"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After one live next from the captured baseline, the current path changed to a resolvable supplied fixture.",
+      "evidence_ref": "verification-dc9be583236140b19f73b61715ec963f"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's end-to-end setQueue, state reads, and next record contains only the ten mounted fixture paths.",
+      "evidence_ref": "events-ae23ec22136141b39dd12f2b4a28c819"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The reported queue, shuffle state, next transition, and before/after paths are all present in the candidate's concrete state-read output.",
+      "evidence_ref": "events-ae23ec22136141b39dd12f2b4a28c819"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Live behavior was normal and the workspace inspection found an empty git status and diff.",
+      "evidence_ref": "inspection-8da86a7a890e4cff89b09141012bb691"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The app remained live and responsive with no overflow reports; no unresolved app crash or hang appears in the session.",
+      "evidence_ref": "verification-d4df7166006d4385b468adbba3fac922"
+    }
+  ]
+}

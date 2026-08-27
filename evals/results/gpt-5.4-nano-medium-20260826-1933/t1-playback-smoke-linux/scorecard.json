@@ -1,0 +1,13 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"The candidate launched the Linux app and issued concrete drive.py extension calls; the live VM remained reachable during independent verification.","evidence_ref":"verification-86a5d54f6fae4596988ee2b00edb6079"},
+    {"id":"E2","tier":"required","verdict":"met","note":"Independent captures recorded isPlaying true, then false after pause, then true after resume on the same queued track.","evidence_ref":"verification-5c138f9c877c411dafb59305f36ae0de"},
+    {"id":"E3","tier":"required","verdict":"met","note":"A three-track queue changed from index 0/path 01-undercover-49.opus to index 1/path 02-undercover-50.opus after next.","evidence_ref":"verification-bf5c6bc2cf5a433f966728ecb36a6512"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The candidate sought while paused: its immediate post-seek inspect stayed near 0.6s rather than 30s, so its claimed fast-forward was not observed at the requested step.","evidence_ref":"verification-0b9ef15d8fae45ab8c8815e1f9f8543a"},
+    {"id":"E5","tier":"secondary","verdict":"partial","note":"Play/pause and skip claims have matching state reads, but the report calls the paused seek a fast-forward despite its immediate state read showing no 30-second move.","evidence_ref":"events-95e83459de8b485d8ebb61faf5eddd75"},
+    {"id":"E6","tier":"secondary","verdict":"partial","note":"The app behavior was normal, but git status shows the unrequested tracked-workspace artifact tool/regression/playback_transport_smoke_fixtures.txt.","evidence_ref":"inspection-7e4ba821c6944acb80e8056a0feeb121"},
+    {"id":"E7","tier":"secondary","verdict":"met","note":"The live app remained responsive with nonzero spectrum and no overflow reports; no unresolved crash or hang was found.","evidence_ref":"verification-0b9ef15d8fae45ab8c8815e1f9f8543a"}
+  ]
+}

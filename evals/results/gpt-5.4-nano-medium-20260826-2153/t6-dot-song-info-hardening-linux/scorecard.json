@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The disabled overlay was visible in the live app, but a genuinely fresh state could not be restarted after preferences were cleared.","evidence_ref":"verification-2d76b45855f744cbb6a82f166316d354"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"The enabled overlay rendered live, but no restart was possible because the candidate launch had no Flutter input FIFO.","evidence_ref":"verification-7024399ea9cd4808b161dfb8cd3fbc95"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The live disabled state rendered without overlay, but the required restart round trip was not verifiable.","evidence_ref":"verification-2d76b45855f744cbb6a82f166316d354"},
+    {"id":"E4","tier":"required","verdict":"met","note":"At 100%, the live long artist and title were legibly ellipsized inside the hero and visibly separated from the dot.","evidence_ref":"verification-7024399ea9cd4808b161dfb8cd3fbc95"},
+    {"id":"E5","tier":"required","verdict":"met","note":"At 150%, the live long artist and title remained contained and visibly clear of the dot.","evidence_ref":"verification-26d5d39845374837a8a76a6b5ca8011e"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"My normal-scale reproduction passed, but the candidate-submitted normal screenshot was captured after playing the short fixture, not long metadata.","evidence_ref":"verification-7024399ea9cd4808b161dfb8cd3fbc95"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"My max-scale reproduction passed, but the candidate-submitted max screenshot was captured after playing the short fixture, not long metadata.","evidence_ref":"verification-26d5d39845374837a8a76a6b5ca8011e"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The normal and max tree captures contain non-empty hero artist/title Text widgets with non-zero font sizes.","evidence_ref":"verification-26d5d39845374837a8a76a6b5ca8011e"},
+    {"id":"E9","tier":"secondary","verdict":"met","note":"The supplied short fixture rendered cleanly at both captured scales without overlay/dot collision.","evidence_ref":"verification-bb24d770915b4ae296bb86d03ae89902"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"The final live runtime capture remained responsive with no overflow reports after the scale and metadata changes.","evidence_ref":"verification-bb24d770915b4ae296bb86d03ae89902"}
+  ]
+}

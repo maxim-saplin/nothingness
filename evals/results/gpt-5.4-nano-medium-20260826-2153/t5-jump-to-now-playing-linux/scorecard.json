@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id": "E1", "tier": "required", "verdict": "met", "note": "From /opt/nothingness, the labeled action returned the browser to /opt/nothingness/media and made row 54 visible.", "evidence_ref": "verification-c70d529f95564c86a1e5fb391e48b5d7"},
+    {"id": "E2", "tier": "required", "verdict": "met", "note": "With row 54 absent in its already-open parent, the action retained /opt/nothingness/media and scrolled row 54 into view.", "evidence_ref": "verification-b56a71c00cbf46928dd989332bef9e80"},
+    {"id": "E3", "tier": "required", "verdict": "unmet", "note": "After the same-folder jump, row 54 was fully visible but the active bottom-right jump glyph remained exposed.", "evidence_ref": "verification-b56a71c00cbf46928dd989332bef9e80"},
+    {"id": "E4", "tier": "required", "verdict": "met", "note": "A hot-restarted idle state had songInfo null and no active jump action in the captured semantics.", "evidence_ref": "verification-3dcf2bed42574891b2b44da4e0ecd890"},
+    {"id": "E5", "tier": "required", "verdict": "met", "note": "The active action's semantics explicitly labels it \"jump to now-playing track in browser\".", "evidence_ref": "verification-7ae538f423bb49f09e612e40dbfbcf4e"},
+    {"id": "E6", "tier": "required", "verdict": "met", "note": "The submitted before capture shows the playing 47 track while its row is absent, consistent with the independently captured pre-jump state.", "evidence_ref": "verification-7ae538f423bb49f09e612e40dbfbcf4e"},
+    {"id": "E7", "tier": "required", "verdict": "unmet", "note": "Both submitted after screenshots still omit their named playing rows, so no on-point candidate after capture was supplied.", "evidence_ref": "verification-b56a71c00cbf46928dd989332bef9e80"},
+    {"id": "E8", "tier": "secondary", "verdict": "partial", "note": "The completion claim is traceable to live driving, but its screenshot claim conflicts with the submitted after images.", "evidence_ref": "events-e001dfaab0504ec3a553e0b1d841c10c"},
+    {"id": "E9", "tier": "secondary", "verdict": "met", "note": "Real taps navigated up to /opt/nothingness and back into media; playback remained responsive through play, pause, and resume.", "evidence_ref": "verification-38be4a4d1d934f5a8411764dcec5eb09"},
+    {"id": "E10", "tier": "secondary", "verdict": "met", "note": "Repeated live jumps and subsequent navigation/playback left the app responsive with no overflow reports.", "evidence_ref": "verification-38be4a4d1d934f5a8411764dcec5eb09"}
+  ]
+}

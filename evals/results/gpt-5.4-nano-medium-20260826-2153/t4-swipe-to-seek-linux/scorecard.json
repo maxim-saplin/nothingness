@@ -1,0 +1,76 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate's mid-gesture call is traceable, but its event payload is truncated inside PNG base64 before any legible bottom-row state, so the required three values cannot be verified from events.",
+      "evidence_ref": "events-1681c312a0be4976af3f520ec328ac93"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The held real-X11 swipe screenshot shows the bottom feedback and no centered readout or full-height vertical line.",
+      "evidence_ref": "verification-33eb0ee0c6a64dd18259cc8c3afbc9b9"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After release and settling, the screenshot and tree show the normal /opt/nothingness/media folder line with no residual seek feedback.",
+      "evidence_ref": "verification-2b46b08c0f914ba6ac7587085f47d358"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The event trail contains only same-direction dx=300 candidate mid-gesture capture calls and no two legible, differing target values to establish live tracking.",
+      "evidence_ref": "events-41c0f460f45a46a1b4cb45f90299ddad"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "A rightward real-X11 gesture moved playback from 7.4s to 56.6s on a 125.6s track, consistent with its ~300px relative seek and continued playback.",
+      "evidence_ref": "verification-21681ab864934013ae239606e01a05f9"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate's dedicated mid-gesture extension records a `during` PNG before its drag-end callback, with a frame yield at the capture point.",
+      "evidence_ref": "events-1681c312a0be4976af3f520ec328ac93"
+    },
+    {
+      "id": "E7",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The independent settled screenshot is a later capture showing the restored folder path and no center indicator.",
+      "evidence_ref": "verification-2b46b08c0f914ba6ac7587085f47d358"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The settled structural tree and semantics both independently label the bottom line /opt/nothingness/media, agreeing with the screenshot.",
+      "evidence_ref": "verification-2b46b08c0f914ba6ac7587085f47d358"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "The settled semantics still exposes previous, play/pause, and next controls, but the judged session did not establish every tap-zone transition and vertical-drag behavior.",
+      "evidence_ref": "verification-21681ab864934013ae239606e01a05f9"
+    },
+    {
+      "id": "E10",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Several real-X11 swipes in both directions left the app responsive with an empty overflow report in the final runtime capture.",
+      "evidence_ref": "verification-21681ab864934013ae239606e01a05f9"
+    }
+  ]
+}

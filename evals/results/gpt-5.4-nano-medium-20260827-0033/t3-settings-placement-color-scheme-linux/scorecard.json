@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics places screen at index 5 and the variant-cycling color scheme row at abutting index 6.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The sole adjacent cassette control is labeled exactly color scheme.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Five on-screen screen-row activations traversed Spectrum, Polo, Dot, Void, and back to Cassette; captures reflected the selected screen.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen activation changed the row from Tape · Colour to Tape · Amber, and direct variant settings subsequently rendered their selected values.",
+      "evidence_ref": "verification-ea64801ccf124db8aba1221128acf464"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Spectrum, Dot, Polo, and Void captures showed no color scheme row after screen, and Spectrum/Dot controls responded; not every non-Cassette screen-specific control was independently exercised.",
+      "evidence_ref": "verification-cfd36dab54b544aa9ce4701a751a36db"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The captured Linux screenshot visibly shows Cassette, then the immediately adjacent legible color scheme row.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Semantics independently records Cassette, row indices 5/6, exact label color scheme, and Tape · Mono alongside the screenshot.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Observed unrelated rows retained their order, and haptics was exercised from on to off, but the full sheet's unrelated controls were not all exercised.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final runtime inspection remained responsive on Cassette with zero overflow reports after repeated settings changes.",
+      "evidence_ref": "verification-aac4ab7d1d4a40ebb1421315a6f52e2e"
+    }
+  ]
+}

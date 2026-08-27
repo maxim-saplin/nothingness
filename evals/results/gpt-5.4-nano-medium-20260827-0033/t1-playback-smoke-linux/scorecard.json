@@ -1,0 +1,55 @@
+{
+  "task_id": "t1-playback-smoke-linux",
+  "rubric_sha256": "2216ca90b28135411aee4dcfd52ba5f6e700682ba785fc9a9e55c203373eeb64",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The candidate used registered ext.nothingness calls, and the live VM remained independently verifiable.",
+      "evidence_ref": "verification-34765579bcf84730b63c6e35c9b479f1"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Independent captures confirmed the candidate's queued playback sequence reached paused and then resumed playing.",
+      "evidence_ref": "verification-1f2b7988da3e4963a0231294668f78b6"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "After next, the independently captured active path and index were track 2 and index 1 rather than track 1 and index 0.",
+      "evidence_ref": "verification-403de35df3c34f3ea0be793c80300d49"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The independently captured playing track was at 33,018 ms immediately after a 30,000 ms forward seek.",
+      "evidence_ref": "verification-4882b1c825104cfe836a4fa6b5272f81"
+    },
+    {
+      "id": "E5",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final transport claims match concrete setQueue, pause, resume, next, seek, and inspect outputs in the candidate event stream.",
+      "evidence_ref": "events-2c7f40a991984f90a520fe3301d4a0f4"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Independent git inspection found an empty status and diff while the rechecked runtime behaved normally.",
+      "evidence_ref": "inspection-8ec26ce3b7a24ae8a731271dac79572b"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The initial endpoint-discovery error was followed by a successful launch and extension checks; the final live runtime was healthy.",
+      "evidence_ref": "verification-4882b1c825104cfe836a4fa6b5272f81"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate's only claimed during screenshot followed an atomic touch drag; the event trail contains no live in-flight capture, and live X11 evidence placed the HUD in the hero rather than the folder line.","evidence_ref":"events-74faed599fd04e019501dad91f123ccc"},
+    {"id":"E2","tier":"required","verdict":"met","note":"A held real-X11 horizontal swipe showed only the small bottom-hero feedback and no centered readout or full-height vertical line.","evidence_ref":"verification-1f0695a1d67c415baa632d1d198376aa"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and a two-second settle, the HUD was absent and the normal crumb text (~) was restored.","evidence_ref":"verification-6afdb0a0ee34426489bc112aa48ed784"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"The event trail has only one atomic synthetic-drag screenshot sequence, not two genuine in-flight captures with differing tracked targets.","evidence_ref":"events-74faed599fd04e019501dad91f123ccc"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Live playback moved forward from the pre-swipe position and settled consistently with the held-swipe 0:15 target while remaining responsive.","evidence_ref":"verification-6afdb0a0ee34426489bc112aa48ed784"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The claimed during screenshot is traceable only after a synchronous touch drag, whose documented fixture behavior is not a live gesture; no in-flight capture is evidenced.","evidence_ref":"events-74faed599fd04e019501dad91f123ccc"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The judge's settled screenshot visibly has no seek readout or center indicator and shows the normal crumb line.","evidence_ref":"verification-6afdb0a0ee34426489bc112aa48ed784"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled verification tree and runtime capture agree with the cleared screenshot: normal crumb text, active track, and no seek HUD.","evidence_ref":"verification-6afdb0a0ee34426489bc112aa48ed784"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Live center tapping paused and resumed playback and the right zone advanced the queue, but the left zone did not move index 1 to 0 in the exercised queue.","evidence_ref":"verification-8154c6cfbcd846ac947dd487a2be6cca"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"Several real-X11 swipes with varied directions completed without overflow reports, and the final runtime capture remained live and playing.","evidence_ref":"verification-4b207227b5d34167bd07135f39afd12a"}
+  ]
+}

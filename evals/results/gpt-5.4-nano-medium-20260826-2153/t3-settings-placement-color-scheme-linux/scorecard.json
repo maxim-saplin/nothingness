@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "Cassette semantics and screenshot show the screen row immediately followed by a row labeled variant, not the requested color scheme control.",
+      "evidence_ref": "verification-628cc2396e6b4199bca8a887f6c9d486"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The adjacent cassette row remains labeled variant; a separate color scheme row appears lower in the sheet.",
+      "evidence_ref": "verification-628cc2396e6b4199bca8a887f6c9d486"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Five on-screen screen-row activations advanced Cassette through Spectrum, Polo, Dot, Void, and back to Cassette, with the displayed active screen tracking the state.",
+      "evidence_ref": "verification-1431f5788efc48eaac0889274cabed9e"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "The on-screen variant row and direct cassettevariant calls still changed variants, but that working control was not renamed to color scheme.",
+      "evidence_ref": "verification-628cc2396e6b4199bca8a887f6c9d486"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Spectrum, Polo, Dot, and Void captures did not show a cassette control under screen, and an unrelated visible setting still responded; not every screen-specific control was independently reachable for activation.",
+      "evidence_ref": "verification-c0e64ff2ba274745b4ee5b9c8ec7bbd6"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The captured Cassette screenshot is legible but shows variant directly below screen and color scheme farther down, so it does not prove the required state.",
+      "evidence_ref": "verification-628cc2396e6b4199bca8a887f6c9d486"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The structural semantics snapshot independently confirms the screenshot is wrong: it records variant immediately after screen and color scheme lower down.",
+      "evidence_ref": "verification-628cc2396e6b4199bca8a887f6c9d486"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Most visible unrelated rows retained their order and immersive still activated, but the lower extra color scheme row changes the otherwise unrelated row set.",
+      "evidence_ref": "verification-3777da0898be4307b043c37ed4ef43c2"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "After repeated screen and cassette control exercises, the app stayed responsive with no overflow reports in the runtime capture.",
+      "evidence_ref": "verification-c0e64ff2ba274745b4ee5b9c8ec7bbd6"
+    }
+  ]
+}

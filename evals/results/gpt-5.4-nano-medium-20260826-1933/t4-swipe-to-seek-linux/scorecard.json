@@ -1,0 +1,16 @@
+{
+  "task_id": "t4-swipe-to-seek-linux",
+  "rubric_sha256": "4de6f6f5851f737e554f451cc6e5c257ea1308d66475de44a210d9505e31e805",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"The candidate event trail records one atomic dragByKey followed by capture, not a capture while a real gesture remained in flight.","evidence_ref":"events-b570f49ad11242ecb7a1de9aa784e325"},
+    {"id":"E2","tier":"required","verdict":"met","note":"A held real X11 swipe showed only the bottom seek text; the screenshot had no centered readout or vertical indicator.","evidence_ref":"verification-361ba1fb3c4741be97ccc84ede778e5c"},
+    {"id":"E3","tier":"required","verdict":"met","note":"After release and settling, the bottom line returned to ~ and the preview notifier was null.","evidence_ref":"verification-95caee8d6eec4c23ae3424c7cfbcc795"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"Only one candidate-side atomic swipe/capture is traceable, so its events do not establish live tracking across differing swipes.","evidence_ref":"events-b570f49ad11242ecb7a1de9aa784e325"},
+    {"id":"E5","tier":"required","verdict":"met","note":"Live runtime captures during and after the held swipe showed playback advancing to the rightward target and continuing from it after release.","evidence_ref":"verification-95caee8d6eec4c23ae3424c7cfbcc795"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The purported candidate during screenshot follows a completed synchronous dragByKey call; its event sequence provides no in-flight capture timing.","evidence_ref":"events-b570f49ad11242ecb7a1de9aa784e325"},
+    {"id":"E7","tier":"required","verdict":"met","note":"The settled post-swipe screenshot visibly shows the normal ~ folder line and no seek overlay.","evidence_ref":"verification-935c0030915a4884af9cacdb0d093475"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The settled tree independently reports the crumb text ~ with a null seek-preview notifier, matching the screenshot.","evidence_ref":"verification-95caee8d6eec4c23ae3424c7cfbcc795"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"The surviving on-screen next control accepted a real driver tap and the app stayed live, but the exposed tree supplied no resolvable keys for the other two controls, preventing full verification.","evidence_ref":"verification-95caee8d6eec4c23ae3424c7cfbcc795"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"A burst of varied swipes produced no overflow reports and the post-exercise app remained responsive in the live runtime capture.","evidence_ref":"verification-935c0030915a4884af9cacdb0d093475"}
+  ]
+}

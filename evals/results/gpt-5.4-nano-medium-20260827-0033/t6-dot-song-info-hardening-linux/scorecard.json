@@ -1,0 +1,16 @@
+{
+  "task_id": "t6-dot-song-info-hardening-linux",
+  "rubric_sha256": "8287c76ff02ba9d7627c9361090400b7a98ad5534b620ea0464f4fd28a37c617",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"met","note":"After clearing preferences and restarting, the live Dot screenshot showed only the dot with no artist/title overlay.","evidence_ref":"verification-a987083b2206487290800f974822d5d8"},
+    {"id":"E2","tier":"required","verdict":"met","note":"I enabled the on-screen control, hot-restarted, replayed the long-metadata track, and the overlay remained visible.","evidence_ref":"verification-6fa3ee83c5cc469cba0d0f553c02c5f0"},
+    {"id":"E3","tier":"required","verdict":"met","note":"I turned the control back off, restarted, and replayed the same long-metadata track; the resulting Dot view contained no overlay.","evidence_ref":"verification-4b2fdb2c58544adc8afd6022f32a862e"},
+    {"id":"E4","tier":"required","verdict":"met","note":"At the normal 100% scale, the live long artist/title overlay was fully legible inside the hero and visibly separated from the dot.","evidence_ref":"verification-7d0ad9981efa4d638e66e614bff928b1"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"At the verified 150% setting, the long-text screenshot has no visible pulsing dot despite active playback, so the change fails to preserve the centered dot it must keep separate.","evidence_ref":"verification-6f5edae793754deab9d0feb34e58f48c"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"The collected candidate normal screenshot is of the short 10-undercover fixture, not the required 60+ character artist and title; my on-point live normal capture cannot make that deliverable valid.","evidence_ref":"verification-7d0ad9981efa4d638e66e614bff928b1"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"The collected candidate max screenshot is also short metadata and remains 100% scale; the live 150% reproduction exposes the collapsed dot as well.","evidence_ref":"verification-6f5edae793754deab9d0feb34e58f48c"},
+    {"id":"E8","tier":"secondary","verdict":"met","note":"The live tree at each scale contained non-empty hero artist and song Text widgets with non-zero font sizes matching the captured content.","evidence_ref":"verification-66bdca0eb6384e9f89e6e2f8bbb2c3e8"},
+    {"id":"E9","tier":"secondary","verdict":"partial","note":"Short metadata was clean at 100%, but at 150% the live short-track screenshot also lost the dot, a visible layout regression.","evidence_ref":"verification-21e394264d9042fdae7b3cf01752308e"},
+    {"id":"E10","tier":"secondary","verdict":"met","note":"After repeated toggling, scaling, restarts, and track changes, the app remained live with active playback and no overflow reports.","evidence_ref":"verification-4b2fdb2c58544adc8afd6022f32a862e"}
+  ]
+}

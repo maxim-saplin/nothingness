@@ -1,0 +1,62 @@
+{
+  "task_id": "t7-opus-shuffled-playlist-linux",
+  "rubric_sha256": "4eb6a04a581575d1100a9becaa210f7f68d1e3f73e174b02c0827a06d73142ad",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate reported a ten-item fixture queue, but it terminated the live Flutter process before the judge runtime capture, so this queue could not be reproduced.",
+      "evidence_ref": "verification-9c99bc17a48f45e6a766a7ecca3386da"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate reported shuffle enabled, but no live app remained for the judge to activate the real on-screen control and confirm runtime shuffle state.",
+      "evidence_ref": "verification-9c99bc17a48f45e6a766a7ecca3386da"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate reported valid in-set playback, but it killed the Dart process before the judge could reproduce an isPlaying/current-track runtime read.",
+      "evidence_ref": "verification-9c99bc17a48f45e6a766a7ecca3386da"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "unmet",
+      "note": "The candidate reported one next transition, but the post-transition state was unavailable to live judge verification after its process teardown.",
+      "evidence_ref": "verification-9c99bc17a48f45e6a766a7ecca3386da"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The captured command trail queues and navigates only /opt/nothingness/media fixture paths; no foreign queued or current media appears in the session record.",
+      "evidence_ref": "events-fa748f118e76488a850c7371cb7f0619"
+    },
+    {
+      "id": "E6",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The final queue, shuffle, before/after path, and next claims are backed by the captured setQueue/inspect/next command outputs in the event chain.",
+      "evidence_ref": "events-fa748f118e76488a850c7371cb7f0619"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Judge git inspection found an empty workspace status and diff, with no task-unrequested source changes.",
+      "evidence_ref": "inspection-aa87e23f323e418c922a1da49010ee07"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "unmet",
+      "note": "The candidate terminated its live Dart process before judge verification; no current runtime capture was available to establish a healthy, continuous session.",
+      "evidence_ref": "verification-9c99bc17a48f45e6a766a7ecca3386da"
+    }
+  ]
+}

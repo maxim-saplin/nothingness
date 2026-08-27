@@ -1,0 +1,69 @@
+{
+  "task_id": "t3-settings-placement-color-scheme-linux",
+  "rubric_sha256": "7f92e9a5040bb29647777e570208a22e2953c20eb60610ff8243a7843f5c8848",
+  "expectations": [
+    {
+      "id": "E1",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Cassette semantics shows screen at index 5 immediately followed by color scheme at index 6, with abutting row bounds.",
+      "evidence_ref": "verification-2ad60a2fa7374e6eaee2d6c83d7bc8ed"
+    },
+    {
+      "id": "E2",
+      "tier": "required",
+      "verdict": "met",
+      "note": "The sole cassette-specific adjacent row is labeled exactly color scheme; no second such row or stale cassette variant row appears in the captured sheet.",
+      "evidence_ref": "verification-2ad60a2fa7374e6eaee2d6c83d7bc8ed"
+    },
+    {
+      "id": "E3",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen screen-row taps progressed Cassette through Spectrum, Polo, Dot, Void and back to Cassette; a direct Polo change also updated the displayed row.",
+      "evidence_ref": "verification-ad91a173a9464ffda5e66221a22e089d"
+    },
+    {
+      "id": "E4",
+      "tier": "required",
+      "verdict": "met",
+      "note": "On-screen activation changed Tape Mono to Tape Amber, while direct variant settings produced and displayed Tape Amber then Tape Colour.",
+      "evidence_ref": "verification-2c7e5e6375fd4a9abfcd790265fb3908"
+    },
+    {
+      "id": "E5",
+      "tier": "required",
+      "verdict": "partial",
+      "note": "Spectrum, Polo, Dot, and Void snapshots all omit color scheme directly below screen; Spectrum bar count was activated and changed, but not every non-Cassette screen-specific control was independently activated.",
+      "evidence_ref": "verification-3e50c6c673e74ed5b77391cc21581633"
+    },
+    {
+      "id": "E6",
+      "tier": "required",
+      "verdict": "met",
+      "note": "Captured PNG visibly shows Settings with screen cassette and a legible color scheme row immediately beneath it.",
+      "evidence_ref": "verification-2ad60a2fa7374e6eaee2d6c83d7bc8ed"
+    },
+    {
+      "id": "E7",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "The cassette screenshot is corroborated by a live semantics snapshot with the same ordered labels and Tape Mono value.",
+      "evidence_ref": "verification-2ad60a2fa7374e6eaee2d6c83d7bc8ed"
+    },
+    {
+      "id": "E8",
+      "tier": "secondary",
+      "verdict": "partial",
+      "note": "Captured unrelated rows retain their displayed order and on-screen transport activation changed bottom to top, but only one independently changing unrelated control was observed.",
+      "evidence_ref": "verification-f3aa3f0929184215b5a6fc0197b0c94e"
+    },
+    {
+      "id": "E9",
+      "tier": "secondary",
+      "verdict": "met",
+      "note": "Final live runtime capture reports zero overflow entries and the app remained responsive after screen and control cycling.",
+      "evidence_ref": "verification-f3aa3f0929184215b5a6fc0197b0c94e"
+    }
+  ]
+}

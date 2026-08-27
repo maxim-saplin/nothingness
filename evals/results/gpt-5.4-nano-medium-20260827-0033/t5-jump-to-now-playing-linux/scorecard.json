@@ -1,0 +1,16 @@
+{
+  "task_id": "t5-jump-to-now-playing-linux",
+  "rubric_sha256": "7a0ae4b9e5e029547079ecf01cd87e4d27dfd6f473fa7b67ec9cc2b59db7c1c1",
+  "expectations": [
+    {"id":"E1","tier":"required","verdict":"unmet","note":"No live candidate-app verification established the cross-folder action or its result.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E2","tier":"required","verdict":"unmet","note":"No verified same-folder off-screen jump was captured before the candidate was finished.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E3","tier":"required","verdict":"unmet","note":"The candidate supplied no live capture proving the action is inactive for a fully visible row.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E4","tier":"required","verdict":"unmet","note":"No live idle-state verification established absence of an active jump action.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E5","tier":"required","verdict":"unmet","note":"No available candidate-app semantics or tree capture established an accessible action label.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E6","tier":"required","verdict":"unmet","note":"No candidate before-state screenshot was captured; the candidate's screenshot test did not complete.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E7","tier":"required","verdict":"unmet","note":"No candidate after-state screenshot was captured; the candidate's screenshot test did not complete.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E8","tier":"secondary","verdict":"unmet","note":"The event stream ends in a blocked test tool call and contains no final candidate write-up or state observations supporting claims.","evidence_ref":"events-0e2a0c6a9ce34c86aab8f4e4e3a44c54"},
+    {"id":"E9","tier":"secondary","verdict":"unmet","note":"No candidate-app verification demonstrated ordinary on-screen navigation and playback controls after the change.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"},
+    {"id":"E10","tier":"secondary","verdict":"unmet","note":"No responsive candidate-app verification was available after feature exercise.","evidence_ref":"verification-1a93e6454fd34bfab6839146346d9e70"}
+  ]
+}
