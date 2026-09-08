@@ -20,6 +20,7 @@ class AutomationIntentService {
   final MethodChannel _channel;
 
   bool _started = false;
+  Future<void> _dispatchTail = Future<void>.value();
 
   /// Register the handler and drain any cold-start action. Idempotent.
   Future<void> start() async {
@@ -50,12 +51,20 @@ class AutomationIntentService {
   }
 
   Future<void> _dispatch(String action) async {
+    final dispatch = _dispatchTail.then<void>((_) => _dispatchOne(action));
+    _dispatchTail = dispatch.catchError((error) {
+      debugPrint('[AutomationIntentService] dispatch failed: $error');
+    });
+    await dispatch;
+  }
+
+  Future<void> _dispatchOne(String action) async {
     switch (action) {
       case 'play':
-        if (!_controller.isPlaying) await _controller.playPause();
+        await _controller.setPlaybackIntent(true);
         break;
       case 'pause':
-        if (_controller.isPlaying) await _controller.playPause();
+        await _controller.setPlaybackIntent(false);
         break;
       case 'playPause':
         await _controller.playPause();

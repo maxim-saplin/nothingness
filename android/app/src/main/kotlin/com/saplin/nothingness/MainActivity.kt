@@ -56,6 +56,7 @@ class MainActivity : AudioServiceActivity() {
     // attached its handler (cold start). Dart drains this via
     // `consumePendingAutomationAction` on startup.
     private var pendingAutomationAction: String? = null
+    private var automationReady = false
 
     private val mediaSession get() = MediaSessionService.getInstance()
 
@@ -74,14 +75,19 @@ class MainActivity : AudioServiceActivity() {
         // through here instead of recreating the activity.
         setIntent(intent)
         val action = extractAutomationAction(intent) ?: return
-        // Push to Dart immediately if it's already listening; also stash
-        // as pending in case the engine is mid-attach.
+        // Keep the action pending until Dart has drained the cold-start slot.
+        // Before that point the channel may exist while its Dart handler does
+        // not, so pushing immediately can lose the action.
         pendingAutomationAction = action
-        automationChannel?.invokeMethod("onAutomationAction", action)
+        if (automationReady) {
+            pendingAutomationAction = null
+            automationChannel?.invokeMethod("onAutomationAction", action)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        automationReady = false
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         audioCaptureService = AudioCaptureService(this)
 
@@ -152,6 +158,7 @@ class MainActivity : AudioServiceActivity() {
                     "consumePendingAutomationAction" -> {
                         result.success(pendingAutomationAction)
                         pendingAutomationAction = null
+                        automationReady = true
                     }
                     else -> result.notImplemented()
                 }

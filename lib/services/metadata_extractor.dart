@@ -168,8 +168,7 @@ String _stripExtensions(String name) {
   var title = tail;
   final dot = title.lastIndexOf('.');
   if (dot > 0 &&
-      exts.contains(title.substring(dot).toLowerCase()) &&
-      !title.substring(0, dot).contains('.')) {
+      exts.contains(title.substring(dot).toLowerCase())) {
     title = title.substring(0, dot);
   }
   return (artist, title.trim());

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "source": "../layers/ (preserved supplied vector paths)",
+  "composite": "cassette.svg",
+  "editor": "cassette-editor.svg",
+  "sprite": "cassette-symbol.svg#cassette",
+  "geometry": {
+    "viewBox": "44 119 418 257",
+    "left": {
+      "x": 167.1211,
+      "y": 237.9517
+    },
+    "right": {
+      "x": 337.0508,
+      "y": 237.9517
+    },
+    "hubRadius": 23.266,
+    "coreRadius": 30,
+    "minRadius": 32,
+    "maxRadius": 77,
+    "window": {
+      "x": 109.9443,
+      "y": 202.3404,
+      "width": 283.625,
+      "height": 63.942,
+      "radius": 6.173
+    }
+  },
+  "colors": {
+    "ink": "#262523",
+    "shell": "#fbfbf8",
+    "label": "#e8d5b7",
+    "window": "#dce5e1",
+    "hub": "#fbfbf8",
+    "tape": "#393733"
+  },
+  "defaults": {
+    "title": "MY MIX 2026",
+    "progress": 0.35
+  },
+  "titleRegion": {
+    "x": 112,
+    "y": 151,
+    "width": 279,
+    "height": 24,
+    "maxLength": 28
+  },
+  "layers": [
+    {
+      "name": "01-shell",
+      "file": "layers/01-shell.svg",
+      "order": 0
+    },
+    {
+      "name": "02-label",
+      "file": "layers/02-label.svg",
+      "order": 1
+    },
+    {
+      "name": "03-window",
+      "file": "layers/03-window.svg",
+      "order": 2
+    },
+    {
+      "name": "04-reels",
+      "file": "layers/04-reels.svg",
+      "order": 3
+    },
+    {
+      "name": "05-hub-left",
+      "file": "layers/05-hub-left.svg",
+      "order": 4
+    },
+    {
+      "name": "06-hub-right",
+      "file": "layers/06-hub-right.svg",
+      "order": 5
+    },
+    {
+      "name": "07-linework",
+      "file": "layers/07-linework.svg",
+      "order": 6
+    },
+    {
+      "name": "08-type",
+      "file": "layers/08-type.svg",
+      "order": 7
+    }
+  ]
+}

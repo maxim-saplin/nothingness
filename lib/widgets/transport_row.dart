@@ -3,25 +3,46 @@ import 'package:provider/provider.dart';
 
 import '../services/playback_controller.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
+import 'retro_lcd_display.dart';
 import 'press_feedback.dart';
 
-/// Transport widget pinned above the crumb in the Void chrome (non-immersive only): a 14 dp drag/tap seek strip plus a 40 dp prev / play-pause / next icon row. [transportHeight] is exposed so callers can lay out around the strip.
+/// Transport widget pinned above the crumb in the Void chrome (non-immersive only).
 class TransportRow extends StatelessWidget {
   const TransportRow({super.key});
 
   static const Key prevKey = ValueKey<String>('transport-prev');
   static const Key playKey = ValueKey<String>('transport-play');
   static const Key nextKey = ValueKey<String>('transport-next');
+  static const Key timeKey = ValueKey<String>('transport-time');
   static const Key seekKey = ValueKey<String>('transport-seek');
 
-  /// Total height of the row (seek strip + icon row). Kept in sync with `_transportHeight` in `void_screen.dart`.
+  /// Total height of the row. Kept in sync with `_transportHeight` in `void_screen.dart`.
   static const double transportHeight = 56.0;
-  static const double _seekStripHeight = 14.0;
   static const double _iconRowHeight = 42.0;
+  static const double _controlGroupWidth = 144.0;
+  static const double _timeRightPadding = 14.0;
 
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
+    final typography = Theme.of(context).extension<AppTypography>()!;
+    final playbackPosition = context
+        .select<PlaybackController, ({int positionMs, int durationMs})>(
+          (playback) => (
+            positionMs: playback.songInfo?.position ?? 0,
+            durationMs: playback.songInfo?.duration ?? 0,
+          ),
+        );
+    final timeStyle = TextStyle(
+      color: palette.fgSecondary,
+      fontFamily: typography.monoFamily,
+      fontSize: typography.rowSize,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final timeText = playbackPosition.durationMs > 0
+        ? '${formatClock(playbackPosition.positionMs)}/${formatClock(playbackPosition.durationMs)}'
+        : '--:--/--:--';
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.background,
@@ -29,11 +50,24 @@ class TransportRow extends StatelessWidget {
       ),
       child: SizedBox(
         height: transportHeight,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            SizedBox(height: _seekStripHeight, child: _SeekStrip()),
-            SizedBox(height: _iconRowHeight, child: _IconRow()),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const Center(
+              child: SizedBox(width: _controlGroupWidth, child: _IconRow()),
+            ),
+            Positioned(
+              top: 0,
+              right: _timeRightPadding,
+              bottom: 0,
+              child: Center(
+                child: Text(
+                  key: TransportRow.timeKey,
+                  timeText,
+                  style: timeStyle,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -41,15 +75,16 @@ class TransportRow extends StatelessWidget {
   }
 }
 
-// Draggable / tap-to-seek strip drawn above the transport icons.
-class _SeekStrip extends StatefulWidget {
-  const _SeekStrip();
+/// Bottom-aligned progress hairline and its tap/drag seek surface.
+class TransportSeekBar extends StatefulWidget {
+  const TransportSeekBar({super.key});
 
   @override
-  State<_SeekStrip> createState() => _SeekStripState();
+  State<TransportSeekBar> createState() => _TransportSeekBarState();
 }
 
-class _SeekStripState extends State<_SeekStrip> {
+class _TransportSeekBarState extends State<TransportSeekBar> {
+  static const double _hitHeight = 24.0;
   int? _activePointer;
   double? _dragFraction;
   double? _pointerDownFraction;
@@ -103,60 +138,72 @@ class _SeekStripState extends State<_SeekStrip> {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final player = context.read<PlaybackController>();
-    final playbackPosition = context.select<PlaybackController, ({int positionMs, int durationMs})>(
-      (playback) => (
-        positionMs: playback.songInfo?.position ?? 0,
-        durationMs: playback.songInfo?.duration ?? 0,
-      ),
-    );
+    final playbackPosition = context
+        .select<PlaybackController, ({int positionMs, int durationMs})>(
+          (playback) => (
+            positionMs: playback.songInfo?.position ?? 0,
+            durationMs: playback.songInfo?.duration ?? 0,
+          ),
+        );
     final positionMs = playbackPosition.positionMs;
     final durationMs = playbackPosition.durationMs;
     final hasDuration = durationMs > 0;
-    final fraction = hasDuration ? (positionMs / durationMs).clamp(0.0, 1.0) : 0.0;
+    final fraction = hasDuration
+        ? (positionMs / durationMs).clamp(0.0, 1.0)
+        : 0.0;
 
-    return LayoutBuilder(
-      builder: (context, c) {
-        final width = c.maxWidth;
-        double? fractionFor(double localX) {
-          if (!hasDuration || width <= 0) return null;
-          return (localX / width).clamp(0.0, 1.0);
-        }
+    return SizedBox(
+      height: _hitHeight,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final width = c.maxWidth;
+          double? fractionFor(double localX) {
+            if (!hasDuration || width <= 0) return null;
+            return (localX / width).clamp(0.0, 1.0);
+          }
 
-        void commitSeek(double seekFraction) {
-          player.seek(Duration(milliseconds: (seekFraction * durationMs).round()));
-        }
+          void commitSeek(double seekFraction) {
+            player.seek(
+              Duration(milliseconds: (seekFraction * durationMs).round()),
+            );
+          }
 
-        return Listener(
-          key: TransportRow.seekKey,
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (e) {
-            final seekFraction = fractionFor(e.localPosition.dx);
-            if (seekFraction == null) return;
-            _startGesture(e.pointer, seekFraction);
-          },
-          onPointerMove: (e) {
-            final seekFraction = fractionFor(e.localPosition.dx);
-            if (seekFraction == null) return;
-            _updateGesture(e.pointer, seekFraction);
-          },
-          onPointerUp: (e) => _endGesture(e.pointer, commitSeek),
-          onPointerCancel: (e) => _cancelGesture(e.pointer),
-          child: CustomPaint(
-            painter: _SeekPainter(
-              fraction: _dragFraction ?? fraction,
-              trackColor: palette.divider,
-              fillColor: palette.fgPrimary.withValues(alpha: 0.85),
+          return Listener(
+            key: TransportRow.seekKey,
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (e) {
+              final seekFraction = fractionFor(e.localPosition.dx);
+              if (seekFraction == null) return;
+              _startGesture(e.pointer, seekFraction);
+            },
+            onPointerMove: (e) {
+              final seekFraction = fractionFor(e.localPosition.dx);
+              if (seekFraction == null) return;
+              _updateGesture(e.pointer, seekFraction);
+            },
+            onPointerUp: (e) => _endGesture(e.pointer, commitSeek),
+            onPointerCancel: (e) => _cancelGesture(e.pointer),
+            child: CustomPaint(
+              painter: _ProgressPainter(
+                fraction: _dragFraction ?? fraction,
+                trackColor: palette.divider,
+                fillColor: palette.fgPrimary.withValues(alpha: 0.85),
+              ),
+              size: Size(width, _hitHeight),
             ),
-            size: Size(width, TransportRow._seekStripHeight),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
 
-class _SeekPainter extends CustomPainter {
-  _SeekPainter({required this.fraction, required this.trackColor, required this.fillColor});
+class _ProgressPainter extends CustomPainter {
+  _ProgressPainter({
+    required this.fraction,
+    required this.trackColor,
+    required this.fillColor,
+  });
 
   final double fraction;
   final Color trackColor;
@@ -188,7 +235,7 @@ class _SeekPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SeekPainter old) =>
+  bool shouldRepaint(covariant _ProgressPainter old) =>
       old.fraction != fraction ||
       old.trackColor != trackColor ||
       old.fillColor != fillColor;
@@ -202,8 +249,9 @@ class _IconRow extends StatelessWidget {
     final palette = Theme.of(context).extension<AppPalette>()!;
     final player = context.read<PlaybackController>();
     final glyphColor = palette.fgPrimary.withValues(alpha: 0.7);
-    final isPlaying =
-        context.select<PlaybackController, bool>((playback) => playback.isPlaying);
+    final isPlaying = context.select<PlaybackController, bool>(
+      (playback) => playback.isPlaying,
+    );
 
     Widget button(Key key, IconData icon, VoidCallback onTap, String label) {
       return Expanded(
@@ -224,14 +272,24 @@ class _IconRow extends StatelessWidget {
 
     return Row(
       children: [
-        button(TransportRow.prevKey, Icons.skip_previous_rounded, player.previous, 'previous'),
+        button(
+          TransportRow.prevKey,
+          Icons.skip_previous_rounded,
+          player.previous,
+          'previous',
+        ),
         button(
           TransportRow.playKey,
           isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
           player.playPause,
           isPlaying ? 'pause' : 'play',
         ),
-        button(TransportRow.nextKey, Icons.skip_next_rounded, player.next, 'next'),
+        button(
+          TransportRow.nextKey,
+          Icons.skip_next_rounded,
+          player.next,
+          'next',
+        ),
       ],
     );
   }

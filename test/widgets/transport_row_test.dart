@@ -9,7 +9,7 @@ import 'heroes/_test_helpers.dart';
 
 class _RecordingAudioPlayerProvider extends FakeAudioPlayerProvider {
   _RecordingAudioPlayerProvider({required SongInfo songInfo})
-      : super(songInfo: songInfo);
+    : super(songInfo: songInfo);
 
   final List<Duration> seeks = <Duration>[];
 
@@ -21,11 +21,11 @@ class _RecordingAudioPlayerProvider extends FakeAudioPlayerProvider {
 
 void main() {
   SongInfo song({int position = 10000, int duration = 60000}) => SongInfo(
-        track: const AudioTrack(path: '/x.wav', title: 'x'),
-        isPlaying: true,
-        position: position,
-        duration: duration,
-      );
+    track: const AudioTrack(path: '/x.wav', title: 'x'),
+    isPlaying: true,
+    position: position,
+    duration: duration,
+  );
 
   testWidgets('renders prev / play / next buttons by stable keys', (
     tester,
@@ -36,6 +36,30 @@ void main() {
     expect(find.byKey(TransportRow.prevKey), findsOneWidget);
     expect(find.byKey(TransportRow.playKey), findsOneWidget);
     expect(find.byKey(TransportRow.nextKey), findsOneWidget);
+    expect(find.byKey(TransportRow.seekKey), findsNothing);
+  });
+
+  testWidgets('renders combined time in the right corner', (tester) async {
+    final provider = FakeAudioPlayerProvider(songInfo: song());
+    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+
+    final row = tester.getRect(find.byType(TransportRow));
+    final time = tester.getRect(find.byKey(TransportRow.timeKey));
+    final play = tester.getRect(find.byKey(TransportRow.playKey));
+
+    expect(find.text('0:10/1:00'), findsOneWidget);
+    expect(time.right, closeTo(row.right - 14, 0.01));
+    expect(time.center.dy, closeTo(row.center.dy, 0.01));
+    expect(play.center.dx, closeTo(row.center.dx, 0.01));
+  });
+
+  testWidgets('renders placeholders when duration is unavailable', (
+    tester,
+  ) async {
+    final provider = FakeAudioPlayerProvider(songInfo: song(duration: 0));
+    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+
+    expect(find.text('--:--/--:--'), findsOneWidget);
   });
 
   testWidgets('play glyph flips to pause when isPlaying changes', (
@@ -92,8 +116,9 @@ void main() {
   // PressFeedback wrapper (0.4 dip, 120 ms / 200 ms fade), not the legacy
   // _TouchDownDimmer constants (0.45 / 80 ms). All three icon buttons
   // (prev / play / next) must be wrapped.
-  testWidgets('transport buttons use PressFeedback with 0.4 pressed opacity',
-      (tester) async {
+  testWidgets('transport buttons use PressFeedback with 0.4 pressed opacity', (
+    tester,
+  ) async {
     final provider = FakeAudioPlayerProvider(isPlaying: false);
     await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
 
@@ -106,8 +131,11 @@ void main() {
       expect(btn, findsOneWidget);
       // The key is hoisted onto the PressFeedback itself (single source
       // of truth for press feedback — option (a)).
-      expect(tester.widget(btn), isA<PressFeedback>(),
-          reason: 'B-030 follow-up: $key must BE a PressFeedback widget.');
+      expect(
+        tester.widget(btn),
+        isA<PressFeedback>(),
+        reason: 'B-030 follow-up: $key must BE a PressFeedback widget.',
+      );
     }
 
     // Touch-down on play and assert the pressed opacity equals
@@ -120,21 +148,30 @@ void main() {
     final gesture = await tester.startGesture(tester.getCenter(playFinder));
     await tester.pump(const Duration(milliseconds: 16));
     final opacity = tester.widget<AnimatedOpacity>(opacityFinder);
-    expect(opacity.opacity, PressFeedback.pressedOpacity,
-        reason: 'B-030 follow-up: transport press dip must match the '
-            'universal PressFeedback.pressedOpacity (0.4), not the legacy '
-            '_TouchDownDimmer 0.45.');
-    expect(PressFeedback.pressedOpacity, 0.4,
-        reason: 'Calibration constant must remain 0.4 per B-030.');
+    expect(
+      opacity.opacity,
+      PressFeedback.pressedOpacity,
+      reason:
+          'B-030 follow-up: transport press dip must match the '
+          'universal PressFeedback.pressedOpacity (0.4), not the legacy '
+          '_TouchDownDimmer 0.45.',
+    );
+    expect(
+      PressFeedback.pressedOpacity,
+      0.4,
+      reason: 'Calibration constant must remain 0.4 per B-030.',
+    );
     await gesture.up();
     await tester.pumpAndSettle();
   });
 
-  testWidgets('seek strip tap commits one seek immediately on release', (
+  testWidgets('bottom hairline tap commits one seek immediately on release', (
     tester,
   ) async {
     final provider = _RecordingAudioPlayerProvider(songInfo: song());
-    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+    await tester.pumpWidget(
+      wrapWithProvider(provider, const TransportSeekBar()),
+    );
 
     final seekFinder = find.byKey(TransportRow.seekKey);
     expect(seekFinder, findsOneWidget);
@@ -146,11 +183,13 @@ void main() {
     expect(provider.seeks.single.inSeconds, closeTo(30, 1));
   });
 
-  testWidgets('seek strip drag previews but commits one seek on release', (
+  testWidgets('bottom hairline drag previews but commits one seek on release', (
     tester,
   ) async {
     final provider = _RecordingAudioPlayerProvider(songInfo: song());
-    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+    await tester.pumpWidget(
+      wrapWithProvider(provider, const TransportSeekBar()),
+    );
 
     final seekFinder = find.byKey(TransportRow.seekKey);
     expect(seekFinder, findsOneWidget);
@@ -160,22 +199,30 @@ void main() {
     await gesture.moveBy(const Offset(120, 0));
     await tester.pump();
 
-    expect(provider.seeks, isEmpty,
-        reason: 'dragging should preview locally without flooding seeks');
+    expect(
+      provider.seeks,
+      isEmpty,
+      reason: 'dragging should preview locally without flooding seeks',
+    );
 
     await gesture.up();
     await tester.pump();
 
-    expect(provider.seeks.length, 1,
-        reason: 'drag should commit exactly once on release');
+    expect(
+      provider.seeks.length,
+      1,
+      reason: 'drag should commit exactly once on release',
+    );
     expect(provider.seeks.single.inSeconds, greaterThan(20));
   });
 
-  testWidgets('seek strip ignores gestures when duration is unavailable', (
+  testWidgets('bottom hairline ignores gestures when duration is unavailable', (
     tester,
   ) async {
     final provider = _RecordingAudioPlayerProvider(songInfo: song(duration: 0));
-    await tester.pumpWidget(wrapWithProvider(provider, const TransportRow()));
+    await tester.pumpWidget(
+      wrapWithProvider(provider, const TransportSeekBar()),
+    );
 
     final seekFinder = find.byKey(TransportRow.seekKey);
     expect(seekFinder, findsOneWidget);

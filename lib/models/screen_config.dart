@@ -173,7 +173,8 @@ class DotScreenConfig extends ScreenConfig {
         'textScale': textScale,
       };
 
-  factory DotScreenConfig.fromJson(Map<String, dynamic> json) => DotScreenConfig(
+  factory DotScreenConfig.fromJson(Map<String, dynamic> json) =>
+      DotScreenConfig(
         minDotSize: _d(json['minDotSize'], 20.0),
         maxDotSize: _d(json['maxDotSize'], 120.0),
         dotOpacity: _d(json['dotOpacity'], 1.0),
@@ -278,15 +279,36 @@ class PoloScreenConfig extends ScreenConfig {
 // Cassette screen
 // ---------------------------------------------------------------------------
 
-enum CassetteVariant { v1, v2, v3, v4 }
+enum CassetteVariant { v1, v2, v3, v4, v5 }
 
 /// Pure-data metadata for each variant.
 const cassetteVariantMeta = <CassetteVariant,
     ({String label, bool hostsOwnTransport, bool usesVisualizer})>{
-  CassetteVariant.v1: (label: 'Tape · Mono', hostsOwnTransport: false, usesVisualizer: false),
-  CassetteVariant.v2: (label: 'Tape · Amber', hostsOwnTransport: false, usesVisualizer: false),
-  CassetteVariant.v3: (label: 'Tape · Colour', hostsOwnTransport: false, usesVisualizer: false),
-  CassetteVariant.v4: (label: 'Minimal', hostsOwnTransport: false, usesVisualizer: false),
+  CassetteVariant.v1: (
+    label: 'Tape · Mono',
+    hostsOwnTransport: false,
+    usesVisualizer: false,
+  ),
+  CassetteVariant.v2: (
+    label: 'Tape · Copper',
+    hostsOwnTransport: false,
+    usesVisualizer: false,
+  ),
+  CassetteVariant.v3: (
+    label: 'Tape · Nightwave',
+    hostsOwnTransport: false,
+    usesVisualizer: false,
+  ),
+  CassetteVariant.v4: (
+    label: 'Minimal',
+    hostsOwnTransport: false,
+    usesVisualizer: false,
+  ),
+  CassetteVariant.v5: (
+    label: 'Tape · Poolside',
+    hostsOwnTransport: false,
+    usesVisualizer: false,
+  ),
 };
 
 class CassetteScreenConfig extends ScreenConfig {

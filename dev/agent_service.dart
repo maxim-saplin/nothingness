@@ -792,12 +792,12 @@ class AgentService {
   }
 
   static _R _play(PlaybackController p, Map<String, String> params) async {
-    if (!p.isPlaying) await p.playPause();
+    await p.setPlaybackIntent(true);
     return _ok({'isPlaying': true});
   }
 
   static _R _pause(PlaybackController p, Map<String, String> params) async {
-    if (p.isPlaying) await p.playPause();
+    await p.setPlaybackIntent(false);
     return _ok({'isPlaying': false});
   }
 

@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 3.14.11+78
+version: 3.14.12+79
 
 environment:
   sdk: ^3.10.1
@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  flutter_svg: ^2.2.3
   logging: ^1.2.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -55,6 +56,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/cassette/
+    - assets/cassette/layers/
   fonts:
     - family: Press Start 2P
       fonts:

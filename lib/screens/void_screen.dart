@@ -419,7 +419,11 @@ class VoidScreen extends HookWidget {
     );
 
     // Cancel seek-preview timer on unmount.
-    useEffect(() => () => seekPreviewClearTimer.value?.cancel(), const []);
+    useEffect(
+      () =>
+          () => seekPreviewClearTimer.value?.cancel(),
+      const [],
+    );
 
     // --- theming helpers -----------------------------------------------------
 
@@ -510,21 +514,22 @@ class VoidScreen extends HookWidget {
         onSeek: (d) => player.seek(d),
         positionMs: () => player.songInfo?.position ?? 0,
         durationMs: () => player.songInfo?.duration ?? 0,
-        onSeekPreviewChanged: ({
-          required bool active,
-          required int targetMs,
-          required int durationMs,
-        }) {
-          seekPreviewClearTimer.value?.cancel();
-          seekPreviewTargetMs.value = targetMs;
-          seekPreviewDurationMs.value = durationMs;
-          if (!active) {
-            seekPreviewClearTimer.value = Timer(_seekPreviewHold, () {
-              seekPreviewTargetMs.value = null;
-              seekPreviewDurationMs.value = 0;
-            });
-          }
-        },
+        onSeekPreviewChanged:
+            ({
+              required bool active,
+              required int targetMs,
+              required int durationMs,
+            }) {
+              seekPreviewClearTimer.value?.cancel();
+              seekPreviewTargetMs.value = targetMs;
+              seekPreviewDurationMs.value = durationMs;
+              if (!active) {
+                seekPreviewClearTimer.value = Timer(_seekPreviewHold, () {
+                  seekPreviewTargetMs.value = null;
+                  seekPreviewDurationMs.value = 0;
+                });
+              }
+            },
         onVerticalDragUpdate: acceptVertical ? onHeroVerticalDrag : null,
         onVerticalDragEnd: acceptVertical ? onHeroVerticalDragEnd : null,
         child: child,
@@ -621,15 +626,13 @@ class VoidScreen extends HookWidget {
                 final label = durationMs <= 0
                     ? '--:-- / --:--'
                     : '${formatClock(seekTargetMs)} / ${formatClock(durationMs)}';
-                final textStyle = mono(
-                  palette.fgPrimary,
-                  typography.crumbSize,
-                ).copyWith(
-                  color: null,
-                  foreground: Paint()
-                    ..blendMode = BlendMode.difference
-                    ..color = Colors.white,
-                );
+                final textStyle = mono(palette.fgPrimary, typography.crumbSize)
+                    .copyWith(
+                      color: null,
+                      foreground: Paint()
+                        ..blendMode = BlendMode.difference
+                        ..color = Colors.white,
+                    );
                 return Stack(
                   key: const ValueKey('void-crumb-seek-preview'),
                   fit: StackFit.expand,
@@ -686,7 +689,10 @@ class VoidScreen extends HookWidget {
                           padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
                           child: MidEllipsis(
                             text: path == null || path.isEmpty ? '~' : path,
-                            style: mono(palette.fgSecondary, typography.crumbSize),
+                            style: mono(
+                              palette.fgSecondary,
+                              typography.crumbSize,
+                            ),
                           ),
                         ),
                       ),
@@ -705,30 +711,7 @@ class VoidScreen extends HookWidget {
     }
 
     Widget buildProgressHairline() {
-      return Selector<PlaybackController, ({int position, int duration})>(
-        selector: (_, player) => (
-          position: player.songInfo?.position ?? 0,
-          duration: player.songInfo?.duration ?? 0,
-        ),
-        builder: (context, progress, _) {
-          final position = progress.position;
-          final duration = progress.duration;
-          final fraction = duration <= 0
-              ? 0.0
-              : (position / duration).clamp(0.0, 1.0);
-          return SizedBox(
-            height: 1,
-            child: Align(
-              alignment: Alignment.bottomLeft,
-              child: FractionallySizedBox(
-                widthFactor: fraction,
-                heightFactor: 1,
-                child: Container(color: palette.progress),
-              ),
-            ),
-          );
-        },
-      );
+      return const TransportSeekBar();
     }
 
     Widget buildSettingsButton() {

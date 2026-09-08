@@ -171,7 +171,7 @@ void main() {
     test('toggles from pause to play', () async {
       final tracks = createTracks(3);
       await controller.setQueue(tracks);
-      
+
       // Currently playing, pause it
       await controller.playPause();
       expect(controller.userIntent, PlayIntent.pause);
@@ -290,7 +290,7 @@ void main() {
       // Simulate: user pauses while a track is loading
       // This is a race condition scenario
       controller.playPause(); // Start pause
-      
+
       // The controller should check userIntent after load completes
       expect(controller.userIntent, PlayIntent.pause);
     });
@@ -354,7 +354,7 @@ void main() {
       // Now simulate: file is restored, user tries again
       transport.pathsToFailOnLoad.clear();
       transport.resetCalls();
-      
+
       // Go back to track 0
       await controller.playFromQueueIndex(0);
       await pumpUntil(() => !controller.queueNotifier.value[0].isNotFound);
@@ -384,7 +384,7 @@ void main() {
 
       // All tracks should be marked as not found
       expect(controller.queueNotifier.value.every((t) => t.isNotFound), true);
-      
+
       // Playback should have stopped (no infinite loop)
       expect(controller.isPlayingNotifier.value, false);
     });
@@ -647,10 +647,10 @@ void main() {
       // This shouldn't affect current playback but SHOULD mark track 1 as failed
       // Actually wait - in this scenario track 1 never failed, so we shouldn't mark it
       // Let's do the real scenario: track 2 ends, track 3 fails, skip to 4
-      
+
       // Set up track 3 to fail
       transport.pathsToFailOnLoad.add('/path/track_3.mp3');
-      
+
       // Advance from track 2 - will try track 3, fail, skip to track 4
       transport.emitTrackEnded();
       await pumpUntil(() => controller.currentIndexNotifier.value == 4);
@@ -666,14 +666,14 @@ void main() {
         true,
         reason: 'Track 4 should be playing',
       );
-      
+
       // Track 3 SHOULD be marked as not found
       expect(
         controller.queueNotifier.value[3].isNotFound,
         true,
         reason: 'Track 3 should be marked as not found',
       );
-      
+
       // Track 4 should NOT be marked as not found
       expect(
         controller.queueNotifier.value[4].isNotFound,
@@ -822,7 +822,7 @@ void main() {
       // Play state should be preserved (still paused)
       // Currently this FAILS because shuffleQueue calls playFromQueueIndex
       // which sets userIntent=play
-      // 
+      //
       // EXPECTED: shuffleQueue should NOT change play/pause state
       expect(
         controller.isPlayingNotifier.value,
@@ -927,9 +927,25 @@ void main() {
   });
 
   // ===========================================================================
-  // GROUP: Concurrent Operations (Race Conditions)  
+  // GROUP: Concurrent Operations (Race Conditions)
   // ===========================================================================
   group('Concurrent Operations', () {
+    test(
+      'rapid absolute playback intents settle on the last request',
+      () async {
+        final tracks = createTracks(3);
+        await controller.setQueue(tracks);
+
+        final pause = controller.setPlaybackIntent(false);
+        final play = controller.setPlaybackIntent(true);
+        await Future.wait([pause, play]);
+        await pumpUntil(() => controller.isPlayingNotifier.value);
+
+        expect(controller.userIntent, PlayIntent.play);
+        expect(controller.isPlayingNotifier.value, true);
+      },
+    );
+
     test('rapid playPause calls stabilize correctly', () async {
       final tracks = createTracks(3);
       await controller.setQueue(tracks);
@@ -943,7 +959,7 @@ void main() {
       // Final state should be consistent
       final intent = controller.userIntent;
       final isPlaying = controller.isPlayingNotifier.value;
-      
+
       // They should match
       expect(
         isPlaying,
@@ -955,13 +971,13 @@ void main() {
     test('pause during load cancels playback', () async {
       final tracks = createTracks(3);
       transport.autoEmitLoadedEvent = false; // Delay load completion
-      
+
       // Start loading
       final loadFuture = controller.setQueue(tracks);
-      
+
       // Immediately pause
       controller.playPause();
-      
+
       // Complete the load
       transport.autoEmitLoadedEvent = true;
       await loadFuture;

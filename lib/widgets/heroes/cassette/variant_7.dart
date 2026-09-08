@@ -23,13 +23,13 @@ class CassetteVariant7 extends StatelessWidget {
     final p = theme.extension<AppPalette>()!;
     final progress = tapeProgress(ctx.positionMs, ctx.durationMs);
 
-    final titleStyle =
-        (theme.textTheme.headlineSmall ?? const TextStyle()).copyWith(
-      color: p.fgPrimary,
-      fontWeight: FontWeight.w600,
-      letterSpacing: 0.2,
-      height: 1.15,
-    );
+    final titleStyle = (theme.textTheme.headlineSmall ?? const TextStyle())
+        .copyWith(
+          color: p.fgPrimary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+          height: 1.15,
+        );
     final artistStyle = (theme.textTheme.titleMedium ?? const TextStyle())
         .copyWith(color: p.fgSecondary, letterSpacing: 0.4);
 
@@ -106,16 +106,6 @@ class CassetteVariant7 extends StatelessWidget {
                 textScaler: TextScaler.linear(ctx.config.textScale),
               ),
             ],
-            const SizedBox(height: 18),
-            _ProgressLine(
-              progress: progress,
-              track: p.divider,
-              fill: p.progress,
-              positionMs: ctx.positionMs,
-              durationMs: ctx.durationMs,
-              label: p.fgTertiary,
-              textScale: ctx.config.textScale,
-            ),
           ],
         ),
       ),
@@ -123,12 +113,12 @@ class CassetteVariant7 extends StatelessWidget {
   }
 
   Widget _hub(Offset c, double d, double rot, Color ink) => Positioned(
-        left: c.dx - d / 2,
-        top: c.dy - d / 2,
-        width: d,
-        height: d,
-        child: SprocketHub(color: ink, angle: rot),
-      );
+    left: c.dx - d / 2,
+    top: c.dy - d / 2,
+    width: d,
+    height: d,
+    child: SprocketHub(color: ink, angle: rot),
+  );
 }
 
 /// Two stacked reels joined by a taut tape line; supply (top) feeds the take-up
@@ -195,15 +185,26 @@ class _FlatReelsPainter extends CustomPainter {
     }
   }
 
-  void _drawTape(Canvas canvas, Offset top, Offset bottom, double wellR,
-      double topFill, double bottomFill) {
+  void _drawTape(
+    Canvas canvas,
+    Offset top,
+    Offset bottom,
+    double wellR,
+    double topFill,
+    double bottomFill,
+  ) {
     final rT = wellR * topFill;
     final rB = wellR * bottomFill;
     final d = bottom.dy - top.dy;
     final phi = math.asin(((rT - rB) / d).clamp(-1.0, 1.0));
-    final pTop = Offset(top.dx + rT * math.cos(phi), top.dy + rT * math.sin(phi));
-    final pBot =
-        Offset(bottom.dx + rB * math.cos(phi), bottom.dy + rB * math.sin(phi));
+    final pTop = Offset(
+      top.dx + rT * math.cos(phi),
+      top.dy + rT * math.sin(phi),
+    );
+    final pBot = Offset(
+      bottom.dx + rB * math.cos(phi),
+      bottom.dy + rB * math.sin(phi),
+    );
     canvas.drawLine(
       pTop,
       pBot,
@@ -221,66 +222,4 @@ class _FlatReelsPainter extends CustomPainter {
       old.hairline != hairline ||
       old.accent != accent ||
       old.muted != muted;
-}
-
-/// A single hairline progress bar with monospaced position / duration.
-class _ProgressLine extends StatelessWidget {
-  const _ProgressLine({
-    required this.progress,
-    required this.track,
-    required this.fill,
-    required this.positionMs,
-    required this.durationMs,
-    required this.label,
-    required this.textScale,
-  });
-
-  final double progress;
-  final Color track;
-  final Color fill;
-  final int positionMs;
-  final int durationMs;
-  final Color label;
-  final double textScale;
-
-  String _fmt(int ms) {
-    final s = (ms / 1000).floor();
-    final m = s ~/ 60;
-    return '$m:${(s % 60).toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(
-      color: label,
-      fontSize: 11 * textScale,
-      fontFeatures: const [FontFeature.tabularFigures()],
-      letterSpacing: 0.5,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: 2,
-          child: Stack(
-            children: [
-              ColoredBox(color: track),
-              FractionallySizedBox(
-                widthFactor: progress.clamp(0.0, 1.0),
-                child: ColoredBox(color: fill),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(_fmt(positionMs), style: style),
-            Text(_fmt(durationMs), style: style),
-          ],
-        ),
-      ],
-    );
-  }
 }

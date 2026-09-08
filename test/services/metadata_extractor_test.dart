@@ -75,6 +75,14 @@ void main() {
       expect(track.artist, 'Artist');
     });
 
+    test('strips the extension when the title contains a dot', () async {
+      final track = await extractor.extractMetadata(
+        '/path/BLAGO - A.V.G & ALISHA.mp3',
+      );
+      expect(track.title, 'A.V.G & ALISHA');
+      expect(track.artist, 'BLAGO');
+    });
+
     // B-047: a filename that embeds the artist again in the title leaves the
     // artist in the title after the leftmost-separator split. The desktop path
     // must drop the redundant prefix — the same guard the Android path uses.

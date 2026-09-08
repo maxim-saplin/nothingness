@@ -5,9 +5,8 @@ import 'package:nothingness/services/playback_controller.dart';
 
 import 'mock_audio_transport.dart';
 
-/// Subclass of [PlaybackController] that counts [playPause] calls and flips a
-/// controllable `isPlaying`, so the dispatch logic can be exercised without
-/// touching real audio plumbing.
+/// Subclass of [PlaybackController] that records both absolute and toggle
+/// commands, so dispatch ordering can be tested without real audio plumbing.
 class _CountingProvider extends PlaybackController {
   _CountingProvider({required bool initiallyPlaying})
     : _playing = initiallyPlaying,
@@ -15,6 +14,13 @@ class _CountingProvider extends PlaybackController {
 
   bool _playing;
   int playPauseCalls = 0;
+  final List<bool> playbackIntentCalls = <bool>[];
+
+  @override
+  Future<void> setPlaybackIntent(bool shouldPlay) async {
+    playbackIntentCalls.add(shouldPlay);
+    _playing = shouldPlay;
+  }
 
   @override
   bool get isPlaying => _playing;
@@ -46,12 +52,12 @@ void main() {
 
       await service.start();
 
-      expect(provider.playPauseCalls, 1);
+      expect(provider.playbackIntentCalls, [true]);
       expect(provider.isPlaying, true);
     });
 
     test(
-      'start() drains a cold-start pause action when nothing is playing (no-op)',
+      'start() drains a cold-start pause action and stays paused',
       () async {
         _registerNativeStub(pending: 'pause');
         final provider = _CountingProvider(initiallyPlaying: false);
@@ -59,7 +65,7 @@ void main() {
 
         await service.start();
 
-        expect(provider.playPauseCalls, 0);
+        expect(provider.playbackIntentCalls, [false]);
         expect(provider.isPlaying, false);
       },
     );
@@ -71,37 +77,37 @@ void main() {
 
       await service.start();
 
-      expect(provider.playPauseCalls, 0);
+      expect(provider.playbackIntentCalls, isEmpty);
     });
 
-    test('warm-start play resumes only when paused', () async {
+    test('warm-start play is idempotent when already playing', () async {
       _registerNativeStub(pending: null);
       final provider = _CountingProvider(initiallyPlaying: false);
       final service = AutomationIntentService(provider, channel: channel);
       await service.start();
 
       await _pushAction('play');
-      expect(provider.playPauseCalls, 1);
+      expect(provider.playbackIntentCalls, [true]);
       expect(provider.isPlaying, true);
 
-      // Already playing — second PLAY is a no-op.
       await _pushAction('play');
-      expect(provider.playPauseCalls, 1);
+      expect(provider.playbackIntentCalls, [true, true]);
+      expect(provider.isPlaying, true);
     });
 
-    test('warm-start pause pauses only when playing', () async {
+    test('warm-start pause is idempotent when already paused', () async {
       _registerNativeStub(pending: null);
       final provider = _CountingProvider(initiallyPlaying: true);
       final service = AutomationIntentService(provider, channel: channel);
       await service.start();
 
       await _pushAction('pause');
-      expect(provider.playPauseCalls, 1);
+      expect(provider.playbackIntentCalls, [false]);
       expect(provider.isPlaying, false);
 
-      // Already paused — second PAUSE is a no-op.
       await _pushAction('pause');
-      expect(provider.playPauseCalls, 1);
+      expect(provider.playbackIntentCalls, [false, false]);
+      expect(provider.isPlaying, false);
     });
 
     test('warm-start playPause is an unconditional toggle', () async {
@@ -116,6 +122,20 @@ void main() {
 
       await _pushAction('playPause');
       expect(provider.playPauseCalls, 2);
+      expect(provider.isPlaying, false);
+    });
+
+    test('rapid absolute actions settle in arrival order', () async {
+      _registerNativeStub(pending: null);
+      final provider = _CountingProvider(initiallyPlaying: false);
+      final service = AutomationIntentService(provider, channel: channel);
+      await service.start();
+
+      final play = _pushAction('play');
+      final pause = _pushAction('pause');
+      await Future.wait([play, pause]);
+
+      expect(provider.playbackIntentCalls, [true, false]);
       expect(provider.isPlaying, false);
     });
 
@@ -137,7 +157,7 @@ void main() {
       await service.start();
       await service.start(); // second call is a no-op
 
-      expect(provider.playPauseCalls, 1);
+      expect(provider.playbackIntentCalls, [true]);
     });
   });
 }

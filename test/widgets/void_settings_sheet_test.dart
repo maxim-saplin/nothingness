@@ -167,9 +167,10 @@ void main() {
           find.byKey(ValueKey(k), skipOffstage: false);
 
       expect(byK('void-settings-mode'), findsOneWidget);
-      expect(byK('void-settings-theme'), findsOneWidget);
-      expect(byK('void-settings-variant'), findsOneWidget);
+      expect(byK('void-settings-theme'), findsNothing);
+      expect(byK('void-settings-color-scheme'), findsOneWidget);
       expect(byK('void-settings-screen'), findsOneWidget);
+      expect(byK('void-settings-cassette-variant'), findsNothing);
       expect(byK('void-settings-ui-scale'), findsOneWidget);
       expect(byK('void-settings-full-screen'), findsOneWidget);
       expect(byK('void-settings-smart-folders'), findsOneWidget);
@@ -195,6 +196,39 @@ void main() {
 
       // Background rows are reachable.
       expect(byK('void-settings-noise-gate'), findsOneWidget);
+    });
+
+    testWidgets('cassette variant is directly below screen in LOOK',
+        (tester) async {
+      SettingsService().operatingModeNotifier.value = OperatingMode.own;
+      await SettingsService().saveScreenConfig(const CassetteScreenConfig());
+
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+
+      Finder byK(String k) =>
+          find.byKey(ValueKey(k), skipOffstage: false);
+
+      final screen = byK('void-settings-screen');
+      final variant = byK('void-settings-cassette-variant');
+      final immersive = byK('void-settings-immersive');
+
+      expect(byK('void-settings-color-scheme'), findsOneWidget);
+      expect(byK('void-settings-theme'), findsNothing);
+      expect(variant, findsOneWidget);
+      expect(find.text('variant', skipOffstage: false), findsOneWidget);
+      expect(tester.getTopLeft(screen).dy < tester.getTopLeft(variant).dy,
+          isTrue);
+      expect(tester.getTopLeft(variant).dy < tester.getTopLeft(immersive).dy,
+          isTrue);
+
+      await tester.tap(variant);
+      await tester.pump();
+
+      expect(
+        (SettingsService().screenConfigNotifier.value as CassetteScreenConfig)
+            .variant,
+        CassetteVariant.v2,
+      );
     });
   });
 

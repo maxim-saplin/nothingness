@@ -335,5 +335,47 @@ void main() {
         expect(restored.textScale, 1.0);
       });
     });
+
+    group('CassetteScreenConfig', () {
+      test('keeps stable v1..v5 variants and distinct labels', () {
+        expect(CassetteVariant.values, [
+          CassetteVariant.v1,
+          CassetteVariant.v2,
+          CassetteVariant.v3,
+          CassetteVariant.v4,
+          CassetteVariant.v5,
+        ]);
+        expect(cassetteVariantMeta[CassetteVariant.v1]!.label, 'Tape · Mono');
+        expect(cassetteVariantMeta[CassetteVariant.v2]!.label, 'Tape · Copper');
+        expect(
+          cassetteVariantMeta[CassetteVariant.v3]!.label,
+          'Tape · Nightwave',
+        );
+        expect(cassetteVariantMeta[CassetteVariant.v4]!.label, 'Minimal');
+        expect(
+          cassetteVariantMeta[CassetteVariant.v5]!.label,
+          'Tape · Poolside',
+        );
+      });
+
+      test('round-trips the new v5 variant', () {
+        const config = CassetteScreenConfig(variant: CassetteVariant.v5);
+        final restored =
+            ScreenConfig.fromJson(config.toJson()) as CassetteScreenConfig;
+
+        expect(restored.variant, CassetteVariant.v5);
+      });
+
+      test('keeps legacy v2 and v3 identifiers readable', () {
+        expect(
+          CassetteScreenConfig.fromJson({'variant': 'v2'}).variant,
+          CassetteVariant.v2,
+        );
+        expect(
+          CassetteScreenConfig.fromJson({'variant': 'v3'}).variant,
+          CassetteVariant.v3,
+        );
+      });
+    });
   });
 }

@@ -17,6 +17,10 @@ analyzer:
   # submodule's example code and its missing very_good_analysis include.
   exclude:
     - soloud/**
+    - build/**
+    - android/**
+    - macos/**
+    - linux/**
 
 linter:
   # The lint rules applied to this project can be customized in the

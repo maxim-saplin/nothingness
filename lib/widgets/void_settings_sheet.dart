@@ -11,7 +11,6 @@ import '../models/browser_presentation.dart';
 import '../models/operating_mode.dart';
 import '../models/screen_config.dart';
 import '../models/spectrum_settings.dart';
-import '../models/theme_id.dart';
 import '../models/theme_variant.dart';
 import '../models/transport_position.dart';
 import '../services/playback_controller.dart';
@@ -354,16 +353,6 @@ class VoidSettingsSheet extends HookWidget {
                   (v) => cfg.copyWith(textScale: v)),
             ],
           CassetteScreenConfig() => [
-              _Cycle(
-                'void-settings-cassette-variant',
-                'variant',
-                cassetteVariantMeta[cfg.variant]!.label,
-                () {
-                  final next = CassetteVariant.values[
-                      (cfg.variant.index + 1) % CassetteVariant.values.length];
-                  settings.saveScreenConfig(cfg.copyWith(variant: next));
-                },
-              ),
               textSize('void-settings-cassette-text-size', cfg.textScale,
                   (v) => cfg.copyWith(textScale: v)),
               _Toggle(
@@ -390,16 +379,23 @@ class VoidSettingsSheet extends HookWidget {
 
         // LOOK
         _Group('LOOK'),
-        _Cycle('void-settings-theme', 'theme',
-            settings.themeIdNotifier.value.storageKey,
-            () => settings.saveThemeId(
-                _next(ThemeId.values, settings.themeIdNotifier.value))),
-        _Cycle('void-settings-variant', 'variant',
+        _Cycle('void-settings-color-scheme', 'color scheme',
             settings.themeVariantNotifier.value.name,
             () => settings.saveThemeVariant(_next(
                 const [ThemeVariant.dark, ThemeVariant.light, ThemeVariant.system],
                 settings.themeVariantNotifier.value))),
         _Cycle('void-settings-screen', 'screen', labelFor(cfg.type), cycleScreen),
+        if (cfg case final CassetteScreenConfig cassette)
+          _Cycle(
+            'void-settings-cassette-variant',
+            'variant',
+            cassetteVariantMeta[cassette.variant]!.label,
+            () {
+              final next = CassetteVariant.values[(cassette.variant.index + 1) %
+                  CassetteVariant.values.length];
+              settings.saveScreenConfig(cassette.copyWith(variant: next));
+            },
+          ),
         _Toggle('void-settings-immersive', 'immersive',
             settings.immersiveNotifier.value,
             () => settings.setImmersive(!settings.immersiveNotifier.value)),

@@ -397,12 +397,32 @@ class PlaybackController extends ChangeNotifier {
 
   // ---- Public transport controls --------------------------------------------
 
-  Future<void> playPause() async {
-    _userActionGen++;
+
+  /// Set the requested playback state without reading and toggling the current
+  /// state. This is the operation external controls need for idempotent play /
+  /// pause commands, especially while a track is still loading.
+  Future<void> setPlaybackIntent(bool shouldPlay) async {
     if (_playlist.length == 0 && !isOneShot) return;
-    _userIntent = _userIntent == PlayIntent.play ? PlayIntent.pause : PlayIntent.play;
-    _bloc.add(SetIntent(_userIntent == PlayIntent.play, generation: _userActionGen));
+
+    final desiredIntent = shouldPlay ? PlayIntent.play : PlayIntent.pause;
+    final state = _bloc.state;
+    if (_userIntent == desiredIntent) {
+      if (state is PbActive && state.playing == shouldPlay) return;
+      if (state is PbStopped && !shouldPlay) return;
+      if (state is PbLoading && state.intentPlay == shouldPlay) {
+        await _settle();
+        return;
+      }
+    }
+
+    _userActionGen++;
+    _userIntent = desiredIntent;
+    _bloc.add(SetIntent(shouldPlay, generation: _userActionGen));
     await _settle();
+  }
+
+  Future<void> playPause() async {
+    await setPlaybackIntent(_userIntent != PlayIntent.play);
   }
 
   Future<void> next() async {
@@ -482,7 +502,9 @@ class PlaybackController extends ChangeNotifier {
     // the playlist's current track only when idle/stopped.
     final track = _bloc.state.track ?? _currentTrack;
     if (track == null) {
-      if (force || songInfoNotifier.value != null) songInfoNotifier.value = null;
+      if (force || songInfoNotifier.value != null) {
+        songInfoNotifier.value = null;
+      }
       return;
     }
 
@@ -682,7 +704,9 @@ class PlaybackController extends ChangeNotifier {
   }
 
   static Set<String> _getSupportedExtensions(AudioTransport transport) {
-    if (transport is SoLoudTransport) return SoLoudTransport.supportedExtensions;
+    if (transport is SoLoudTransport) {
+      return SoLoudTransport.supportedExtensions;
+    }
     return const {'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus'};
   }
 

@@ -166,9 +166,8 @@ class NothingAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     await ready;
-    if (_controller.isPlayingNotifier.value) return;
     try {
-      await _controller.playPause();
+      await _controller.setPlaybackIntent(true);
     } catch (e) {
       // Some OEM paths invalidate the source while keeping the session alive;
       // force-reload the current queue item if plain play fails.
@@ -182,7 +181,7 @@ class NothingAudioHandler extends BaseAudioHandler
   @override
   Future<void> pause() async {
     await ready;
-    if (_controller.isPlayingNotifier.value) await _controller.playPause();
+    await _controller.setPlaybackIntent(false);
   }
 
   @override
