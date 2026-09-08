@@ -10,7 +10,6 @@ const _cassetteViewBox = Rect.fromLTWH(44, 119, 418, 257);
 const _cassetteAspect = 418 / 257;
 const _leftHub = Offset(167.1211, 237.9517);
 const _rightHub = Offset(337.0508, 237.9517);
-const _hubRadius = 23.266;
 const _minPackRadius = 32.0;
 const _maxPackRadius = 77.0;
 const _titleFontScale = 0.92;
@@ -278,22 +277,6 @@ class _TapePainter extends CustomPainter {
   void _drawPack(Canvas canvas, Offset center, double fill) {
     final radius = _packRadius(fill);
     canvas.drawCircle(center, radius, Paint()..color = palette.tape);
-
-    final winding = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
-      ..color = palette.ink.withValues(alpha: 0.32);
-    for (var ring = _hubRadius + 3; ring < radius - 1; ring += 3.5) {
-      canvas.drawCircle(center, ring, winding);
-    }
-    canvas.drawCircle(
-      center,
-      radius - 1,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = palette.ink.withValues(alpha: 0.42),
-    );
   }
 
   @override
