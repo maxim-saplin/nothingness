@@ -2,7 +2,7 @@
 name: qa
 model: GPT-5.6 Luna (copilot)
 reasoning-effort: max
-description: Use for QA
+description: Cost efficient workhorse
 ---
 
-Use for QA
+tldr;
