@@ -76,7 +76,9 @@ def _contains_active_wakelock(path: str, pkg: str) -> bool:
 
     for uid in _pkg_uids_from_power_dump(path, pkg):
         audiomix_pattern = re.compile(
-            r"PARTIAL_WAKE_LOCK[^\n]*?AudioMix[^\n]*?WorkChain\{\(" + re.escape(uid) + r"\),\s*\(1041\)\}",
+            r"PARTIAL_WAKE_LOCK[^\n]*?AudioMix[^\n]*?(?:"
+            r"WorkChain\{[^\n]*?\(" + re.escape(uid) + r"\)[^\n]*?\}|"
+            r"WorkSource\{[^\n]*?\b" + re.escape(uid) + r"\b[^\n]*?\})",
             re.IGNORECASE,
         )
         if audiomix_pattern.search(data):

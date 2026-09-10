@@ -227,6 +227,24 @@ _pkg_cpu_snapshot() {
   echo "$proc_total|$pids"
 }
 
+wait_for_media_state() {
+  local expected_state="$1"
+  local timeout_sec="$2"
+  local elapsed
+
+  for ((elapsed=0; elapsed<timeout_sec; elapsed++)); do
+    if adb -s "$DEVICE" shell dumpsys media_session 2>/dev/null \
+        | grep -A12 -B2 "package=$PKG" \
+        | grep "state=PlaybackState {state=$expected_state," >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Timed out waiting for media session state $expected_state" >&2
+  return 1
+}
+
 echo "[power] S0 control (force-stopped app)"
 adb -s "$DEVICE" shell am force-stop "$PKG" || true
 adb -s "$DEVICE" shell input keyevent KEYCODE_HOME || true
@@ -244,19 +262,18 @@ if echo "$START_OUT" | grep -qiE 'Error type|does not exist|Exception'; then
   echo "$START_OUT" >&2
   exit 2
 fi
-# Cold start on a loaded CI x86 emulator is slow (first-frame ~8s, boot "swap"
-# ~18s). Wait generously so boot finishes before the play/pause/home steps and
-# doesn't bleed into the idle measurement window further below.
-sleep 25
+# Wait for the restored media session rather than guessing how long the cold
+# start takes on the CI emulator.
+wait_for_media_state 2 90
 adb -s "$DEVICE" shell am start -n "$ACTIVITY" -a "$PKG.action.PLAY" >/dev/null
-sleep 4
+wait_for_media_state 3 30
 adb -s "$DEVICE" shell am start -n "$ACTIVITY" -a "$PKG.action.PAUSE" >/dev/null
-sleep 4
+wait_for_media_state 2 30
 adb -s "$DEVICE" shell input keyevent KEYCODE_HOME
 # Let the backgrounding/teardown transition (audio hibernation, final frames,
 # any remaining cold-start work) fully settle before measuring true idle; this
 # is slow on CI emulators, so wait longer than a fast device would need.
-sleep 20
+sleep 5
 
 # Measure only the post-pause idle window. Resetting here removes historical
 # batterystats entries from earlier runs and excludes the expected play/pause
