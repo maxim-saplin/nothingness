@@ -945,8 +945,9 @@ class VoidScreen extends HookWidget {
               height: _crumbHeight,
               child: buildCrumb(),
             ),
-          // Settings button — top-right, hidden in immersive.
-          if (m.showChildren) buildSettingsButton(),
+          // Settings button — top-right, kept in immersive: it is the only way
+          // back out of immersive mode.
+          buildSettingsButton(),
           // Cold-launch gesture hint — above everything.
           buildHint(),
           // Progress hairline — bottom, above gesture-nav bar (B-002).

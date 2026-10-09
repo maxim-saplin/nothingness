@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/theme/palettes/void_dark.dart';
@@ -59,5 +60,46 @@ void main() {
         expect(tester.takeException(), isNull);
       }
     }
+  });
+
+  testWidgets('identical rebuild keeps layer loaders equal, so SVGs are not re-decoded', (
+    tester,
+  ) async {
+    final context = CassetteVariantContext(
+      config: const CassetteScreenConfig(),
+      title: 'A Carefully Named Mixtape',
+      artist: 'Test Artist',
+      isPlaying: false,
+      positionMs: 35 * 1000,
+      durationMs: 100 * 1000,
+      onPlayPause: () {},
+      onPrevious: () {},
+      onNext: () {},
+      onSeek: (_) {},
+      haptics: const CassetteHaptics(enabled: false),
+    );
+    Widget app() => MaterialApp(
+      theme: ThemeData(extensions: [voidPaletteDark]),
+      home: Center(
+        child: SizedBox(
+          width: 418,
+          height: 257,
+          child: CassetteImageVariant(
+            context,
+            look: CassetteLook.copper,
+            vertical: false,
+          ),
+        ),
+      ),
+    );
+    List<BytesLoader> loaders() => tester
+        .widgetList<SvgPicture>(find.byType(SvgPicture))
+        .map((w) => w.bytesLoader)
+        .toList();
+
+    await tester.pumpWidget(app());
+    final first = loaders();
+    await tester.pumpWidget(app());
+    expect(loaders(), first);
   });
 }

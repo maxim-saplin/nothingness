@@ -215,13 +215,39 @@ class _CassettePalette {
   final Color ink;
   final Color hub;
   final Color tape;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CassettePalette &&
+      other.background == background &&
+      other.shell == shell &&
+      other.label == label &&
+      other.window == window &&
+      other.ink == ink &&
+      other.hub == hub &&
+      other.tape == tape;
+
+  @override
+  int get hashCode =>
+      Object.hash(background, shell, label, window, ink, hub, tape);
 }
 
+// Value equality matters: flutter_svg keys its decode cache on the mapper, so
+// a new instance per build would re-decode every layer on each rebuild.
 class _CassetteColorMapper extends ColorMapper {
   const _CassetteColorMapper(this.palette, this.part);
 
   final _CassettePalette palette;
   final _CassettePart part;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CassetteColorMapper &&
+      other.palette == palette &&
+      other.part == part;
+
+  @override
+  int get hashCode => Object.hash(palette, part);
 
   @override
   Color substitute(

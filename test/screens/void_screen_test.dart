@@ -129,6 +129,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(TransportRow), findsNothing);
     });
+
+    testWidgets('immersive keeps the settings button reachable', (tester) async {
+      SettingsService().immersiveNotifier.value = true;
+      await _pump(tester, const SpectrumScreenConfig());
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byKey(const ValueKey('void-settings-button')), findsOneWidget);
+    });
   });
 
   group('VoidScreen search crumb (B-013)', () {
