@@ -1,9 +1,11 @@
 package com.saplin.nothingness
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.media.AudioManager
@@ -117,6 +119,13 @@ class MainActivity : AudioServiceActivity() {
                 "seekTo" -> { mediaSession?.seekTo(call.argument<Long>("position") ?: 0L); result.success(null) }
                 "isNotificationAccessGranted" -> result.success(isNotificationAccessGranted())
                 "openNotificationSettings" -> { openNotificationAccessSettings(); result.success(null) }
+                "ensureInstallPermission" -> result.success(ensureInstallPermission())
+                "installApk" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrEmpty()) result.error("INVALID", "path required", null)
+                    else installApk(path, result)
+                }
+                "abandonInstallSessions" -> { abandonInstallSessions(); result.success(null) }
                 "refreshSessions" -> { mediaSession?.refreshSessions(); result.success(null) }
                 "hasAudioPermission" -> result.success(audioCaptureService?.hasPermission() ?: false)
                 "requestAudioPermission" -> { requestAudioPermission(); result.success(null) }
@@ -394,6 +403,68 @@ class MainActivity : AudioServiceActivity() {
     private fun requestAudioPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), PERMISSION_REQUEST_CODE)
+        }
+    }
+
+    /// True if we may install APKs. Otherwise opens the per-app "Install unknown
+    /// apps" screen and returns false; the user retries after granting it.
+    private fun ensureInstallPermission(): Boolean {
+        if (packageManager.canRequestPackageInstalls()) return true
+        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+        return false
+    }
+
+    /// Streams [path] into a PackageInstaller session and commits it. Off the
+    /// platform thread because the copy can be tens of MB.
+    private fun installApk(path: String, result: MethodChannel.Result) {
+        Thread {
+            val ok = try {
+                commitInstallSession(File(path))
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "installApk failed for $path: ${e.message}")
+                false
+            }
+            mainHandler.post { result.success(ok) }
+        }.start()
+    }
+
+    /// Drops installer sessions from earlier attempts or a killed process. Each one
+    /// keeps a staged copy of the APK, and createSession fails once too many
+    /// unfinished sessions pile up.
+    private fun abandonInstallSessions() {
+        val installer = packageManager.packageInstaller
+        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
+    }
+
+    private fun commitInstallSession(apk: File) {
+        abandonInstallSessions()
+        val installer = packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(packageName)
+            setSize(apk.length())
+        }
+        val sessionId = installer.createSession(params)
+        var committed = false
+        try {
+            installer.openSession(sessionId).use { session ->
+                session.openWrite("update", 0, apk.length()).use { out ->
+                    apk.inputStream().use { it.copyTo(out) }
+                    session.fsync(out)
+                }
+                // Component-only intent, no action: the system fills in the
+                // status extras, and FLAG_MUTABLE is required for it to do so.
+                val statusIntent = PendingIntent.getBroadcast(
+                    this,
+                    sessionId,
+                    Intent(this, InstallResultReceiver::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                )
+                session.commit(statusIntent.intentSender)
+                committed = true
+            }
+        } finally {
+            if (!committed) installer.abandonSession(sessionId)
         }
     }
 
