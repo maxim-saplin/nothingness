@@ -44,6 +44,9 @@ const Duration _jumpGlyphHideDebounce = Duration(milliseconds: 200);
 const Duration _browserOpenSettle = Duration(milliseconds: 250);
 // Keep seek preview visible briefly after drag-end so the target is readable.
 const Duration _seekPreviewHold = Duration(milliseconds: 1200);
+// Swipe-up hint text fades out this long after each foreground. Only the text
+// fades: the band stays tappable and draggable.
+const Duration _swipeHintVisibleFor = Duration(seconds: 5);
 
 /// Home shell for all four visualisations: hero, embedded [VoidBrowser],
 /// transport row, crumb (path / search), progress hairline. Hero tap-zones
@@ -129,10 +132,12 @@ class VoidScreen extends HookWidget {
     final searchAutoExpandedBrowser = useState(false);
     final showHint = useState(false);
     final hintFaded = useState(false);
+    final swipeHintFaded = useState(false);
 
     final swipeUpAccum = useRef<double>(0);
     final lastPersistedPath = useRef<String?>(null);
     final hintFadeTimer = useRef<Timer?>(null);
+    final swipeHintTimer = useRef<Timer?>(null);
     final jumpGlyphHideTimer = useRef<Timer?>(null);
     final seekPreviewClearTimer = useRef<Timer?>(null);
     final seekPreviewTargetMs = useState<int?>(null);
@@ -410,6 +415,24 @@ class VoidScreen extends HookWidget {
       });
       return () => hintFadeTimer.value?.cancel();
     }, const []);
+
+    // Restart the swipe-up hint's fade window on mount and on each foreground.
+    void restartSwipeHint() {
+      swipeHintFaded.value = false;
+      swipeHintTimer.value?.cancel();
+      swipeHintTimer.value = Timer(_swipeHintVisibleFor, () {
+        if (isMounted()) swipeHintFaded.value = true;
+      });
+    }
+
+    useEffect(() {
+      restartSwipeHint();
+      return () => swipeHintTimer.value?.cancel();
+    }, const []);
+
+    useOnAppLifecycleStateChange((previous, state) {
+      if (state == AppLifecycleState.resumed) restartSwipeHint();
+    });
 
     // Cancel the jump-glyph debounce timer on unmount.
     useEffect(
@@ -743,12 +766,16 @@ class VoidScreen extends HookWidget {
           onTap: () => setBrowserExpanded(true),
           child: Container(
             alignment: Alignment.center,
-            child: Text(
-              '↑ swipe to browse',
-              style: mono(
-                palette.fgTertiary,
-                typography.hintSize,
-                letterSpacing: 0.2,
+            child: AnimatedOpacity(
+              opacity: swipeHintFaded.value ? 0.0 : 1.0,
+              duration: const Duration(milliseconds: 800),
+              child: Text(
+                '↑ swipe to browse',
+                style: mono(
+                  palette.fgTertiary,
+                  typography.hintSize,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
           ),

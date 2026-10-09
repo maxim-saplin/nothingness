@@ -565,6 +565,65 @@ void main() {
             'wrapped in PressFeedback so the tap dips its opacity.',
       );
     });
+
+    testWidgets('swipe-up hint text fades 5 s after mount; band stays tappable',
+        (tester) async {
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.swipeUp;
+      await _pump(tester, const SpectrumScreenConfig());
+
+      final hint = find.text('↑ swipe to browse');
+      double hintOpacity() => tester
+          .widget<AnimatedOpacity>(
+            find
+                .ancestor(of: hint, matching: find.byType(AnimatedOpacity))
+                .first,
+          )
+          .opacity;
+
+      await tester.pump(const Duration(seconds: 4));
+      expect(hintOpacity(), 1.0,
+          reason: 'swipe-up hint must stay visible inside the 5 s window.');
+      await tester.pump(const Duration(seconds: 2));
+      expect(hintOpacity(), 0.0,
+          reason: 'swipe-up hint must fade out once 5 s have elapsed.');
+
+      await tester.tap(hint);
+      await tester.pumpAndSettle();
+      expect(find.byType(VoidBrowser), findsOneWidget);
+      expect(hint, findsNothing,
+          reason: 'faded hint band must still open the browser on tap.');
+    });
+
+    testWidgets('swipe-up hint window restarts on each app foreground',
+        (tester) async {
+      SettingsService().browserPresentationNotifier.value =
+          BrowserPresentation.swipeUp;
+      await _pump(tester, const SpectrumScreenConfig());
+
+      final hint = find.text('↑ swipe to browse');
+      double hintOpacity() => tester
+          .widget<AnimatedOpacity>(
+            find
+                .ancestor(of: hint, matching: find.byType(AnimatedOpacity))
+                .first,
+          )
+          .opacity;
+
+      await tester.pump(const Duration(seconds: 6));
+      expect(hintOpacity(), 0.0);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(hintOpacity(), 1.0,
+          reason: 'resuming from background must show the swipe-up hint '
+              'again.');
+
+      await tester.pump(const Duration(seconds: 5));
+      expect(hintOpacity(), 0.0,
+          reason: 'the swipe-up hint must fade 5 s after the resume.');
+    });
   });
 }
 
