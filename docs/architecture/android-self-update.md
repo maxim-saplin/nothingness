@@ -60,6 +60,7 @@ The chip returns to `available` as soon as the commit is accepted. The user then
 - `sweep()` runs at launch. It abandons installer sessions and removes the directory, which covers a process killed mid-attempt.
 - Each PackageInstaller session keeps a staged copy of the APK. Abandoning a session erases that copy. Sessions are also abandoned before each new commit.
 - `sweep()` is not called after an attempt. A committed session may still be waiting for the user's confirmation.
+- `mySessions` lists only sessions owned by the current install. A session left by an earlier install (for example, before an uninstall) is not visible to the sweep, and nothing in the app removes it.
 
 ## Install constraints
 
