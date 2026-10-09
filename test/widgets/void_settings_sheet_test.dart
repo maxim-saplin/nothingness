@@ -7,6 +7,7 @@ import 'package:nothingness/models/screen_config.dart';
 import 'package:nothingness/models/theme_id.dart';
 import 'package:nothingness/services/playback_controller.dart';
 import 'package:nothingness/services/settings_service.dart';
+import 'package:nothingness/services/update_service.dart';
 import 'package:nothingness/theme/themes.dart';
 import 'package:nothingness/widgets/void_settings_sheet.dart';
 import 'package:provider/provider.dart';
@@ -617,6 +618,36 @@ void main() {
         ),
         findsNothing,
       );
+    });
+  });
+
+  group('VoidSettingsSheet — update chip (version row)', () {
+    setUp(() => UpdateService().reset());
+    tearDown(() => UpdateService().reset());
+
+    Finder updateChip() =>
+        find.byKey(const ValueKey('void-settings-update'), skipOffstage: false);
+
+    testWidgets('is hidden when the app is up to date', (tester) async {
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+      expect(updateChip(), findsNothing);
+    });
+
+    testWidgets('offers GET for the available release', (tester) async {
+      UpdateService()
+        ..version = '3.15.0+83'
+        ..phase.value = UpdatePhase.available;
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+      expect(updateChip(), findsOneWidget);
+      expect(find.text('GET 3.15.0+83'), findsOneWidget);
+    });
+
+    testWidgets('shows download progress', (tester) async {
+      UpdateService()
+        ..phase.value = UpdatePhase.downloading
+        ..percent.value = 42;
+      await _pumpInTallViewport(tester, _wrap(const VoidSettingsSheet()));
+      expect(find.text('42%'), findsOneWidget);
     });
   });
 }

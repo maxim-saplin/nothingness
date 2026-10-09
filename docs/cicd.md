@@ -47,6 +47,7 @@ The reusable workflow contains all common build steps and optimizations:
   1. `check-release`: Extracts version from `pubspec.yaml`, checks if release tag already exists.
   2. `release`: Calls `build-android.yml` with `create-release: true` and the extracted tag/version.
 - **Result**: Creates a GitHub Release with the tag `v<version>` and uploads the APK asset.
+- **Contract**: The in-app updater ([Android Self-Update](architecture/android-self-update.md)) depends on the tag `v<semver>+<build>`, the asset name `nothingness-android-*.apk`, and `versionCode == build`. Renaming any of these, or adding `--split-per-abi`, silently breaks update detection.
 
 ### 3. Emulator power regression (`.github/workflows/emulator-power-regression.yml`)
 - **Trigger**: Manual dispatch and nightly schedule.

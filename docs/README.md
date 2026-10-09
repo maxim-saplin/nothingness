@@ -15,6 +15,7 @@ Welcome to the documentation for the Nothingness project.
   - [Library Browsing](architecture/library-browsing.md) - MediaStore-driven folder navigation architecture, including the Android folder repair flow.
   - [UI Scaling](architecture/ui-scaling.md) - Implementation details of the global UI scaling solution.
   - [Skins](architecture/skins.md) - Visual skins and layouts.
+  - [Android Self-Update](architecture/android-self-update.md) - In-app update check against GitHub Releases and PackageInstaller install flow.
 
 - **Standards & Rules**
   - [Testing Standards](../.cursor/rules/testing-standards.mdc) - Requirements and guidelines for testing.

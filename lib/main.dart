@@ -19,6 +19,7 @@ import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
 import 'services/playback_controller.dart';
 import 'services/soloud_transport.dart';
+import 'services/update_service.dart';
 import 'debug_hooks.dart';
 import 'theme/themes.dart';
 
@@ -103,6 +104,7 @@ class _BootstrapApp extends HookWidget {
         // B-031: wire Android intent-based automation (MacroDroid/Tasker/adb); drains any cold-start action that arrived before the handler attached.
         if (Platform.isAndroid) {
           unawaited(AutomationIntentService(controller).start());
+          unawaited(UpdateService().sweep());
         }
 
         if (disposed) {

@@ -19,7 +19,8 @@ class PlatformChannels {
     'com.saplin.nothingness/mediastore/events',
   );
 
-  static final bool isAndroid = Platform.isAndroid;
+  // Not final: tests flip it to exercise the Android channel paths on the host.
+  static bool isAndroid = Platform.isAndroid;
 
   static final PlatformChannels _instance = PlatformChannels._internal();
   factory PlatformChannels() => _instance;
@@ -69,6 +70,32 @@ class PlatformChannels {
     _mediaChannel,
     'openNotificationSettings',
     'Error opening notification settings',
+    null,
+  );
+
+  /// True if this app may install APKs. Otherwise opens the system "Install
+  /// unknown apps" screen for the app and returns false.
+  Future<bool> ensureInstallPermission() => _invoke(
+    _mediaChannel,
+    'ensureInstallPermission',
+    'Error checking install permission',
+    false,
+  );
+
+  /// Commits the APK at [path] to a PackageInstaller session. Returns true once
+  /// committed; the user still confirms the install in the system dialog.
+  Future<bool> installApk(String path) => _invoke(
+    _mediaChannel,
+    'installApk',
+    'Error committing APK install',
+    false,
+    arguments: <String, Object?>{'path': path},
+  );
+
+  Future<void> abandonInstallSessions() => _invoke<void>(
+    _mediaChannel,
+    'abandonInstallSessions',
+    'Error abandoning install sessions',
     null,
   );
 

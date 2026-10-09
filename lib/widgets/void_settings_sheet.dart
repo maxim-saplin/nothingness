@@ -17,6 +17,7 @@ import '../services/playback_controller.dart';
 import '../screens/help_screen.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
+import '../services/update_service.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
@@ -49,10 +50,13 @@ class VoidSettingsSheet extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final settings = SettingsService();
+    final update = UpdateService();
 
     // Mutating any watched notifier rebuilds the whole sheet, so cycle/slider
     // handlers never need an explicit setState.
     useListenable(Listenable.merge(<Listenable>[
+      update.phase,
+      update.percent,
       settings.operatingModeNotifier,
       settings.themeIdNotifier,
       settings.themeVariantNotifier,
@@ -95,6 +99,7 @@ class VoidSettingsSheet extends HookWidget {
 
     useEffect(() {
       refreshPermissions();
+      if (PlatformChannels.isAndroid) update.check();
       return null;
     }, const []);
 
@@ -174,18 +179,22 @@ class VoidSettingsSheet extends HookWidget {
           bottom: BorderSide(color: p.divider, width: g.dividerThickness)),
     );
 
-    Widget autoChip({required bool isAuto}) => PressFeedback(
-          onTap: () => settings.saveUiScale(-1.0),
+    /// Bordered mono chip; [filled] marks the active or actionable state.
+    Widget chip(String label, VoidCallback onTap,
+            {bool filled = false, Key? key}) =>
+        PressFeedback(
+          key: key,
+          onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isAuto ? p.accent : Colors.transparent,
+              color: filled ? p.accent : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: p.divider, width: 1),
             ),
-            child: Text('AUTO',
+            child: Text(label,
                 style: TextStyle(
-                  color: isAuto ? p.background : p.fgSecondary,
+                  color: filled ? p.background : p.fgSecondary,
                   fontFamily: t.monoFamily,
                   fontSize: t.hintSize,
                   letterSpacing: 1.5,
@@ -193,11 +202,26 @@ class VoidSettingsSheet extends HookWidget {
           ),
         );
 
+    /// Version-row action: `GET <version>` when a newer release exists, then
+    /// download progress. `start` ignores taps unless an update is available.
+    Widget? updateChip() {
+      final label = switch (update.phase.value) {
+        UpdatePhase.none => null,
+        UpdatePhase.available => 'GET ${update.version}',
+        UpdatePhase.downloading => '${update.percent.value}%',
+        UpdatePhase.installing => '...',
+      };
+      if (label == null) return null;
+      return chip(label, update.start,
+          filled: update.phase.value == UpdatePhase.available,
+          key: const ValueKey('void-settings-update'));
+    }
+
     /// Cycle/info/toggle row — label, value, tap-to-cycle. `enabled: false`
     /// renders a read-only info row (no press dip) but keeps the ValueKey so QA
     /// can find it.
     Widget row(Key key, String label, String value, VoidCallback onTap,
-        {bool enabled = true}) {
+        {bool enabled = true, Widget? trailing}) {
       final container = Container(
         constraints: BoxConstraints(minHeight: g.rowHeight),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -209,6 +233,10 @@ class VoidSettingsSheet extends HookWidget {
                     style: rowStyle(enabled ? p.fgPrimary : p.fgTertiary))),
             Text(value,
                 style: rowStyle(enabled ? p.fgSecondary : p.fgTertiary)),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
           ],
         ),
       );
@@ -271,8 +299,9 @@ class VoidSettingsSheet extends HookWidget {
     Widget buildSpec(Object spec) => switch (spec) {
           _Group(:final text) => groupHeader(text),
           _Cycle(:final id, :final label, :final value, :final onTap,
-                  :final enabled) =>
-            row(ValueKey(id), label, value, onTap, enabled: enabled),
+                  :final enabled, :final trailing) =>
+            row(ValueKey(id), label, value, onTap,
+                enabled: enabled, trailing: trailing),
           _Toggle(:final id, :final label, :final value, :final onTap) =>
             row(ValueKey(id), label, value ? 'on' : 'off', onTap),
           _Slider s => sliderRow(s),
@@ -418,7 +447,8 @@ class VoidSettingsSheet extends HookWidget {
                 ? effectiveAutoUiScale()
                 : settings.uiScaleNotifier.value.clamp(0.75, 3.0),
             settings.saveUiScale,
-            trailing: autoChip(isAuto: settings.uiScaleNotifier.value < 0)),
+            trailing: chip('AUTO', () => settings.saveUiScale(-1.0),
+                filled: settings.uiScaleNotifier.value < 0)),
 
         // LIBRARY — app-wide (own mode).
         if (isOwn) ...[
@@ -489,7 +519,7 @@ class VoidSettingsSheet extends HookWidget {
         _Group('ABOUT'),
         _Cycle('void-settings-help', 'help', '>', () => HelpScreen.push(context)),
         _Cycle('void-settings-version', 'version', versionLabel.value, () {},
-            enabled: false),
+            enabled: false, trailing: updateChip()),
       ];
 
       return rows.map(buildSpec).toList();
@@ -565,12 +595,13 @@ class _Group {
 
 class _Cycle {
   const _Cycle(this.id, this.label, this.value, this.onTap,
-      {this.enabled = true});
+      {this.enabled = true, this.trailing});
   final String id;
   final String label;
   final String value;
   final VoidCallback onTap;
   final bool enabled;
+  final Widget? trailing;
 }
 
 class _Toggle {
