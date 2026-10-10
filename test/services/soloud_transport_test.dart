@@ -12,4 +12,12 @@ void main() {
       expect(SoLoudTransport.shouldPreloadPath('/music/example.flac'), isTrue);
     });
   });
+
+  group('SoLoudTransport paused position', () {
+    test('reports the seeked position while no handle is live', () async {
+      final transport = SoLoudTransport();
+      await transport.seekWithinCurrentTrack(const Duration(seconds: 42));
+      expect(await transport.position, const Duration(seconds: 42));
+    });
+  });
 }

@@ -68,6 +68,8 @@ class SoLoudTransport implements AudioTransport {
   bool _suppressEndedEvent = false;
   bool _isPreparing = false;
   Duration _pausedPosition = Duration.zero;
+  // Cached at load: hibernation disposes the source while paused, so its length is unreadable then.
+  Duration _currentDuration = Duration.zero;
 
   // B-037: at most one preloaded look-ahead source for a gapless in-memory swap.
   AudioSource? _preloadedSource;
@@ -98,7 +100,7 @@ class SoLoudTransport implements AudioTransport {
   @override
   Future<Duration> get position async {
     final handle = _currentHandle;
-    if (handle == null) return Duration.zero;
+    if (handle == null) return _pausedPosition;
     try {
       return _soloud.getPosition(handle);
     } catch (e) {
@@ -107,15 +109,7 @@ class SoLoudTransport implements AudioTransport {
   }
 
   @override
-  Future<Duration> get duration async {
-    final source = _currentSource;
-    if (source == null) return Duration.zero;
-    try {
-      return _soloud.getLength(source);
-    } catch (e) {
-      return Duration.zero;
-    }
-  }
+  Future<Duration> get duration async => _currentDuration;
 
   @override
   Future<void> init() async {
@@ -398,6 +392,7 @@ class SoLoudTransport implements AudioTransport {
         await _safeDispose(_currentSource);
 
         _currentSource = newSource;
+        _currentDuration = _soloud.getLength(newSource!);
         _currentPath = path;
 
         if (_currentSource != null) _attachSoundEvents(_currentSource!);
@@ -459,8 +454,9 @@ class SoLoudTransport implements AudioTransport {
         _suppressEndedEvent = true;
         try {
           if (isAndroid) {
-            await _safeStop(handle);
+            // Clear the handle before the awaited stop so position reads fall back to _pausedPosition.
             _currentHandle = null;
+            await _safeStop(handle);
             await _hibernatePausedPlayback();
           } else {
             try {
