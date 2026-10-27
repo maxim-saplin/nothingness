@@ -262,13 +262,11 @@ class VoidBrowser extends HookWidget {
         // Capture the user-action generation BEFORE the (possibly slow, cold-
         // scan) load so a pause the user makes while waiting can't be clobbered.
         final actionGen = player.userActionGen;
-        // Android loads via tracksForCurrentPath after loadFolder; else scanFolder.
         final List<AudioTrack> tracks;
         if (WebDavTrackPath.isRemote(path)) {
           tracks = await ctrl.webDavTracksInTree(path);
         } else if (ctrl.isAndroid) {
-          await ctrl.loadFolder(path);
-          tracks = await ctrl.tracksForCurrentPath();
+          tracks = await ctrl.androidTracksInTree(path);
         } else {
           tracks = await player.scanFolder(path);
         }
@@ -387,7 +385,9 @@ class VoidBrowser extends HookWidget {
           label: label,
           subLabel: subLabel,
           glyph: '>',
-          onTap: () => controller.loadFolder(path));
+          onTap: () => controller.loadFolder(path),
+          onLongPress: () => playFolderRecursiveShuffled(path),
+          previewGlyph: '≈');
     }
 
     Iterable<Widget> rootRows(
@@ -410,7 +410,9 @@ class VoidBrowser extends HookWidget {
               key: ValueKey('void-root:$root'),
               label: p.basename(root),
               glyph: '>',
-              onTap: () => controller.loadFolder(root));
+              onTap: () => controller.loadFolder(root),
+              onLongPress: () => playFolderRecursiveShuffled(root),
+              previewGlyph: '≈');
         }
       }
       if (controller.isAndroid && !controller.hasPermission) {
@@ -426,7 +428,9 @@ class VoidBrowser extends HookWidget {
             key: ValueKey('void-webdav-root:${source.id}'),
             label: source.name,
             glyph: '>',
-            onTap: () => controller.loadFolder(path));
+            onTap: () => controller.loadFolder(path),
+            onLongPress: () => playFolderRecursiveShuffled(path),
+            previewGlyph: '≈');
       }
     }
 

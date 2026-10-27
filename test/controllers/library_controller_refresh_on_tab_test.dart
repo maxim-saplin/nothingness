@@ -140,6 +140,33 @@ void main() {
     });
   });
 
+  test('Android recursive queue includes direct and nested tracks only', () async {
+    final controller = TestLibraryController(
+      libraryBrowser: FakeLibraryBrowser(),
+      libraryService: _libraryServiceForTest(),
+      mediaStoreFreshness: FakeMediaStoreFreshness(dirty: false),
+      isAndroidOverride: true,
+      androidFolderRescan: (_) async => true,
+      androidSongLoader: () async => const [
+        LibrarySong(path: '/music/direct.mp3', title: 'Direct'),
+        LibrarySong(path: '/music/sub/nested.mp3', title: 'Nested'),
+        LibrarySong(path: '/music-other/wrong.mp3', title: 'Wrong'),
+        LibrarySong(path: '/music/sub/note.txt', title: 'Not audio'),
+      ],
+    );
+    controller.hasPermission = true;
+    addTearDown(controller.dispose);
+
+    await controller.loadFolder('/music');
+    expect(controller.tracks, hasLength(1));
+    final result = await controller.androidTracksInTree('/music');
+    expect(result.map((track) => track.path).toSet(), {
+      '/music/direct.mp3',
+      '/music/sub/nested.mp3',
+    });
+    expect(controller.currentPath, '/music');
+  });
+
   group('LibraryController.repairCurrentFolderListing', () {
     test('does nothing when not running on Android', () async {
       var rescanCalls = 0;

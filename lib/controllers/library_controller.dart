@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../models/audio_track.dart';
@@ -315,17 +316,28 @@ class LibraryController extends ChangeNotifier {
       return [...tracks]..sort((a, b) => a.title.compareTo(b.title));
     }
 
+    return _tracksFromAndroidSongs(path);
+  }
+
+  Future<List<AudioTrack>> androidTracksInTree(String path) async {
+    await _ensureAndroidSongsFresh();
+    return _tracksFromAndroidSongs(path);
+  }
+
+  List<AudioTrack> _tracksFromAndroidSongs(String path) {
     final useFilenameOverride = createMetadataExtractor().useFilenameOverride;
     final filtered = <AudioTrack>[
-      // Build from the cached scan tags — NO per-song MediaStore query (was
-      // O(N×M)); single parse path shared with buildVirtualListing.
-      for (final song in _androidSongs.where((s) => s.path.startsWith(path)))
-        buildTrackFromTags(
-          path: song.path,
-          rawTitle: song.title,
-          rawArtist: song.artist,
-          useFilenameOverride: useFilenameOverride,
-        ),
+      for (final song in _androidSongs)
+        if (p.isWithin(path, song.path) &&
+            libraryBrowser.supportedExtensions.contains(
+              p.extension(song.path).replaceFirst('.', '').toLowerCase(),
+            ))
+          buildTrackFromTags(
+            path: song.path,
+            rawTitle: song.title,
+            rawArtist: song.artist,
+            useFilenameOverride: useFilenameOverride,
+          ),
     ];
     return filtered..sort((a, b) => a.title.compareTo(b.title));
   }
