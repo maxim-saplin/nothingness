@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:external_path/external_path.dart';
@@ -13,8 +14,11 @@ import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/media_store_freshness.dart';
 import '../models/supported_extensions.dart';
+import '../models/webdav_source.dart';
 import '../services/metadata_extractor.dart';
 import '../services/platform_channels.dart';
+import '../services/webdav_library_service.dart';
+import '../services/webdav_track_path.dart';
 
 final _log = Logger('nothingness.library');
 
@@ -50,7 +54,9 @@ class LibraryController extends ChangeNotifier {
     Future<bool> Function(String path)? androidFolderRescan,
     Future<void> Function(Duration duration)? waitForFolderRescan,
     List<Duration>? folderRescanReloadDelays,
-  })  : _audioQuery = audioQuery ?? OnAudioQuery(),
+    WebDavLibraryService? webDavService,
+  })  : _webDavService = webDavService ?? WebDavLibraryService.instance,
+        _audioQuery = audioQuery ?? OnAudioQuery(),
         _mediaStoreFreshness = mediaStoreFreshness ??
             (Platform.isAndroid
                 ? AndroidMediaStoreFreshness()
@@ -67,8 +73,11 @@ class LibraryController extends ChangeNotifier {
               Duration(milliseconds: 250),
               Duration(milliseconds: 500),
               Duration(milliseconds: 900),
-            ];
+            ] {
+    _webDavService.snapshotRevisionNotifier.addListener(_onWebDavSnapshotChanged);
+  }
 
+  final WebDavLibraryService _webDavService;
   final LibraryBrowser libraryBrowser;
   final LibraryService libraryService;
   final OnAudioQuery _audioQuery;
@@ -116,6 +125,14 @@ class LibraryController extends ChangeNotifier {
   /// before [_ensureAndroidSongsLoaded]). Used by Void search (B-009) to cover
   /// the whole library, not just the loaded folder.
   List<LibrarySong> get androidSongs => List.unmodifiable(_androidSongs);
+
+  List<WebDavSource> get webDavSources => _webDavService.sources;
+  ValueListenable<List<WebDavSource>> get webDavSourcesNotifier =>
+      _webDavService.sourcesNotifier;
+  ValueListenable<int> get webDavSnapshotRevisionNotifier =>
+      _webDavService.snapshotRevisionNotifier;
+  String webDavSourceRootPath(WebDavSource source) =>
+      _webDavService.sourceRootPath(source);
 
   Future<void> init() async {
     if (!isAndroid) return;
@@ -222,7 +239,12 @@ class LibraryController extends ChangeNotifier {
     _safeNotifyListeners();
     try {
       final LibraryListing listing;
-      if (isAndroid) {
+      if (WebDavTrackPath.isRemote(path)) {
+        if (_webDavService.sourceForTrackPath(path) == null) {
+          throw StateError('WebDAV source is not configured.');
+        }
+        listing = await _webDavService.listFolder(path);
+      } else if (isAndroid) {
         await _ensureAndroidSongsFresh();
         // No filesystem fallback on Android — surface only MediaStore content
         // so it stays a music player; an empty path renders empty rather than
@@ -237,6 +259,14 @@ class LibraryController extends ChangeNotifier {
       currentPath = listing.path;
       folders = listing.folders;
       tracks = listing.tracks;
+      if (WebDavTrackPath.isRemote(path)) {
+        final source = _webDavService.sourceForTrackPath(path);
+        if (source != null) {
+          unawaited(
+            _webDavService.refreshIfStale(source.id).catchError((_) {}),
+          );
+        }
+      }
     } catch (e) {
       error = '$e';
     } finally {
@@ -248,6 +278,16 @@ class LibraryController extends ChangeNotifier {
   Future<void> navigateUp() async {
     final path = currentPath;
     if (path == null) return;
+
+    if (WebDavTrackPath.isRemote(path)) {
+      final source = _webDavService.sourceForTrackPath(path);
+      if (source == null || path == _webDavService.sourceRootPath(source)) {
+        _clearListingAndNotify();
+      } else {
+        await loadFolder(WebDavTrackPath.parent(path));
+      }
+      return;
+    }
 
     // At a smart-root entry or a persisted root, go back to the roots list.
     final atSmartRoot = isAndroid &&
@@ -263,6 +303,7 @@ class LibraryController extends ChangeNotifier {
   Future<List<AudioTrack>> tracksForCurrentPath() async {
     final path = currentPath;
     if (path == null) return [];
+    if (WebDavTrackPath.isRemote(path)) return tracks;
 
     // macOS relies on the file system; reuse the current listing.
     if (!isAndroid) return tracks;
@@ -290,6 +331,47 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> refreshLibrary() => runRefreshLibraryFlow();
+
+  Future<List<AudioTrack>> webDavTracksInTree(String path) =>
+      _webDavService.tracksInTree(path);
+
+  Future<List<AudioTrack>> searchWebDavTracks(String query) async {
+    if (_webDavService.sources.isEmpty) return const [];
+    return _webDavService.searchTracks(query);
+  }
+
+  String displayPath(String? path) {
+    if (path == null || path.isEmpty) return '~';
+    if (!WebDavTrackPath.isRemote(path)) return path;
+    final source = _webDavService.sourceForTrackPath(path);
+    return source == null
+        ? WebDavTrackPath.relativePath(path)
+        : WebDavTrackPath.displayPath(path, source.name);
+  }
+
+  String parentPath(String path) => WebDavTrackPath.isRemote(path)
+      ? WebDavTrackPath.parent(path)
+      : Directory(path).parent.path;
+
+  void _onWebDavSnapshotChanged() {
+    final path = currentPath;
+    if (path == null || !WebDavTrackPath.isRemote(path) || _disposed) return;
+    if (_webDavService.sourceForTrackPath(path) == null) {
+      _clearListingAndNotify();
+      return;
+    }
+    unawaited(_reloadWebDavListing(path));
+  }
+
+  Future<void> _reloadWebDavListing(String path) async {
+    try {
+      final listing = await _webDavService.listFolder(path);
+      if (_disposed || currentPath != path) return;
+      folders = listing.folders;
+      tracks = listing.tracks;
+      _safeNotifyListeners();
+    } catch (_) {}
+  }
 
   Future<void> repairCurrentFolderListing() async {
     final path = currentPath;
@@ -505,6 +587,9 @@ class LibraryController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _webDavService.snapshotRevisionNotifier.removeListener(
+      _onWebDavSnapshotChanged,
+    );
     super.dispose();
   }
 }

@@ -7,6 +7,7 @@ import '../models/audio_track.dart';
 import 'android_audio_source.dart';
 import 'audio_transport.dart';
 import 'soloud_transport.dart';
+import 'webdav_library_service.dart';
 import 'playback_controller.dart';
 import 'playlist_store.dart';
 
@@ -21,6 +22,7 @@ class NothingAudioHandler extends BaseAudioHandler
     final transport = SoLoudTransport(
       openFd: openAndroidAudioFd,
       closeFd: closeAndroidAudioFd,
+      fileResolver: WebDavLibraryService.instance,
       // Fallback for sources where an fd can't be opened (non-seekable / exotic
       // providers): read bytes and loadMem. fd-first keeps the whole-file bytes
       // off the UI isolate for the common (local media) case.

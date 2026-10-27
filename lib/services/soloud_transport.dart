@@ -9,6 +9,7 @@ import '../models/spectrum_settings.dart';
 import '../models/supported_extensions.dart';
 import 'audio_transport.dart';
 import 'soloud_spectrum_provider.dart';
+import 'track_file_resolver.dart';
 
 /// Thin SoLoud-backed AudioTransport — no queue management, no skip logic.
 class SoLoudTransport implements AudioTransport {
@@ -16,7 +17,12 @@ class SoLoudTransport implements AudioTransport {
   /// via a MediaStore content URI (scoped storage blocks raw-path access). When
   /// null, or when it returns null, [_openSource] falls back to a direct file
   /// load (desktop, or app-private paths).
-  SoLoudTransport({this.readBytes, this.openFd, this.closeFd});
+  SoLoudTransport({
+    this.readBytes,
+    this.openFd,
+    this.closeFd,
+    this.fileResolver,
+  });
 
   int _lastValidatedGeneration = 0;
   bool _isValidGeneration(int? gen) =>
@@ -33,6 +39,9 @@ class SoLoudTransport implements AudioTransport {
   /// marshal. Returns null to fall back to [readBytes]. [closeFd] releases it.
   final Future<String?> Function(String path)? openFd;
   final Future<void> Function(String fdPath)? closeFd;
+
+  /// Resolves stable remote track IDs to complete local cache files.
+  final TrackFileResolver? fileResolver;
 
   static const Set<String> supportedExtensions =
       SupportedExtensions.supportedExtensions;
@@ -74,6 +83,9 @@ class SoLoudTransport implements AudioTransport {
   // B-037: at most one preloaded look-ahead source for a gapless in-memory swap.
   AudioSource? _preloadedSource;
   String? _preloadedPath;
+  String? _preloadedCachePinPath;
+  String? _currentCachePinPath;
+  int _preloadRequestToken = 0;
 
   // B-011: cache session + active flag to skip redundant setActive(true)
   // (Android audio-focus IPC, ~100 ms on emulator) when already active.
@@ -261,6 +273,9 @@ class SoLoudTransport implements AudioTransport {
       await _safeStop(_currentHandle);
       await _safeDispose(_currentSource);
       await _disposePreloaded();
+      final currentPin = _currentCachePinPath;
+      _currentCachePinPath = null;
+      if (currentPin != null) fileResolver?.unpin(currentPin);
       if (_soloud.isInitialized) {
         _soloud.deinit();
       }
@@ -354,67 +369,113 @@ class SoLoudTransport implements AudioTransport {
     String? title,
     String? artist,
     int? generation,
-  }) {
-    return _runPlaybackOperation(() async {
+  }) async {
+    if (_disposed || !_isValidGeneration(generation)) return;
+    final remote = fileResolver?.supports(path) ?? false;
+    if (remote) fileResolver!.pin(path);
+    var pendingPinHandled = false;
+    var resolvingRemotePath = remote;
+    _preloadRequestToken++;
+
+    try {
+      final localPath = remote
+          ? await fileResolver!.resolveLocalPath(path)
+          : path;
+      resolvingRemotePath = false;
       if (_disposed || !_isValidGeneration(generation)) return;
-      await _ensurePlayerReady();
-      if (!_isValidGeneration(generation)) return;
 
-      while (_activeLoadCompleterFuture != null) {
-        await _activeLoadCompleterFuture;
+      await _runPlaybackOperation(() async {
+        if (_disposed || !_isValidGeneration(generation)) return;
+        await _ensurePlayerReady();
         if (!_isValidGeneration(generation)) return;
+
+        while (_activeLoadCompleterFuture != null) {
+          await _activeLoadCompleterFuture;
+          if (!_isValidGeneration(generation)) return;
+        }
+
+        final completer = Completer<void>();
+        _activeLoadCompleterFuture = completer.future;
+        AudioSource? newSource;
+        final usesPreloadedSource =
+            _preloadedSource != null && _preloadedPath == path;
+        try {
+          if (usesPreloadedSource) {
+            newSource = _preloadedSource;
+            _preloadedSource = null;
+            _preloadedPath = null;
+          } else {
+            if (_preloadedCachePinPath != path) await _disposePreloaded();
+            newSource = await _openSource(path, resolvedPath: localPath);
+          }
+
+          if (!_isValidGeneration(generation)) {
+            await _safeDispose(newSource);
+            return;
+          }
+
+          _suppressEndedEvent = true;
+          _endedEmittedForPath = null;
+          _pausedPosition = Duration.zero;
+
+          await _safeStop(_currentHandle);
+          _currentHandle = null;
+          await _safeDispose(_currentSource);
+
+          _currentSource = newSource;
+          _currentDuration = _soloud.getLength(newSource!);
+          _currentPath = path;
+
+          final oldCurrentPin = _currentCachePinPath;
+          if (remote) {
+            if (oldCurrentPin == path) {
+              fileResolver!.unpin(path);
+            } else {
+              _currentCachePinPath = path;
+              if (oldCurrentPin != null) fileResolver?.unpin(oldCurrentPin);
+            }
+            pendingPinHandled = true;
+            if (_preloadedCachePinPath == path) {
+              fileResolver!.unpin(path);
+              _preloadedCachePinPath = null;
+            }
+          } else {
+            _currentCachePinPath = null;
+            if (oldCurrentPin != null) fileResolver?.unpin(oldCurrentPin);
+          }
+
+          if (_currentSource != null) _attachSoundEvents(_currentSource!);
+          _suppressEndedEvent = false;
+          _eventController.add(TransportLoadedEvent(path: path));
+        } catch (e) {
+          debugPrint('[SoLoudTransport] Error loading target $path: $e');
+          _eventController.add(TransportErrorEvent(path: path, error: e));
+          rethrow;
+        } finally {
+          completer.complete();
+          if (_activeLoadCompleterFuture == completer.future) {
+            _activeLoadCompleterFuture = null;
+          }
+        }
+      });
+    } catch (e) {
+      if (_disposed || !_isValidGeneration(generation)) return;
+      if (resolvingRemotePath) {
+        final error = TrackResolutionException(e);
+        _eventController.add(TransportErrorEvent(path: path, error: error));
+        throw error;
       }
-
-      final completer = Completer<void>();
-      _activeLoadCompleterFuture = completer.future;
-
-      AudioSource? newSource;
-      try {
-        if (_preloadedSource != null && _preloadedPath == path) {
-          newSource = _preloadedSource;
-          _preloadedSource = null;
-          _preloadedPath = null;
-        } else {
-          newSource = await _openSource(path);
-        }
-
-        if (!_isValidGeneration(generation)) {
-          await _safeDispose(newSource);
-          return;
-        }
-
-        _suppressEndedEvent = true;
-        _endedEmittedForPath = null;
-        _pausedPosition = Duration.zero;
-
-        await _safeStop(_currentHandle);
-        _currentHandle = null;
-        await _safeDispose(_currentSource);
-
-        _currentSource = newSource;
-        _currentDuration = _soloud.getLength(newSource!);
-        _currentPath = path;
-
-        if (_currentSource != null) _attachSoundEvents(_currentSource!);
-        _suppressEndedEvent = false;
-        _eventController.add(TransportLoadedEvent(path: path));
-      } catch (e) {
-        debugPrint('[SoLoudTransport] Error loading target $path: $e');
-        _eventController.add(TransportErrorEvent(path: path, error: e));
-        rethrow;
-      } finally {
-        completer.complete();
-        if (_activeLoadCompleterFuture == completer.future) {
-          _activeLoadCompleterFuture = null;
-        }
-      }
-    });
+      rethrow;
+    } finally {
+      if (remote && !pendingPinHandled) fileResolver!.unpin(path);
+    }
   }
 
   @override
   Future<void> setAudibleState(bool audible, {int? generation}) {
     return _runPlaybackOperation(() async {
       if (_disposed || !_isValidGeneration(generation)) return;
+      if (!audible) _preloadRequestToken++;
 
       if (audible) {
         await _ensurePlayerReady();
@@ -495,74 +556,99 @@ class SoLoudTransport implements AudioTransport {
   }
 
   @override
-  Future<void> preload(String path) {
-    return _runPlaybackOperation(() async {
-      if (_disposed) return;
-      await _ensurePlayerReady();
-      if (!shouldPreloadPath(path)) {
+  Future<void> preload(String path) async {
+    if (_disposed) return;
+    final token = ++_preloadRequestToken;
+    final remote = fileResolver?.supports(path) ?? false;
+    if (remote) fileResolver!.pin(path);
+    var pendingPinHandled = false;
+
+    try {
+      final localPath = remote
+          ? await fileResolver!.resolveLocalPath(path, preloading: true)
+          : path;
+      await _runPlaybackOperation(() async {
+        if (_disposed || token != _preloadRequestToken) return;
+        if (path == _currentPath) return;
+        if (path == _preloadedPath && _preloadedSource != null) return;
+
         await _disposePreloaded();
-        debugPrint('[SoLoudTransport] skip preload for $path');
-        return;
-      }
-      if (path == _currentPath) return;
-      if (path == _preloadedPath && _preloadedSource != null) return;
-
-      // Dispose any stale cache before decoding the new look-ahead target.
-      await _disposePreloaded();
-
-      try {
-        final source = await _openSource(path);
-        if (path == _currentPath || _preloadedSource != null) {
-          await _soloud.disposeSource(source);
+        if (!remote && !shouldPreloadPath(path)) {
+          debugPrint('[SoLoudTransport] skip preload for $path');
           return;
         }
-        _preloadedSource = source;
-        _preloadedPath = path;
-      } catch (e) {
-        // Best-effort: a failed preload is silent; the real load() surfaces it.
-        debugPrint('[SoLoudTransport] preload failed for $path: $e');
-        _preloadedSource = null;
-        _preloadedPath = null;
-      }
-    });
+        if (remote && !shouldPreloadPath(path)) {
+          _preloadedCachePinPath = path;
+          pendingPinHandled = true;
+          return;
+        }
+
+        await _ensurePlayerReady();
+        try {
+          final source = await _openSource(path, resolvedPath: localPath);
+          if (token != _preloadRequestToken ||
+              path == _currentPath ||
+              _preloadedSource != null) {
+            await _soloud.disposeSource(source);
+            return;
+          }
+          _preloadedSource = source;
+          _preloadedPath = path;
+          if (remote) {
+            _preloadedCachePinPath = path;
+            pendingPinHandled = true;
+          }
+        } catch (e) {
+          // Best-effort: a failed preload is silent; the real load() surfaces it.
+          debugPrint('[SoLoudTransport] preload failed for $path: $e');
+          _preloadedSource = null;
+          _preloadedPath = null;
+        }
+      });
+    } catch (e) {
+      // Best-effort: a failed cloud prefetch is retried when the track is selected.
+      debugPrint('[SoLoudTransport] preload failed for $path: $e');
+    } finally {
+      if (remote && !pendingPinHandled) fileResolver!.unpin(path);
+    }
   }
 
   /// Decode [path] into a SoLoud [AudioSource] without playing it.
   ///
-  /// When a [readBytes] resolver is supplied (Android) and yields bytes, the
-  /// source is decoded from memory (off the UI isolate via SoLoud's `compute`)
-  /// — this is how scoped-storage tracks reach the decoder, since their raw
-  /// path isn't openable. Otherwise it loads directly from the filesystem.
-  Future<AudioSource> _openSource(String path) async {
-    // Opus now decodes natively inside loadFile/loadMem (forked flutter_soloud,
-    // on the compute isolate) exactly like mp3 — no more UI-isolate buffer-stream
-    // feed. So every format takes the same path here.
-    final isOpus = p.extension(path).toLowerCase() == '.opus';
+  /// When [readBytes] yields bytes on Android, the source is decoded from
+  /// memory off the UI isolate; otherwise it loads directly from the filesystem.
+  Future<AudioSource> _openSource(
+    String path, {
+    String? resolvedPath,
+  }) async {
+    final sourcePath = resolvedPath ??
+        (fileResolver?.supports(path) == true
+            ? await fileResolver!.resolveLocalPath(path)
+            : path);
+    // Opus now decodes natively inside loadFile/loadMem, like mp3.
+    final isOpus = p.extension(sourcePath).toLowerCase() == '.opus';
     final sw = isOpus ? (Stopwatch()..start()) : null;
     void perf(String mode) {
       if (sw != null) {
         debugPrint(
           '[OPUS-PERF] mode=$mode total_ms=${sw.elapsedMilliseconds} '
-          'file=${p.basename(path)}',
+          'file=${p.basename(sourcePath)}',
         );
       }
     }
 
     _isPreparing = true;
     try {
-      // Fast path first: load straight from the filesystem — no whole-file read or
-      // platform-channel marshal. Works wherever the raw path is openable (desktop
-      // and most Android devices), which is the common case.
+      // Prefer direct file loading; it avoids whole-file reads and channel copies.
       try {
-        final source = await _soloud.loadFile(path);
+        final source = await _soloud.loadFile(sourcePath);
         perf('loadFile');
         return source;
       } catch (e) {
-        // Raw-path access is blocked on Android scoped storage (API 30+).
-        // B-049: prefer the fd path (no UI-isolate byte marshal) — loadFile
-        // reads+decodes /proc/self/fd/N in the compute isolate.
+        // Android scoped storage may block the path. Prefer an fd so SoLoud's
+        // compute isolate reads it without marshaling the whole file on the UI.
         if (openFd != null) {
-          final fdPath = await openFd!(path);
+          final fdPath = await openFd!(sourcePath);
           if (fdPath != null) {
             try {
               final source = await _soloud.loadFile(fdPath);
@@ -573,11 +659,11 @@ class SoLoudTransport implements AudioTransport {
             }
           }
         }
-        // Fall back to a MediaStore content-URI byte read when wired; else surface.
+        // Fall back to MediaStore byte reads when an fd is unavailable.
         if (readBytes == null) rethrow;
-        final bytes = await readBytes!(path);
+        final bytes = await readBytes!(sourcePath);
         if (bytes == null) rethrow;
-        final source = await _soloud.loadMem(path, bytes);
+        final source = await _soloud.loadMem(sourcePath, bytes);
         perf('loadMem');
         return source;
       }
@@ -591,6 +677,9 @@ class SoLoudTransport implements AudioTransport {
     _preloadedSource = null;
     _preloadedPath = null;
     await _safeDispose(source, label: 'preloaded source');
+    final cachePin = _preloadedCachePinPath;
+    _preloadedCachePinPath = null;
+    if (cachePin != null) fileResolver?.unpin(cachePin);
   }
 
   Future<void> _reloadCurrentSourceIfNeeded() async {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:nothingness/models/spectrum_settings.dart';
 import 'package:nothingness/services/audio_transport.dart';
+import 'package:nothingness/services/track_file_resolver.dart';
 
 /// Mock implementation of AudioTransport for testing PlaybackController.
 /// 
@@ -26,6 +27,7 @@ class MockAudioTransport implements AudioTransport {
   // Paths whose load throws a *transient*-classified error (string matches
   // isTransientLoadError) — i.e. should be retried, not flagged not-found.
   final Set<String> pathsToFailTransiently = {};
+  final Set<String> pathsToFailResolution = {};
   bool autoEmitLoadedEvent = true;
   Duration loadDelay = Duration.zero;
   bool failPlayWhenUnloaded = false;
@@ -86,6 +88,9 @@ class MockAudioTransport implements AudioTransport {
       await Future.delayed(loadDelay);
     }
     
+    if (pathsToFailResolution.contains(path)) {
+      throw TrackResolutionException(StateError('offline'));
+    }
     if (pathsToFailOnLoad.contains(path)) {
       throw StateError('File not found: $path');
     }

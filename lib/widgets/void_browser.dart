@@ -14,6 +14,7 @@ import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/settings_service.dart';
+import '../services/webdav_track_path.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
@@ -104,17 +105,27 @@ class VoidBrowser extends HookWidget {
       // B-009: search spans the whole library — Android MediaStore cache on
       // Android, currently-loaded tracks elsewhere.
       final lower = term.toLowerCase();
-      final haystack = ctrl.isAndroid
+      final localTracks = ctrl.isAndroid
           // Display the on-disk filename (sans extension), matching browser/hero.
           ? ctrl.androidSongs
               .map((s) => AudioTrack(
                   path: s.path, title: p.basenameWithoutExtension(s.path)))
               .toList(growable: false)
           : await ctrl.tracksForCurrentPath();
-      final matches = haystack
+      final allTracks = <String, AudioTrack>{
+        for (final track in localTracks) track.path: track,
+        for (final track in await ctrl.searchWebDavTracks(term))
+          track.path: track,
+      }.values;
+      final matches = allTracks
           .where((t) =>
               t.title.toLowerCase().contains(lower) ||
-              p.basename(t.path).toLowerCase().contains(lower))
+              t.artist.toLowerCase().contains(lower) ||
+              (WebDavTrackPath.isRemote(t.path)
+                      ? WebDavTrackPath.basename(t.path)
+                      : p.basename(t.path))
+                  .toLowerCase()
+                  .contains(lower))
           .toList(growable: false);
       if (!isMounted()) return;
       searchResults.value = matches;
@@ -136,6 +147,12 @@ class VoidBrowser extends HookWidget {
       searchController?.addListener(onSearchChanged);
       return () => searchController?.removeListener(onSearchChanged);
     }, [searchController]);
+
+    useListenable(ctrl.webDavSnapshotRevisionNotifier);
+    useEffect(() {
+      if (searchTerm.value.isNotEmpty) runSearch(searchTerm.value);
+      return null;
+    }, [ctrl, ctrl.webDavSnapshotRevisionNotifier.value]);
 
     /// B-015 / B-031: centre the row for [path] in view; skips when the track
     /// isn't in the current folder. A SliverList won't lazy-build a far-offscreen
@@ -247,7 +264,9 @@ class VoidBrowser extends HookWidget {
         final actionGen = player.userActionGen;
         // Android loads via tracksForCurrentPath after loadFolder; else scanFolder.
         final List<AudioTrack> tracks;
-        if (ctrl.isAndroid) {
+        if (WebDavTrackPath.isRemote(path)) {
+          tracks = await ctrl.webDavTracksInTree(path);
+        } else if (ctrl.isAndroid) {
           await ctrl.loadFolder(path);
           tracks = await ctrl.tracksForCurrentPath();
         } else {
@@ -394,6 +413,21 @@ class VoidBrowser extends HookWidget {
               onTap: () => controller.loadFolder(root));
         }
       }
+      if (controller.isAndroid && !controller.hasPermission) {
+        yield row(t,
+            key: const ValueKey('void-local-permission'),
+            label: 'local audio permission required',
+            glyph: '!',
+            onTap: controller.requestPermission);
+      }
+      for (final source in controller.webDavSources) {
+        final path = controller.webDavSourceRootPath(source);
+        yield row(t,
+            key: ValueKey('void-webdav-root:${source.id}'),
+            label: source.name,
+            glyph: '>',
+            onTap: () => controller.loadFolder(path));
+      }
     }
 
     /// Search title: plain mid-ellipsis when unmatched, else a rich span with the
@@ -416,7 +450,9 @@ class VoidBrowser extends HookWidget {
     }
 
     Widget searchResultRow(AudioTrack track, _BrowserTheme t) {
-      final parent = p.basename(p.dirname(track.path));
+      final parent = WebDavTrackPath.isRemote(track.path)
+          ? WebDavTrackPath.basename(WebDavTrackPath.parent(track.path))
+          : p.basename(p.dirname(track.path));
       // B-014: tapping installs the result list as a sub-queue starting at the
       // tapped track (located by path); see [playSearchResult]. Shares the row
       // scaffold with [row] via [titleWidget] — only the title span (search
@@ -522,13 +558,19 @@ class VoidBrowser extends HookWidget {
 
     final listBody = Consumer<LibraryController>(
       builder: (context, controller, _) {
-        if (controller.isAndroid && !controller.hasPermission) {
+        final hasCloudRoots = controller.webDavSources.isNotEmpty;
+        if (controller.isAndroid &&
+            !controller.hasPermission &&
+            !hasCloudRoots &&
+            !WebDavTrackPath.isRemote(controller.currentPath ?? '')) {
           return permissionGate(controller, theme);
         }
-        // Rebuild when the smart-folders toggle flips so labels swap in a frame.
-        return ValueListenableBuilder<bool>(
-          valueListenable: SettingsService().smartFoldersPresentationNotifier,
-          builder: (_, _, _) => list(controller, theme),
+        return ValueListenableBuilder(
+          valueListenable: controller.webDavSourcesNotifier,
+          builder: (_, _, _) => ValueListenableBuilder<bool>(
+            valueListenable: SettingsService().smartFoldersPresentationNotifier,
+            builder: (_, _, _) => list(controller, theme),
+          ),
         );
       },
     );

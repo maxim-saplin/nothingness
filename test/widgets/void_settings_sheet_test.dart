@@ -120,7 +120,7 @@ void main() {
       expect(find.text('DISPLAY', skipOffstage: false), findsOneWidget);
     });
 
-    testWidgets('background mode: External visible, Sound + Library hidden',
+    testWidgets('background mode: External and WebDAV visible, Sound hidden',
         (tester) async {
       SettingsService().operatingModeNotifier.value = OperatingMode.background;
 
@@ -129,7 +129,7 @@ void main() {
       expect(find.text('MODE', skipOffstage: false), findsOneWidget);
       expect(find.text('LOOK', skipOffstage: false), findsOneWidget);
       expect(find.text('SOUND', skipOffstage: false), findsNothing);
-      expect(find.text('LIBRARY', skipOffstage: false), findsNothing);
+      expect(find.text('LIBRARY', skipOffstage: false), findsOneWidget);
       expect(find.text('EXTERNAL', skipOffstage: false), findsOneWidget);
       expect(find.text('DISPLAY', skipOffstage: false), findsOneWidget);
       expect(find.text('ABOUT', skipOffstage: false), findsOneWidget);
@@ -175,6 +175,7 @@ void main() {
       expect(byK('void-settings-ui-scale'), findsOneWidget);
       expect(byK('void-settings-full-screen'), findsOneWidget);
       expect(byK('void-settings-smart-folders'), findsOneWidget);
+      expect(byK('void-settings-webdav'), findsOneWidget);
       expect(byK('void-settings-version'), findsOneWidget);
 
       // Background-only rows must NOT be reachable in own mode.
@@ -182,7 +183,7 @@ void main() {
       expect(byK('void-settings-mic-permission'), findsNothing);
     });
 
-    testWidgets('background mode hides library + sound rows',
+    testWidgets('background mode hides local library preferences + sound rows',
         (tester) async {
       SettingsService().operatingModeNotifier.value = OperatingMode.background;
 
@@ -194,6 +195,7 @@ void main() {
       // Own-only rows must NOT be reachable in background mode.
       expect(byK('void-settings-smart-folders'), findsNothing);
       expect(byK('void-settings-scan-on-startup'), findsNothing);
+      expect(byK('void-settings-webdav'), findsOneWidget);
 
       // Background rows are reachable.
       expect(byK('void-settings-noise-gate'), findsOneWidget);

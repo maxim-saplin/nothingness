@@ -15,9 +15,11 @@ import '../models/theme_variant.dart';
 import '../models/transport_position.dart';
 import '../services/playback_controller.dart';
 import '../screens/help_screen.dart';
+import '../screens/webdav_sources_screen.dart';
 import '../services/platform_channels.dart';
 import '../services/settings_service.dart';
 import '../services/update_service.dart';
+import '../services/webdav_library_service.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_typography.dart';
@@ -70,6 +72,7 @@ class VoidSettingsSheet extends HookWidget {
       settings.useFilenameForMetadataNotifier,
       settings.smartFoldersPresentationNotifier,
       settings.debugLayoutNotifier,
+      WebDavLibraryService.instance.sourcesNotifier,
     ]));
 
     final versionLabel = useState('...');
@@ -450,9 +453,15 @@ class VoidSettingsSheet extends HookWidget {
             trailing: chip('AUTO', () => settings.saveUiScale(-1.0),
                 filled: settings.uiScaleNotifier.value < 0)),
 
-        // LIBRARY — app-wide (own mode).
+        // LIBRARY — app-wide.
+        _Group('LIBRARY'),
+        _Cycle(
+          'void-settings-webdav',
+          'Nextcloud / WebDAV',
+          '${WebDavLibraryService.instance.sources.length} sources',
+          () => WebDavSourcesScreen.push(context),
+        ),
         if (isOwn) ...[
-          _Group('LIBRARY'),
           _Toggle('void-settings-scan-on-startup', 'prefer filename over tags',
               settings.useFilenameForMetadataNotifier.value,
               () => settings.setUseFilenameForMetadata(

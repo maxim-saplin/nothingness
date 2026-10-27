@@ -75,6 +75,28 @@ void main() {
       expect(track.artist, 'Artist');
     });
 
+    test('keeps hyphens in artist names when a spaced separator follows', () async {
+      final track = await extractor.extractMetadata(
+        '/path/Би-2, Агата Кристи - А мы не ангелы.opus',
+      );
+      expect(track.artist, 'Би-2, Агата Кристи');
+      expect(track.title, 'А мы не ангелы');
+    });
+
+    test('keeps numeric hyphenated artist names', () async {
+      final track = await extractor.extractMetadata(
+        '/path/25-17 - Звезда [RapBest.ru] (2012).opus',
+      );
+      expect(track.artist, '25-17');
+      expect(track.title, 'Звезда [RapBest.ru] (2012)');
+    });
+
+    test('keeps dots in a filename without an artist', () async {
+      final track = await extractor.extractMetadata('/path/No. 5.opus');
+      expect(track.artist, '');
+      expect(track.title, 'No. 5');
+    });
+
     test('strips the extension when the title contains a dot', () async {
       final track = await extractor.extractMetadata(
         '/path/BLAGO - A.V.G & ALISHA.mp3',

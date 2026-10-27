@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import '../controllers/library_controller.dart';
@@ -278,7 +277,7 @@ class VoidScreen extends HookWidget {
     // B-015 / B-031: open the swipe-up browser if dismissed, navigate to
     // [playingPath]'s parent, centre the now-playing row.
     Future<void> jumpToNowPlaying(String playingPath) async {
-      final parent = p.dirname(playingPath);
+      final parent = libCtrl.parentPath(playingPath);
       if (parent.isEmpty) return;
       if (browserPresentation.value == BrowserPresentation.swipeUp &&
           !browserExpanded.value) {
@@ -700,7 +699,7 @@ class VoidScreen extends HookWidget {
                   final divergent =
                       playingPath != null &&
                       playingPath.isNotEmpty &&
-                      p.dirname(playingPath) != (path ?? '');
+                      controller?.parentPath(playingPath) != (path ?? '');
                   final showJumpGlyph = resolveJumpGlyphVisible(divergent);
                   // 12-px vertical padding preserves the crumb baseline; the 44×44
                   // glyph hit target sits outside it (Material min, B-013).
@@ -711,7 +710,9 @@ class VoidScreen extends HookWidget {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 12, 0, 12),
                           child: MidEllipsis(
-                            text: path == null || path.isEmpty ? '~' : path,
+                            text: path == null || path.isEmpty
+                                ? '~'
+                                : controller?.displayPath(path) ?? path,
                             style: mono(
                               palette.fgSecondary,
                               typography.crumbSize,

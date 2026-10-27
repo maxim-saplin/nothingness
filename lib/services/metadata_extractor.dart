@@ -95,15 +95,21 @@ class DesktopMetadataExtractor implements MetadataExtractor {
 /// leaves the artist in the title. Apply [_dropEmbeddedArtist] — the same
 /// guard the Android MediaStore path already uses — so the desktop/filename
 /// path strips the redundant prefix too.
-AudioTrack _parseFilenameMetadata(String filePath) {
-  final base = p.basename(filePath);
+AudioTrack buildTrackFromFilename({
+  required String path,
+  required String fileName,
+}) {
+  final base = p.basename(fileName);
   final (artist, title) = _splitFilename(base);
   return AudioTrack(
-    path: filePath,
+    path: path,
     title: title == null ? base : _dropEmbeddedArtist(title, artist),
     artist: artist,
   );
 }
+
+AudioTrack _parseFilenameMetadata(String filePath) =>
+    buildTrackFromFilename(path: filePath, fileName: p.basename(filePath));
 
 /// Drops a leading `"<artist> - "` the MediaStore title inherited from the
 /// filename, by re-splitting it with [_splitFilename] and keeping the song only
@@ -118,29 +124,26 @@ String _dropEmbeddedArtist(String title, String artist) {
       : title;
 }
 
-/// Strips trailing extensions repeatedly (preserves a name with no extension).
-String _stripExtensions(String name) {
-  var result = name;
-  while (result.contains('.') && result != p.basenameWithoutExtension(result)) {
-    result = p.basenameWithoutExtension(result);
-  }
-  return result;
-}
+String _stripExtensions(String name) =>
+    SupportedExtensions.stripFromTitle(name);
 
 /// Returns `(artist, title)`; a null title means "use the full basename".
 (String, String?) _splitFilename(String base) {
   // B-047: drop a leading track-number prefix ("02 - ", "03. ", "1) ") so it is
   // not mistaken for the artist. Requires 1-3 digits immediately followed by a
   // separator, so real names like "50 Cent - …" or "2Pac - …" are left alone.
-  base = base.replaceFirst(RegExp(r'^\s*\d{1,3}\s*[-.)]\s*'), '');
+  base = base.replaceFirst(RegExp(r'^\s*\d{1,3}\s*[-.)]\s+'), '');
 
-  // First separator from the left: hyphen '-', en-dash '–', minus '−', em-dash '—'.
-  final sepIndex = [
-    base.indexOf('-'),
-    base.indexOf('–'),
-    base.indexOf('−'),
-    base.indexOf('—'),
-  ].where((i) => i >= 0).fold<int>(-1, (a, b) => a < 0 ? b : (b < a ? b : a));
+  // Prefer a spaced separator so hyphenated artist names remain intact.
+  final spaced = RegExp(r'\s[-–−—]\s').firstMatch(base);
+  final sepIndex = spaced != null
+      ? spaced.start + 1
+      : [
+          base.indexOf('-'),
+          base.indexOf('–'),
+          base.indexOf('−'),
+          base.indexOf('—'),
+        ].where((i) => i >= 0).fold<int>(-1, (a, b) => a < 0 ? b : (b < a ? b : a));
 
   if (sepIndex < 0) return ('', _stripExtensions(base));
 

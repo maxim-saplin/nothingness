@@ -8,13 +8,15 @@ import 'package:flutter/foundation.dart';
 import '../../models/audio_track.dart';
 import '../audio_transport.dart';
 import '../playlist_store.dart';
+import '../track_file_resolver.dart';
 
 /// A load failure that may resolve on retry (vs. a definitively missing/
 /// unreadable track). Shared by the bloc's queue recovery and the controller's
 /// one-shot path so both classify failures identically.
 bool isTransientLoadError(Object error) {
   final s = error.toString().toLowerCase();
-  return s.contains('connection aborted') || s.contains('10000000');
+  return error is TrackResolutionException ||
+      s.contains('connection aborted') || s.contains('10000000');
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +427,9 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
         if (emit.isDone) return;
         final advance = await _recoverFromLoadError(track, e);
         if (advance == null) {
+          if (e is TrackResolutionException) {
+            await _transport.setAudibleState(false, generation: generation);
+          }
           if (!emit.isDone) emit(PbStopped(index: idx));
           return;
         }
@@ -453,6 +458,7 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       reason: isTransientLoadError(e) ? 'transport_load_transient' : 'transport_load_error',
       message: e.toString(),
     );
+    if (e is TrackResolutionException) return null;
     if (isTransientLoadError(e)) {
       final now = DateTime.now();
       if (_transientWindowStart == null ||

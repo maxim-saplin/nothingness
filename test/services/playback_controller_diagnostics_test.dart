@@ -102,6 +102,30 @@ void main() {
     },
   );
 
+  test('offline track stops without skipping or marking the queue missing', () async {
+    const remote = 'webdav://source/Music/offline.opus';
+    transport.pathsToFailResolution.add(remote);
+    await controller.setQueue(const [
+      AudioTrack(path: '/ok.mp3', title: 'ok'),
+      AudioTrack(path: remote, title: 'offline'),
+      AudioTrack(path: '/next.mp3', title: 'next'),
+    ]);
+    transport.resetCalls();
+
+    await controller.next();
+    await pumpUntil(() => !controller.isPlayingNotifier.value);
+    expect(controller.currentIndexNotifier.value, 1);
+    expect(transport.loadCalls, [remote]);
+    expect(transport.pauseCalls, isNotEmpty);
+    expect(controller.queueNotifier.value.every((t) => !t.isNotFound), isTrue);
+
+    transport.pathsToFailResolution.clear();
+    await controller.playPause();
+    await pumpUntil(() => controller.isPlayingNotifier.value);
+    expect(controller.currentIndexNotifier.value, 1);
+    expect(transport.loadedPath, remote);
+  });
+
   test('songInfo notifier does not emit when state is unchanged', () async {
     await controller.setQueue(const [AudioTrack(path: '/ok.mp3', title: 'ok')]);
     // Inherently time-based test (the position timer is the only emitter).

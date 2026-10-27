@@ -19,6 +19,7 @@ import 'services/automation_intent_service.dart';
 import 'services/nothing_audio_handler.dart';
 import 'services/playback_controller.dart';
 import 'services/soloud_transport.dart';
+import 'services/webdav_library_service.dart';
 import 'services/update_service.dart';
 import 'debug_hooks.dart';
 import 'theme/themes.dart';
@@ -61,8 +62,9 @@ class _BootstrapApp extends HookWidget {
       Future<void> bootstrap() async {
         await Hive.initFlutter();
 
-        // Restore file permissions.
+        // Restore file permissions and cloud-library snapshots.
         await LibraryService().init();
+        await WebDavLibraryService.instance.init();
 
         // Load user settings early so we can choose decoder before starting AudioService.
         final settingsService = SettingsService();
@@ -93,7 +95,11 @@ class _BootstrapApp extends HookWidget {
           await handler.ready;
           controller = handler.controller;
         } else {
-          controller = PlaybackController(transport: SoLoudTransport());
+          controller = PlaybackController(
+            transport: SoLoudTransport(
+              fileResolver: WebDavLibraryService.instance,
+            ),
+          );
           await controller.init();
         }
 
