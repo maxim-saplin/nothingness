@@ -36,6 +36,12 @@ class NothingAudioHandler extends BaseAudioHandler
     return NothingAudioHandler._(controller: controller, transport: transport);
   }
 
+  @visibleForTesting
+  NothingAudioHandler.forTesting({
+    required PlaybackController controller,
+    required AudioTransport transport,
+  }) : this._(controller: controller, transport: transport);
+
   NothingAudioHandler._({
     required PlaybackController controller,
     required AudioTransport transport,
@@ -54,6 +60,9 @@ class NothingAudioHandler extends BaseAudioHandler
   final Completer<void> _initCompleter = Completer<void>();
   Future<void> get ready => _initCompleter.future;
 
+  // Keep MediaSession/AVRCP traffic bounded; the controller retains the full queue.
+  static const int _mediaQueueLimit = 50;
+  int _mediaQueueStart = 0;
   Duration _lastPosition = Duration.zero;
 
   Future<void> _init() async {
@@ -65,8 +74,14 @@ class NothingAudioHandler extends BaseAudioHandler
         _updatePlaybackState();
       }
 
-      _controller.queueNotifier.addListener(_updateQueue);
-      _controller.currentIndexNotifier.addListener(mediaThenState);
+      _controller.queueNotifier.addListener(() {
+        _updateQueue();
+        _updatePlaybackState();
+      });
+      _controller.currentIndexNotifier.addListener(() {
+        _updateQueue();
+        mediaThenState();
+      });
       _controller.isPlayingNotifier.addListener(_updatePlaybackState);
       _controller.songInfoNotifier.addListener(mediaThenState);
       _controller.shuffleNotifier.addListener(_updatePlaybackState);
@@ -108,7 +123,28 @@ class NothingAudioHandler extends BaseAudioHandler
       );
 
   void _updateQueue() {
-    queue.add(_controller.queueNotifier.value.map(_toMediaItem).toList());
+    final tracks = _controller.queueNotifier.value;
+    final index = _controller.currentIndexNotifier.value ?? 0;
+    final maxStart = (tracks.length - _mediaQueueLimit).clamp(0, tracks.length);
+    if (_mediaQueueStart > maxStart ||
+        index < _mediaQueueStart ||
+        index >= _mediaQueueStart + _mediaQueueLimit) {
+      _mediaQueueStart = (index - _mediaQueueLimit ~/ 2).clamp(0, maxStart);
+    }
+    final end = (_mediaQueueStart + _mediaQueueLimit).clamp(0, tracks.length);
+    final visible = tracks.sublist(_mediaQueueStart, end);
+    final previous = queue.value;
+    var unchanged = previous.length == visible.length;
+    for (var i = 0; unchanged && i < visible.length; i++) {
+      final t = visible[i];
+      final m = previous[i];
+      unchanged = m.id == t.path &&
+          m.title == t.title &&
+          m.artist == t.artist &&
+          m.duration == t.duration &&
+          m.extras?['isNotFound'] == t.isNotFound;
+    }
+    if (!unchanged) queue.add(visible.map(_toMediaItem).toList());
   }
 
   void _updateMediaItem() {
@@ -132,9 +168,12 @@ class NothingAudioHandler extends BaseAudioHandler
   void _updatePlaybackState() {
     final playing = _controller.isPlayingNotifier.value;
     final currentMedia = mediaItem.value;
-    final idx = currentMedia == null
-        ? null
-        : queue.value.indexWhere((m) => m.id == currentMedia.id);
+    final index = _controller.currentIndexNotifier.value;
+    final idx = index == null ? -1 : index - _mediaQueueStart;
+    final isCurrentQueueItem = !_controller.isOneShot &&
+        idx >= 0 &&
+        idx < queue.value.length &&
+        queue.value[idx].id == currentMedia?.id;
     final shuffle = _controller.shuffleNotifier.value;
 
     playbackState.add(
@@ -149,6 +188,7 @@ class NothingAudioHandler extends BaseAudioHandler
           MediaAction.seek,
           MediaAction.seekForward,
           MediaAction.seekBackward,
+          MediaAction.skipToQueueItem,
         },
         androidCompactActionIndices: const <int>[0, 1, 2],
         processingState: AudioProcessingState.ready,
@@ -156,7 +196,7 @@ class NothingAudioHandler extends BaseAudioHandler
         updatePosition: _lastPosition,
         bufferedPosition: Duration.zero,
         speed: 1.0,
-        queueIndex: (idx != null && idx >= 0) ? idx : null,
+        queueIndex: isCurrentQueueItem ? idx : null,
         shuffleMode: shuffle
             ? AudioServiceShuffleMode.all
             : AudioServiceShuffleMode.none,
@@ -200,6 +240,18 @@ class NothingAudioHandler extends BaseAudioHandler
     await _controller.seek(position);
     _lastPosition = position;
     _updatePlaybackState();
+  }
+
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    await ready;
+    if (index < 0 || index >= queue.value.length) return;
+    final fullIndex = _mediaQueueStart + index;
+    final tracks = _controller.queueNotifier.value;
+    if (fullIndex >= tracks.length || tracks[fullIndex].path != queue.value[index].id) {
+      return;
+    }
+    await _controller.playFromQueueIndex(fullIndex);
   }
 
   @override

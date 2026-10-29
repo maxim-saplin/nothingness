@@ -314,10 +314,20 @@ class PlaybackController extends ChangeNotifier {
     _emitSongInfoSnapshot(track: _currentTrack, isPlaying: _bloc.state.isPlaying);
   }
 
+  List<AudioTrack>? _lastPlaylistQueue;
+  Set<String> _lastFailedPaths = const {};
+
   void _updateQueueWithNotFoundFlags() {
+    final tracks = _playlist.queueNotifier.value;
     final failed = _bloc.failedPaths;
+    if (identical(tracks, _lastPlaylistQueue) &&
+        setEquals(failed, _lastFailedPaths)) {
+      return;
+    }
+    _lastPlaylistQueue = tracks;
+    _lastFailedPaths = failed;
     queueNotifier.value = [
-      for (final t in _playlist.queueNotifier.value)
+      for (final t in tracks)
         failed.contains(t.path) ? t.copyWith(isNotFound: true) : t,
     ];
   }
