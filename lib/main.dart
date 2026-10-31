@@ -96,6 +96,7 @@ class _BootstrapApp extends HookWidget {
           controller = handler.controller;
         } else {
           controller = PlaybackController(
+            webDavService: WebDavLibraryService.instance,
             transport: SoLoudTransport(
               fileResolver: WebDavLibraryService.instance,
             ),

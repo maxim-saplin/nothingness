@@ -31,6 +31,7 @@ class NothingAudioHandler extends BaseAudioHandler
     final controller = PlaybackController(
       transport: transport,
       playlist: PlaylistStore(),
+      webDavService: WebDavLibraryService.instance,
       debugPlaybackLogs: debugLogs,
     );
     return NothingAudioHandler._(controller: controller, transport: transport);

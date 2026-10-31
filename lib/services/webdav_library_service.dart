@@ -70,7 +70,9 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
   static const _cacheBoxName = 'webDavAudioCache';
   static const _metaBoxName = 'webDavMeta';
   static const _cacheLimitKey = 'cacheLimitBytes';
+  static const _preloadCountKey = 'preloadCount';
   static const defaultCacheLimitBytes = 512 * 1024 * 1024;
+  static const defaultPreloadCount = 3;
   static const _refreshInterval = Duration(minutes: 2);
 
   final HiveInterface _hive;
@@ -96,6 +98,9 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
   transferProgressNotifier = ValueNotifier(const {});
   final ValueNotifier<int> snapshotRevisionNotifier = ValueNotifier(0);
   final ValueNotifier<int> cacheRevisionNotifier = ValueNotifier(0);
+  final ValueNotifier<int> preloadCountNotifier = ValueNotifier(
+    defaultPreloadCount,
+  );
 
   final Map<String, Future<void>> _syncs = {};
   final Map<String, Future<String>> _downloads = {};
@@ -118,6 +123,10 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
       _indexBox ??= await _hive.openBox<dynamic>(_indexBoxName);
       _cacheBox ??= await _hive.openBox<dynamic>(_cacheBoxName);
       _metaBox ??= await _hive.openBox<dynamic>(_metaBoxName);
+      final preloadCount = _metaBox!.get(_preloadCountKey);
+      if (preloadCount is int) {
+        preloadCountNotifier.value = preloadCount.clamp(1, 10);
+      }
       _cacheDirectory = Directory(
         p.join(
           (await _cacheDirectoryProvider()).path,
@@ -900,6 +909,13 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
     await _pruneCache();
   }
 
+  Future<void> setPreloadCount(int count) async {
+    RangeError.checkValueInInterval(count, 1, 10, 'count');
+    await init();
+    await _metaBox!.put(_preloadCountKey, count);
+    preloadCountNotifier.value = count;
+  }
+
   Future<void> clearUnusedAudioCache({String? sourceId}) async {
     await init();
     for (final key in _cacheBox!.keys.toList()) {
@@ -1041,6 +1057,7 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
     transferProgressNotifier.dispose();
     snapshotRevisionNotifier.dispose();
     cacheRevisionNotifier.dispose();
+    preloadCountNotifier.dispose();
     super.dispose();
   }
 }

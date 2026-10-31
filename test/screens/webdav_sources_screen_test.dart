@@ -97,6 +97,45 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('preload slider shows default and saves both boundaries', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(home: WebDavSourcesScreen(service: service)),
+    );
+    await tester.pumpAndSettle();
+    final slider = find.byKey(const ValueKey('webdav-preload-count'));
+    expect(find.text('Upcoming tracks to preload: 3'), findsOneWidget);
+    expect(tester.widget<Slider>(slider).min, 1);
+    expect(tester.widget<Slider>(slider).max, 10);
+    expect(tester.widget<Slider>(slider).divisions, 9);
+
+    await tester.tapAt(tester.getTopRight(slider) - const Offset(24, -20));
+    await tester.pumpAndSettle();
+    expect(service.preloadCountNotifier.value, 10);
+    expect(find.text('Upcoming tracks to preload: 10'), findsOneWidget);
+    await tester.tapAt(tester.getTopLeft(slider) + const Offset(24, 20));
+    await tester.pumpAndSettle();
+    expect(service.preloadCountNotifier.value, 1);
+    expect(find.text('Upcoming tracks to preload: 1'), findsOneWidget);
+  });
+
+  testWidgets('failed preload setting save restores the persisted value', (tester) async {
+    service.failPreloadSave = true;
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(home: WebDavSourcesScreen(service: service)),
+    );
+    await tester.pumpAndSettle();
+    final slider = find.byKey(const ValueKey('webdav-preload-count'));
+    await tester.tapAt(tester.getTopRight(slider) - const Offset(24, -20));
+    await tester.pumpAndSettle();
+    expect(service.preloadCountNotifier.value, 3);
+    expect(find.text('Upcoming tracks to preload: 3'), findsOneWidget);
+    expect(find.textContaining('Could not save preload setting'), findsOneWidget);
+  });
+
   testWidgets('explains that HTTP sources are not allowed', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -177,6 +216,7 @@ class _FakeWebDavService extends WebDavLibraryService {
   int statusCode = 207;
   int snapshotBytes = 0;
   int audioBytes = 0;
+  bool failPreloadSave = false;
   int _nextId = 1;
 
   @override
@@ -245,6 +285,12 @@ class _FakeWebDavService extends WebDavLibraryService {
 
   @override
   Future<void> setCacheLimitMiB(int mebibytes) async {}
+
+  @override
+  Future<void> setPreloadCount(int count) async {
+    if (failPreloadSave) throw StateError('storage unavailable');
+    preloadCountNotifier.value = count;
+  }
 
   @override
   Future<void> clearUnusedAudioCache({String? sourceId}) async {}

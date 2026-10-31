@@ -6,9 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/webdav_source.dart';
+import 'package:nothingness/services/playlist_store.dart';
 import 'package:nothingness/services/webdav_library_service.dart';
+import 'package:nothingness/services/webdav_preloader.dart';
 import 'package:nothingness/services/webdav_track_path.dart';
+
+import '../support/pump_until.dart';
 
 void main() {
   late Directory rootDir;
@@ -60,6 +65,26 @@ void main() {
       ),
       throwsFormatException,
     );
+  });
+
+  test('preload count defaults to three, persists, and rejects invalid values', () async {
+    expect(service.preloadCountNotifier.value, 3);
+    await service.setPreloadCount(10);
+    expect(service.preloadCountNotifier.value, 10);
+    await expectLater(service.setPreloadCount(0), throwsRangeError);
+    await expectLater(service.setPreloadCount(11), throwsRangeError);
+    expect(service.preloadCountNotifier.value, 10);
+
+    final restored = WebDavLibraryService(
+      secretStore: secretStore,
+      httpClient: MockClient(remote.handle),
+      cacheDirectory: () async => cacheDir,
+    );
+    await restored.init();
+    expect(restored.preloadCountNotifier.value, 10);
+    await restored.setPreloadCount(1);
+    expect(restored.preloadCountNotifier.value, 1);
+    restored.dispose();
   });
 
   test(
@@ -167,6 +192,43 @@ void main() {
     expect(paths[0], paths[1]);
     expect(remote.downloadRequests, 1);
     expect(await File(paths[0]).readAsBytes(), [1, 2]);
+  });
+
+  test('preloader downloads and protects real cached WebDAV queue entries', () async {
+    remote.version = 2;
+    final source = await _addSource(service);
+    await service.refreshSource(source.id);
+    final remoteTracks = (await service.listFolder(service.sourceRootPath(source))).tracks;
+    expect(remoteTracks, hasLength(2));
+    final playlist = PlaylistStore(hiveInitializer: () async {});
+    await playlist.init();
+    final preloader = WebDavPreloader(
+      playlist: playlist,
+      resolver: service,
+      count: service.preloadCountNotifier,
+    );
+    await service.setPreloadCount(1);
+    await playlist.setQueue([
+      const AudioTrack(path: '/current.mp3', title: 'current'),
+      ...remoteTracks,
+    ]);
+    preloader.setActivePath('/current.mp3');
+    final cache = Hive.box<dynamic>('webDavAudioCache');
+    await pumpUntil(() => cache.length == 1 && service.transferProgressNotifier.value.isEmpty);
+    expect(cache.length, 1);
+    expect(remote.downloadRequests, 1);
+
+    await service.setPreloadCount(2);
+    await pumpUntil(() => cache.length == 2 && service.transferProgressNotifier.value.isEmpty);
+    expect(cache.length, 2);
+    expect(remote.downloadRequests, 2);
+    await service.clearUnusedAudioCache();
+    expect(await service.audioCacheSizeBytes(), 6);
+
+    preloader.dispose();
+    await service.clearUnusedAudioCache();
+    expect(await service.audioCacheSizeBytes(), 0);
+    await playlist.dispose();
   });
 
   test('pruning removes stale entries even below the cache limit', () async {

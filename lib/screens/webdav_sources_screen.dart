@@ -20,6 +20,7 @@ class WebDavSourcesScreen extends StatefulWidget {
 class _WebDavSourcesScreenState extends State<WebDavSourcesScreen> {
   late final WebDavLibraryService _service;
   int _cacheLimitMiB = 512;
+  int _preloadCount = WebDavLibraryService.defaultPreloadCount;
   bool _loading = true;
   late Future<(int, int)> _statsFuture;
 
@@ -62,6 +63,7 @@ class _WebDavSourcesScreenState extends State<WebDavSourcesScreen> {
             .round()
             .clamp(64, 4096)
             .toInt();
+        _preloadCount = _service.preloadCountNotifier.value;
         _loading = false;
       });
     } catch (_) {
@@ -126,6 +128,18 @@ class _WebDavSourcesScreenState extends State<WebDavSourcesScreen> {
     if (confirmed == true) await _service.clearUnusedAudioCache();
   }
 
+  Future<void> _setPreloadCount(int count) async {
+    try {
+      await _service.setPreloadCount(count);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _preloadCount = _service.preloadCountNotifier.value);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save preload setting: $error')),
+      );
+    }
+  }
+
   String _formatBytes(int bytes) {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KiB';
     final mebibytes = bytes / (1024 * 1024);
@@ -182,6 +196,18 @@ class _WebDavSourcesScreenState extends State<WebDavSourcesScreen> {
                     const SizedBox(height: 8),
                     _storageStats(theme),
                     const SizedBox(height: 16),
+                    Text('Upcoming tracks to preload: $_preloadCount'),
+                    Slider(
+                      key: const ValueKey('webdav-preload-count'),
+                      value: _preloadCount.toDouble(),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      label: '$_preloadCount',
+                      onChanged: (value) =>
+                          setState(() => _preloadCount = value.round()),
+                      onChangeEnd: (value) => _setPreloadCount(value.round()),
+                    ),
                     Text('Downloaded audio limit: $_cacheLimitMiB MiB'),
                     Slider(
                       key: const ValueKey('webdav-cache-limit'),

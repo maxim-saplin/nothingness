@@ -12,6 +12,7 @@ Originally inspired by a need for digital minimalism in modern cars (specificall
 
 ### 🎵 Audio Player
 -   **Local Playback**: Plays audio files from your device's storage.
+-   **WebDAV Libraries**: Browse Nextcloud libraries and cache upcoming tracks. Settings → WebDAV libraries lets you preload 1–10 upcoming queue tracks (default 3); pinned tracks can temporarily exceed the audio cache limit.
 -   **Library Management**:
     -   **Folder Picker**: Select folders to play.
     -   **Recursive Enqueue**: "Play All" adds all tracks in a folder and its subfolders.

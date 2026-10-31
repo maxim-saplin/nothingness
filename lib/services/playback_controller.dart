@@ -15,6 +15,8 @@ import 'metadata_extractor.dart';
 import 'playback_telemetry.dart';
 import 'playlist_store.dart';
 import 'soloud_transport.dart';
+import 'webdav_library_service.dart';
+import 'webdav_preloader.dart';
 
 /// The user's explicit intent for playback state.
 enum PlayIntent { play, pause }
@@ -28,6 +30,7 @@ class PlaybackController extends ChangeNotifier {
   PlaybackController({
     required AudioTransport transport,
     PlaylistStore? playlist,
+    WebDavLibraryService? webDavService,
     this.debugPlaybackLogs = false,
     this.captureRecentLogs = false,
     this.recentLogCapacity = 50,
@@ -47,11 +50,19 @@ class PlaybackController extends ChangeNotifier {
       navSettleDelay: _navSettleDelay,
       onLog: _telemetry.log,
     );
+    if (webDavService != null) {
+      _webDavPreloader = WebDavPreloader(
+        playlist: _playlist,
+        resolver: webDavService,
+        count: webDavService.preloadCountNotifier,
+      );
+    }
   }
 
   final Duration _navSettleDelay;
   late final PlaybackTelemetry _telemetry;
   late final PlaybackBloc _bloc;
+  WebDavPreloader? _webDavPreloader;
   StreamSubscription<PbState>? _blocSub;
 
   final AudioTransport _transport;
@@ -195,6 +206,7 @@ class PlaybackController extends ChangeNotifier {
 
   // Mirror the bloc's authoritative state into the UI-facing notifiers.
   void _onBlocState(PbState s) {
+    _updateWebDavPreload(s);
     // Queue-end resets intent to pause so the play button reacts; otherwise the
     // controller's command methods own _userIntent.
     if (s is PbStopped) _userIntent = PlayIntent.pause;
@@ -211,6 +223,16 @@ class PlaybackController extends ChangeNotifier {
     // Flip the hero title/artist SYNCHRONOUSLY from the selected track so names
     // cycle at burst speed without hammering transport position/duration reads.
     _emitSongInfoSnapshot(track: s.track ?? _currentTrack, isPlaying: s.isPlaying);
+  }
+
+  void _updateWebDavPreload(PbState state) {
+    _webDavPreloader?.setActivePath(
+      state is PbActive &&
+              !_bloc.isOneShot &&
+              state.track.path == _transportTrackPath
+          ? state.track.path
+          : null,
+    );
   }
 
   // Instant, transport-free hero update from the selected track. For a new
@@ -273,6 +295,7 @@ class PlaybackController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _webDavPreloader?.dispose();
     _positionTimer?.cancel();
     _positionTimer = null;
     if (_uiWired) {
@@ -386,6 +409,7 @@ class PlaybackController extends ChangeNotifier {
   void _handleTrackError(String? path) {
     if (path == null) return;
     if (_transportTrackPath == path) _transportTrackPath = null;
+    _updateWebDavPreload(_bloc.state);
     // The bloc's load() catch owns failed-marking + skip; _onBlocState then
     // refreshes the not-found flags. Nothing to do here but record it.
     _telemetry.event('transportError', {'path': path});
@@ -400,6 +424,7 @@ class PlaybackController extends ChangeNotifier {
   void _onTrackLoaded(String? path) {
     if (path == null) return;
     _transportTrackPath = path;
+    _updateWebDavPreload(_bloc.state);
     _telemetry.event('transportLoaded', {'path': path});
     _updateQueueWithNotFoundFlags();
     unawaited(_emitSongInfo(force: true));
