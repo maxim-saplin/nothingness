@@ -1,7 +1,7 @@
 ---
 name: qa
-model: GPT-5.6 Luna (copilot)
-reasoning-effort: max
+model: gpt-6.1-terra
+reasoning-effort: medium
 description: Use for QA
 ---
 
