@@ -43,6 +43,8 @@ dependencies:
 dependency_overrides:
   flutter_soloud:
     path: ./soloud
+  on_audio_query_android:
+    path: ./packages/on_audio_query_android
 
 dev_dependencies:
   flutter_test:

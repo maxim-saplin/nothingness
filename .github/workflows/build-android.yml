@@ -87,7 +87,7 @@ jobs:
         with:
           # Install only the required platform; Gradle/Flutter will install and
           # reuse the matching NDK/CMake into the cached SDK directory.
-          packages: "platforms;android-33"
+          packages: "platforms;android-36"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
