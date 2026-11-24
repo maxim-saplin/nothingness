@@ -42,8 +42,7 @@ final class PbStopped extends PbState {
 
 /// A track is being loaded; [intentPlay] is what to do once it lands.
 final class PbLoading extends PbState {
-  const PbLoading({required this.index, required AudioTrack track, required this.intentPlay})
-      : _track = track;
+  const PbLoading({required this.index, required this._track, required this.intentPlay});
   @override
   final int index;
   final AudioTrack _track;
@@ -56,8 +55,7 @@ final class PbLoading extends PbState {
 
 /// A track is loaded and either playing or paused.
 final class PbActive extends PbState {
-  const PbActive({required this.index, required AudioTrack track, required this.playing})
-      : _track = track;
+  const PbActive({required this.index, required this._track, required this.playing});
   @override
   final int index;
   final AudioTrack _track;
@@ -201,14 +199,12 @@ final class BecameNoisy extends PbEvent {
 /// navigation; emits [PbState] the UI/controller maps to notifiers.
 class PlaybackBloc extends Bloc<PbEvent, PbState> {
   PlaybackBloc({
-    required AudioTransport transport,
-    required PlaylistStore playlist,
+    required this._transport,
+    required this._playlist,
     this.transientRetryDelay = const Duration(milliseconds: 200),
     this.navSettleDelay = Duration.zero,
     void Function(String)? onLog,
-  })  : _transport = transport,
-        _playlist = playlist,
-        _log = onLog ?? _noLog,
+  })  : _log = onLog ?? _noLog,
         super(const PbStopped()) {
     // One restartable handler for ALL commands → a newer command cancels the
     // in-flight one (latest command wins) with no manual generation tracking.

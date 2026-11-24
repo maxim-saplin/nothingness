@@ -8,7 +8,7 @@ WINDOW_SEC="${WINDOW_SEC:-120}"
 SAMPLE_SEC="${SAMPLE_SEC:-5}"
 CI_MODE=false
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SEED_AUDIO="${SEED_AUDIO:-$ROOT_DIR/soloud/src/filters/signalsmith-stretch/web/demo/loop.mp3}"
+SEED_AUDIO="${SEED_AUDIO:-}"
 APP_TRACK_PATH="/data/user/0/$PKG/files/8_bit_mentality.mp3"
 
 usage() {
@@ -21,13 +21,13 @@ Options:
   --activity <name>    Launch activity (default: <pkg>/.MainActivity)
   --window-sec <n>     Sampling window in seconds (default: 120)
   --sample-sec <n>     Sampling interval in seconds (default: 5)
-  --seed-audio <path>  Local audio file copied into app-private storage for the paused-restore scenario
+  --seed-audio <path>  Required local audio file copied into app-private storage for the paused-restore scenario
   --ci                 Enable CI-friendly strict exit behavior
   -h, --help           Show help
 
 Examples:
-  tool/power/emulator_power_regression.sh
-  DEVICE=emulator-5554 PKG=com.saplin.nothingness tool/power/emulator_power_regression.sh --window-sec 180 --sample-sec 5
+  tool/power/emulator_power_regression.sh --seed-audio /path/to/audio.mp3
+  SEED_AUDIO=/path/to/audio.mp3 DEVICE=emulator-5554 PKG=com.saplin.nothingness tool/power/emulator_power_regression.sh --window-sec 180 --sample-sec 5
 EOF
 }
 
@@ -72,6 +72,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -z "$SEED_AUDIO" || ! -f "$SEED_AUDIO" ]]; then
+  echo "Pass --seed-audio <path> or set SEED_AUDIO to an existing local audio file." >&2
+  exit 2
+fi
 
 if ! command -v adb >/dev/null 2>&1; then
   echo "adb is required" >&2
@@ -122,11 +127,6 @@ samples=$SAMPLES
 EOF
 
 echo "[power] output: $OUT_DIR"
-
-if [[ ! -f "$SEED_AUDIO" ]]; then
-  echo "Seed audio '$SEED_AUDIO' does not exist" >&2
-  exit 2
-fi
 
 seed_paused_restore_state() {
   local seed_dir="$OUT_DIR/seed_state"

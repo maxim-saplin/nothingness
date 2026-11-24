@@ -13,7 +13,7 @@
 // `@protected` but is the only API that exposes the leak we're testing for.
 // ignore_for_file: invalid_use_of_protected_member
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/models/operating_mode.dart';

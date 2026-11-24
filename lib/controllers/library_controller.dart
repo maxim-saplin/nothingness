@@ -48,10 +48,10 @@ class LibraryController extends ChangeNotifier {
     required this.libraryBrowser,
     required this.libraryService,
     MediaStoreFreshness? mediaStoreFreshness,
-    bool? isAndroidOverride,
+    this._isAndroidOverride,
     OnAudioQuery? audioQuery,
-    Future<List<LibrarySong>> Function()? androidSongLoader,
-    Future<List<String>> Function()? androidRootsLoader,
+    this._androidSongLoader,
+    this._androidRootsLoader,
     Future<bool> Function(String path)? androidFolderRescan,
     Future<void> Function(Duration duration)? waitForFolderRescan,
     List<Duration>? folderRescanReloadDelays,
@@ -62,9 +62,6 @@ class LibraryController extends ChangeNotifier {
             (Platform.isAndroid
                 ? AndroidMediaStoreFreshness()
                 : NoopMediaStoreFreshness()),
-        _isAndroidOverride = isAndroidOverride,
-        _androidSongLoader = androidSongLoader,
-        _androidRootsLoader = androidRootsLoader,
         _androidFolderRescan =
             androidFolderRescan ?? PlatformChannels().rescanFolder,
         _waitForFolderRescan =

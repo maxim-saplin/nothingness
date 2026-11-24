@@ -28,9 +28,6 @@ flutter test test/path/to/file_test.dart
 ## Tools & Libraries
 
 *   **`flutter_test`**: The core Flutter testing framework.
-*   **`mockito`**: Used for mocking dependencies (like platform channels or external services) to test units in isolation.
-*   **`build_runner`**: Used to generate mock classes if utilizing code generation for mocks.
-    *   Command to generate mocks: `dart run build_runner build`
 
 ## Writing New Tests
 

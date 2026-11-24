@@ -44,10 +44,9 @@ class NothingAudioHandler extends BaseAudioHandler
   }) : this._(controller: controller, transport: transport);
 
   NothingAudioHandler._({
-    required PlaybackController controller,
-    required AudioTransport transport,
-  }) : _controller = controller,
-       _transport = transport {
+    required this._controller,
+    required this._transport,
+  }) {
     unawaited(_init());
   }
 

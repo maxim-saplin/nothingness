@@ -1,21 +1,15 @@
 PODS:
   - FlutterMacOS (1.0.0)
-  - macos_secure_bookmarks (0.0.3):
-    - FlutterMacOS
 
 DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - macos_secure_bookmarks (from `Flutter/ephemeral/.symlinks/plugins/macos_secure_bookmarks/macos`)
 
 EXTERNAL SOURCES:
   FlutterMacOS:
     :path: Flutter/ephemeral
-  macos_secure_bookmarks:
-    :path: Flutter/ephemeral/.symlinks/plugins/macos_secure_bookmarks/macos
 
 SPEC CHECKSUMS:
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
-  macos_secure_bookmarks: e096d8ec49de2d25ea47e1061b85e5f2f1520fef
 
 PODFILE CHECKSUM: 1e95c36afbfd1cb6423ceca4de7a8e1b256fb6ac
 

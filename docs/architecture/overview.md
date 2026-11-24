@@ -46,7 +46,7 @@ Widgets are `flutter_hooks` `HookWidget`s — state lives in hooks (`useState`, 
 -   **`PlaybackTelemetry`**: Extracted from `PlaybackController`; emits structured logs through `package:logging` (`Logger('nothingness.*')`).
 -   **`SpectrumSource`**: Extracted from `PlaybackController`; owns FFT/spectrum sourcing.
 -   **`AudioTransport` (interface)**: Thin abstraction over the native player. Provides minimal interface for loading files, play/pause/seek control, position/duration queries, and event emission (error, ended, loaded, position). Does not handle queue management or skip logic.
-    -   **`SoLoudTransport`** (macOS + Android): Thin wrapper around `flutter_soloud` (4.x) for playback and FFT. Single transport across platforms. Android packaging targets only `arm64-v8a` (no `armeabi-v7a`/`x86_64`). Built against a **local vendored fork** of `flutter_soloud` (`./soloud` via `dependency_overrides`) that adds native Opus decoding to `loadFile`/`loadMem` so Opus decodes off the UI isolate like mp3 (see `B-051`); revert to the pub.dev package once upstreamed.
+    -   **`SoLoudTransport`** (macOS + Android): Thin wrapper around upstream `flutter_soloud` 5.3.2 for playback and FFT. The package includes native Opus decoding in `loadFile`/`loadMem`, so Opus decodes off the UI isolate like mp3. No local fork or dependency override is used. Android packaging targets only `arm64-v8a` (no `armeabi-v7a`/`x86_64`).
 -   **Audio focus / route handling**: `PlaybackController` subscribes to `audio_session` streams in `init()`:
     -   `interruptionEventStream`: pauses on focus loss (phone call, navigation prompt) while preserving `PlayIntent.play`; auto-resumes on focus regain. Permanent focus loss (`unknown`) does not auto-resume.
     -   `becomingNoisyEventStream`: treats headphones/BT disconnect mid-playback as an explicit user pause (flips `PlayIntent` to `pause`); no auto-resume on subsequent focus regain.
@@ -69,6 +69,6 @@ Widgets are `flutter_hooks` `HookWidget`s — state lives in hooks (`useState`, 
 -   **Audio playback**: Three-layer architecture separates concerns:
     -   **`PlaybackController`**: Manages user intent (`PlayIntent` enum), queue state, error recovery policy, `isNotFound` tracking, and audio focus / route handling (via `audio_session` subscriptions). Single source of truth for playback logic. Checks `userIntent` before deciding to skip on error (prevents race conditions between pause and auto-skip).
     -   **`AudioTransport`**: Thin interface for native player control (load, play, pause, seek, events). No queue awareness, no skip logic, no focus awareness.
-    -   **Single transport**: `SoLoudTransport` (`flutter_soloud` 4.x) on both macOS and Android. On Android, `NothingAudioHandler` (audio_service) wraps `PlaybackController` to own MediaSession/notification state.
+    -   **Single transport**: `SoLoudTransport` (`flutter_soloud` 5.3.2) on both macOS and Android. On Android, `NothingAudioHandler` (audio_service) wraps `PlaybackController` to own MediaSession/notification state.
 -   **Spectrum visualization**: Default source is SoLoud's FFT (sourced via `SpectrumSource`). Microphone capture is an Android-only fallback delivered via a `PlatformChannels` EventChannel; macOS stays player-only. Settings can switch sources without restarting the UI.
 

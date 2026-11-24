@@ -6,7 +6,8 @@ import 'dart:math' as math;
 class SpectrumAnalyzer {
   /// Transforms raw FFT data into visualization bars.
   ///
-  /// [fft] Raw FFT data (usually 256 or 512 samples).
+  /// [fft] FFT magnitude bins. SoLoud returns `windowSize / 2` bins (128 with
+  /// the transport's 256-sample window).
   /// [barCount] Number of bars to output.
   /// [noiseGateDb] Minimum decibel level to consider (e.g. -35.0).
   /// [previousValues] Last frame's values for smoothing (decay).

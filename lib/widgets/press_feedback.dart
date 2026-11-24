@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// B-030 — universal press-feedback wrapper. Wraps a tappable child with a [GestureDetector] that flips an [AnimatedOpacity] on touch-down for immediate visual confirmation. Long-press handlers are forwarded verbatim (no long-press visual state). Fade-out is longer than fade-in so a brief tap still dips visibly.

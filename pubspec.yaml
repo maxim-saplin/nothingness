@@ -3,46 +3,43 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 3.14.22+90
+version: 3.14.23+91
 
 environment:
-  sdk: ^3.10.1
+  sdk: ^3.14.0
+  flutter: ">=3.50.1"
 
 dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
-  flutter_svg: ^2.2.3
+  cupertino_icons: ^2.0.0
+  flutter_svg: ^2.5.0
   logging: ^1.2.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   shared_preferences: ^2.2.3
   audio_session: ^0.2.2
   audio_service: ^0.18.18
-  permission_handler: ^12.0.1
-  flutter_secure_storage: ^10.0.0
-  flutter_soloud: ^4.0.4
+  permission_handler: ^13.0.2
+  flutter_secure_storage: ^11.2.0
+  flutter_soloud: ^5.3.2
   crypto: ^3.0.8
   xml: ^7.0.1
   path: ^1.9.0
   provider: ^6.1.2
   flutter_hooks: ^0.21.2
-  macos_secure_bookmarks: ^0.2.1
-  external_path: ^2.2.0
+  macos_secure_bookmarks: ^0.3.0
+  external_path: ^3.1.0
   on_audio_query: ^2.9.0
-  package_info_plus: ^9.0.1
+  package_info_plus: ^10.2.2
   http: ^1.6.0
   path_provider: ^2.1.6
   bloc: ^9.2.1
   bloc_concurrency: ^0.3.0
+  material_ui: ^1.11.1
 
-# Local vendored fork of flutter_soloud carrying native Opus support in
-# loadFile/loadMem (decodes Opus on the background/compute isolate instead of
-# the UI isolate). Remove once the change is upstream.
 dependency_overrides:
-  flutter_soloud:
-    path: ./soloud
   on_audio_query_android:
     path: ./packages/on_audio_query_android
 
@@ -54,8 +51,6 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
-  mockito: ^5.6.1
-  build_runner: ^2.10.4
   flutter_launcher_icons: ^0.14.4
   bloc_test: ^10.0.0
 

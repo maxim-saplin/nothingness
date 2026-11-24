@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Single-line text that head-truncates: drops chars from the START and prepends `…` so the meaningful TAIL survives (the name is kept for B-019 continuity). LTR measures with [TextPainter]; RTL falls back to plain tail-ellipsis [Text]. [keepEnd] optionally caps tail length first. Never throws — a zero-width box collapses to just the ellipsis (or empty).
 class MidEllipsis extends StatelessWidget {

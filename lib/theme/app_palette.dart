@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Colour tokens consumed by themed surfaces. `accent` is kept for parity even
 /// when a theme (e.g. Void) uses no chromatic accent — legacy screens need it.

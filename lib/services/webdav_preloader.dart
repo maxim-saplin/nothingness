@@ -8,12 +8,10 @@ import 'track_file_resolver.dart';
 /// Keeps the upcoming remote queue entries pinned and downloads them in order.
 class WebDavPreloader {
   WebDavPreloader({
-    required PlaylistStore playlist,
-    required TrackFileResolver resolver,
-    required ValueListenable<int> count,
-  }) : _playlist = playlist,
-       _resolver = resolver,
-       _count = count {
+    required this._playlist,
+    required this._resolver,
+    required this._count,
+  }) {
     _playlist.queueNotifier.addListener(_refresh);
     _playlist.currentOrderIndexNotifier.addListener(_refresh);
     _count.addListener(_refresh);

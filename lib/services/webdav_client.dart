@@ -22,10 +22,9 @@ class WebDavClient {
   WebDavClient({
     required this.accountRoot,
     required this.username,
-    required String password,
-    required http.Client client,
-  }) : _password = password,
-       _client = client;
+    required this._password,
+    required this._client,
+  });
 
   static const _davNamespace = 'DAV:';
   static const _propfindBody = '''<?xml version="1.0" encoding="utf-8"?>

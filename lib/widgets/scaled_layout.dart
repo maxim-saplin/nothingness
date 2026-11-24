@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../services/settings_service.dart';
 
 /// A widget that scales its child based on the global uiScale setting.

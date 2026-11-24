@@ -4,7 +4,7 @@ This document details audio stack choices, data paths, and behaviors for playbac
 
 ## Goals & Rationale
 - Clean separation of concerns: `PlaybackController` handles business logic (user intent, queue, error recovery, audio focus / route handling), `AudioTransport` provides thin native player control.
-- Single transport: SoLoud (`flutter_soloud` 4.x) on all platforms. No backend toggle needed. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
+- Single transport: SoLoud (`flutter_soloud` 5.3.2) on all platforms. No backend toggle needed. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
 - Spectrum comes from SoLoud's built-in FFT, with microphone capture as an Android fallback.
 - User intent tracking via `PlayIntent` enum prevents race conditions between pause and auto-skip.
 - Audio focus events (`audio_session`) are handled in `PlaybackController` only — the transport stays intent-blind. Phone calls pause and auto-resume; headphones/BT disconnect (becoming noisy) pauses without auto-resume.
@@ -20,10 +20,11 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - **Audio-event diagnostics ring buffer**: Bounded 300-entry log of interruption / route / load / end / error events, exposed via `diagnosticsSnapshot()['audioEvents']` and `audioEvents()` for VM-service inspection.
 - **`PlaybackTelemetry`**: Extracted from `PlaybackController`. Owns structured/diagnostic logging via `package:logging` (`Logger('nothingness.*')`); the controller delegates to it instead of carrying a bespoke logging service.
 - **`SpectrumSource`**: Extracted from `PlaybackController`. Owns FFT/spectrum sourcing (SoLoud FFT by default, or the Android mic stream when selected) and exposes the spectrum data the UI renders.
+- **`SoLoudSpectrumProvider`**: Subscribes to `audioVisualizationEvents` while capture is enabled. The transport requests merged FFT data with a 256-sample window, which supplies 128 bins normalized over -100 to 0 dB. The provider converts those bins back to linear magnitudes before `SpectrumAnalyzer` applies the app's noise gate and frequency weighting.
 - **`NothingAudioHandler` (Android)**: `audio_service` handler that owns MediaSession/notification state. It wraps the **same** `PlaybackController` as a pure observer + command-forwarder — it observes the controller's notifiers to mirror queue/media-item/playback state for the OS and forwards OS media-button commands (play/pause/next/previous/seek) back to the controller. No `customAction` IPC bridge.
 - **`AudioTransport` (interface)**: Thin abstraction over platform-specific players. Provides minimal interface:
   - Load audio files (`load(String path)`). All formats — including **Opus** — take the same path: `SoLoudTransport` tries native `loadFile(path)` first and falls back to decoding from a MediaStore `content://` URI (`readAndroidAudioBytes` → `loadMem`) only when raw-path access fails (Android 11+ scoped storage blocks raw `File`/native access to shared storage). See `lib/services/android_audio_source.dart` and `B-049`.
-  - **Opus decodes natively in `loadFile`/`loadMem`** (i.e. on `flutter_soloud`'s background `compute` isolate, like mp3) — *not* via a Dart-side `setBufferStream` + chunked `addAudioDataStream` feed on the UI isolate, which used to block frames for ~1–2 s on a multi-MB track. Stock `flutter_soloud` rejects Opus in `loadFile` (its Wav loader routes `OggS`→stb_vorbis), so this relies on a **local vendored fork** (`./soloud` via `dependency_overrides`) that wires the bundled Opus decoder into the file-load path. See `B-051` and `soloud/src/player.cpp` (`tryLoadOpusBufferStream`).
+  - **Opus decodes natively in `loadFile`/`loadMem`** (i.e. on `flutter_soloud`'s background `compute` isolate, like mp3) — not via a Dart-side `setBufferStream` + chunked `addAudioDataStream` feed on the UI isolate. Upstream `flutter_soloud` 5.3.2 includes the native Opus decoder; no local fork or dependency override is used.
   - Play/pause/seek control
   - Position and duration queries
   - Event emission (`TransportEvent`: error, ended, loaded, position)
@@ -46,9 +47,9 @@ flowchart LR
 ```
 
 ### Lifecycle Notes
-- Transports and controller initialize at bootstrap via `PlaybackController.init()` → `AudioTransport.init()`; SoLoud visualization is enabled on all platforms once sources are set.
+- Transports and controller initialize at bootstrap via `PlaybackController.init()` → `AudioTransport.init()`. SoLoud visualization is enabled only while spectrum capture is requested.
 - On play: `PlaybackController` sets `userIntent = PlayIntent.play`, transport stops prior playback/source, loads, plays, and (re)starts spectrum capture (SoLoud FFT).
-- On pause: `PlaybackController` sets `userIntent = PlayIntent.pause`, transport pauses playback and stops spectrum capture to reduce CPU; resume restarts capture. Error recovery respects `userIntent` - if paused, errors don't trigger auto-skip.
+- When capture is disabled (for example, in background mode), `SoLoudSpectrumProvider` cancels its event subscription and disables SoLoud visualization; enabling capture starts a fresh subscription and re-enables FFT production. Playback pause alone does not change the capture setting. Error recovery respects `userIntent` - if paused, errors don't trigger auto-skip.
 - On completion: Transport emits `TransportEndedEvent`; `PlaybackController` checks `userIntent` and advances to next track if `userIntent == play`, otherwise stops.
 - On error / missing file: the transport's `load()` is the **single source of truth** for a missing/unreadable track — when it fails, the track is marked `isNotFound` and skipped, consistently across tap/Next/Previous/natural advance (the `load()` catch path drives the skip; `TransportErrorEvent` marks the pending-load failure safely, no second skip chain). A transient load error retries; a definitive one marks not-found. There is **no** `File.exists()` preflight (removed in 3.7.0 — it false-negatived on Android scoped storage, where the playable source is a content URI, not the raw path).
 - Song info (title/artist) is emitted **synchronously** from the playback state's track the instant a command lands, so the hero name cycles at 60 fps under rapid Next taps; position/duration refine afterward (3.8.0).
@@ -153,7 +154,7 @@ flowchart LR
 - **Error event handling (safe attribution)**:
   - `TransportErrorEvent` is only used to mark the pending-load track as failed; it does not start an additional skip chain.
   - The `load()` catch path is responsible for advancing, preventing double-advance races.
-- Spectrum polling checks for a valid handle and skips if absent.
+- Spectrum events come from SoLoud's engine output while capture is enabled; the provider restores linear magnitudes before analysis so the app's dB noise gate remains effective.
 - Source disposal happens before new loads to prevent leaked handles.
 - Mic pipeline activates only when permission is granted; otherwise bars fall back to zeros.
 
