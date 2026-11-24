@@ -17,6 +17,7 @@ import '../models/webdav_source.dart';
 import 'library_browser.dart';
 import 'metadata_extractor.dart';
 import 'track_file_resolver.dart';
+import 'track_search_index.dart';
 import 'webdav_client.dart';
 import 'webdav_track_path.dart';
 
@@ -88,6 +89,8 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
   Directory? _cacheDirectory;
   bool _initialized = false;
   Future<void>? _initializing;
+  final TrackSearchIndex _searchIndex = TrackSearchIndex();
+  bool _searchIndexBuilt = false;
 
   final ValueNotifier<List<WebDavSource>> sourcesNotifier = ValueNotifier(
     const [],
@@ -143,6 +146,7 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
           .whereType<Map>()
           .map(WebDavSource.fromJson)
           .toList(growable: false);
+      _searchIndexBuilt = false;
       _initialized = true;
       completer.complete();
     } catch (error, stackTrace) {
@@ -322,24 +326,40 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
     return tracks;
   }
 
-  Future<List<AudioTrack>> searchTracks(String query) async {
-    await init();
-    final lower = query.toLowerCase();
-    if (lower.isEmpty) return const [];
+  TrackSearchIndex _searchIndexForSources() {
+    if (_searchIndexBuilt) return _searchIndex;
+
     final tracks = <AudioTrack>[];
     for (final source in sourcesNotifier.value) {
-      tracks.addAll(await tracksInTree(sourceRootPath(source)));
+      final keyPrefix = '${source.id}|';
+      final sourceRoot = source.folderPath;
+      for (final key in _indexBox!.keys.whereType<String>()) {
+        if (!key.startsWith(keyPrefix)) continue;
+        final directory = key.substring(keyPrefix.length);
+        if (sourceRoot.isNotEmpty &&
+            directory != sourceRoot &&
+            !directory.startsWith('$sourceRoot/')) {
+          continue;
+        }
+        for (final entry in _entriesFromRecord(_indexBox!.get(key))) {
+          if (!entry.isDirectory && _isSupported(entry.name)) {
+            final path = WebDavTrackPath.encode(source.id, entry.relativePath);
+            tracks.add(
+              buildTrackFromFilename(path: path, fileName: entry.name),
+            );
+          }
+        }
+      }
     }
-    return tracks
-        .where(
-          (track) =>
-              track.title.toLowerCase().contains(lower) ||
-              track.artist.toLowerCase().contains(lower) ||
-              WebDavTrackPath.basename(
-                track.path,
-              ).toLowerCase().contains(lower),
-        )
-        .toList(growable: false);
+    tracks.sort((a, b) => a.title.compareTo(b.title));
+    _searchIndex.replace(tracks);
+    _searchIndexBuilt = true;
+    return _searchIndex;
+  }
+
+  Future<List<AudioTrack>> searchTracks(String query) async {
+    await init();
+    return _searchIndexForSources().search(query);
   }
 
   Future<void> refreshIfStale(String sourceId) async {
@@ -563,6 +583,7 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
           .map((entry) => entry.toJson())
           .toList(growable: false),
     });
+    _searchIndexBuilt = false;
   }
 
   Future<void> _deleteSourceSnapshot(String sourceId) async {
@@ -570,6 +591,7 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
     for (final key in _indexBox!.keys.whereType<String>().toList()) {
       if (key.startsWith(prefix)) await _indexBox!.delete(key);
     }
+    _searchIndexBuilt = false;
   }
 
   Future<void> _removeIndexedPath(
@@ -577,6 +599,7 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
     String relativePath,
     bool isDirectory,
   ) async {
+    _searchIndexBuilt = false;
     if (isDirectory) {
       final record = _indexBox!.get(_indexKey(sourceId, relativePath));
       for (final child in _entriesFromRecord(record)) {
@@ -989,6 +1012,7 @@ class WebDavLibraryService extends ChangeNotifier implements TrackFileResolver {
         .whereType<Map>()
         .map(WebDavSource.fromJson)
         .toList(growable: false);
+    _searchIndexBuilt = false;
   }
 
   void _setProgress(WebDavSyncProgress progress) {

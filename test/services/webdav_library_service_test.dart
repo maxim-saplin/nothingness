@@ -87,6 +87,44 @@ void main() {
     restored.dispose();
   });
 
+  test('searches a 25K-track WebDAV snapshot', () async {
+    final source = await _addSource(service);
+    await service.refreshSource(source.id);
+    final entries = List<Map<String, Object?>>.generate(
+      25000,
+      (i) => i == 24999
+          ? {
+              'name': 'Rare Artist - Unique Needle.flac',
+              'relativePath': 'Music/Rare Artist - Unique Needle.flac',
+              'isDirectory': false,
+            }
+          : {
+              'name': 'Artist $i - Track $i.flac',
+              'relativePath': 'Music/Artist $i - Track $i.flac',
+              'isDirectory': false,
+            },
+    );
+    await Hive.box<dynamic>(
+      'webDavIndex',
+    ).put('${source.id}|Music', {'etag': null, 'entries': entries});
+
+    expect((await service.searchTracks('needle')), hasLength(1));
+    expect((await service.searchTracks('rare artist')), hasLength(1));
+  });
+
+  test('refresh invalidates the WebDAV search cache', () async {
+    final source = await _addSource(service);
+    await service.refreshSource(source.id);
+    expect((await service.searchTracks('adele')), hasLength(1));
+
+    remote.version = 2;
+    await service.refreshSource(source.id);
+
+    final indexed = await service.tracksInTree(service.sourceRootPath(source));
+    expect(indexed.map((track) => track.title), contains('Jóga'));
+    expect((await service.searchTracks('jóga')), hasLength(1));
+  });
+
   test(
     'indexes, searches, reuses audio and refreshes changed directories',
     () async {

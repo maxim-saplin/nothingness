@@ -14,6 +14,7 @@ import '../services/android_smart_roots.dart';
 import '../services/library_browser.dart';
 import '../services/library_service.dart';
 import '../services/settings_service.dart';
+import '../services/track_search_index.dart';
 import '../services/webdav_track_path.dart';
 import '../theme/app_geometry.dart';
 import '../theme/app_palette.dart';
@@ -22,6 +23,7 @@ import 'mid_ellipsis.dart';
 import 'press_feedback.dart';
 
 final _log = Logger('nothingness.browser');
+const Duration _librarySearchDebounce = Duration(milliseconds: 120);
 
 /// Bottom-anchored file-tree browser used by [VoidScreen]: full-width rows,
 /// thin dividers, no chrome. Tap a file to queue its folder, long-press a file
@@ -97,14 +99,21 @@ class VoidBrowser extends HookWidget {
 
     final searchTerm = useState('');
     final searchResults = useState<List<AudioTrack>>(const <AudioTrack>[]);
+    final searchIndex = useMemoized(() => TrackSearchIndex(), const []);
+    final searchDebounce = useRef<Timer?>(null);
+    final searchRequest = useRef<int>(0);
 
     // mounted-equivalent for async work after awaits.
     bool isMounted() => context.mounted;
 
-    Future<void> runSearch(String term) async {
+    bool isCurrentSearch(String term, int request) =>
+        isMounted() &&
+        searchRequest.value == request &&
+        searchTerm.value == term;
+
+    Future<void> runSearch(String term, int request) async {
       // B-009: search spans the whole library — Android MediaStore cache on
       // Android, currently-loaded tracks elsewhere.
-      final lower = term.toLowerCase();
       final localTracks = ctrl.isAndroid
           // Display the on-disk filename (sans extension), matching browser/hero.
           ? ctrl.androidSongs
@@ -112,45 +121,55 @@ class VoidBrowser extends HookWidget {
                   path: s.path, title: p.basenameWithoutExtension(s.path)))
               .toList(growable: false)
           : await ctrl.tracksForCurrentPath();
+      if (!isCurrentSearch(term, request)) return;
+
+      final webDavTracks = await ctrl.searchWebDavTracks(term);
+      if (!isCurrentSearch(term, request)) return;
+
       final allTracks = <String, AudioTrack>{
         for (final track in localTracks) track.path: track,
-        for (final track in await ctrl.searchWebDavTracks(term))
-          track.path: track,
+        for (final track in webDavTracks) track.path: track,
       }.values;
-      final matches = allTracks
-          .where((t) =>
-              t.title.toLowerCase().contains(lower) ||
-              t.artist.toLowerCase().contains(lower) ||
-              (WebDavTrackPath.isRemote(t.path)
-                      ? WebDavTrackPath.basename(t.path)
-                      : p.basename(t.path))
-                  .toLowerCase()
-                  .contains(lower))
-          .toList(growable: false);
-      if (!isMounted()) return;
-      searchResults.value = matches;
+      searchIndex.replace(allTracks);
+      searchResults.value = searchIndex.search(term);
+    }
+
+    void scheduleSearch(String term) {
+      searchDebounce.value?.cancel();
+      final request = ++searchRequest.value;
+      if (term.isEmpty) {
+        searchDebounce.value = null;
+        searchResults.value = const <AudioTrack>[];
+        return;
+      }
+      searchDebounce.value = Timer(_librarySearchDebounce, () {
+        searchDebounce.value = null;
+        unawaited(runSearch(term, request));
+      });
     }
 
     void onSearchChanged() {
       final term = searchController?.text.trim() ?? '';
       if (term == searchTerm.value) return;
       searchTerm.value = term;
-      if (term.isNotEmpty) {
-        runSearch(term);
-      } else {
-        searchResults.value = const <AudioTrack>[];
-      }
+      scheduleSearch(term);
     }
 
     // Attach/detach the search listener, re-binding when searchController swaps.
     useEffect(() {
       searchController?.addListener(onSearchChanged);
-      return () => searchController?.removeListener(onSearchChanged);
+      onSearchChanged();
+      return () {
+        searchController?.removeListener(onSearchChanged);
+        searchDebounce.value?.cancel();
+        searchDebounce.value = null;
+        searchRequest.value++;
+      };
     }, [searchController]);
 
     useListenable(ctrl.webDavSnapshotRevisionNotifier);
     useEffect(() {
-      if (searchTerm.value.isNotEmpty) runSearch(searchTerm.value);
+      if (searchTerm.value.isNotEmpty) scheduleSearch(searchTerm.value);
       return null;
     }, [ctrl, ctrl.webDavSnapshotRevisionNotifier.value]);
 

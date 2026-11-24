@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/controllers/library_controller.dart';
 import 'package:nothingness/models/audio_track.dart';
 import 'package:nothingness/models/song_info.dart';
+import 'package:nothingness/models/webdav_source.dart';
 import 'package:nothingness/services/library_browser.dart';
 import 'package:nothingness/services/library_service.dart';
+import 'package:nothingness/services/webdav_library_service.dart';
 import 'package:nothingness/theme/app_palette.dart';
 import 'package:nothingness/widgets/press_feedback.dart';
 import 'package:nothingness/widgets/void_browser.dart';
@@ -19,6 +23,7 @@ class _FakeLibraryController extends LibraryController {
   _FakeLibraryController({
     String? currentPath,
     List<AudioTrack> tracks = const <AudioTrack>[],
+    super.webDavService,
   }) : super(
           libraryBrowser: LibraryBrowser(supportedExtensions: const {'mp3'}),
           libraryService: LibraryService(),
@@ -27,6 +32,38 @@ class _FakeLibraryController extends LibraryController {
     this.currentPath = currentPath;
     this.tracks = List<AudioTrack>.from(tracks);
     hasPermission = true;
+  }
+}
+
+class _SearchFakeWebDavService extends WebDavLibraryService {
+  _SearchFakeWebDavService() {
+    sourcesNotifier.value = const [
+      WebDavSource(
+        id: 'source',
+        name: 'Cloud',
+        serverUrl: 'https://cloud.example',
+        username: 'alice',
+        folderPath: 'Music',
+      ),
+    ];
+  }
+
+  final requests = <String>[];
+  final pending = <String, Completer<List<AudioTrack>>>{};
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<List<AudioTrack>> searchTracks(String query) {
+    requests.add(query);
+    final completer = Completer<List<AudioTrack>>();
+    pending[query] = completer;
+    return completer.future;
+  }
+
+  void complete(String query, List<AudioTrack> tracks) {
+    pending.remove(query)?.complete(tracks);
   }
 }
 
@@ -393,6 +430,119 @@ void main() {
       // B-033 bump: handle uses fgSecondary (mid contrast) — was fgTertiary.
       expect(decoration.color, equals(palette.fgSecondary),
           reason: 'B-033: pill must use palette.fgSecondary (was fgTertiary).');
+    });
+  });
+
+  group('B-009: VoidBrowser search', () {
+    testWidgets('debounces rapid query changes', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final webDav = _SearchFakeWebDavService();
+      final controller = _FakeLibraryController(
+        currentPath: '/lib/folder',
+        webDavService: webDav,
+      );
+      final searchController = TextEditingController();
+      addTearDown(searchController.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(webDav.dispose);
+      final provider = FakeAudioPlayerProvider();
+
+      await tester.pumpWidget(
+        wrapWithProvider(
+          provider,
+          ChangeNotifierProvider<LibraryController>.value(
+            value: controller,
+            child: SizedBox(
+              height: 600,
+              child: VoidBrowser(
+                controller: controller,
+                searchController: searchController,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      searchController.text = 'a';
+      await tester.pump(const Duration(milliseconds: 40));
+      searchController.text = 'ab';
+      await tester.pump(const Duration(milliseconds: 130));
+      await tester.pump();
+
+      expect(webDav.requests, ['ab']);
+      webDav.complete('ab', const <AudioTrack>[]);
+      await tester.pump();
+    });
+
+    testWidgets('ignores an older async result', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final webDav = _SearchFakeWebDavService();
+      final controller = _FakeLibraryController(
+        currentPath: '/lib/folder',
+        webDavService: webDav,
+      );
+      final searchController = TextEditingController();
+      addTearDown(searchController.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(webDav.dispose);
+      final provider = FakeAudioPlayerProvider();
+
+      await tester.pumpWidget(
+        wrapWithProvider(
+          provider,
+          ChangeNotifierProvider<LibraryController>.value(
+            value: controller,
+            child: SizedBox(
+              height: 600,
+              child: VoidBrowser(
+                controller: controller,
+                searchController: searchController,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      searchController.text = 'a';
+      await tester.pump(const Duration(milliseconds: 130));
+      await tester.pump();
+      searchController.text = 'ab';
+      await tester.pump(const Duration(milliseconds: 130));
+      await tester.pump();
+
+      expect(webDav.requests, ['a', 'ab']);
+      const abTrack = AudioTrack(
+        path: 'webdav://source/Music/AB.flac',
+        title: 'AB',
+      );
+      webDav.complete('ab', const <AudioTrack>[abTrack]);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('void-search:webdav://source/Music/AB.flac')),
+        findsOneWidget,
+      );
+
+      webDav.complete('a', const <AudioTrack>[
+        AudioTrack(
+          path: 'webdav://source/Music/A.flac',
+          title: 'A',
+        ),
+      ]);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('void-search:webdav://source/Music/A.flac')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('void-search:webdav://source/Music/AB.flac')),
+        findsOneWidget,
+      );
     });
   });
 
