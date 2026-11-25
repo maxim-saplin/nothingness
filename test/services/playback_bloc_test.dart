@@ -245,6 +245,25 @@ void main() {
   );
 
   blocTest<PlaybackBloc, PbState>(
+    'next plays the new track after an interruption',
+    build: () => build(),
+    act: (b) async {
+      b.add(const GoToIndex(0));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      b.add(const InterruptionBegan(AudioInterruptionType.pause));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      b.add(const GoNext());
+    },
+    wait: const Duration(milliseconds: 80),
+    verify: (b) {
+      expect(b.state, isA<PbActive>()
+          .having((s) => s.index, 'index', 1)
+          .having((s) => s.playing, 'playing', true));
+      expect(tx.isPlaying, isTrue);
+    },
+  );
+
+  blocTest<PlaybackBloc, PbState>(
     'user pause during interruption: no resume on end',
     build: () => build(),
     act: (b) async {

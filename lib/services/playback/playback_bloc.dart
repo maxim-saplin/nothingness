@@ -16,7 +16,8 @@ import '../track_file_resolver.dart';
 bool isTransientLoadError(Object error) {
   final s = error.toString().toLowerCase();
   return error is TrackResolutionException ||
-      s.contains('connection aborted') || s.contains('10000000');
+      s.contains('connection aborted') ||
+      s.contains('10000000');
 }
 
 // ---------------------------------------------------------------------------
@@ -42,7 +43,11 @@ final class PbStopped extends PbState {
 
 /// A track is being loaded; [intentPlay] is what to do once it lands.
 final class PbLoading extends PbState {
-  const PbLoading({required this.index, required this._track, required this.intentPlay});
+  const PbLoading({
+    required this.index,
+    required this._track,
+    required this.intentPlay,
+  });
   @override
   final int index;
   final AudioTrack _track;
@@ -55,7 +60,11 @@ final class PbLoading extends PbState {
 
 /// A track is loaded and either playing or paused.
 final class PbActive extends PbState {
-  const PbActive({required this.index, required this._track, required this.playing});
+  const PbActive({
+    required this.index,
+    required this._track,
+    required this.playing,
+  });
   @override
   final int index;
   final AudioTrack _track;
@@ -105,7 +114,6 @@ final class SeekWithinCurrentTrack extends PbCommand {
   final int generation;
 }
 
-
 /// authoritative intent and sends the result here). play=true resumes/loads;
 /// play=false pauses — without changing the track.
 final class SetIntent extends PbCommand {
@@ -130,12 +138,14 @@ final class GoPrevious extends PbCommand {
 /// Play a specific order index. [respectPauseIntent] (setQueue) keeps a standing
 /// pause; [userTap] grants the requested track one retry even if marked failed.
 final class GoToIndex extends PbCommand {
-  const GoToIndex(this.index,
-      {this.intentPlay = true,
-      this.direction = 1,
-      this.userTap = false,
-      this.respectPauseIntent = false,
-      this.generation});
+  const GoToIndex(
+    this.index, {
+    this.intentPlay = true,
+    this.direction = 1,
+    this.userTap = false,
+    this.respectPauseIntent = false,
+    this.generation,
+  });
   final int index;
   final bool intentPlay;
   final int direction;
@@ -204,8 +214,8 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     this.transientRetryDelay = const Duration(milliseconds: 200),
     this.navSettleDelay = Duration.zero,
     void Function(String)? onLog,
-  })  : _log = onLog ?? _noLog,
-        super(const PbStopped()) {
+  }) : _log = onLog ?? _noLog,
+       super(const PbStopped()) {
     // One restartable handler for ALL commands → a newer command cancels the
     // in-flight one (latest command wins) with no manual generation tracking.
     on<PbCommand>(_onCommand, transformer: restartable());
@@ -264,7 +274,10 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
 
     switch (event) {
       case SetPlaybackTarget():
-        emit(PbLoading(index: 0, track: event.track, intentPlay: event.autoplay));
+        if (event.autoplay) _pausedByInterruption = false;
+        emit(
+          PbLoading(index: 0, track: event.track, intentPlay: event.autoplay),
+        );
         try {
           await _transport.setPlaybackTarget(
             event.track.path,
@@ -281,7 +294,11 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
             emit(PbActive(index: 0, track: event.track, playing: false));
           }
         } catch (e) {
-          lastError = (path: event.track.path, reason: 'Load failed', message: e.toString());
+          lastError = (
+            path: event.track.path,
+            reason: 'Load failed',
+            message: e.toString(),
+          );
           emit(const PbStopped(index: 0));
         }
       case SetAudibleState():
@@ -290,48 +307,96 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
         if (!emit.isDone) {
           final s = state;
           if (s is PbActive) {
-            emit(PbActive(index: s.index, track: s.track, playing: event.audible));
+            emit(
+              PbActive(index: s.index, track: s.track, playing: event.audible),
+            );
           } else if (s is PbLoading) {
-            emit(PbLoading(index: s.index, track: s.track, intentPlay: event.audible));
+            emit(
+              PbLoading(
+                index: s.index,
+                track: s.track,
+                intentPlay: event.audible,
+              ),
+            );
           } else if (s is PbStopped && event.audible) {
-            await _drive(emit, s.index ?? 0, intentPlay: true, direction: 1, userTap: true, generation: gen);
+            await _drive(
+              emit,
+              s.index ?? 0,
+              intentPlay: true,
+              direction: 1,
+              userTap: true,
+              generation: gen,
+            );
           }
         }
       case SeekWithinCurrentTrack():
-        await _transport.seekWithinCurrentTrack(event.position, generation: gen);
+        await _transport.seekWithinCurrentTrack(
+          event.position,
+          generation: gen,
+        );
       case SetIntent():
         final s = state;
         if (event.play) {
+          _pausedByInterruption = false;
           switch (s) {
             case PbActive(playing: true):
               break;
             case PbActive(playing: false):
               await _resumePausedOrReload(emit, s, generation: gen);
             case PbLoading():
-              await _drive(emit, s.index, intentPlay: true, direction: 1, userTap: false, generation: gen);
+              await _drive(
+                emit,
+                s.index,
+                intentPlay: true,
+                direction: 1,
+                userTap: false,
+                generation: gen,
+              );
             case PbStopped():
-              await _drive(emit, s.index ?? 0, intentPlay: true, direction: 1, userTap: false, generation: gen);
+              await _drive(
+                emit,
+                s.index ?? 0,
+                intentPlay: true,
+                direction: 1,
+                userTap: false,
+                generation: gen,
+              );
           }
         } else {
           _pausedByInterruption = false;
           switch (s) {
             case PbActive(playing: true):
               await _transport.setAudibleState(false, generation: gen);
-              if (!emit.isDone) emit(PbActive(index: s.index, track: s.track, playing: false));
+              if (!emit.isDone) {
+                emit(PbActive(index: s.index, track: s.track, playing: false));
+              }
             case PbLoading(intentPlay: true):
-              await _drive(emit, s.index, intentPlay: false, direction: 1, userTap: false, generation: gen);
+              await _drive(
+                emit,
+                s.index,
+                intentPlay: false,
+                direction: 1,
+                userTap: false,
+                generation: gen,
+              );
             default:
               break;
           }
         }
       case PlayOneShot():
+        _pausedByInterruption = false;
         _oneShotResume = _playlist.currentOrderIndexNotifier.value;
         _oneShotTrack = event.track;
         _oneShotRepeat = event.repeatOne;
         await _driveOneShot(emit, event.track, intentPlay: true);
       case GoNext():
+        _pausedByInterruption = false;
         if (isOneShot) {
-          await _exitOneShotStep(emit, 1, generation: gen); // explicit next exits to the queue
+          await _exitOneShotStep(
+            emit,
+            1,
+            generation: gen,
+          ); // explicit next exits to the queue
           break;
         }
         final n = _playlist.nextOrderIndex();
@@ -339,15 +404,25 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
           // Commit the index now so a rapid chain of nexts advances per tap
           // (each cancels the prior load but the index has already moved).
           await _playlist.setCurrentOrderIndex(n);
-          await _drive(emit, n, intentPlay: true, direction: 1, userTap: false, defer: true, generation: gen);
+          await _drive(
+            emit,
+            n,
+            intentPlay: true,
+            direction: 1,
+            userTap: false,
+            defer: true,
+            generation: gen,
+          );
         }
       case GoPrevious():
+        _pausedByInterruption = false;
         if (isOneShot) {
           await _exitOneShotStep(emit, -1, generation: gen);
           break;
         }
         await _onPrevious(emit, generation: gen);
       case GoToIndex():
+        if (event.intentPlay) _pausedByInterruption = false;
         _oneShotTrack = null; // a direct queue selection exits one-shot
         _oneShotResume = null;
         if (event.respectPauseIntent && !event.intentPlay) {
@@ -359,13 +434,19 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
           }
           return;
         }
-        await _drive(emit, event.index,
-            intentPlay: event.intentPlay,
-            direction: event.direction,
-            userTap: event.userTap,
-            generation: gen);
+        await _drive(
+          emit,
+          event.index,
+          intentPlay: event.intentPlay,
+          direction: event.direction,
+          userTap: event.userTap,
+          generation: gen,
+        );
       case SeekTo():
-        await _transport.seekWithinCurrentTrack(event.position, generation: gen);
+        await _transport.seekWithinCurrentTrack(
+          event.position,
+          generation: gen,
+        );
     }
   }
 
@@ -373,12 +454,15 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   // it (transient-retry / definitive-skip), then play or pause per [intentPlay].
   // `emit.isDone` (set when a newer command supersedes this one) short-circuits
   // every step, so stale work neither emits nor touches the transport.
-  Future<void> _drive(Emitter<PbState> emit, int start,
-      {required bool intentPlay,
-      required int direction,
-      required bool userTap,
-      bool defer = false,
-      int? generation}) async {
+  Future<void> _drive(
+    Emitter<PbState> emit,
+    int start, {
+    required bool intentPlay,
+    required int direction,
+    required bool userTap,
+    bool defer = false,
+    int? generation,
+  }) async {
     if (_playlist.length == 0) {
       if (!emit.isDone) emit(const PbStopped());
       return;
@@ -418,7 +502,12 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       }
       _log('StartLoad: path=${track.path}');
       try {
-        await _transport.setPlaybackTarget(track.path, title: track.title, artist: track.artist, generation: generation);
+        await _transport.setPlaybackTarget(
+          track.path,
+          title: track.title,
+          artist: track.artist,
+          generation: generation,
+        );
       } catch (e) {
         if (emit.isDone) return;
         final advance = await _recoverFromLoadError(track, e);
@@ -440,7 +529,13 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
         await _transport.setAudibleState(false, generation: generation);
       }
       if (emit.isDone) return;
-      emit(PbActive(index: idx, track: track, playing: intentPlay && !_pausedByInterruption));
+      emit(
+        PbActive(
+          index: idx,
+          track: track,
+          playing: intentPlay && !_pausedByInterruption,
+        ),
+      );
       _preloadNext();
       return;
     }
@@ -451,7 +546,9 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   Future<int?> _recoverFromLoadError(AudioTrack track, Object e) async {
     lastError = (
       path: track.path,
-      reason: isTransientLoadError(e) ? 'transport_load_transient' : 'transport_load_error',
+      reason: isTransientLoadError(e)
+          ? 'transport_load_transient'
+          : 'transport_load_error',
       message: e.toString(),
     );
     if (e is TrackResolutionException) return null;
@@ -475,12 +572,21 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   // Load+play [track] as a one-shot (outside the queue). The state index mirrors
   // the resume slot so the queue stays put visually; isOneShot stays true so the
   // ended/nav branches know to resume. On definitive failure: clear + stop.
-  Future<void> _driveOneShot(Emitter<PbState> emit, AudioTrack track,
-      {required bool intentPlay, int? generation}) async {
+  Future<void> _driveOneShot(
+    Emitter<PbState> emit,
+    AudioTrack track, {
+    required bool intentPlay,
+    int? generation,
+  }) async {
     final idx = _oneShotResume ?? 0;
     emit(PbLoading(index: idx, track: track, intentPlay: intentPlay));
     try {
-      await _transport.setPlaybackTarget(track.path, title: track.title, artist: track.artist, generation: generation);
+      await _transport.setPlaybackTarget(
+        track.path,
+        title: track.title,
+        artist: track.artist,
+        generation: generation,
+      );
     } catch (e) {
       if (emit.isDone) return;
       if (!isTransientLoadError(e)) _failedPaths.add(track.path);
@@ -497,7 +603,11 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   }
 
   // Leave one-shot and step into the queue from the captured resume slot.
-  Future<void> _exitOneShotStep(Emitter<PbState> emit, int dir, {int? generation}) async {
+  Future<void> _exitOneShotStep(
+    Emitter<PbState> emit,
+    int dir, {
+    int? generation,
+  }) async {
     final r = _oneShotResume;
     _oneShotTrack = null;
     _oneShotResume = null;
@@ -506,14 +616,30 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       return;
     }
     final target = (r + dir).clamp(0, _playlist.length - 1).toInt();
-    await _drive(emit, target, intentPlay: true, direction: dir, userTap: false, generation: generation);
+    await _drive(
+      emit,
+      target,
+      intentPlay: true,
+      direction: dir,
+      userTap: false,
+      generation: generation,
+    );
   }
 
   Future<void> _onPrevious(Emitter<PbState> emit, {int? generation}) async {
     final cur = _playlist.currentOrderIndexNotifier.value;
     if (cur == null) {
       final p = _playlist.previousOrderIndex();
-      if (p != null) await _drive(emit, p, intentPlay: true, direction: -1, userTap: false, generation: generation);
+      if (p != null) {
+        await _drive(
+          emit,
+          p,
+          intentPlay: true,
+          direction: -1,
+          userTap: false,
+          generation: generation,
+        );
+      }
       return;
     }
     final isTail = cur == _playlist.length - 1;
@@ -536,37 +662,71 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
       await _restartCurrent(emit, cur, generation: generation);
       return;
     }
-    await _drive(emit, p, intentPlay: true, direction: -1, userTap: false, defer: true, generation: generation);
+    await _drive(
+      emit,
+      p,
+      intentPlay: true,
+      direction: -1,
+      userTap: false,
+      defer: true,
+      generation: generation,
+    );
   }
 
   // Restart [idx] from 0: reload (robust against a consumed/ended source),
   // seek to zero, and play. Matches the legacy previous()-restart behavior.
-  Future<void> _restartCurrent(Emitter<PbState> emit, int idx, {int? generation}) async {
+  Future<void> _restartCurrent(
+    Emitter<PbState> emit,
+    int idx, {
+    int? generation,
+  }) async {
     final t = _playlist.trackForOrderIndex(idx);
     if (t == null) return;
     emit(PbLoading(index: idx, track: t, intentPlay: true));
     try {
-      await _transport.setPlaybackTarget(t.path, title: t.title, artist: t.artist, generation: generation);
+      await _transport.setPlaybackTarget(
+        t.path,
+        title: t.title,
+        artist: t.artist,
+        generation: generation,
+      );
     } catch (_) {
       if (!emit.isDone) emit(PbStopped(index: idx));
       return;
     }
     if (emit.isDone) return;
-    await _transport.seekWithinCurrentTrack(Duration.zero, generation: generation);
+    await _transport.seekWithinCurrentTrack(
+      Duration.zero,
+      generation: generation,
+    );
     await _transport.setAudibleState(true, generation: generation);
     if (emit.isDone) return;
     emit(PbActive(index: idx, track: t, playing: true));
   }
 
-  Future<void> _resumePausedOrReload(Emitter<PbState> emit, PbActive state, {int? generation}) async {
+  Future<void> _resumePausedOrReload(
+    Emitter<PbState> emit,
+    PbActive state, {
+    int? generation,
+  }) async {
     try {
-      await _transport.setAudibleState(true, generation: generation); // resume WITHOUT reload when the source is still live
+      await _transport.setAudibleState(
+        true,
+        generation: generation,
+      ); // resume WITHOUT reload when the source is still live
       if (!emit.isDone) {
         emit(PbActive(index: state.index, track: state.track, playing: true));
       }
     } catch (_) {
       if (emit.isDone) return;
-      await _drive(emit, state.index, intentPlay: true, direction: 1, userTap: false, generation: generation);
+      await _drive(
+        emit,
+        state.index,
+        intentPlay: true,
+        direction: 1,
+        userTap: false,
+        generation: generation,
+      );
     }
   }
 
@@ -591,7 +751,9 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
         emit(PbStopped(index: r));
         return;
       }
-      add(GoToIndex(r + 1, direction: 1)); // resume the queue after the one-shot
+      add(
+        GoToIndex(r + 1, direction: 1),
+      ); // resume the queue after the one-shot
       return;
     }
     final n = _playlist.nextOrderIndex();
@@ -602,19 +764,28 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     add(GoToIndex(n, direction: 1)); // auto-advance via the restartable path
   }
 
-  Future<void> _onInterruptionBegan(InterruptionBegan event, Emitter<PbState> emit) async {
+  Future<void> _onInterruptionBegan(
+    InterruptionBegan event,
+    Emitter<PbState> emit,
+  ) async {
     if (event.type == AudioInterruptionType.duck) return; // OS attenuates
     final s = state;
     if (s.isPlaying) {
       _pausedByInterruption = true;
       await _transport.pause();
-      if (s is PbActive) emit(PbActive(index: s.index, track: s.track, playing: false));
+      if (s is PbActive) {
+        emit(PbActive(index: s.index, track: s.track, playing: false));
+      }
     }
   }
 
-  Future<void> _onInterruptionEnded(InterruptionEnded event, Emitter<PbState> emit) async {
+  Future<void> _onInterruptionEnded(
+    InterruptionEnded event,
+    Emitter<PbState> emit,
+  ) async {
     if (event.type == AudioInterruptionType.duck) return;
-    final resume = event.type == AudioInterruptionType.pause && _pausedByInterruption;
+    final resume =
+        event.type == AudioInterruptionType.pause && _pausedByInterruption;
     _pausedByInterruption = false;
     final s = state;
     if (resume && s is PbActive) {
@@ -628,7 +799,9 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
     final s = state;
     if (s.isPlaying) {
       await _transport.pause();
-      if (s is PbActive) emit(PbActive(index: s.index, track: s.track, playing: false));
+      if (s is PbActive) {
+        emit(PbActive(index: s.index, track: s.track, playing: false));
+      }
     }
   }
 
