@@ -242,6 +242,8 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
 
   final Set<String> _failedPaths = <String>{};
   bool _pausedByInterruption = false;
+  int _commandSerial = 0;
+  int? _explicitPlayCommandSerial;
 
   // One-shot: a track played outside the queue. [_oneShotResume] is the queue
   // slot to return to when it ends. One engine, no parallel controller path.
@@ -267,12 +269,27 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   // ---- command handler (restartable) ---------------------------------------
 
   Future<void> _onCommand(PbCommand event, Emitter<PbState> emit) async {
-    final gen = event.generation;
-    if (gen != null) {
-      await _transport.cancelGeneration(gen);
-    }
+    final commandSerial = ++_commandSerial;
+    final requestsPlay = switch (event) {
+      SetPlaybackTarget(:final autoplay) => autoplay,
+      SetAudibleState(:final audible) => audible,
+      SetIntent(:final play) => play,
+      PlayOneShot() => true,
+      GoNext() => true,
+      GoPrevious() => true,
+      GoToIndex(:final intentPlay, :final generation, :final userTap) =>
+        intentPlay && (generation != null || userTap),
+      _ => false,
+    };
+    _explicitPlayCommandSerial = requestsPlay ? commandSerial : null;
 
-    switch (event) {
+    try {
+      final gen = event.generation;
+      if (gen != null) {
+        await _transport.cancelGeneration(gen);
+      }
+
+      switch (event) {
       case SetPlaybackTarget():
         if (event.autoplay) _pausedByInterruption = false;
         emit(
@@ -447,6 +464,11 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
           event.position,
           generation: gen,
         );
+      }
+    } finally {
+      if (_explicitPlayCommandSerial == commandSerial) {
+        _explicitPlayCommandSerial = null;
+      }
     }
   }
 
@@ -770,6 +792,13 @@ class PlaybackBloc extends Bloc<PbEvent, PbState> {
   ) async {
     if (event.type == AudioInterruptionType.duck) return; // OS attenuates
     final s = state;
+    if (event.type == AudioInterruptionType.pause &&
+        s is PbLoading &&
+        s.intentPlay &&
+        _explicitPlayCommandSerial != null) {
+      await _transport.pause();
+      return;
+    }
     if (s.isPlaying) {
       _pausedByInterruption = true;
       await _transport.pause();

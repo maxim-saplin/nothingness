@@ -264,6 +264,75 @@ void main() {
   );
 
   blocTest<PlaybackBloc, PbState>(
+    'next keeps playing when interrupted during the next-track load',
+    build: () => build(),
+    act: (b) async {
+      b.add(const GoToIndex(0));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      tx.loadDelay = const Duration(milliseconds: 60);
+      b.add(const GoNext());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const InterruptionBegan(AudioInterruptionType.pause));
+    },
+    wait: const Duration(milliseconds: 120),
+    verify: (b) {
+      expect(
+        b.state,
+        isA<PbActive>()
+            .having((s) => s.index, 'index', 1)
+            .having((s) => s.playing, 'playing', true),
+      );
+      expect(tx.isPlaying, isTrue);
+    },
+  );
+
+  blocTest<PlaybackBloc, PbState>(
+    'automatic advance stays paused when interrupted during load',
+    build: () => build(),
+    act: (b) async {
+      b.add(const GoToIndex(0));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      tx.loadDelay = const Duration(milliseconds: 60);
+      b.add(const TrackEnded('ended'));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const InterruptionBegan(AudioInterruptionType.pause));
+    },
+    wait: const Duration(milliseconds: 120),
+    verify: (b) {
+      expect(
+        b.state,
+        isA<PbActive>()
+            .having((s) => s.index, 'index', 1)
+            .having((s) => s.playing, 'playing', false),
+      );
+      expect(tx.isPlaying, isFalse);
+    },
+  );
+
+  blocTest<PlaybackBloc, PbState>(
+    'next stays paused after a non-resumable interruption during load',
+    build: () => build(),
+    act: (b) async {
+      b.add(const GoToIndex(0));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      tx.loadDelay = const Duration(milliseconds: 60);
+      b.add(const GoNext());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const InterruptionBegan(AudioInterruptionType.unknown));
+    },
+    wait: const Duration(milliseconds: 120),
+    verify: (b) {
+      expect(
+        b.state,
+        isA<PbActive>()
+            .having((s) => s.index, 'index', 1)
+            .having((s) => s.playing, 'playing', false),
+      );
+      expect(tx.isPlaying, isFalse);
+    },
+  );
+
+  blocTest<PlaybackBloc, PbState>(
     'user pause during interruption: no resume on end',
     build: () => build(),
     act: (b) async {
