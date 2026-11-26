@@ -47,6 +47,7 @@ class NothingAudioHandler extends BaseAudioHandler
     required this._controller,
     required this._transport,
   }) {
+    _updatePlaybackState();
     unawaited(_init());
   }
 
