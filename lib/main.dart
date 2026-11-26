@@ -87,9 +87,8 @@ class _BootstrapApp extends HookWidget {
               androidNotificationChannelId:
                   'com.saplin.nothingness.channel.audio',
               androidNotificationChannelName: 'Audio playback',
-              // Release audio_service's own partial wake lock when playback is
-              // paused. Resume promotes the service again if playback restarts.
-              androidStopForegroundOnPause: true,
+              androidNotificationIcon: 'drawable/ic_stat_nothingness',
+              androidStopForegroundOnPause: false,
             ),
           );
           await handler.ready;
