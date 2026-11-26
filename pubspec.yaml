@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 3.14.27+95
+version: 3.14.28+96
 
 environment:
   sdk: ^3.14.0
@@ -40,6 +40,8 @@ dependencies:
   material_ui: ^1.11.1
 
 dependency_overrides:
+  audio_service:
+    path: ./packages/audio_service
   on_audio_query_android:
     path: ./packages/on_audio_query_android
 

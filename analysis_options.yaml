@@ -13,6 +13,7 @@ analyzer:
   exclude:
     - build/**
     - android/**
+    - packages/audio_service/**
     - macos/**
     - linux/**
 
