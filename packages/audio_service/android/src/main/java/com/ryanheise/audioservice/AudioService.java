@@ -103,7 +103,7 @@ public class AudioService extends MediaBrowserServiceCompat {
     static AudioService instance;
     private static PendingIntent contentIntent;
     private static ServiceListener listener;
-    private static List<MediaSessionCompat.QueueItem> queue = new ArrayList<>();
+    private static volatile List<MediaSessionCompat.QueueItem> queue = new ArrayList<>();
     private static final Map<String, MediaMetadataCompat> mediaMetadataCache = new HashMap<>();
 
     public static void init(ServiceListener listener) {
@@ -762,7 +762,7 @@ public class AudioService extends MediaBrowserServiceCompat {
      * Updates queue.
      * Gets called from background thread.
      */
-    synchronized void setQueue(List<MediaSessionCompat.QueueItem> queue) {
+    void setQueue(List<MediaSessionCompat.QueueItem> queue) {
         AudioService.queue = queue;
         mediaSession.setQueue(queue);
     }
@@ -783,30 +783,36 @@ public class AudioService extends MediaBrowserServiceCompat {
      *  - https://developer.android.com/guide/topics/media-apps/working-with-a-media-session#album_artwork
      *  - https://9to5google.com/2020/08/02/android-11-lockscreen-art/
      */
-    synchronized void setMetadata(MediaMetadataCompat mediaMetadata) {
+    void setMetadata(MediaMetadataCompat mediaMetadata) {
+        Bitmap nextArtBitmap;
         String artCacheFilePath = mediaMetadata.getString("artCacheFile");
         if (artCacheFilePath != null) {
             // Load local files and network images, cached in files
-            artBitmap = loadArtBitmap(artCacheFilePath, null);
-            mediaMetadata = putArtToMetadata(mediaMetadata);
+            nextArtBitmap = loadArtBitmap(artCacheFilePath, null);
+            mediaMetadata = putArtToMetadata(mediaMetadata, nextArtBitmap);
         } else {
             // Load content:// URIs
             String artUri = mediaMetadata.getString(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON_URI);
             if (artUri != null && artUri.startsWith("content:")) {
                 String loadThumbnailUri = mediaMetadata.getString("loadThumbnailUri");
-                artBitmap = loadArtBitmap(artUri, loadThumbnailUri);
-                mediaMetadata = putArtToMetadata(mediaMetadata);
+                nextArtBitmap = loadArtBitmap(artUri, loadThumbnailUri);
+                mediaMetadata = putArtToMetadata(mediaMetadata, nextArtBitmap);
             } else {
-                artBitmap = null;
+                nextArtBitmap = null;
             }
         }
-        this.mediaMetadata = mediaMetadata;
+        synchronized (this) {
+            artBitmap = nextArtBitmap;
+            this.mediaMetadata = mediaMetadata;
+        }
         mediaSession.setMetadata(mediaMetadata);
         handler.removeCallbacksAndMessages(null);
         handler.post(this::updateNotification);
     }
 
-    private MediaMetadataCompat putArtToMetadata(MediaMetadataCompat mediaMetadata) {
+    private MediaMetadataCompat putArtToMetadata(
+            MediaMetadataCompat mediaMetadata,
+            Bitmap artBitmap) {
         return new MediaMetadataCompat.Builder(mediaMetadata)
                 .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artBitmap)
                 .putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, artBitmap)

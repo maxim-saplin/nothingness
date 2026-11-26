@@ -521,7 +521,11 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
         public MethodChannel channel;
         private AudioTrack silenceAudioTrack;
         private final Handler handler = new Handler(Looper.getMainLooper());
-        private final ExecutorService mediaStateExecutor =
+        private final ExecutorService mediaItemExecutor =
+                Executors.newSingleThreadExecutor();
+        private final ExecutorService queueExecutor =
+                Executors.newSingleThreadExecutor();
+        private final ExecutorService playbackStateExecutor =
                 Executors.newSingleThreadExecutor();
         private List<MethodInvocation> methodInvocationQueue = new LinkedList<MethodInvocation>();
 
@@ -838,7 +842,7 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
                 Map<?, ?> args = (Map<?, ?>)call.arguments;
                 switch (call.method) {
                 case "setMediaItem": {
-                    mediaStateExecutor.execute(() -> {
+                    mediaItemExecutor.execute(() -> {
                         try {
                             Map<?, ?> rawMediaItem = (Map<?, ?>)args.get("mediaItem");
                             MediaMetadataCompat mediaMetadata = createMediaMetadata(rawMediaItem);
@@ -853,7 +857,7 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
                     break;
                 }
                 case "setQueue": {
-                    mediaStateExecutor.execute(() -> {
+                    queueExecutor.execute(() -> {
                         try {
                             @SuppressWarnings("unchecked") List<Map<?, ?>> rawQueue = (List<Map<?, ?>>) args.get("queue");
                             List<MediaSessionCompat.QueueItem> queue = raw2queue(rawQueue);
@@ -917,7 +921,7 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
                     }
                     final long finalActionBits = actionBits;
                     final int[] finalCompactActionIndices = compactActionIndices;
-                    mediaStateExecutor.execute(() -> {
+                    playbackStateExecutor.execute(() -> {
                         try {
                             AudioService.instance.setState(
                                     actions,
@@ -1030,7 +1034,9 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
         }
 
         private void destroy() {
-            mediaStateExecutor.shutdownNow();
+            mediaItemExecutor.shutdownNow();
+            queueExecutor.shutdownNow();
+            playbackStateExecutor.shutdownNow();
             if (silenceAudioTrack != null)
                 silenceAudioTrack.release();
         }
