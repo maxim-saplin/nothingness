@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../models/spectrum_settings.dart';
 import 'spectrum_analyzer.dart';
 
-const _fftMinDecibels = -100.0;
-const _fftMaxDecibels = 0.0;
+typedef VoiceHandleProvider = Future<SoundHandle?> Function();
 
 /// Provides spectrum data as normalized buckets in the range 0..1.
 abstract class SpectrumProvider {
@@ -24,51 +23,41 @@ abstract class SpectrumProvider {
   void updateSettings(SpectrumSettings settings);
 }
 
-/// Spectrum provider that converts SoLoud visualization events into bars.
+/// Spectrum provider that polls SoLoud FFT data for the current voice handle.
 class SoLoudSpectrumProvider implements SpectrumProvider {
   SoLoudSpectrumProvider({
     required this._soloud,
+    required this._handleProvider,
     SpectrumSettings initialSettings = const SpectrumSettings(),
   }) : _settings = initialSettings;
 
   final SoLoud _soloud;
+  final VoiceHandleProvider _handleProvider;
 
   SpectrumSettings _settings;
+  Timer? _timer;
   final _controller = StreamController<List<double>>.broadcast();
   List<double> _lastValues = const [];
+  final AudioData _audioData = AudioData(GetSamplesKind.linear);
   final SpectrumAnalyzer _analyzer = SpectrumAnalyzer();
-  StreamSubscription<AudioVisualizationData>? _subscription;
 
   @override
   Stream<List<double>> get spectrumStream => _controller.stream;
 
   @override
   Future<void> start() async {
-    if (_soloud.minDecibels != _fftMinDecibels ||
-        _soloud.maxDecibels != _fftMaxDecibels) {
-      _soloud.setFftDecibelRange(_fftMinDecibels, _fftMaxDecibels);
-    }
     if (!_soloud.getVisualizationEnabled()) {
-      _soloud.setVisualizationEnabled(
-        true,
-        windowSize: 256,
-        kind: VisualizationKind.fft,
-        channel: VisualizationChannel.merged,
-      );
+      _soloud.setVisualizationEnabled(true);
     }
-    _subscription ??=
-        _soloud.audioVisualizationEvents.listen(_consumeVisualization);
+    _timer ??= Timer.periodic(const Duration(milliseconds: 16), (_) async {
+      await _poll();
+    });
   }
 
   @override
   Future<void> stop() async {
-    final subscription = _subscription;
-    _subscription = null;
-    final cancellation = subscription?.cancel();
-    if (_soloud.isInitialized && _soloud.getVisualizationEnabled()) {
-      _soloud.setVisualizationEnabled(false);
-    }
-    await cancellation;
+    _timer?.cancel();
+    _timer = null;
   }
 
   @override
@@ -76,31 +65,40 @@ class SoLoudSpectrumProvider implements SpectrumProvider {
     _settings = settings;
   }
 
-  void _consumeVisualization(AudioVisualizationData data) {
-    final fftData = data.fftData;
-    if (fftData == null || fftData.isEmpty) return;
+  Future<void> _poll() async {
+    final handle = await _handleProvider();
+    if (handle == null) return;
 
-    // SoLoud emits FFT bins normalized from its configured dB range, while
-    // SpectrumAnalyzer expects linear magnitudes.
-    final minDecibels = _soloud.minDecibels;
-    final decibelRange = _soloud.maxDecibels - minDecibels;
-    final magnitudes = List<double>.generate(
-      fftData.length,
-      (index) {
-        final normalized = fftData[index].clamp(0.0, 1.0);
-        final decibels = minDecibels + normalized * decibelRange;
-        return math.pow(10.0, decibels / 20.0).toDouble();
-      },
-      growable: false,
-    );
-    final bars = _analyzer.transform(
-      fft: magnitudes,
-      barCount: _settings.barCount.count,
-      noiseGateDb: _settings.noiseGateDb,
-      previousValues: _lastValues,
-      smoothing: _settings.decaySpeed.value,
-    );
-    _controller.add(bars);
-    _lastValues = bars;
+    try {
+      List<double> fft;
+      if (_soloud.getPause(handle)) {
+        if (_lastValues.every((v) => v < 0.01)) {
+          if (_lastValues.any((v) => v != 0.0)) {
+            final flat = List<double>.filled(_lastValues.length, 0.0);
+            _controller.add(flat);
+            _lastValues = flat;
+          }
+          return;
+        }
+        fft = List<double>.filled(256, 0.0);
+      } else {
+        _audioData.updateSamples();
+        final samples = _audioData.getAudioData();
+        if (samples.length < 256) return;
+        fft = samples.sublist(0, 256);
+      }
+
+      final bars = _analyzer.transform(
+        fft: fft,
+        barCount: _settings.barCount.count,
+        noiseGateDb: _settings.noiseGateDb,
+        previousValues: _lastValues,
+        smoothing: _settings.decaySpeed.value,
+      );
+      _controller.add(bars);
+      _lastValues = bars;
+    } catch (e) {
+      debugPrint('SoLoud spectrum poll error: $e');
+    }
   }
 }

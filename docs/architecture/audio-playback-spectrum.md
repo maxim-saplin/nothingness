@@ -4,7 +4,7 @@ This document details audio stack choices, data paths, and behaviors for playbac
 
 ## Goals & Rationale
 - Clean separation of concerns: `PlaybackController` handles business logic (user intent, queue, error recovery, audio focus / route handling), `AudioTransport` provides thin native player control.
-- Single transport: SoLoud (`flutter_soloud` 5.3.2) on all platforms. No backend toggle needed. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
+- Single transport: SoLoud (`flutter_soloud` 4.0.7 from `./soloud`) on all platforms. No backend toggle needed. `NothingAudioHandler` (audio_service) owns MediaSession/notification state and delegates playback logic to `PlaybackController`.
 - Spectrum comes from SoLoud's built-in FFT, with microphone capture as an Android fallback.
 - User intent tracking via `PlayIntent` enum prevents race conditions between pause and auto-skip.
 - Audio focus events (`audio_session`) are handled in `PlaybackController` only — the transport stays intent-blind. Phone calls pause and auto-resume; headphones/BT disconnect (becoming noisy) pauses without auto-resume.
@@ -20,11 +20,11 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - **Audio-event diagnostics ring buffer**: Bounded 300-entry log of interruption / route / load / end / error events, exposed via `diagnosticsSnapshot()['audioEvents']` and `audioEvents()` for VM-service inspection.
 - **`PlaybackTelemetry`**: Extracted from `PlaybackController`. Owns structured/diagnostic logging via `package:logging` (`Logger('nothingness.*')`); the controller delegates to it instead of carrying a bespoke logging service.
 - **`SpectrumSource`**: Extracted from `PlaybackController`. Owns FFT/spectrum sourcing (SoLoud FFT by default, or the Android mic stream when selected) and exposes the spectrum data the UI renders.
-- **`SoLoudSpectrumProvider`**: Subscribes to `audioVisualizationEvents` while capture is enabled. The transport requests merged FFT data with a 256-sample window, which supplies 128 bins normalized over -100 to 0 dB. The provider converts those bins back to linear magnitudes before `SpectrumAnalyzer` applies the app's noise gate and frequency weighting.
+- **`SoLoudSpectrumProvider`**: Polls SoLoud's FFT while capture is enabled and passes the samples through `SpectrumAnalyzer`.
 - **`NothingAudioHandler` (Android)**: `audio_service` handler that owns MediaSession/notification state. It wraps the **same** `PlaybackController` as a pure observer + command-forwarder — it observes the controller's notifiers to mirror queue/media-item/playback state for the OS and forwards OS media-button commands (play/pause/next/previous/seek) back to the controller. No `customAction` IPC bridge.
 - **`AudioTransport` (interface)**: Thin abstraction over platform-specific players. Provides minimal interface:
   - Load audio files (`load(String path)`). All formats — including **Opus** — take the same path: `SoLoudTransport` tries native `loadFile(path)` first and falls back to decoding from a MediaStore `content://` URI (`readAndroidAudioBytes` → `loadMem`) only when raw-path access fails (Android 11+ scoped storage blocks raw `File`/native access to shared storage). See `lib/services/android_audio_source.dart` and `B-049`.
-  - **Opus decodes natively in `loadFile`/`loadMem`** (i.e. on `flutter_soloud`'s background `compute` isolate, like mp3) — not via a Dart-side `setBufferStream` + chunked `addAudioDataStream` feed on the UI isolate. Upstream `flutter_soloud` 5.3.2 includes the native Opus decoder; no local fork or dependency override is used.
+  - **Opus uses the native streaming decoder in `./soloud`**. It copies/indexes the compressed file at load time and decodes PCM lazily during playback. The app pins this path dependency because upstream 5.x decodes the whole Ogg/Opus file into PCM before `loadFile` completes.
   - Play/pause/seek control
   - Position and duration queries
   - Event emission (`TransportEvent`: error, ended, loaded, position)
@@ -34,6 +34,21 @@ This document details audio stack choices, data paths, and behaviors for playbac
   - **`SoLoudTransport`**: Thin wrapper around SoLoud for playback and FFT on all platforms. No queue awareness, no skip logic.
 - **Spectrum sourcing** (`SpectrumSource`): SoLoud FFT by default; on Android the mic stream from native `AudioCaptureService` is delivered via a `PlatformChannels` EventChannel when explicitly selected. Mic mode requires mic permission.
 - **`MediaControllerPage` / UI**: Watches `PlaybackController` directly; switches capture based on `SpectrumSettings.audioSource` (transport spectrum by default, mic when explicitly selected on Android).
+
+## Required dependency guardrail
+
+**Do not migrate away from `./soloud` as dependency cleanup.**
+
+The fork contains `OpusStream` and the `TYPE_OPUS_STREAM` player path. They are not equivalent to selecting `LoadMode.disk` in upstream 5.x: upstream still falls back to whole-file Ogg/Opus decoding in that mode.
+
+Before removing or updating the fork:
+
+1. Run a release-like Android build on a physical device or emulator with a multi-minute `.opus` file.
+2. Measure initial load, Next, pause/resume, and seek separately.
+3. Verify that Opus source creation does not decode the complete track before playback.
+4. Keep the `keeps native Opus streaming fork pinned` test passing.
+
+Native decode support alone is not sufficient. "Loads Opus without error" passed during the upstream migration while Next and resume still regressed from milliseconds to hundreds of milliseconds.
 
 ## Playback Pipeline (Transport Spectrum)
 ```mermaid

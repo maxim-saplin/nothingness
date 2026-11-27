@@ -65,7 +65,7 @@ Originally inspired by a need for digital minimalism in modern cars (specificall
 Nothingness uses a unified provider architecture:
 
 -   **Flutter Layer**: Handles UI, Navigation, Settings, and Visualization rendering.
--   **Audio Backend**: **SoLoud** (`flutter_soloud` 5.3.2) on both macOS and Android — low-latency playback and FFT for the spectrum. Upstream `flutter_soloud` includes native Opus decoding in `loadFile`/`loadMem`; no local fork or submodule is required.
+-   **Audio Backend**: **SoLoud** (`flutter_soloud` 4.0.7 from `./soloud`) on both macOS and Android. The local fork implements native lazy Opus streaming; replacing it with upstream 5.x restores whole-file Opus decode delays on track changes. See [Audio Playback & Spectrum](docs/architecture/audio-playback-spectrum.md).
 -   **Android session/notification**: `audio_service` (`NothingAudioHandler`) owns the MediaSession, lock-screen controls, and background playback, and delegates playback decisions to `PlaybackController`.
 -   **Audio focus / interruptions**: `audio_session` subscriptions in `PlaybackController` pause on phone calls / focus loss and resume on focus regain; "becoming noisy" (headphones/BT unplugged) is treated as an explicit pause.
 -   **Native fallback**: On Android, an optional `AudioCaptureService` can use the microphone/system mix as a spectrum source if selected in settings.

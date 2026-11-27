@@ -11,6 +11,7 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
+    - soloud/**
     - build/**
     - android/**
     - packages/audio_service/**

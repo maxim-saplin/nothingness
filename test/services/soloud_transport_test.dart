@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nothingness/services/soloud_transport.dart';
 
@@ -19,5 +21,17 @@ void main() {
       await transport.seekWithinCurrentTrack(const Duration(seconds: 42));
       expect(await transport.position, const Duration(seconds: 42));
     });
+  });
+
+  test('keeps native Opus streaming fork pinned', () {
+    expect(
+      File('pubspec.yaml').readAsStringSync(),
+      contains('flutter_soloud:\n    path: ./soloud'),
+    );
+    expect(File('soloud/src/audiobuffer/opus_stream.cpp').existsSync(), isTrue);
+    expect(
+      File('soloud/src/player.cpp').readAsStringSync(),
+      contains('TYPE_OPUS_STREAM'),
+    );
   });
 }

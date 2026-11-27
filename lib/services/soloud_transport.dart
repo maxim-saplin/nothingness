@@ -164,6 +164,7 @@ class SoLoudTransport implements AudioTransport {
 
   Future<void> _initPlayer() async {
     await _soloud.init();
+    _soloud.setVisualizationEnabled(true);
     _soloud.setFftSmoothing(_settings.decaySpeed.value.clamp(0.0, 1.0));
     _ensureSpectrumProvider();
     if (_captureEnabled) await _startSpectrum();
@@ -172,6 +173,7 @@ class SoLoudTransport implements AudioTransport {
   void _ensureSpectrumProvider() {
     _spectrumProvider ??= SoLoudSpectrumProvider(
       soloud: _soloud,
+      handleProvider: () async => _currentHandle,
       initialSettings: _settings,
     );
     _spectrumSub ??= _spectrumProvider!.spectrumStream.listen(
@@ -621,7 +623,6 @@ class SoLoudTransport implements AudioTransport {
         (fileResolver?.supports(path) == true
             ? await fileResolver!.resolveLocalPath(path)
             : path);
-    // Opus now decodes natively inside loadFile/loadMem, like mp3.
     final isOpus = p.extension(sourcePath).toLowerCase() == '.opus';
     final sw = isOpus ? (Stopwatch()..start()) : null;
     void perf(String mode) {

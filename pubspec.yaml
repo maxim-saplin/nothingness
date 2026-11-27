@@ -3,7 +3,7 @@ description: "Media controller with spectrum visualizer"
 
 publish_to: "none"
 
-version: 3.14.30+98
+version: 3.14.31+99
 
 environment:
   sdk: ^3.14.0
@@ -23,7 +23,7 @@ dependencies:
   audio_service: ^0.18.18
   permission_handler: ^13.0.2
   flutter_secure_storage: ^11.2.0
-  flutter_soloud: ^5.3.2
+  flutter_soloud: ^4.0.4
   crypto: ^3.0.8
   xml: ^7.0.1
   path: ^1.9.0
@@ -42,6 +42,10 @@ dependencies:
 dependency_overrides:
   audio_service:
     path: ./packages/audio_service
+  # Required: upstream 5.x fully decodes Ogg/Opus before playback. This fork
+  # streams Opus natively, keeping track switching responsive.
+  flutter_soloud:
+    path: ./soloud
   on_audio_query_android:
     path: ./packages/on_audio_query_android
 
